@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ml-toolkit"
+version = "0.1.0"
+description = "Reusable ML training, metrics, PSI, diagnostics, plots, and MLflow logging"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy>=2.0", "pandas>=2.2", "polars>=1.0", "pyarrow>=15",
+    "matplotlib>=3.7", "scikit-learn>=1.4", "catboost>=1.2",
+    "mlflow>=3.0", "optuna>=3.0",
+]
+
+[project.optional-dependencies]
+shap = ["shap>=0.46"]
+lightgbm = ["lightgbm>=4.0"]
+all = ["shap>=0.46", "lightgbm>=4.0"]
+test = ["pytest>=8"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

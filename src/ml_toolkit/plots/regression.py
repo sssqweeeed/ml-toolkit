@@ -1,0 +1,108 @@
+"""Observed-versus-fitted diagnostics for continuous targets."""
+
+from pathlib import Path
+
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+
+from .utils import PlotError, numeric_vector, same_length, save_figure, weights
+
+
+def _aggregate(groups, observed, fitted, weight, name: str, *, sort: bool) -> pd.DataFrame:
+    frame = pd.DataFrame({name: groups, "observed_weighted": observed * weight,
+                          "fitted_weighted": fitted * weight, "volume": weight})
+    grouped = frame.groupby(name, sort=sort, as_index=False, observed=True).sum(numeric_only=True)
+    grouped = grouped.loc[grouped.volume > 0].copy()
+    grouped["observed"] = grouped.observed_weighted / grouped.volume
+    grouped["fitted"] = grouped.fitted_weighted / grouped.volume
+    return grouped[[name, "observed", "fitted", "volume"]]
+
+
+def observed_fitted(feature, observed, fitted, save_fig: str | Path, *,
+                    weight=None, feature_name: str = "Feature", n_bins: int = 10) -> pd.DataFrame:
+    """Plot weighted actual and fitted means by feature value or quantile bin."""
+    y, prediction = numeric_vector(observed, "observed"), numeric_vector(fitted, "fitted")
+    values = pd.Series(feature, name=feature_name)
+    same_length(feature=values, observed=y, fitted=prediction)
+    exposure = weights(weight, len(y))
+    if n_bins < 1:
+        raise ValueError("n_bins must be positive")
+    numeric = pd.api.types.is_numeric_dtype(values) and values.nunique(dropna=True) > 1
+    if numeric:
+        groups = pd.qcut(values, q=min(n_bins, values.nunique(dropna=True)), duplicates="drop")
+        groups = groups.astype("string").fillna("missing")
+    else:
+        groups = values.astype("string").fillna("missing")
+    grouped = _aggregate(groups, y, prediction, exposure, "feature", sort=numeric)
+    x = np.arange(len(grouped))
+    fig, ax = plt.subplots(figsize=(10, 6))
+    volume_ax = ax.twinx()
+    volume_ax.bar(x, grouped.volume, alpha=0.2, color="tab:gray")
+    ax.plot(x, grouped.observed, marker="o", label="Observed")
+    ax.plot(x, grouped.fitted, marker="o", label="Fitted")
+    ax.set_xticks(x, grouped.feature.astype(str), rotation=45, ha="right")
+    ax.set(xlabel=feature_name, ylabel="Observed / fitted")
+    volume_ax.set_ylabel("Exposure / count")
+    ax.legend()
+    fig.tight_layout()
+    save_figure(fig, save_fig)
+    return grouped
+
+
+def monthly_observed_fitted(reference_timestamp, reference_observed, reference_fitted,
+                            current_timestamp, current_observed, current_fitted,
+                            save_fig: str | Path, *, reference_weight=None, current_weight=None,
+                            reference_group=None, current_group=None) -> pd.DataFrame:
+    """Plot monthly weighted means for two data splits and optional groups.
+
+    Both splits may use any datetime-like values. Groups replace the source
+    project's business-type assumption and can be omitted.
+    """
+    splits = []
+    for name, timestamps, observed, fitted, weight, group in (
+        ("reference", reference_timestamp, reference_observed, reference_fitted, reference_weight, reference_group),
+        ("current", current_timestamp, current_observed, current_fitted, current_weight, current_group),
+    ):
+        y, prediction = numeric_vector(observed, f"{name}_observed"), numeric_vector(fitted, f"{name}_fitted")
+        time = pd.DatetimeIndex(pd.to_datetime(timestamps, utc=True)).tz_localize(None)
+        same_length(timestamp=time, observed=y, fitted=prediction)
+        if time.isna().any():
+            raise PlotError("timestamps must not contain missing values")
+        exposure = weights(weight, len(y))
+        labels = np.full(len(y), "all", dtype=object) if group is None else np.asarray(group, dtype=object)
+        same_length(group=labels, observed=y)
+        frame = pd.DataFrame({"month": time.to_period("M").to_timestamp(), "plot_date": time,
+                              "group": pd.Series(labels).fillna("missing").astype(str),
+                              "observed_weighted": y * exposure, "fitted_weighted": prediction * exposure,
+                              "volume": exposure})
+        aggregated = frame.groupby(["month", "group"], as_index=False).agg(
+            plot_date=("plot_date", "mean"), observed_weighted=("observed_weighted", "sum"),
+            fitted_weighted=("fitted_weighted", "sum"), volume=("volume", "sum"))
+        aggregated = aggregated.loc[aggregated.volume > 0].copy()
+        aggregated["observed"] = aggregated.observed_weighted / aggregated.volume
+        aggregated["fitted"] = aggregated.fitted_weighted / aggregated.volume
+        aggregated["split"] = name
+        splits.append(aggregated[["month", "plot_date", "group", "split", "observed", "fitted", "volume"]])
+    grouped = pd.concat(splits, ignore_index=True)
+    groups = sorted(grouped.group.unique())
+    fig, axes = plt.subplots(len(groups), 1, figsize=(14, 5 * len(groups)), sharex=True)
+    boundary = pd.Timestamp(pd.to_datetime(current_timestamp, utc=True).min()).tz_localize(None)
+    for ax, label in zip(np.atleast_1d(axes), groups):
+        ax.axvline(boundary, color="tab:orange", linestyle=":", label="Current begins")
+        for split, linestyle in (("reference", "-"), ("current", "--")):
+            subset = grouped.loc[(grouped.group == label) & (grouped.split == split)].sort_values("month")
+            if not subset.empty:
+                ax.plot(subset.plot_date, subset.observed, color="tab:blue", linestyle=linestyle, marker="o",
+                        label=f"Observed — {split}")
+                ax.plot(subset.plot_date, subset.fitted, color="tab:red", linestyle=linestyle, marker="o",
+                        label=f"Fitted — {split}")
+        ax.set(title=label, ylabel="Weighted observed / fitted")
+        ax.grid(alpha=0.2)
+        ax.legend(loc="best")
+    np.atleast_1d(axes)[-1].set_xlabel("Month")
+    fig.suptitle("Monthly observed vs fitted")
+    fig.autofmt_xdate()
+    fig.tight_layout()
+    save_figure(fig, save_fig)
+    return grouped

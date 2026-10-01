@@ -1,0 +1,205 @@
+from __future__ import annotations
+
+from collections.abc import Sequence
+from dataclasses import dataclass, field
+from itertools import pairwise
+
+import numpy as np
+import polars as pl
+
+from .config import (
+    ERROR_LEVEL,
+    NULL_LEVEL,
+    UNSEEN_LEVEL,
+    FeatureLevelConfig,
+    LevelConfig,
+    PSIFeature,
+)
+
+
+@dataclass
+class LevelTransformer:
+    features: Sequence[PSIFeature]
+    n_bins: int = 10
+    config: LevelConfig | None = field(init=False, default=None)
+
+    def __post_init__(self) -> None:
+        self.features = tuple(self.features)
+        names = [feature.name for feature in self.features]
+        if len(names) != len(set(names)):
+            raise ValueError("Feature names must be unique")
+        if isinstance(self.n_bins, bool) or not isinstance(self.n_bins, int):
+            raise TypeError("n_bins must be an integer")
+        if self.n_bins < 1:
+            raise ValueError("n_bins must be a positive integer")
+
+    def fit(self, reference: pl.DataFrame) -> LevelTransformer:
+        """Learn levels and numerical boundaries from reference data."""
+        if not isinstance(reference, pl.DataFrame) or reference.is_empty():
+            raise ValueError("reference must be a non-empty polars DataFrame")
+        names = [feature.name for feature in self.features]
+        missing = sorted(set(names) - set(reference.columns))
+        if missing:
+            raise ValueError(f"Features are missing from reference: {missing}")
+
+        configs = []
+        for feature in self.features:
+            column = reference.get_column(feature.name)
+            valid = column.is_not_null()
+            if column.dtype.is_float():
+                valid &= column.is_not_nan()
+            if feature.null_level is not None:
+                valid &= column != feature.null_level
+            if feature.error_level is not None:
+                valid &= column != feature.error_level
+            regular = column.filter(valid)
+
+            if feature.ftype == "categorical":
+                regular = regular.unique(maintain_order=True)
+                categories = tuple(regular.to_list())
+                labels = tuple(regular.cast(pl.String).to_list())
+                reserved = {NULL_LEVEL, ERROR_LEVEL, UNSEEN_LEVEL}
+                if reserved.intersection(labels):
+                    raise ValueError(
+                        f"Feature {feature.name!r} contains a reserved PSI level"
+                    )
+
+                levels = (*labels, NULL_LEVEL, UNSEEN_LEVEL)
+                if feature.error_level is not None:
+                    levels = (*levels, ERROR_LEVEL)
+                feature_config = FeatureLevelConfig(
+                    name=feature.name,
+                    ftype=feature.ftype,
+                    levels=levels,
+                    categories=categories,
+                    error_level=feature.error_level,
+                    null_level=feature.null_level,
+                )
+            else:
+                numbers = regular.cast(pl.Float64, strict=True)
+                if not numbers.is_finite().all():
+                    raise ValueError(
+                        f"Feature {feature.name!r} must contain finite values"
+                    )
+                if feature.lower_bound is not None:
+                    numbers = numbers.filter(numbers >= feature.lower_bound)
+                if feature.upper_bound is not None:
+                    numbers = numbers.filter(numbers <= feature.upper_bound)
+                minimum = numbers.min()
+                maximum = numbers.max()
+                if len(numbers) < 2 or minimum == maximum:
+                    boundaries: tuple[float, ...] = ()
+                else:
+                    quantiles = np.linspace(0.0, 1.0, self.n_bins + 1)[1:-1]
+                    boundaries = tuple(
+                        float(value)
+                        for value in np.unique(
+                            np.quantile(numbers.to_numpy(), quantiles)
+                        )
+                        if minimum < value < maximum
+                    )
+
+                lower_edge = (
+                    -np.inf if feature.lower_bound is None else feature.lower_bound
+                )
+                upper_edge = (
+                    np.inf if feature.upper_bound is None else feature.upper_bound
+                )
+                interval_edges = (lower_edge, *boundaries, upper_edge)
+                interval_levels = []
+                for left, right in pairwise(interval_edges):
+                    left_label = "-inf" if left == -np.inf else f"{left:g}"
+                    right_label = "inf" if right == np.inf else f"{right:g}"
+                    right_bracket = (
+                        "]" if right == upper_edge and right != np.inf else ")"
+                    )
+                    interval_levels.append(
+                        f"[{left_label}, {right_label}{right_bracket}"
+                    )
+
+                levels = (*interval_levels, NULL_LEVEL)
+                if (
+                    feature.error_level is not None
+                    or feature.lower_bound not in (None, -np.inf)
+                    or feature.upper_bound not in (None, np.inf)
+                ):
+                    levels = (*levels, ERROR_LEVEL)
+                feature_config = FeatureLevelConfig(
+                    name=feature.name,
+                    ftype=feature.ftype,
+                    levels=levels,
+                    boundaries=boundaries,
+                    error_level=feature.error_level,
+                    null_level=feature.null_level,
+                    lower_bound=feature.lower_bound,
+                    upper_bound=feature.upper_bound,
+                )
+            configs.append(feature_config)
+
+        self.config = LevelConfig(tuple(configs))
+        return self
+
+    def transform(self, data: pl.DataFrame) -> pl.DataFrame:
+        """Replace configured features with fitted pl.Categorical levels."""
+        if self.config is None:
+            raise RuntimeError("LevelTransformer must be fitted before transform")
+        if not isinstance(data, pl.DataFrame) or data.is_empty():
+            raise ValueError("data must be a non-empty polars DataFrame")
+        missing = sorted(
+            {feature.name for feature in self.config.features} - set(data.columns)
+        )
+        if missing:
+            raise ValueError(f"Features are missing from data: {missing}")
+
+        expressions = []
+        for feature in self.config.features:
+            column = pl.col(feature.name)
+            nulls = column.is_null()
+            if data.schema[feature.name].is_float():
+                nulls |= column.is_nan()
+            if feature.null_level is not None:
+                nulls |= column == feature.null_level
+
+            errors = pl.lit(False)
+            if feature.error_level is not None:
+                errors = column == feature.error_level
+
+            if feature.ftype == "categorical":
+                regular = (
+                    pl.when(column.is_in(feature.categories))
+                    .then(column.cast(pl.String))
+                    .otherwise(pl.lit(UNSEEN_LEVEL))
+                )
+            else:
+                special_errors = errors
+                numbers = (
+                    pl.when(nulls | special_errors)
+                    .then(pl.lit(None))
+                    .otherwise(column)
+                    .cast(pl.Float64, strict=True)
+                )
+                if feature.lower_bound is not None:
+                    errors |= (numbers < feature.lower_bound).fill_null(False)
+                if feature.upper_bound is not None:
+                    errors |= (numbers > feature.upper_bound).fill_null(False)
+                interval_levels = feature.levels[: len(feature.boundaries) + 1]
+                regular = pl.lit(interval_levels[-1])
+                for index in reversed(range(len(feature.boundaries))):
+                    regular = (
+                        pl.when(numbers < feature.boundaries[index])
+                        .then(pl.lit(interval_levels[index]))
+                        .otherwise(regular)
+                    )
+
+            expression = (
+                pl.when(nulls)
+                .then(pl.lit(NULL_LEVEL))
+                .when(errors)
+                .then(pl.lit(ERROR_LEVEL))
+                .otherwise(regular)
+                .cast(pl.Categorical)
+                .alias(feature.name)
+            )
+            expressions.append(expression)
+
+        return data.with_columns(expressions)
