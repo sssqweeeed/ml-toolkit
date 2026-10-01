@@ -12,6 +12,14 @@ SHAP and LightGBM are optional: install `.[shap]`, `.[lightgbm]`, or `.[all]`
 when those integrations are needed. CatBoost, Polars, Matplotlib, Optuna,
 scikit-learn, and MLflow are installed by default.
 
+## CodeGraph for Codex
+
+This repository includes a project-local Codex MCP configuration for
+[CodeGraph](https://github.com/colbymchenry/codegraph). Install the CodeGraph
+CLI using its upstream instructions, then run `codegraph init` in the repository
+root to build the local code index. Restart Codex to load the MCP server.
+The generated `.codegraph/` index is ignored by Git.
+
 ## Training from a project
 
 Projects own their data preparation, model settings, experiment names, and
@@ -62,6 +70,37 @@ For classification, supply `CatBoostClassificationModel`,
 The same `train_model` function performs the workflow. Optuna tuning is enabled
 with `tune_params=True`, `param_space`, `metric_to_optimize`, and
 `optimize_direction`.
+
+For positive–unlabeled learning, label `1` means confirmed positive and `0`
+means unlabeled. Use a PU loss, a prevalence estimate, `PUMetric`, and PU
+diagnostics together:
+
+```python
+from ml_toolkit.metrics import PUMetric
+from ml_toolkit.training import DiagnosticsOptions, train_model
+from ml_toolkit.models import CatBoostClassificationModel
+
+prior = 0.08  # Estimate from the target population, not the labeled fraction.
+result = train_model(
+    data=pu_data, model_factory=CatBoostClassificationModel,
+    params={"loss": "nnPU", "pu_prior": prior, "iterations": 200,
+            "depth": 5, "learning_rate": 0.05, "task_type": "CPU"},
+    metric=PUMetric(prior, loss="nnPU"),
+    diagnostics=DiagnosticsOptions(task="pu_classification"),
+    run_name="pu", n_splits=3,
+)
+```
+
+The PU metric logs positive risk, estimated negative risk, total PU risk,
+known-positive capture at 1%, 5%, and 10% review capacity, and the actual
+unlabeled share flagged at each cutoff. Score ties may make that share exceed
+the target capacity. The diagnostics log score distributions and a capture
+curve; they do not produce conventional precision, F1, gains, or calibration
+plots. Known-positive capture approximates recall only if labeled positives
+represent all positives. Confirmed precision and calibration require an
+independently labeled audit sample. PU models do not select a decision threshold
+from F1; pass `decision_threshold` in the model parameters if hard labels are
+needed, and choose it from an audited set or an operational review capacity.
 
 ## PSI and plots
 

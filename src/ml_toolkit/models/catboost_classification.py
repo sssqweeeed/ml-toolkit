@@ -140,7 +140,7 @@ class _PULogisticObjective:
 
 
 class CatBoostModel(mlflow.pyfunc.PythonModel):  # type: ignore
-    """Classifier for labels 0/1 with a log-odds baseline and F1 threshold."""
+    """Binary or PU classifier; supervised models tune F1 on validation."""
 
     def __init__(self, params: dict[str, Any] | None = None) -> None:
         self.params = {} if params is None else params.copy()
@@ -160,7 +160,8 @@ class CatBoostModel(mlflow.pyfunc.PythonModel):  # type: ignore
             config = json.load(handle)
         self._baseline = float(config["baseline"])
         # Older artifacts have no tuned threshold.
-        self._threshold = float(config.get("threshold", 0.5))
+        stored_threshold = config.get("threshold", 0.5)
+        self._threshold = None if stored_threshold is None else float(stored_threshold)
         score = config.get("validation_f1")
         self._validation_f1 = None if score is None else float(score)
         self._pu_loss = config.get("pu_loss")
@@ -169,6 +170,11 @@ class CatBoostModel(mlflow.pyfunc.PythonModel):  # type: ignore
         self._best_iteration = config.get("best_iteration")
         if self._pu_loss is not None:
             self.params = config.get("training_params", self.params)
+            # Older PU artifacts stored an F1-tuned threshold from U-as-negative
+            # validation. It is not a valid PU decision rule.
+            if "decision_threshold" not in self.params:
+                self._threshold = None
+            self._validation_f1 = None
 
     @property
     def native_model(self) -> catboost.CatBoostClassifier:
@@ -184,8 +190,10 @@ class CatBoostModel(mlflow.pyfunc.PythonModel):  # type: ignore
 
     @property
     def threshold(self) -> float:
-        if self._threshold is None:
+        if self._model is None:
             raise RuntimeError("Model has not been fitted")
+        if self._threshold is None:
+            raise RuntimeError("PU label prediction requires an explicit decision_threshold")
         return self._threshold
 
     @property
@@ -211,6 +219,7 @@ class CatBoostModel(mlflow.pyfunc.PythonModel):  # type: ignore
 
     def fit(self, train: TrainingData, validation: TrainingData | None = None) -> Self:
         params = self.params.copy()
+        decision_threshold = params.pop("decision_threshold", None)
         requested_loss = params.pop("loss", None)
         native_loss = params.get("loss_function")
         if (
@@ -222,6 +231,8 @@ class CatBoostModel(mlflow.pyfunc.PythonModel):  # type: ignore
             raise ValueError("Specify only one of loss and loss_function")
         selected_loss = requested_loss if requested_loss is not None else native_loss
         if selected_loss not in ("uPU", "nnPU"):
+            if decision_threshold is not None:
+                raise ValueError("decision_threshold is only supported for PU loss")
             if requested_loss is not None:
                 params["loss_function"] = requested_loss
             if "pu_prior" in params:
@@ -231,6 +242,13 @@ class CatBoostModel(mlflow.pyfunc.PythonModel):  # type: ignore
             pu_objective = None
             self._pu_loss = None
         else:
+            if decision_threshold is not None:
+                try:
+                    decision_threshold = float(decision_threshold)
+                except (TypeError, ValueError) as error:
+                    raise ValueError("decision_threshold must be a number between 0 and 1") from error
+                if not np.isfinite(decision_threshold) or not 0 <= decision_threshold <= 1:
+                    raise ValueError("decision_threshold must be finite and between 0 and 1")
             params.pop("loss_function", None)
             prior_value = params.pop("pu_prior", None)
             if prior_value is None:
@@ -299,9 +317,9 @@ class CatBoostModel(mlflow.pyfunc.PythonModel):  # type: ignore
         self._baseline = baseline
         self._pu_prior = pu_prior
         # Reset on every fit, including refits without validation.
-        self._threshold = 0.5
+        self._threshold = decision_threshold if pu_prior is not None else 0.5
         self._validation_f1 = None
-        if validation is not None:
+        if validation is not None and pu_prior is None:
             self._threshold, self._validation_f1 = self._select_threshold(
                 validation.y.to_numpy(),
                 self.predict_pool(validation),
@@ -489,7 +507,8 @@ class CatBoostModel(mlflow.pyfunc.PythonModel):  # type: ignore
             conda_env=conda_env,
         )
         mlflow.log_param("baseline", self.baseline)
-        mlflow.log_param("threshold", self.threshold)
+        if self._threshold is not None:
+            mlflow.log_param("threshold", self._threshold)
         if self.validation_f1 is not None:
             mlflow.log_metric("validation_f1_at_threshold", self.validation_f1)
         mlflow.log_dict(
@@ -520,7 +539,7 @@ class CatBoostModel(mlflow.pyfunc.PythonModel):  # type: ignore
             "numerical_features": self.numerical_features,
             "cat_features": self.cat_features,
             "baseline": self.baseline,
-            "threshold": self.threshold,
+            "threshold": self._threshold,
             "validation_f1": self.validation_f1,
             "pu_loss": self._pu_loss,
             "pu_prior": self._pu_prior,

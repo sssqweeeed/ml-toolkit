@@ -12,7 +12,8 @@ import mlflow
 import numpy as np
 
 from ..metrics.ranking import ranking_metrics
-from ..plots import classification, monitoring, psi as psi_plots, ranking, regression
+from ..metrics.pu import PUMetric
+from ..plots import classification, monitoring, psi as psi_plots, pu as pu_plots, ranking, regression
 from ..psi import PSIAnalysis, PSIConfig, PSIFeature
 from ..tracking.mlflow import log_polars_table
 from .contracts import TrainingData
@@ -27,7 +28,7 @@ def _feature_filename(prefix: str, index: int, feature: str) -> str:
 class DiagnosticsOptions:
     """Diagnostic choices supplied by a project, not a global toolkit config."""
 
-    task: Literal["classification", "regression", "frequency", "severity"]
+    task: Literal["classification", "pu_classification", "regression", "frequency", "severity"]
     psi: bool = True
     plots: bool = True
     psi_bins: int = 20
@@ -36,8 +37,8 @@ class DiagnosticsOptions:
     ranking_selected_percents: tuple[float, ...] = (10.0,)
 
     def __post_init__(self) -> None:
-        if self.task not in ("classification", "regression", "frequency", "severity"):
-            raise ValueError("task must be classification, regression, frequency, or severity")
+        if self.task not in ("classification", "pu_classification", "regression", "frequency", "severity"):
+            raise ValueError("task must be classification, pu_classification, regression, frequency, or severity")
         if self.psi_bins < 1:
             raise ValueError("psi_bins must be positive")
         if self.shap_top_n is not None and self.shap_top_n < 1:
@@ -68,6 +69,14 @@ def log_evaluation(
     metric, diagnostics: DiagnosticsOptions | None, name: str,
 ) -> dict[str, dict[str, float]]:
     """Log split metrics, optional PSI and figures; return numeric scores."""
+    pu_loss = getattr(model, "_pu_loss", None)
+    if pu_loss is not None:
+        if not isinstance(metric, PUMetric) or metric.loss != pu_loss or metric.prior != model._pu_prior:
+            raise ValueError("PU models require PUMetric with the model's loss and prior")
+        if diagnostics is not None and diagnostics.task != "pu_classification":
+            raise ValueError("PU models require DiagnosticsOptions(task='pu_classification')")
+    elif isinstance(metric, PUMetric) or (diagnostics is not None and diagnostics.task == "pu_classification"):
+        raise ValueError("PU metrics and diagnostics require a PU model")
     mlflow.log_params({
         "train_n_rows": len(train), "train_date_start": str(train.time.min()),
         "train_date_end": str(train.time.max()), "val_n_rows": len(validation),
@@ -129,14 +138,15 @@ def _log_diagnostics(model, train, validation, train_prediction, validation_pred
         val_y = validation.y.to_numpy()
         train_weight = train.weight.to_numpy()
         val_weight = validation.weight.to_numpy()
-        emit("monthly_observed_fitted.png", regression.monthly_observed_fitted,
-             train.time.to_list(), train_y, train_prediction,
-             validation.time.to_list(), val_y, validation_prediction,
-             reference_weight=train_weight, current_weight=val_weight,
-             reference_group=getattr(train, "business_type", None),
-             current_group=getattr(validation, "business_type", None))
+        if options.task != "pu_classification":
+            emit("monthly_observed_fitted.png", regression.monthly_observed_fitted,
+                 train.time.to_list(), train_y, train_prediction,
+                 validation.time.to_list(), val_y, validation_prediction,
+                 reference_weight=train_weight, current_weight=val_weight,
+                 reference_group=getattr(train, "business_type", None),
+                 current_group=getattr(validation, "business_type", None))
 
-        if np.all(val_y >= 0) and np.sum(val_y * val_weight) > 0:
+        if options.task != "pu_classification" and np.all(val_y >= 0) and np.sum(val_y * val_weight) > 0:
             curve = ranking_metrics(val_y, validation_prediction, val_weight,
                                     options.ranking_selected_percents)
             emit("gains.png", ranking.gains_curve, curve)
@@ -148,6 +158,11 @@ def _log_diagnostics(model, train, validation, train_prediction, validation_pred
                  val_y, validation_prediction)
             emit("calibration.png", classification.calibration,
                  val_y, validation_prediction)
+        elif options.task == "pu_classification":
+            emit("pu_score_distribution.png", pu_plots.score_distribution,
+                 val_y, validation_prediction, weights=val_weight)
+            emit("pu_positive_capture.png", pu_plots.positive_capture,
+                 val_y, validation_prediction, weights=val_weight)
 
         if options.feature_plots is None:
             feature_names = tuple(feature for feature, dtype in train.X.schema.items()

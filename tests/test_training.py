@@ -10,7 +10,7 @@ import pytest
 
 from ml_toolkit.models import CatBoostRegressionModel
 from ml_toolkit.models import CatBoostClassificationModel
-from ml_toolkit.metrics import metrics_classification
+from ml_toolkit.metrics import PUMetric, metrics_classification
 from ml_toolkit.inflation import ConstantRateInflation
 from ml_toolkit.models import InflationAdjustedModel
 from ml_toolkit.explainability import calculate_shap_values, top_shap_features
@@ -232,3 +232,45 @@ def test_positive_unlabeled_classifier_is_preserved():
     assert probability.shape == (24,)
     assert np.isfinite(probability).all()
     assert np.all((probability >= 0) & (probability <= 1))
+    assert model.validation_f1 is None
+    with pytest.raises(RuntimeError, match="decision_threshold"):
+        model.predict_labels_pool(binary)
+
+
+def test_pu_training_logs_only_pu_diagnostics(tmp_path):
+    setup_mlflow(tmp_path)
+    source = make_data()
+    binary = ProjectData(source.X, pl.Series("target", [0, 1] * 12),
+                         source.time, source.weight)
+    params = {"loss": "uPU", "pu_prior": 0.5, "iterations": 3, "depth": 2,
+              "learning_rate": 0.1, "thread_count": 1,
+              "allow_writing_files": False, "logging_level": "Silent"}
+    result = train_model(
+        data=binary, model_factory=CatBoostClassificationModel, params=params,
+        metric=PUMetric(0.5, loss="uPU"), run_name="pu", n_splits=2,
+        diagnostics=DiagnosticsOptions(task="pu_classification", psi=False,
+                                       feature_plots=()),
+    )
+    assert "pu_risk" in result.cross_validation.mean_metrics
+    runs = mlflow.search_runs(output_format="list")
+    fold = next(run for run in runs if run.data.tags.get("mlflow.runName") == "fold_1")
+    artifacts = list_all_artifacts(mlflow.MlflowClient(), fold.info.run_id)
+    assert any(path.endswith("pu_score_distribution.png") for path in artifacts)
+    assert any(path.endswith("pu_positive_capture.png") for path in artifacts)
+    assert not any(path.endswith(("precision_recall.png", "calibration.png", "gains.png"))
+                   for path in artifacts)
+
+
+def test_pu_training_rejects_supervised_metrics(tmp_path):
+    setup_mlflow(tmp_path)
+    source = make_data()
+    binary = ProjectData(source.X, pl.Series("target", [0, 1] * 12),
+                         source.time, source.weight)
+    with pytest.raises(ValueError, match="require PUMetric"):
+        train_model(
+            data=binary, model_factory=CatBoostClassificationModel,
+            params={"loss": "uPU", "pu_prior": 0.5, "iterations": 2, "depth": 2,
+                    "thread_count": 1, "allow_writing_files": False,
+                    "logging_level": "Silent"},
+            metric=metrics_classification, run_name="invalid_pu", n_splits=2,
+        )
