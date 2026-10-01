@@ -7,7 +7,7 @@ import mlflow
 import optuna
 
 from .contracts import TrainingData, validate_training_data
-from .cross_validation import cross_validate
+from .cross_validation import _time_series_splits, cross_validate
 from .evaluation import DiagnosticsOptions
 from .feature_selection import feature_elimination
 from .results import TrainingResult
@@ -32,10 +32,23 @@ def train_model(
     with mlflow.start_run(run_name=run_name, nested=mlflow.active_run() is not None):
         working = data
         if select_features is not None:
-            working = feature_elimination(
-                data=working, params=params, model_factory=model_factory,
+            selection_index = next(
+                train_index
+                for fold_index, (train_index, _) in _time_series_splits(
+                    len(data), n_splits, skip_splits,
+                )
+                if fold_index > skip_splits
+            )
+            if len(selection_index) < 2:
+                raise ValueError(
+                    "First evaluated fold has fewer than two training rows "
+                    "for feature selection"
+                )
+            selected = feature_elimination(
+                data=data.take(selection_index), params=params, model_factory=model_factory,
                 num_features_to_select=select_features,
             )
+            working = data.select_features(selected.X.columns)
             mlflow.log_dict({"features": working.X.columns}, "selection/features.json")
         final_params = params.copy()
         if tune_params:

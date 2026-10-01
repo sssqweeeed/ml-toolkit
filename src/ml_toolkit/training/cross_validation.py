@@ -15,22 +15,25 @@ from .results import CrossValidationResult
 logger = logging.getLogger(__name__)
 
 
+def _time_series_splits(n_rows: int, n_splits: int, skip_splits: int):
+    """Return the folds and validate the shared chronological split settings."""
+    if n_splits < 2:
+        raise ValueError("n_splits must be at least 2")
+    if not 0 <= skip_splits < n_splits:
+        raise ValueError("skip_splits must be between 0 and n_splits - 1")
+    return enumerate(TimeSeriesSplit(n_splits=n_splits).split(np.arange(n_rows)), start=1)
+
+
 def cross_validate(
     *, data: TrainingData, params: dict[str, Any], model_factory: Callable,
     metric: Callable, n_splits: int, skip_splits: int = 0,
     diagnostics: DiagnosticsOptions | None = None,
 ) -> CrossValidationResult:
-    if n_splits < 2:
-        raise ValueError("n_splits must be at least 2")
-    if not 0 <= skip_splits < n_splits:
-        raise ValueError("skip_splits must be between 0 and n_splits - 1")
+    splits = _time_series_splits(len(data), n_splits, skip_splits)
     validate_training_data(data)
     fold_metrics: list[dict[str, float]] = []
     best_iterations: list[int] = []
-    splitter = TimeSeriesSplit(n_splits=n_splits)
-    for fold_index, (train_index, validation_index) in enumerate(
-        splitter.split(np.arange(len(data))), start=1,
-    ):
+    for fold_index, (train_index, validation_index) in splits:
         if fold_index <= skip_splits:
             logger.info("Skipping fold %s", fold_index)
             continue

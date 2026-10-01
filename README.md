@@ -55,6 +55,9 @@ optionally selects features and tunes parameters, fits a final model, logs it,
 and returns the fitted model and metrics. Each fold logs metrics and, when
 requested, PSI tables and figures. `DiagnosticsOptions(psi=False, plots=False)`
 disables those diagnostic artifacts without changing training.
+When feature selection is enabled, it uses only the training rows of the first
+evaluated fold. The selected features are then reused for all folds, tuning
+trials, and the final model.
 
 The project data object needs `X` (Polars DataFrame), `y`, `time`, and
 `weight` (Polars Series), `cat_features`, `__len__`, `take(indices)`, and

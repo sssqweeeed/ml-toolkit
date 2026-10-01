@@ -78,6 +78,26 @@ class MeanModel:
         mlflow.log_dict({"mean": self.mean}, "model.json")
 
 
+def recording_model():
+    calls = {"selection": [], "fit": []}
+
+    class RecordingModel(MeanModel):
+        def select_features(self, train, validation, num_features_to_select):
+            calls["selection"].append((
+                tuple(train.X["x"].to_list()),
+                tuple(validation.X["x"].to_list()),
+            ))
+            return ["unused"]
+
+        def fit(self, train, validation=None):
+            calls["fit"].append(tuple(train.X.columns))
+            if validation is not None:
+                assert tuple(validation.X.columns) == tuple(train.X.columns)
+            return super().fit(train, validation)
+
+    return RecordingModel, calls
+
+
 def mae(y, prediction, weight):
     return {"mae": np.average(np.abs(y - prediction), weights=weight)}
 
@@ -117,6 +137,65 @@ def test_train_model_selection_and_mlflow(tmp_path):
     assert any(run.data.tags.get("mlflow.runName") == "final_fit" for run in runs)
     parent = next(run for run in runs if run.data.tags.get("mlflow.runName") == "example")
     assert "selection/features.json" in list_all_artifacts(mlflow.MlflowClient(), parent.info.run_id)
+
+
+@pytest.mark.parametrize("skip_splits, first_validation_row", [(0, 8), (1, 16)])
+def test_feature_selection_uses_only_first_evaluated_fold_training_rows(
+    tmp_path, skip_splits, first_validation_row,
+):
+    setup_mlflow(tmp_path)
+    model_factory, calls = recording_model()
+    result = train_model(
+        data=make_data(), params={}, model_factory=model_factory, metric=mae,
+        run_name="early-selection", n_splits=2, skip_splits=skip_splits,
+        select_features=1,
+    )
+
+    assert calls["selection"] == [(
+        tuple(range(int(first_validation_row * 0.75))),
+        tuple(range(int(first_validation_row * 0.75), first_validation_row)),
+    )]
+    assert calls["fit"] == [("unused",)] * (2 - skip_splits + 1)
+    assert result.features == ("unused",)
+
+
+def test_tuning_and_final_fit_reuse_early_selected_features(tmp_path):
+    setup_mlflow(tmp_path)
+    model_factory, calls = recording_model()
+    result = train_model(
+        data=make_data(), params={}, model_factory=model_factory, metric=mae,
+        run_name="tuned-selection", n_splits=2, select_features=1,
+        tune_params=True, n_trials=2,
+        param_space=lambda trial: {"unused_param": trial.suggest_int("unused_param", 1, 2)},
+        metric_to_optimize="mae", optimize_direction="minimize",
+    )
+
+    assert len(calls["selection"]) == 1
+    assert calls["fit"] == [("unused",)] * 5
+    assert result.features == ("unused",)
+
+
+def test_training_without_feature_selection_keeps_all_features(tmp_path):
+    setup_mlflow(tmp_path)
+    model_factory, calls = recording_model()
+    result = train_model(
+        data=make_data(), params={}, model_factory=model_factory, metric=mae,
+        run_name="no-selection", n_splits=2,
+    )
+
+    assert calls["selection"] == []
+    assert calls["fit"] == [("x", "unused")] * 3
+    assert result.features == ("x", "unused")
+
+
+def test_feature_selection_rejects_too_small_first_training_window(tmp_path):
+    setup_mlflow(tmp_path)
+    with pytest.raises(ValueError, match="First evaluated fold has fewer than two training rows"):
+        train_model(
+            data=make_data().take(np.arange(3)), params={}, model_factory=MeanModel,
+            metric=mae, run_name="small-selection-window", n_splits=2,
+            select_features=1,
+        )
 
 
 def test_training_rejects_unsorted_project_data(tmp_path):
