@@ -7,9 +7,12 @@ from typing import Any
 import mlflow
 import optuna
 
-from .contracts import TrainingData, validate_training_data
+from .contracts import (
+    DatasetSplit, PostFitEvaluator, TrainingData, _validate_post_fit_evaluator,
+    validate_training_data,
+)
 from .cross_validation import _time_series_splits, cross_validate
-from .evaluation import DiagnosticsOptions
+from .evaluation import DiagnosticsOptions, _log_post_fit_evaluation
 from .feature_selection import feature_elimination
 from .results import TrainingResult
 from .tuning import tune_optuna
@@ -25,6 +28,7 @@ def train_model(
     param_space: Callable[[optuna.Trial], dict[str, Any]] | None = None,
     metric_to_optimize: str | None = None,
     optimize_direction: str = "maximize", n_trials: int = 50,
+    post_fit_evaluator: PostFitEvaluator | None = None,
 ) -> TrainingResult:
     """Select features, tune, validate, and fit a model with MLflow logging.
 
@@ -64,6 +68,14 @@ def train_model(
         Direction of Optuna optimization.
     n_trials : int, default 50
         Number of Optuna trials when tuning is enabled.
+    post_fit_evaluator : PostFitEvaluator or None, default None
+        User-created evaluator receiving aligned IDs, model outputs, targets,
+        and DatasetSplit. Requires non-null string or integer data.object_id.
+        The same instance evaluates train/val for CV and tuning folds, including
+        repeated CV, and train after final fitting. Results are logged under
+        <split>/custom/ and excluded from ordinary CV metrics and optimization.
+        The toolkit does not copy or reset evaluator state. Feature-selection
+        fits do not invoke it; test data are not evaluated by this workflow.
 
     Returns
     -------
@@ -75,7 +87,11 @@ def train_model(
     ------
     ValueError
         Training data or split settings are invalid, selection has too few
-        rows, or required tuning arguments are missing.
+        rows, required tuning arguments are missing, or post-fit IDs, prediction
+        shapes, metric names, or finite metric values are invalid.
+    TypeError
+        The evaluator has no evaluate method, IDs have an unsupported type, or
+        its result is not a dictionary of floating scalars.
 
     Notes
     -----
@@ -107,6 +123,7 @@ def train_model(
     >>> result.cross_validation.mean_metrics  # doctest: +SKIP
     """
     validate_training_data(data)
+    _validate_post_fit_evaluator(data, post_fit_evaluator)
     logger.info("Starting training run %s", run_name)
     logger.debug("Training data: %s rows, %s features", len(data), len(data.X.columns))
     with mlflow.start_run(run_name=run_name, nested=mlflow.active_run() is not None):
@@ -130,6 +147,7 @@ def train_model(
             )
             working = data.select_features(selected.X.columns)
             mlflow.log_dict({"features": working.X.columns}, "selection/features.json")
+        _validate_post_fit_evaluator(working, post_fit_evaluator)
         final_params = params.copy()
         if tune_params:
             if param_space is None or metric_to_optimize is None:
@@ -140,6 +158,7 @@ def train_model(
                 metric_to_optimize=metric_to_optimize, n_trials=n_trials,
                 n_splits=n_splits, skip_splits=skip_splits,
                 direction=optimize_direction,
+                post_fit_evaluator=post_fit_evaluator,
             )
             final_params.update(tuning.best_params)
             cv = tuning.cross_validation
@@ -149,12 +168,14 @@ def train_model(
                     data=working, params=final_params, model_factory=model_factory,
                     metric=metric, n_splits=n_splits, skip_splits=skip_splits,
                     diagnostics=diagnostics,
+                    post_fit_evaluator=post_fit_evaluator,
                 )
         else:
             cv = cross_validate(
                 data=working, params=final_params, model_factory=model_factory,
                 metric=metric, n_splits=n_splits, skip_splits=skip_splits,
                 diagnostics=diagnostics,
+                post_fit_evaluator=post_fit_evaluator,
             )
         selected_iterations = cv.final_iterations
         if selected_iterations is not None:
@@ -173,6 +194,12 @@ def train_model(
                 mlflow.log_param("selected_iterations", selected_iterations)
             model = model_factory(final_params)
             model.fit(working)
+            if post_fit_evaluator is not None:
+                _log_post_fit_evaluation(
+                    evaluator=post_fit_evaluator, data=working,
+                    prediction=model.predict_pool(working),
+                    split=DatasetSplit.TRAIN, name="final_fit",
+                )
             model.log(working)
             mlflow.log_params({
                 "train_n_rows": len(working),

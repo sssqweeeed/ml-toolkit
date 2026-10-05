@@ -17,7 +17,9 @@ from ..metrics.pu import PUMetric
 from ..plots import classification, monitoring, psi as psi_plots, pu as pu_plots, ranking, regression
 from ..psi import PSIAnalysis, PSIConfig, PSIFeature
 from ..tracking.mlflow import log_polars_table
-from .contracts import TrainingData
+from .contracts import (
+    DatasetSplit, PostFitEvaluator, TrainingData, _validate_post_fit_evaluator,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -101,10 +103,51 @@ def _scores(metric, data: TrainingData, prediction: np.ndarray) -> dict[str, flo
     return {str(key): float(value) for key, value in values.items()}
 
 
+def _log_post_fit_evaluation(
+    *, evaluator: PostFitEvaluator, data: TrainingData,
+    prediction: np.ndarray, split: DatasetSplit, name: str,
+) -> None:
+    try:
+        if not isinstance(split, DatasetSplit):
+            raise TypeError("split must be a DatasetSplit member")
+        _validate_post_fit_evaluator(data, evaluator)
+        predicted = np.asarray(prediction, dtype=float)
+        target = np.asarray(data.y.to_numpy(), dtype=float)
+        if predicted.shape != (len(data),) or not np.isfinite(predicted).all():
+            raise ValueError("Predictions must contain one finite value per row")
+        if target.shape != (len(data),) or not np.isfinite(target).all():
+            raise ValueError("Targets must contain one finite value per row")
+        values = evaluator.evaluate(
+            object_id=getattr(data, "object_id"), y_pred=predicted, y_true=target, split=split,
+        )
+        if not isinstance(values, dict):
+            raise TypeError("post_fit_evaluator must return dict[str, float]")
+        metrics = {}
+        for key, value in values.items():
+            if (
+                not isinstance(key, str) or not re.fullmatch(r"[\w .\-/]+", key)
+                or not key.strip() or any(part in ("", ".", "..") for part in key.split("/"))
+            ):
+                raise ValueError(f"Invalid post-fit metric name: {key!r}")
+            if not isinstance(value, (float, np.floating)):
+                raise TypeError(f"Post-fit metric {key!r} must be a floating scalar")
+            numeric = float(value)
+            if not np.isfinite(numeric):
+                raise ValueError(f"Post-fit metric {key!r} must be finite")
+            metrics[f"{split.value}/custom/{key}"] = numeric
+        if metrics:
+            mlflow.log_metrics(metrics)
+            logger.debug("Evaluation %s %s custom metrics: %s", name, split.value, metrics)
+    except Exception as exc:
+        exc.add_note(f"Post-fit evaluation stage={name}, split={split}")
+        raise
+
+
 def log_evaluation(
     *, model, train: TrainingData, validation: TrainingData,
     train_prediction: np.ndarray, validation_prediction: np.ndarray,
     metric, diagnostics: DiagnosticsOptions | None, name: str,
+    post_fit_evaluator: PostFitEvaluator | None = None,
 ) -> dict[str, dict[str, float]]:
     """Log split metrics, optional PSI and figures; return numeric scores."""
     pu_loss = getattr(model, "_pu_loss", None)
@@ -128,6 +171,15 @@ def log_evaluation(
     for split, values in scores.items():
         mlflow.log_metrics({f"{split}/{key}": value for key, value in values.items()})
         logger.debug("Evaluation %s %s metrics: %s", name, split, values)
+    if post_fit_evaluator is not None:
+        for split, data, prediction in (
+            (DatasetSplit.TRAIN, train, train_prediction),
+            (DatasetSplit.VAL, validation, validation_prediction),
+        ):
+            _log_post_fit_evaluation(
+                evaluator=post_fit_evaluator, data=data, prediction=prediction,
+                split=split, name=name,
+            )
     if diagnostics is not None:
         _log_diagnostics(model, train, validation, train_prediction,
                          validation_prediction, diagnostics, name)

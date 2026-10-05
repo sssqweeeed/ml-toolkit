@@ -7,7 +7,7 @@ from typing import Any
 import mlflow
 import optuna
 
-from .contracts import TrainingData
+from .contracts import PostFitEvaluator, TrainingData, _validate_post_fit_evaluator
 from .cross_validation import cross_validate
 from .results import CrossValidationResult, TuningResult
 
@@ -19,6 +19,7 @@ def tune_optuna(
     metric: Callable, param_space: Callable[[optuna.Trial], dict[str, Any]],
     metric_to_optimize: str, n_trials: int = 50, n_splits: int = 5,
     skip_splits: int = 0, direction: str = "maximize",
+    post_fit_evaluator: PostFitEvaluator | None = None,
 ) -> TuningResult:
     """Optimize model parameters using chronological validation and MLflow.
 
@@ -48,6 +49,10 @@ def tune_optuna(
         Number of initial folds omitted from evaluation.
     direction : {'maximize', 'minimize'}, default 'maximize'
         Optimization direction.
+    post_fit_evaluator : PostFitEvaluator or None, default None
+        Optional evaluator reused across every trial and fold. Requires aligned
+        data.object_id; logs custom split metrics without adding them to the
+        optimization objective or cross-validation metric dictionaries.
 
     Returns
     -------
@@ -58,7 +63,11 @@ def tune_optuna(
     Raises
     ------
     ValueError
-        The requested metric is unavailable or validation settings are invalid.
+        The requested metric is unavailable, validation settings are invalid,
+        or post-fit IDs, predictions, metric names, or finite values are invalid.
+    TypeError
+        The evaluator has no evaluate method, IDs have an unsupported type, or
+        its result is not a dictionary of floating scalars.
 
     Notes
     -----
@@ -66,6 +75,7 @@ def tune_optuna(
     nested MLflow run with fold runs beneath it. Configure MLflow and start a
     parent run before using this function independently.
     """
+    _validate_post_fit_evaluator(data, post_fit_evaluator)
     trial_results: dict[int, CrossValidationResult] = {}
     study = optuna.create_study(direction=direction)
     logger.info(
@@ -83,6 +93,7 @@ def tune_optuna(
             result = cross_validate(
                 data=data, params=params, model_factory=model_factory,
                 metric=metric, n_splits=n_splits, skip_splits=skip_splits,
+                post_fit_evaluator=post_fit_evaluator,
             )
             trial_results[trial.number] = result
             if metric_to_optimize not in result.mean_metrics:

@@ -8,7 +8,9 @@ import mlflow
 import numpy as np
 from sklearn.model_selection import TimeSeriesSplit
 
-from .contracts import TrainingData, validate_training_data
+from .contracts import (
+    PostFitEvaluator, TrainingData, _validate_post_fit_evaluator, validate_training_data,
+)
 from .evaluation import DiagnosticsOptions, log_evaluation
 from .results import CrossValidationResult
 
@@ -28,6 +30,7 @@ def cross_validate(
     *, data: TrainingData, params: dict[str, Any], model_factory: Callable,
     metric: Callable, n_splits: int, skip_splits: int = 0,
     diagnostics: DiagnosticsOptions | None = None,
+    post_fit_evaluator: PostFitEvaluator | None = None,
 ) -> CrossValidationResult:
     """Evaluate a model on expanding chronological folds and log each fold.
 
@@ -51,6 +54,11 @@ def cross_validate(
         Initial folds to omit, from zero to n_splits - 1.
     diagnostics : DiagnosticsOptions or None, default None
         Optional per-fold PSI and plot artifacts.
+    post_fit_evaluator : PostFitEvaluator or None, default None
+        User-owned evaluator receiving aligned IDs, outputs, targets, and split
+        after each fold fit. Requires data.object_id. The same instance is reused
+        without resetting; results are logged as train/custom/* and val/custom/*
+        in fold runs and excluded from CV aggregation and optimization.
 
     Returns
     -------
@@ -61,7 +69,11 @@ def cross_validate(
     Raises
     ------
     ValueError
-        Input data or chronological split settings are invalid.
+        Input data, chronological split settings, post-fit IDs, predictions,
+        metric names, or finite metric values are invalid.
+    TypeError
+        The evaluator has no evaluate method, IDs have an unsupported type, or
+        its result is not a dictionary of floating scalars.
 
     Notes
     -----
@@ -72,6 +84,7 @@ def cross_validate(
     """
     splits = _time_series_splits(len(data), n_splits, skip_splits)
     validate_training_data(data)
+    _validate_post_fit_evaluator(data, post_fit_evaluator)
     logger.info("Starting cross-validation with %s evaluated folds", n_splits - skip_splits)
     fold_metrics: list[dict[str, float]] = []
     best_iterations: list[int] = []
@@ -81,6 +94,8 @@ def cross_validate(
             continue
         train = data.take(train_index)
         validation = data.take(validation_index)
+        _validate_post_fit_evaluator(train, post_fit_evaluator)
+        _validate_post_fit_evaluator(validation, post_fit_evaluator)
         logger.info("Starting fold %s", fold_index)
         logger.debug(
             "Fold %s: %s training rows, %s validation rows",
@@ -97,6 +112,7 @@ def cross_validate(
                 train_prediction=model.predict_pool(train),
                 validation_prediction=model.predict_pool(validation),
                 metric=metric, diagnostics=diagnostics, name=f"fold_{fold_index}",
+                post_fit_evaluator=post_fit_evaluator,
             )
             model.log(validation)
             if model.best_iteration is not None:

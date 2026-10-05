@@ -3,11 +3,81 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from enum import StrEnum
 from typing import Any, Protocol, Self
 
 import numpy as np
 import pandas as pd
 import polars as pl
+
+from .._validation import _validate_object_id
+
+
+class DatasetSplit(StrEnum):
+    """Identify an evaluated dataset split.
+
+    Attributes
+    ----------
+    TRAIN : DatasetSplit
+        Rows used to fit the model; serialized as "train".
+    VAL : DatasetSplit
+        Validation rows; serialized as "val".
+    TEST : DatasetSplit
+        Independent test rows; serialized as "test". The training workflow
+        currently evaluates train and val only.
+    """
+
+    TRAIN = "train"
+    VAL = "val"
+    TEST = "test"
+
+
+class PostFitEvaluator(Protocol):
+    """Describe a user-owned evaluator called after each evaluated model fit.
+
+    Notes
+    -----
+    Initialization and helper methods are unrestricted; explicit inheritance is
+    unnecessary. The same instance is reused for folds, tuning trials, repeated
+    validation, and final fitting, without copying or resetting its state.
+    Reference data and caches may be stored internally, but returned metrics
+    should describe the supplied rows rather than accumulate unrelated fits.
+    Intermediate feature-selection fits do not invoke this evaluator.
+    """
+
+    def evaluate(
+        self,
+        *,
+        object_id: pl.Series,
+        y_pred: np.ndarray,
+        y_true: np.ndarray,
+        split: DatasetSplit,
+    ) -> dict[str, float]:
+        """Calculate additional scalar metrics for one complete dataset split.
+
+        Parameters
+        ----------
+        object_id : polars.Series of shape (n_samples,)
+            Non-null string or integer IDs in prediction order; repeats allowed.
+        y_pred : numpy.ndarray of shape (n_samples,)
+            Finite model outputs. Binary classifiers supply positive-class
+            probabilities; regressors supply predicted target values.
+        y_true : numpy.ndarray of shape (n_samples,)
+            Finite observed target values aligned with object_id and y_pred.
+        split : DatasetSplit
+            Strictly train, val, or test, passed as an enum member.
+
+        Returns
+        -------
+        dict[str, float]
+            Finite Python or NumPy floating scalars keyed by nonempty metric
+            names. Names may contain word characters, spaces, periods, dashes,
+            and slashes, but no relative path segments. The toolkit adds the
+            "<split>/custom/" prefix and logs to the current MLflow run. An
+            empty dictionary skips logging. Results are excluded from ordinary
+            CV metrics and optimization. Inputs must not be mutated.
+        """
+        ...
 
 
 class TrainingData(Protocol):
@@ -144,6 +214,37 @@ class TrainingData(Protocol):
             compatible with the native model.
         """
         ...
+
+
+class IdentifiedTrainingData(TrainingData, Protocol):
+    """Extend training data with optional aligned object identifiers.
+
+    Attributes
+    ----------
+    object_id : polars.Series or None
+        Non-null string or integer IDs with one value per row. IDs are required
+        when a post-fit evaluator is supplied; repeated IDs are allowed. take
+        must slice them in row order; select_features and with_target preserve
+        them. IDs are metadata and are not automatically included in X.
+    """
+
+    @property
+    def object_id(self) -> pl.Series | None:
+        """Return aligned IDs, or None when identifiers were not supplied."""
+        ...
+
+
+def _validate_post_fit_evaluator(
+    data: TrainingData, evaluator: PostFitEvaluator | None,
+) -> None:
+    if evaluator is None:
+        return
+    if not callable(getattr(evaluator, "evaluate", None)):
+        raise TypeError("post_fit_evaluator must provide an evaluate method")
+    object_id = getattr(data, "object_id", None)
+    if object_id is None:
+        raise ValueError("object_id is required when post_fit_evaluator is supplied")
+    _validate_object_id(object_id, len(data))
 
 
 def validate_training_data(data: TrainingData) -> None:

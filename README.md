@@ -38,6 +38,7 @@ data = Pool(
     business_type=prepared["business_type"],  # Optional; defaults to None.
     cat_features=("region",),
     numerical_features=("age",),
+    object_id=prepared["customer_id"],  # Optional; required for post-fit evaluation.
 )
 ```
 
@@ -101,6 +102,92 @@ For classification, supply `CatBoostClassificationModel`,
 The same `train_model` function performs the workflow. Optuna tuning is enabled
 with `tune_params=True`, `param_space`, `metric_to_optimize`, and
 `optimize_direction`.
+
+### Custom post-fit evaluation
+
+Use the separate `post_fit_evaluator` argument for business metrics that need
+object IDs or externally prepared reference data. Define an object with an
+`evaluate` method; its constructor, internal data, and helper methods are
+project-owned. Explicit inheritance from `PostFitEvaluator` is unnecessary.
+The contracts live in `ml_toolkit.training.contracts` and are also exported by
+`ml_toolkit.training`.
+
+```python
+import numpy as np
+import polars as pl
+
+from ml_toolkit.metrics import metrics_classification
+from ml_toolkit.models import CatBoostClassificationModel
+from ml_toolkit.training import train_model
+from ml_toolkit.training.contracts import DatasetSplit, PostFitEvaluator
+
+
+class CampaignEvaluator:
+    def __init__(self, purchase_value_by_id: dict[int, float], contact_cost: float):
+        self.purchase_value_by_id = purchase_value_by_id
+        self.contact_cost = contact_cost
+
+    def evaluate(
+        self, *, object_id: pl.Series, y_pred: np.ndarray,
+        y_true: np.ndarray, split: DatasetSplit,
+    ) -> dict[str, float]:
+        value = np.array([self.purchase_value_by_id[i] for i in object_id.to_list()])
+        selected = y_pred >= 0.7
+        return {
+            "expected_profit": float(
+                (y_pred[selected] * value[selected] - self.contact_cost).sum()
+            ),
+            "realized_profit": float(
+                (y_true[selected] * value[selected] - self.contact_cost).sum()
+            ),
+        }
+
+
+# data is a Pool with binary targets and object_id populated.
+# The reference dictionary must contain every ID in data.
+evaluator: PostFitEvaluator = CampaignEvaluator(purchase_value_by_id, contact_cost=10.0)
+result = train_model(
+    data=data,
+    params={"iterations": 200, "loss_function": "Logloss", "verbose": False},
+    model_factory=CatBoostClassificationModel,
+    metric=metrics_classification,
+    post_fit_evaluator=evaluator,
+    run_name="campaign", n_splits=3,
+)
+```
+
+Each call receives one complete split, with aligned IDs, predictions, and
+targets in row order. Predictions follow `predict_pool`: positive-class
+probabilities for binary classification, target predictions for regression.
+`DatasetSplit` has exactly `TRAIN` ("train"), `VAL` ("val"), and `TEST` ("test").
+The current training workflow has no independent test input, so it invokes only
+train and val. To skip a split, return `{}`; for example, return `{}` whenever
+`split != DatasetSplit.VAL` for validation-only evaluation.
+
+The result must be a dictionary with nonempty string names and finite Python
+or NumPy floating scalars. Integers, booleans, arrays, NaN, and infinities are
+rejected. Names may contain word characters, spaces, periods, dashes, and
+slashes, but no empty or relative path segments. The toolkit adds the prefix:
+`train/custom/expected_profit`, `val/custom/expected_profit`, and so on. Results
+are logged to each fold's MLflow run; they are not merged into `fold_metrics`,
+averaged into `cv/*`, or made available to `metric_to_optimize`.
+
+The same evaluator instance is reused, without copying or resetting, for every
+CV fold and every Optuna trial, any repeated CV for diagnostics, and the final
+fit. The final fit evaluates train only and adds one prediction pass when the
+evaluator is enabled. Intermediate feature-selection fits do not invoke it.
+Stored reference data and caches are supported; metrics should describe the
+current inputs rather than accumulate unrelated folds or trials. Do not mutate
+the input series or arrays. Evaluator errors propagate with stage and split
+context attached to the traceback.
+
+`Pool.object_id` is optional and keyword-only. Supplied IDs must be aligned,
+non-null strings or integers; repeated IDs are allowed. Their original values
+and dtype are preserved by row/feature/target operations, and IDs are not added
+to model inputs. Supplying an evaluator without IDs fails before fitting.
+Existing custom containers need no changes unless using this feature; for it,
+implement `IdentifiedTrainingData`, including ID-preserving `take`,
+`select_features`, and `with_target` operations.
 
 For positive–unlabeled learning, label `1` means confirmed positive and `0`
 means unlabeled. Use a PU loss, a prevalence estimate, `PUMetric`, and PU
@@ -199,7 +286,7 @@ functions, so manual and automatic figures have one implementation.
 | `training/feature_selection.py` | Model-driven feature elimination. |
 | `training/tuning.py` | Optuna search through the same validation path. |
 | `training/evaluation.py` | Metrics, PSI, plot generation, and MLflow artifacts. |
-| `training/contracts.py` | TrainingData protocol for Pool and custom containers. |
+| `training/contracts.py` | Training data and post-fit evaluator protocols; dataset split enum. |
 | `training/results.py` | Result dataclasses. |
 | `models/` | CatBoost classification/regression, PU learning, LightGBM serving, and inflation-adjusted models. |
 | `metrics/` | Classification, frequency, severity, and ranking calculations. |

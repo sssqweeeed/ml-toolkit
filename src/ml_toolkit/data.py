@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 
 import catboost
 import numpy as np
 import pandas as pd
 import polars as pl
+
+from ._validation import _validate_object_id
 
 
 @dataclass(frozen=True)
@@ -23,6 +25,28 @@ class Pool:
     Construction checks alignment, timestamp dtype, and feature metadata.
     Training additionally validates chronological order, finite targets, and
     finite, nonnegative weights with positive total.
+
+    Parameters
+    ----------
+    X : polars.DataFrame
+        Feature columns, with one row per observation.
+    y : polars.Series
+        Target values aligned with X.
+    time : polars.Series
+        Date or Datetime values aligned with X.
+    weight : polars.Series
+        Row weights aligned with X.
+    business_type : polars.Series or None, default None
+        Optional aligned groups for diagnostic plots.
+    cat_features : tuple[str, ...], default ()
+        Names of categorical features in X.
+    numerical_features : tuple[str, ...], default ()
+        Names of numerical features in X.
+    object_id : polars.Series or None, default None
+        Optional non-null string or integer IDs aligned with X. Keyword-only;
+        repeated IDs are allowed. Required for post-fit evaluation. IDs retain
+        their dtype and values through row and feature operations and are not
+        added to model inputs.
     """
 
     X: pl.DataFrame
@@ -32,6 +56,7 @@ class Pool:
     business_type: pl.Series | None = None
     cat_features: tuple[str, ...] = ()
     numerical_features: tuple[str, ...] = ()
+    object_id: pl.Series | None = field(default=None, kw_only=True)
 
     def __post_init__(self) -> None:
         lengths = {len(self.X), len(self.y), len(self.time), len(self.weight)}
@@ -41,6 +66,8 @@ class Pool:
             raise ValueError("Pool must not be empty")
         if len(lengths) != 1:
             raise ValueError("Pool fields must have equal lengths")
+        if self.object_id is not None:
+            _validate_object_id(self.object_id, len(self.X))
 
         if self.time.dtype != pl.Date and self.time.dtype.base_type() != pl.Datetime:
             raise TypeError("Pool time must have Date or Datetime dtype")
@@ -71,6 +98,7 @@ class Pool:
             y=self.y.gather(index),
             time=self.time.gather(index),
             weight=self.weight.gather(index),
+            object_id=None if self.object_id is None else self.object_id.gather(index),
             business_type=(
                 None if self.business_type is None else self.business_type.gather(index)
             ),
