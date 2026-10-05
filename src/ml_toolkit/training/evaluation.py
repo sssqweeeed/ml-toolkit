@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import asdict, dataclass, is_dataclass
 from pathlib import Path
 import re
@@ -17,6 +18,8 @@ from ..plots import classification, monitoring, psi as psi_plots, pu as pu_plots
 from ..psi import PSIAnalysis, PSIConfig, PSIFeature
 from ..tracking.mlflow import log_polars_table
 from .contracts import TrainingData
+
+logger = logging.getLogger(__name__)
 
 
 def _feature_filename(prefix: str, index: int, feature: str) -> str:
@@ -89,6 +92,7 @@ def log_evaluation(
     }
     for split, values in scores.items():
         mlflow.log_metrics({f"{split}/{key}": value for key, value in values.items()})
+        logger.debug("Evaluation %s %s metrics: %s", name, split, values)
     if diagnostics is not None:
         _log_diagnostics(model, train, validation, train_prediction,
                          validation_prediction, diagnostics, name)
@@ -99,6 +103,13 @@ def _log_diagnostics(model, train, validation, train_prediction, validation_pred
                      options: DiagnosticsOptions, name: str) -> None:
     if tuple(train.X.columns) != tuple(validation.X.columns):
         raise ValueError("Train and validation features must match for diagnostics")
+    logger.debug(
+        "Generating diagnostics for %s: task=%s, PSI=%s, plots=%s",
+        name,
+        options.task,
+        options.psi,
+        options.plots,
+    )
     with TemporaryDirectory(prefix="ml-toolkit-diagnostics-") as directory:
         root = Path(directory)
 
@@ -106,6 +117,7 @@ def _log_diagnostics(model, train, validation, train_prediction, validation_pred
             path = root / filename
             draw(*args, save_fig=path, **kwargs)
             mlflow.log_artifact(str(path), artifact_path=f"figures/{name}")
+            logger.debug("Logged diagnostic figure %s for %s", filename, name)
 
         psi_result = None
         if options.psi and train.X.columns:
@@ -126,6 +138,7 @@ def _log_diagnostics(model, train, validation, train_prediction, validation_pred
                                  f"psi/{name}/monthly_distribution.json")
 
         if not options.plots:
+            logger.debug("Plot diagnostics disabled for %s", name)
             return
         if psi_result is not None:
             emit("psi_scores.png", psi_plots.feature_psi_plot, psi_result.psi)

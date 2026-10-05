@@ -31,14 +31,22 @@ def cross_validate(
 ) -> CrossValidationResult:
     splits = _time_series_splits(len(data), n_splits, skip_splits)
     validate_training_data(data)
+    logger.info("Starting cross-validation with %s evaluated folds", n_splits - skip_splits)
     fold_metrics: list[dict[str, float]] = []
     best_iterations: list[int] = []
     for fold_index, (train_index, validation_index) in splits:
         if fold_index <= skip_splits:
-            logger.info("Skipping fold %s", fold_index)
+            logger.debug("Skipping fold %s", fold_index)
             continue
         train = data.take(train_index)
         validation = data.take(validation_index)
+        logger.info("Starting fold %s", fold_index)
+        logger.debug(
+            "Fold %s: %s training rows, %s validation rows",
+            fold_index,
+            len(train),
+            len(validation),
+        )
         with mlflow.start_run(run_name=f"fold_{fold_index}", nested=True):
             mlflow.log_params(params)
             model = model_factory(params)
@@ -53,8 +61,12 @@ def cross_validate(
             if model.best_iteration is not None:
                 best_iterations.append(int(model.best_iteration))
             fold_metrics.append(scores["val"])
+        logger.info("Completed fold %s", fold_index)
     if not fold_metrics:
         raise ValueError("No folds were processed")
     result = CrossValidationResult(tuple(fold_metrics), tuple(best_iterations))
     mlflow.log_metrics({f"cv/{key}": value for key, value in result.mean_metrics.items()})
+    logger.info("Completed cross-validation with %s folds", len(fold_metrics))
+    if logger.isEnabledFor(logging.DEBUG):
+        logger.debug("Cross-validation mean metrics: %s", result.mean_metrics)
     return result

@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
 import lightgbm
 import mlflow
 import numpy as np
+
+logger = logging.getLogger("ml_toolkit.models.lightgbm")
 
 
 class LightGBMWrapper(mlflow.pyfunc.PythonModel):
@@ -39,6 +42,7 @@ class LightGBMWrapper(mlflow.pyfunc.PythonModel):
             features = json.load(f)
         self.numerical_features = features["numerical_features"]
         self.cat_features = features["cat_features"]
+        logger.debug("Loaded LightGBM serving model")
 
     def predict(self, context, model_input, params=None):
         if self.model is None:
@@ -46,6 +50,7 @@ class LightGBMWrapper(mlflow.pyfunc.PythonModel):
         X = model_input.loc[:, self.feature_names].copy()
         for feature in self.cat_features:
             X[feature] = X[feature].astype("category")
+        logger.debug("Predicting with LightGBM serving model: %s rows", len(X))
         return np.asarray(self.native_model.predict(X))
 
     def log(
@@ -78,6 +83,7 @@ class LightGBMWrapper(mlflow.pyfunc.PythonModel):
         }
 
         with TemporaryDirectory(prefix="lightgbm-mlflow-") as tmp:
+            logger.debug("Packaging LightGBM model %s", name)
             booster_path = Path(tmp) / "model.lgb"
             features_path = Path(tmp) / "features.json"
             booster.save_model(str(booster_path))

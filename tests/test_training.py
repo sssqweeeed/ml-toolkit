@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from datetime import date, timedelta
+import logging
 
 import mlflow
 import numpy as np
@@ -207,8 +208,9 @@ def test_training_rejects_unsorted_project_data(tmp_path):
                     metric=mae, run_name="invalid", n_splits=2)
 
 
-def test_training_logs_psi_and_plots(tmp_path):
+def test_training_logs_psi_and_plots(tmp_path, caplog):
     setup_mlflow(tmp_path)
+    caplog.set_level(logging.DEBUG, logger="ml_toolkit")
     train_model(
         data=make_data(), params={}, model_factory=MeanModel, metric=mae,
         run_name="diagnostics", n_splits=2,
@@ -221,6 +223,10 @@ def test_training_logs_psi_and_plots(tmp_path):
     assert "psi/fold_1/scores.json" in artifacts
     assert any(path.endswith("psi_scores.png") for path in artifacts)
     assert any(path.endswith("monthly_observed_fitted.png") for path in artifacts)
+    messages = [record.getMessage() for record in caplog.records
+                if record.name == "ml_toolkit.training.evaluation"]
+    assert any(message.startswith("Generating diagnostics for fold_1") for message in messages)
+    assert "Logged diagnostic figure psi_scores.png for fold_1" in messages
 
 
 def test_bundled_catboost_model_runs_through_training(tmp_path):
@@ -278,13 +284,17 @@ def test_optuna_tuning_uses_same_training_function(tmp_path):
     assert len(result.cross_validation.fold_metrics) == 2
 
 
-def test_inflation_model_and_shap_are_available(tmp_path):
+def test_inflation_model_and_shap_are_available(tmp_path, caplog):
+    caplog.set_level(logging.DEBUG, logger="ml_toolkit")
     data = make_data()
     regression = CatBoostRegressionModel({"iterations": 5, "loss_function": "Poisson",
                                           "depth": 2, "verbose": False})
     adjusted = InflationAdjustedModel(regression, ConstantRateInflation(.03), date(2024, 1, 1))
     adjusted.fit(data)
     assert np.isfinite(adjusted.predict_pool(data)).all()
+    assert any(record.name == "ml_toolkit.models.inflation_regression"
+               and record.getMessage() == "Fitted inflation-adjusted model"
+               for record in caplog.records)
 
     explanation = calculate_shap_values(regression.native_model, data.X, n_samples=10)
     assert explanation.values.shape == (10, 2)

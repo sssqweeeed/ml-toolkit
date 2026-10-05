@@ -105,6 +105,40 @@ independently labeled audit sample. PU models do not select a decision threshold
 from F1; pass `decision_threshold` in the model parameters if hard labels are
 needed, and choose it from an audited set or an operational review capacity.
 
+## Logging
+
+The toolkit uses standard Python logging under the `ml_toolkit` namespace.
+Applications configure handlers, formatting, and levels; importing the package
+adds only a `NullHandler` and does not configure root logging. Package and module
+loggers inherit levels and propagate to application handlers.
+
+```python
+import logging
+
+logging.basicConfig(
+    level=logging.WARNING,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
+logging.getLogger("ml_toolkit").setLevel(logging.INFO)
+
+# Enable details throughout the toolkit, or override a single module.
+# logging.getLogger("ml_toolkit").setLevel(logging.DEBUG)
+logging.getLogger("ml_toolkit.psi.analysis").setLevel(logging.DEBUG)
+```
+
+`INFO` reports workflow progress: feature selection, tuning, cross-validation
+folds, and final training. `DEBUG` adds data sizes, feature names, metric
+summaries, trial and nnPU iteration details, and model, PSI, SHAP, inflation,
+plot, and artifact operations. `WARNING` suppresses routine toolkit progress
+and details. Exceptions propagate normally without duplicate error logs.
+
+These settings control toolkit messages. CatBoost, Optuna, and MLflow retain
+their own output configuration. CatBoost feature selection still uses its
+existing `logging_level="Verbose"`; nnPU's internal one-tree fits still use
+`"Silent"`. Toolkit levels do not override those choices or caller-supplied
+dependency settings. Python logging does not change MLflow metric or artifact
+recording.
+
 ## PSI and plots
 
 All plots are under `ml_toolkit.plots`, including PSI plots. PSI calculation is

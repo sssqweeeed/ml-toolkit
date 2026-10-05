@@ -17,7 +17,8 @@ from mlflow.pyfunc.utils import pyfunc
 if TYPE_CHECKING:
     from ..training.contracts import TrainingData
 
-logger = logging.getLogger(__name__)
+# MLflow also executes this source under a generated module name.
+logger = logging.getLogger("ml_toolkit.models.catboost_classification")
 
 
 def _pu_risks(
@@ -176,6 +177,8 @@ class CatBoostModel(mlflow.pyfunc.PythonModel):  # type: ignore
                 self._threshold = None
             self._validation_f1 = None
 
+        logger.debug("Loaded CatBoost classifier: PU loss=%s", self._pu_loss)
+
     @property
     def native_model(self) -> catboost.CatBoostClassifier:
         if self._model is None:
@@ -218,6 +221,11 @@ class CatBoostModel(mlflow.pyfunc.PythonModel):  # type: ignore
         return list(names)
 
     def fit(self, train: TrainingData, validation: TrainingData | None = None) -> Self:
+        logger.debug(
+            "Fitting CatBoost classifier: %s training rows, validation=%s",
+            len(train),
+            validation is not None,
+        )
         params = self.params.copy()
         decision_threshold = params.pop("decision_threshold", None)
         requested_loss = params.pop("loss", None)
@@ -324,6 +332,11 @@ class CatBoostModel(mlflow.pyfunc.PythonModel):  # type: ignore
                 validation.y.to_numpy(),
                 self.predict_pool(validation),
             )
+        logger.debug(
+            "Fitted CatBoost classifier: PU loss=%s, threshold=%s",
+            self._pu_loss,
+            self._threshold,
+        )
         return self
 
     @staticmethod
@@ -391,7 +404,7 @@ class CatBoostModel(mlflow.pyfunc.PythonModel):  # type: ignore
             next_model.fit(train_data, eval_set=validation_data, init_model=model)
             model = next_model
             if iteration == 0 or (iteration + 1) % 50 == 0:
-                logger.info(
+                logger.debug(
                     "nnPU tree %d/%d; training negative risk %.6g; correction=%s",
                     iteration + 1,
                     iterations,
@@ -454,8 +467,14 @@ class CatBoostModel(mlflow.pyfunc.PythonModel):  # type: ignore
                 "num_features_to_select must be between 1 and the feature count"
             )
         if num_features_to_select == len(feature_names):
+            logger.debug("CatBoost feature selection retained all %s features", len(feature_names))
             return feature_names
 
+        logger.debug(
+            "Selecting %s of %s CatBoost features",
+            num_features_to_select,
+            len(feature_names),
+        )
         baseline = self._calculate_baseline(train)
         params = self.params.copy()
         params["boost_from_average"] = False
@@ -472,7 +491,9 @@ class CatBoostModel(mlflow.pyfunc.PythonModel):  # type: ignore
             plot=False,
             logging_level="Verbose",
         )
-        return list(summary["selected_features_names"])
+        names = list(summary["selected_features_names"])
+        logger.debug("CatBoost selected features: %s", names)
+        return names
 
     @pyfunc
     def predict(self, context, model_input: pd.DataFrame, params=None) -> np.ndarray:  # type: ignore
@@ -547,6 +568,7 @@ class CatBoostModel(mlflow.pyfunc.PythonModel):  # type: ignore
             **({"training_params": self.params} if self._pu_loss else {}),
         }
         with TemporaryDirectory(prefix="catboost-mlflow-") as directory:
+            logger.debug("Packaging CatBoost classification model %s", name)
             model_path = Path(directory) / "model.cbm"
             config_path = Path(directory) / "config.json"
             self.native_model.save_model(str(model_path))
@@ -579,6 +601,7 @@ class CatBoostModel(mlflow.pyfunc.PythonModel):  # type: ignore
         else:
             feature_frame = data.loc[:, feature_names]
 
+        logger.debug("Predicting with CatBoost classifier: %s rows", len(feature_frame))
         raw_predictions = np.asarray(
             self.native_model.predict(
                 feature_frame,

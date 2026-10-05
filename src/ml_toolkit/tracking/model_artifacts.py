@@ -1,10 +1,13 @@
 """Common MLflow models-from-code packaging for native model artifacts."""
 
 from importlib.metadata import version
+import logging
 from pathlib import Path
 
 import mlflow
 from mlflow.models import infer_signature
+
+logger = logging.getLogger(__name__)
 
 
 def log_model_from_code(
@@ -37,7 +40,13 @@ def log_model_from_code(
             ]
         }
 
-    return mlflow.pyfunc.log_model(
+    logger.debug(
+        "Logging model artifact %s: %s sample rows, registered=%s",
+        name,
+        len(sample_frame),
+        registered_model_name is not None,
+    )
+    model_info = mlflow.pyfunc.log_model(
         python_model=str(source),
         name=name,
         registered_model_name=registered_model_name,
@@ -49,3 +58,5 @@ def log_model_from_code(
         code_paths=code_paths,
         **environment,
     )
+    logger.debug("Logged model artifact %s", name)
+    return model_info

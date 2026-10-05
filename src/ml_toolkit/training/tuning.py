@@ -22,9 +22,16 @@ def tune_optuna(
 ) -> TuningResult:
     trial_results: dict[int, CrossValidationResult] = {}
     study = optuna.create_study(direction=direction)
+    logger.info(
+        "Starting Optuna tuning: %s trials, metric %s, direction %s",
+        n_trials,
+        metric_to_optimize,
+        direction,
+    )
 
     def objective(trial: optuna.Trial) -> float:
         params = base_params | param_space(trial)
+        logger.debug("Starting tuning trial %s", trial.number + 1)
         with mlflow.start_run(run_name=f"trial_{trial.number + 1}", nested=True):
             mlflow.log_params(params)
             result = cross_validate(
@@ -39,8 +46,19 @@ def tune_optuna(
                 )
             value = result.mean_metrics[metric_to_optimize]
             mlflow.log_metric("objective", value)
+            logger.debug(
+                "Completed tuning trial %s: %s=%s",
+                trial.number + 1,
+                metric_to_optimize,
+                value,
+            )
             return value
 
     study.optimize(objective, n_trials=n_trials)
-    logger.info("Optuna best value: %s; params: %s", study.best_value, study.best_params)
+    logger.info(
+        "Completed Optuna tuning: best %s=%s at trial %s",
+        metric_to_optimize,
+        study.best_value,
+        study.best_trial.number + 1,
+    )
     return TuningResult(study.best_params, trial_results[study.best_trial.number])

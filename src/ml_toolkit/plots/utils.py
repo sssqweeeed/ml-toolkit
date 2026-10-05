@@ -1,9 +1,12 @@
 """Input checks and figure handling shared by the plot families."""
 
+import logging
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 
 class PlotError(ValueError):
@@ -39,4 +42,5 @@ def save_figure(fig, path: str | Path) -> Path:
         fig.savefig(path, bbox_inches="tight")
     finally:
         plt.close(fig)
+    logger.debug("Saved figure to %s", path)
     return path

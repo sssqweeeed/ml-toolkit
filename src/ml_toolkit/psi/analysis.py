@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import logging
 
 import polars as pl
 
@@ -15,6 +16,8 @@ from .distributions import (
 from .levels import LevelTransformer
 from .results import PSIResult
 from .score import psi
+
+logger = logging.getLogger(__name__)
 
 
 def _resolve_time(data: pl.DataFrame, time: pl.Series | str | None) -> pl.Series | None:
@@ -51,9 +54,15 @@ class PSIAnalysis:
         if not isinstance(reference, pl.DataFrame) or reference.is_empty():
             raise ValueError("reference must be a non-empty Polars DataFrame")
         reference_time = _resolve_time(reference, time)
+        logger.debug(
+            "Fitting PSI reference: %s rows, %s features",
+            len(reference),
+            len(self.config.features),
+        )
         self.transformer.fit(reference)
         self.reference_levels = self.transformer.transform(reference)
         self.reference_time = reference_time
+        logger.debug("Fitted PSI reference levels")
         return self
 
     def compare(
@@ -71,6 +80,11 @@ class PSIAnalysis:
         if (self.reference_time is None) != (current_time is None):
             raise ValueError("Both samples must provide time for monthly distributions")
 
+        logger.debug(
+            "Comparing PSI: %s current rows, %s features",
+            len(current),
+            len(self.config.features),
+        )
         current_levels = self.transformer.transform(current)
         level_config = self.transformer.config
         feature_scores = pl.DataFrame(
@@ -99,9 +113,11 @@ class PSIAnalysis:
                 current_time,
                 level_config,
             )
-        return PSIResult(
+        result = PSIResult(
             psi=feature_scores,
             level_distribution=level_distribution,
             monthly_distribution=monthly_distribution,
             level_config=level_config,
         )
+        logger.debug("Completed PSI comparison: %s feature scores", len(feature_scores))
+        return result

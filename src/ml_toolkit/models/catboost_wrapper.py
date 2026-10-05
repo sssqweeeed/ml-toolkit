@@ -1,6 +1,7 @@
 """Standalone serving code for CatBoost, with optional inflation adjustment."""
 
 import json
+import logging
 from datetime import date
 
 import catboost
@@ -8,6 +9,8 @@ import mlflow
 import numpy as np
 import pandas as pd
 import polars as pl
+
+logger = logging.getLogger("ml_toolkit.models.catboost_wrapper")
 
 
 class CatBoostWrapper(mlflow.pyfunc.PythonModel):
@@ -24,10 +27,13 @@ class CatBoostWrapper(mlflow.pyfunc.PythonModel):
 
             self.inflation = inflation_from_config(self.config["inflation"])
 
+        logger.debug("Loaded CatBoost serving model: inflation=%s", self.inflation is not None)
+
     def predict(self, context, model_input, params=None):
         features = model_input.loc[:, self.native_model.feature_names_]
         if model_input.empty:
             return np.asarray([], dtype=float)
+        logger.debug("Predicting with CatBoost serving model: %s rows", len(features))
         prediction = np.asarray(
             self.native_model.predict(features, prediction_type="Exponent"),
             dtype=float,

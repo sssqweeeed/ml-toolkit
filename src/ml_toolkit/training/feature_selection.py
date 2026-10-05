@@ -1,11 +1,14 @@
 """Optional model-driven feature elimination."""
 
+import logging
 from collections.abc import Callable
 from typing import Any
 
 import numpy as np
 
 from .contracts import TrainingData
+
+logger = logging.getLogger(__name__)
 
 
 def feature_elimination(
@@ -19,8 +22,17 @@ def feature_elimination(
         raise ValueError("Not enough rows for feature-selection validation")
     train = data.take(np.arange(split))
     validation = data.take(np.arange(split, len(data)))
+    logger.info("Starting feature selection: %s features requested", num_features_to_select)
+    logger.debug(
+        "Feature selection: %s training rows, %s validation rows",
+        len(train),
+        len(validation),
+    )
     names = model_factory(params).select_features(
         train=train, validation=validation,
         num_features_to_select=num_features_to_select,
     )
-    return data.select_features(names)
+    selected = data.select_features(names)
+    logger.info("Completed feature selection: %s features selected", len(names))
+    logger.debug("Selected features: %s", names)
+    return selected

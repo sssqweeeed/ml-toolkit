@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import date
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Self
@@ -15,6 +16,8 @@ from .catboost_regression import CatBoostModel
 
 if TYPE_CHECKING:
     from ..training.contracts import TrainingData
+
+logger = logging.getLogger(__name__)
 
 
 class InflationAdjustedModel(mlflow.pyfunc.PythonModel):  # type: ignore
@@ -42,6 +45,7 @@ class InflationAdjustedModel(mlflow.pyfunc.PythonModel):  # type: ignore
         return self.model.best_iteration
 
     def fit(self, train: TrainingData, validation: TrainingData | None = None) -> Self:
+        logger.debug("Fitting inflation-adjusted model at reference date %s", self.reference_date)
         self.inflation.fit(
             dates=train.time,
             y=train.y.to_numpy(),
@@ -52,6 +56,7 @@ class InflationAdjustedModel(mlflow.pyfunc.PythonModel):  # type: ignore
             None if validation is None else self._at_reference_date(validation)
         )
         self.model.fit(normalized_train, normalized_validation)
+        logger.debug("Fitted inflation-adjusted model")
         return self
 
     def predict_pool(self, data: TrainingData) -> np.ndarray:
@@ -95,6 +100,7 @@ class InflationAdjustedModel(mlflow.pyfunc.PythonModel):  # type: ignore
         if model_input.empty:
             return np.asarray([], dtype=float)
 
+        logger.debug("Predicting with inflation-adjusted model: %s rows", len(model_input))
         prediction_dates = pd.to_datetime(
             model_input[self.prediction_date_column],
             errors="raise",
@@ -123,6 +129,7 @@ class InflationAdjustedModel(mlflow.pyfunc.PythonModel):  # type: ignore
         registered_model_name=None,
         conda_env=None,
     ) -> tuple[Any, Any]:
+        logger.debug("Packaging inflation-adjusted model %s", name)
         inflation_config = self.inflation.to_config()
         inflation_from_config(inflation_config)
         if self.prediction_date_column in self.model.feature_names:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, Any, Self
@@ -15,6 +16,8 @@ from .artifacts import log_model_from_code
 
 if TYPE_CHECKING:
     from ..training.contracts import TrainingData
+
+logger = logging.getLogger(__name__)
 
 
 class CatBoostModel(mlflow.pyfunc.PythonModel):  # type: ignore
@@ -52,6 +55,11 @@ class CatBoostModel(mlflow.pyfunc.PythonModel):  # type: ignore
         return list(names)
 
     def fit(self, train: TrainingData, validation: TrainingData | None = None) -> Self:
+        logger.debug(
+            "Fitting CatBoost regressor: %s training rows, validation=%s",
+            len(train),
+            validation is not None,
+        )
         baseline = self._calculate_baseline(train)
         params = self.params.copy()
         if validation is None:
@@ -73,6 +81,7 @@ class CatBoostModel(mlflow.pyfunc.PythonModel):  # type: ignore
 
         self._model = model
         self._baseline = baseline
+        logger.debug("Fitted CatBoost regressor with baseline %s", baseline)
         return self
 
     def predict_pool(self, data: TrainingData) -> np.ndarray:
@@ -90,8 +99,14 @@ class CatBoostModel(mlflow.pyfunc.PythonModel):  # type: ignore
                 "num_features_to_select must be between 1 and the feature count"
             )
         if num_features_to_select == len(feature_names):
+            logger.debug("CatBoost feature selection retained all %s features", len(feature_names))
             return feature_names
 
+        logger.debug(
+            "Selecting %s of %s CatBoost features",
+            num_features_to_select,
+            len(feature_names),
+        )
         baseline = self._calculate_baseline(train)
         model = catboost.CatBoostRegressor(**self.params)
         summary = model.select_features(
@@ -106,7 +121,9 @@ class CatBoostModel(mlflow.pyfunc.PythonModel):  # type: ignore
             plot=False,
             logging_level="Verbose",
         )
-        return list(summary["selected_features_names"])
+        names = list(summary["selected_features_names"])
+        logger.debug("CatBoost selected features: %s", names)
+        return names
 
     def predict(self, context, model_input, params=None) -> np.ndarray:
         return self.predict_frame(model_input)
@@ -167,6 +184,7 @@ class CatBoostModel(mlflow.pyfunc.PythonModel):  # type: ignore
             **(metadata or {}),
         }
         with TemporaryDirectory(prefix="catboost-mlflow-") as directory:
+            logger.debug("Packaging CatBoost regression model %s", name)
             model_path = Path(directory) / "model.cbm"
             config_path = Path(directory) / "config.json"
             self.native_model.save_model(str(model_path))
@@ -196,6 +214,7 @@ class CatBoostModel(mlflow.pyfunc.PythonModel):  # type: ignore
         else:
             raise TypeError("Prediction data must be a Polars or Pandas DataFrame")
 
+        logger.debug("Predicting with CatBoost regressor: %s rows", len(feature_frame))
         return np.asarray(
             self.native_model.predict(
                 feature_frame,

@@ -1,9 +1,13 @@
 from abc import ABC, abstractmethod
 from datetime import date
+import logging
 from typing import Any, Self
 
 import numpy as np
 import polars as pl
+
+# This module is also bundled as standalone MLflow serving code.
+logger = logging.getLogger("ml_toolkit.inflation")
 
 
 class InflationAdjuster(ABC):
@@ -34,6 +38,11 @@ class InflationAdjuster(ABC):
         _validate_dates(
             dates,
             name="dates",
+        )
+        logger.debug(
+            "Validated inflation strategy %s for %s dates",
+            type(self).__name__,
+            len(dates),
         )
         return self
 
@@ -73,6 +82,7 @@ class InflationAdjuster(ABC):
         if values.shape != (len(from_dates),):
             raise ValueError("values must contain exactly one value per date")
 
+        logger.debug("Adjusting inflation with %s: %s values", type(self).__name__, len(values))
         return values * factor
 
     def to_config(self) -> dict[str, Any]:

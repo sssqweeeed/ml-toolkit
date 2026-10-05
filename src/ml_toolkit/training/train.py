@@ -1,5 +1,6 @@
 """One reusable fitting workflow called by project-specific training recipes."""
 
+import logging
 from collections.abc import Callable
 from typing import Any
 
@@ -12,6 +13,8 @@ from .evaluation import DiagnosticsOptions
 from .feature_selection import feature_elimination
 from .results import TrainingResult
 from .tuning import tune_optuna
+
+logger = logging.getLogger(__name__)
 
 
 def train_model(
@@ -29,6 +32,8 @@ def train_model(
     parameter dictionary. An existing MLflow run can contain this workflow.
     """
     validate_training_data(data)
+    logger.info("Starting training run %s", run_name)
+    logger.debug("Training data: %s rows, %s features", len(data), len(data.X.columns))
     with mlflow.start_run(run_name=run_name, nested=mlflow.active_run() is not None):
         working = data
         if select_features is not None:
@@ -86,6 +91,8 @@ def train_model(
         if "use_best_model" in final_params:
             final_params["use_best_model"] = False
         with mlflow.start_run(run_name="final_fit", nested=True):
+            logger.info("Starting final fit for run %s", run_name)
+            logger.debug("Final fit selected iterations: %s", selected_iterations)
             mlflow.log_params(final_params)
             if selected_iterations is not None:
                 mlflow.log_param("selected_iterations", selected_iterations)
@@ -97,4 +104,6 @@ def train_model(
                 "train_date_start": str(working.time.min()),
                 "train_date_end": str(working.time.max()),
             })
+            logger.info("Completed final fit for run %s", run_name)
+        logger.info("Completed training run %s", run_name)
         return TrainingResult(model, cv, final_params, tuple(working.X.columns))
