@@ -1,4 +1,4 @@
-"""Small interface supplied by a project; the toolkit owns no data container."""
+"""Shared interface for toolkit Pool and compatible project data containers."""
 
 from __future__ import annotations
 
@@ -13,15 +13,34 @@ import polars as pl
 class TrainingData(Protocol):
     """Operations used by training and the bundled model implementations.
 
-    Projects may use their existing Pool or another object with these methods.
+    Projects may use ml_toolkit.data.Pool or their own compatible container.
     ``business_type`` is optional and is read only when available.
     """
 
-    X: pl.DataFrame
-    y: pl.Series
-    time: pl.Series
-    weight: pl.Series
-    cat_features: tuple[str, ...]
+    @property
+    def X(self) -> pl.DataFrame:
+        """Return aligned feature columns."""
+        ...
+
+    @property
+    def y(self) -> pl.Series:
+        """Return aligned target values."""
+        ...
+
+    @property
+    def time(self) -> pl.Series:
+        """Return aligned observation timestamps."""
+        ...
+
+    @property
+    def weight(self) -> pl.Series:
+        """Return aligned row weights."""
+        ...
+
+    @property
+    def cat_features(self) -> tuple[str, ...]:
+        """Return categorical feature names."""
+        ...
 
     def __len__(self) -> int: ...
 
@@ -33,7 +52,9 @@ class TrainingData(Protocol):
 
     def to_catboost(self, baseline: float | np.ndarray | None = None) -> Any: ...
 
-    def to_model_input(self, n_rows: int | None = None) -> pd.DataFrame: ...
+    def to_model_input(self, n_rows: int | None = None) -> pd.DataFrame:
+        """Return model input; toolkit Pool limits to first rows for timestamp alignment."""
+        ...
 
 
 def validate_training_data(data: TrainingData) -> None:

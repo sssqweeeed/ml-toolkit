@@ -442,14 +442,14 @@ class CatBoostModel(mlflow.pyfunc.PythonModel):  # type: ignore
         return model, best_iteration
 
     def predict_pool(self, data: TrainingData) -> np.ndarray:
-        return self.predict_frame(data.X)
+        return self.predict_frame(data.to_model_input())
 
     def predict_labels(self, data: pl.DataFrame | pd.DataFrame) -> np.ndarray:
         """Predict labels using probability >= the stored threshold."""
         return (self.predict_frame(data) >= self.threshold).astype(np.int64)
 
     def predict_labels_pool(self, data: TrainingData) -> np.ndarray:
-        return self.predict_labels(data.X)
+        return self.predict_labels(data.to_model_input())
 
     def select_features(
         self,

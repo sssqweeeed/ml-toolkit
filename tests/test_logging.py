@@ -67,7 +67,7 @@ assert all(logging.getLogger(name).level == logging.NOTSET for name in (
     "ml_toolkit.training.train", "ml_toolkit.training.cross_validation",
     "ml_toolkit.models.catboost_classification",
 ))
-assert ml_toolkit.__all__ == ["TrainingResult", "train_model"]
+assert ml_toolkit.__all__ == ["Pool", "TrainingResult", "train_model"]
 """
     env = os.environ.copy()
     env["PYTHONPATH"] = str(Path(__file__).resolve().parents[1] / "src")

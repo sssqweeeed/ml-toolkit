@@ -85,7 +85,7 @@ class CatBoostModel(mlflow.pyfunc.PythonModel):  # type: ignore
         return self
 
     def predict_pool(self, data: TrainingData) -> np.ndarray:
-        return self.predict_frame(data.X)
+        return self.predict_frame(data.to_model_input())
 
     def select_features(
         self,

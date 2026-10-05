@@ -23,9 +23,37 @@ The generated `.codegraph/` index is ignored by Git.
 ## Training from a project
 
 Projects own their data preparation, model settings, experiment names, and
-MLflow tracking URI. `ml-toolkit` does not define a dataset or a `Pool` class.
-The existing project `Pool` works because it provides the operations listed
-below. Another project can provide an object with the same small interface.
+MLflow tracking URI. Use the shared frozen `Pool` to pass prepared Polars data
+to the toolkit. Existing custom containers remain supported through the
+`TrainingData` protocol in `ml_toolkit.training.contracts`.
+
+```python
+from ml_toolkit.data import Pool  # Also available as: from ml_toolkit import Pool
+
+data = Pool(
+    X=prepared.select(["age", "region"]),
+    y=prepared["target"],
+    time=prepared["date"],  # Polars Date or Datetime
+    weight=prepared["weight"],
+    business_type=prepared["business_type"],  # Optional; defaults to None.
+    cat_features=("region",),
+    numerical_features=("age",),
+)
+```
+
+`Pool` checks that rows are nonempty and aligned, timestamps have a Date or
+Datetime dtype, and declared feature names exist without duplicates or overlap.
+Feature lists may cover only a subset of columns. Training separately checks
+ascending, non-null timestamps, finite targets, and valid weights.
+`take`, `select_features`, and `with_target` return new pools and preserve aligned
+metadata. A frozen dataclass prevents field reassignment; its contained Polars
+objects are not deeply immutable.
+
+`to_model_input(n_rows=None)` returns all rows as pandas data; a limit returns the
+first rows and is capped at the pool size. Both this conversion and `to_catboost`
+cast categorical columns to strings and fill null categories with `"unknown"`
+without changing the source frame. `to_catboost` accepts an optional scalar or
+per-row baseline and includes millisecond timestamps and row weights.
 
 ```python
 import mlflow
@@ -36,7 +64,7 @@ from ml_toolkit.training import DiagnosticsOptions, train_model
 from my_project.data import prepare_frequency_data
 
 mlflow.set_experiment("Frequency")
-data = prepare_frequency_data(raw_data)  # Your project owns this function.
+data = prepare_frequency_data(raw_data)  # Your project prepares and returns a Pool.
 result = train_model(
     data=data,
     params={"iterations": 200, "loss_function": "Poisson", "verbose": False},
@@ -64,8 +92,8 @@ The project data object needs `X` (Polars DataFrame), `y`, `time`, and
 `select_features(names)`. Bundled CatBoost models additionally need
 `to_catboost(...)` and `to_model_input(...)`; inflation-adjusted fitting needs
 `with_target(...)`. `business_type` is optional for grouped monthly plots.
-These methods belong to the project, not to the toolkit. A custom model factory
-can use a different project data representation if it satisfies the training
+The shared `Pool` implements all these operations. A custom model factory can
+use a different project data representation if it satisfies the training
 operations it invokes.
 
 For classification, supply `CatBoostClassificationModel`,
@@ -165,12 +193,13 @@ functions, so manual and automatic figures have one implementation.
 
 | Path | Purpose |
 | --- | --- |
+| `data.py` | Shared Pool container, aligned row operations, and model conversions. |
 | `training/train.py` | Select, tune, validate, fit, and log one experiment. |
 | `training/cross_validation.py` | Time-based folds, evaluation, and nested MLflow runs. |
 | `training/feature_selection.py` | Model-driven feature elimination. |
 | `training/tuning.py` | Optuna search through the same validation path. |
 | `training/evaluation.py` | Metrics, PSI, plot generation, and MLflow artifacts. |
-| `training/contracts.py` | Minimal project-owned data interface; no toolkit dataset class. |
+| `training/contracts.py` | TrainingData protocol for Pool and custom containers. |
 | `training/results.py` | Result dataclasses. |
 | `models/` | CatBoost classification/regression, PU learning, LightGBM serving, and inflation-adjusted models. |
 | `metrics/` | Classification, frequency, severity, and ranking calculations. |
