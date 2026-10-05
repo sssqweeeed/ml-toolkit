@@ -10,7 +10,46 @@ def psi(
     *,
     epsilon: float = 1e-6,
 ) -> float:
-    """Calculate PSI for two categorical feature distributions."""
+    """Calculate PSI for two categorical feature distributions.
+
+    Parameters
+    ----------
+    reference : polars.Series
+        Nonempty Categorical Series representing the reference levels.
+    current : polars.Series
+        Nonempty Categorical Series representing the current levels; sample
+        sizes may differ.
+    epsilon : float, default 1e-6
+        Minimum share strictly between zero and one used to avoid logarithms of
+        zero.
+
+    Returns
+    -------
+    float
+        Sum of (current_share - reference_share) * log(current_share /
+        reference_share) over the union of observed levels.
+
+    Raises
+    ------
+    TypeError
+        Either input is not a Categorical Polars Series.
+    ValueError
+        Either sample is empty or epsilon is invalid.
+
+    Notes
+    -----
+    Shares are floored independently without renormalization. Use
+    LevelTransformer or PSIAnalysis to bin raw numerical values first.
+
+    Examples
+    --------
+    >>> import polars as pl
+    >>> from ml_toolkit.psi import psi
+    >>> reference = pl.Series(["a", "b"], dtype=pl.Categorical)
+    >>> current = pl.Series(["b", "a"], dtype=pl.Categorical)
+    >>> psi(reference, current)
+    0.0
+    """
     if not isinstance(reference, pl.Series) or reference.dtype != pl.Categorical:
         raise TypeError("reference must be a pl.Categorical Series")
     if not isinstance(current, pl.Series) or current.dtype != pl.Categorical:

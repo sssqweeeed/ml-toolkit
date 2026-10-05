@@ -141,7 +141,28 @@ class _PULogisticObjective:
 
 
 class CatBoostModel(mlflow.pyfunc.PythonModel):  # type: ignore
-    """Binary or PU classifier; supervised models tune F1 on validation."""
+    """Adapt a binary or positive-unlabeled CatBoost classifier.
+
+    Parameters
+    ----------
+    params : dict[str, Any] or None, default None
+        Copied CatBoost parameters. loss may name a native loss, uPU, or nnPU.
+        PU requires finite pu_prior in (0, 1) and CPU training;
+        decision_threshold optionally supplies a hard-label cutoff in [0, 1].
+
+    Notes
+    -----
+    Exported as CatBoostClassificationModel from ml_toolkit.models. Supervised
+    fitting starts from weighted target log-odds and tunes an unweighted
+    positive-class F1 threshold on validation, preferring the highest threshold
+    on ties. Without validation, the threshold is 0.5.
+
+    For uPU and nnPU, labels mean known positive (1) and unlabeled (0). Both
+    groups require positive total weight. The baseline uses population prior
+    log-odds; class-weight parameters are unsupported. PU fitting never tunes
+    an F1 threshold, so hard labels require decision_threshold. Returned
+    probabilities are model scores, not guaranteed calibrated risks.
+    """
 
     def __init__(self, params: dict[str, Any] | None = None) -> None:
         self.params = {} if params is None else params.copy()
@@ -181,18 +202,33 @@ class CatBoostModel(mlflow.pyfunc.PythonModel):  # type: ignore
 
     @property
     def native_model(self) -> catboost.CatBoostClassifier:
+        """Return the fitted native CatBoost model; raise RuntimeError before fitting."""
         if self._model is None:
             raise RuntimeError("Model has not been fitted")
         return self._model
 
     @property
     def baseline(self) -> float:
+        """Return the fitted log-odds baseline; raise RuntimeError before fitting."""
         if self._baseline is None:
             raise RuntimeError("Model has not been fitted")
         return self._baseline
 
     @property
     def threshold(self) -> float:
+        """Return the hard-label probability cutoff.
+
+        Returns
+        -------
+        float
+            Supervised F1-selected cutoff, 0.5 without validation, or explicitly
+            supplied PU decision_threshold.
+
+        Raises
+        ------
+        RuntimeError
+            The model is unfitted or a PU model has no explicit decision threshold.
+        """
         if self._model is None:
             raise RuntimeError("Model has not been fitted")
         if self._threshold is None:
@@ -201,11 +237,17 @@ class CatBoostModel(mlflow.pyfunc.PythonModel):  # type: ignore
 
     @property
     def validation_f1(self) -> float | None:
-        """Unweighted positive-class F1 used for threshold tuning, if available."""
+        """Return the unweighted positive-class F1 used for threshold tuning, if available.
+
+        Notes
+        -----
+        None for PU models and supervised fits without validation.
+        """
         return self._validation_f1
 
     @property
     def best_iteration(self) -> int | None:
+        """Return the zero-based best iteration index, or None when unavailable."""
         if self._pu_loss == "nnPU":
             return self._best_iteration
         value = self.native_model.get_best_iteration()
@@ -215,12 +257,39 @@ class CatBoostModel(mlflow.pyfunc.PythonModel):  # type: ignore
 
     @property
     def feature_names(self) -> list[str]:
+        """Return fitted feature names in native model order."""
         names = self.native_model.feature_names_
         if not names:
             raise RuntimeError("Fitted model does not contain feature names")
         return list(names)
 
     def fit(self, train: TrainingData, validation: TrainingData | None = None) -> Self:
+        """Fit a classifier and select its supervised validation threshold.
+
+        Parameters
+        ----------
+        train : TrainingData
+            Project-owned training data supplying the conversion methods required
+            by this model.
+        validation : TrainingData or None, default None
+            Optional holdout data for early stopping and model selection.
+
+        Returns
+        -------
+        Self
+            This fitted adapter, replacing any previous fitted state.
+
+        Raises
+        ------
+        ValueError
+            The weighted target mean or PU settings are invalid.
+
+        Notes
+        -----
+        train.to_catboost must apply the supplied baseline and aligned weights.
+        Without validation, early stopping is removed and use_best_model is
+        disabled. PU models use population prior log-odds and do not tune F1.
+        """
         logger.debug(
             "Fitting CatBoost classifier: %s training rows, validation=%s",
             len(train),
@@ -442,13 +511,63 @@ class CatBoostModel(mlflow.pyfunc.PythonModel):  # type: ignore
         return model, best_iteration
 
     def predict_pool(self, data: TrainingData) -> np.ndarray:
+        """Predict positive-class probabilities for project data.
+
+        Parameters
+        ----------
+        data : TrainingData
+            Project data whose X contains all fitted model features.
+
+        Returns
+        -------
+        numpy.ndarray of shape (n_samples,)
+            Positive-class probabilities, including the fitted log-odds baseline.
+
+        Raises
+        ------
+        RuntimeError
+            The model has not been fitted.
+        """
         return self.predict_frame(data.to_model_input())
 
     def predict_labels(self, data: pl.DataFrame | pd.DataFrame) -> np.ndarray:
-        """Predict labels using probability >= the stored threshold."""
+        """Predict labels using probability >= the stored threshold.
+
+        Parameters
+        ----------
+        data : polars.DataFrame or pandas.DataFrame
+            Feature frame containing all fitted feature names.
+
+        Returns
+        -------
+        numpy.ndarray of shape (n_samples,)
+            Integer labels 0 and 1.
+
+        Raises
+        ------
+        RuntimeError
+            The model is unfitted or PU label prediction lacks decision_threshold.
+        """
         return (self.predict_frame(data) >= self.threshold).astype(np.int64)
 
     def predict_labels_pool(self, data: TrainingData) -> np.ndarray:
+        """Predict thresholded binary labels for project-owned data.
+
+        Parameters
+        ----------
+        data : TrainingData
+            Project data with fitted feature columns in X.
+
+        Returns
+        -------
+        numpy.ndarray of shape (n_samples,)
+            Integer labels produced using the stored threshold.
+
+        Raises
+        ------
+        RuntimeError
+            The model is unfitted or a PU model lacks decision_threshold.
+        """
         return self.predict_labels(data.to_model_input())
 
     def select_features(
@@ -457,6 +576,36 @@ class CatBoostModel(mlflow.pyfunc.PythonModel):  # type: ignore
         validation: TrainingData,
         num_features_to_select: int,
     ) -> list[str]:
+        """Select features by recursive SHAP elimination without fitting the adapter.
+
+        Parameters
+        ----------
+        train : TrainingData
+            Data used to train the temporary feature-selection model.
+        validation : TrainingData
+            Holdout data used to evaluate candidate feature subsets.
+        num_features_to_select : int
+            Number of features to keep, between one and the available feature
+            count.
+
+        Returns
+        -------
+        list[str]
+            Selected feature names, or all names when the requested count equals
+            the available count.
+
+        Raises
+        ------
+        ValueError
+            The requested count is outside the available feature range.
+        NotImplementedError
+            PU losses do not support CatBoost built-in feature selection.
+
+        Notes
+        -----
+        Uses a temporary native model with train_final_model=False. CatBoost
+        selection output retains its existing Verbose logging level.
+        """
         if self.params.get("loss", self.params.get("loss_function")) in ("uPU", "nnPU"):
             raise NotImplementedError(
                 "CatBoost's built-in feature selection cannot optimize PU risk"
@@ -497,10 +646,31 @@ class CatBoostModel(mlflow.pyfunc.PythonModel):  # type: ignore
 
     @pyfunc
     def predict(self, context, model_input: pd.DataFrame, params=None) -> np.ndarray:  # type: ignore
+        """Predict through the MLflow PythonModel interface.
+
+        Parameters
+        ----------
+        context : Any
+            MLflow context; unused.
+        model_input : pandas.DataFrame
+            Serving frame containing fitted feature names.
+        params : dict or None, default None
+            MLflow inference parameters; unused.
+
+        Returns
+        -------
+        numpy.ndarray of shape (n_samples,)
+            Positive-class probabilities, including the fitted log-odds baseline.
+
+        See Also
+        --------
+        predict_frame : Predict directly from a Polars or pandas feature frame.
+        """
         return self.predict_frame(model_input)
 
     @property
     def cat_features(self) -> list[str]:
+        """Return categorical feature names in native model order."""
         return [
             self.feature_names[index]
             for index in self.native_model.get_cat_feature_indices()
@@ -508,6 +678,7 @@ class CatBoostModel(mlflow.pyfunc.PythonModel):  # type: ignore
 
     @property
     def numerical_features(self) -> list[str]:
+        """Return fitted feature names not marked categorical."""
         categorical = set(self.cat_features)
         return [name for name in self.feature_names if name not in categorical]
 
@@ -519,6 +690,32 @@ class CatBoostModel(mlflow.pyfunc.PythonModel):  # type: ignore
         registered_model_name=None,
         conda_env=None,
     ) -> Any:
+        """Package and log the fitted model with a serving input example.
+
+        Parameters
+        ----------
+        sample : TrainingData
+            Data used to supply up to five serving example rows via to_model_input.
+        name : str, default 'model'
+            MLflow model artifact name.
+        registered_model_name : str or None, default None
+            Optional model registry name.
+        conda_env : str, pathlib.Path, or None, default None
+            Existing Conda environment file. None pins the installed serving
+            dependency versions.
+
+        Returns
+        -------
+        mlflow.models.ModelInfo
+            Logged model information, including its model URI.
+
+        Notes
+        -----
+        Writes native model and configuration artifacts, infers a serving
+        signature, and logs baseline and input-schema metadata to MLflow. Configure
+        tracking and an experiment before calling. Classification artifacts also
+        preserve threshold and PU settings.
+        """
         sample_frame = sample.to_model_input(n_rows=5).loc[:, self.feature_names]
         model_info = self._log_artifacts(
             sample_frame,
@@ -588,6 +785,26 @@ class CatBoostModel(mlflow.pyfunc.PythonModel):  # type: ignore
             )
 
     def predict_frame(self, data: pl.DataFrame | pd.DataFrame) -> np.ndarray:
+        """Predict positive-class probabilities from a feature frame.
+
+        Parameters
+        ----------
+        data : polars.DataFrame or pandas.DataFrame
+            Frame containing all fitted feature names. Columns are selected and
+            reordered to match the model; extra columns are ignored.
+
+        Returns
+        -------
+        numpy.ndarray of shape (n_samples,)
+            Positive-class probabilities, including the fitted log-odds baseline.
+
+        Raises
+        ------
+        TypeError
+            Input is not a supported DataFrame.
+        RuntimeError
+            The model has not been fitted.
+        """
         if not isinstance(data, (pl.DataFrame, pd.DataFrame)):
             raise TypeError("Prediction data must be a Polars or Pandas DataFrame")
 

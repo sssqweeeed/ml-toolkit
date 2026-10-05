@@ -29,7 +29,42 @@ def _feature_filename(prefix: str, index: int, feature: str) -> str:
 
 @dataclass(frozen=True)
 class DiagnosticsOptions:
-    """Diagnostic choices supplied by a project, not a global toolkit config."""
+    """Choose diagnostic tables and plots for a training workflow.
+
+    Parameters
+    ----------
+    task : {'classification', 'pu_classification', 'regression', 'frequency', 'severity'}
+        Task determines which prediction diagnostics are generated.
+    psi : bool, default True
+        Log feature PSI and level distributions for each evaluated fold.
+    plots : bool, default True
+        Generate and log diagnostic figures. PSI tables can remain enabled
+        independently.
+    psi_bins : int, default 20
+        Positive number of reference quantile bins requested for numerical PSI
+        features.
+    shap_top_n : int or None, default None
+        Number of top SHAP features to display; None disables SHAP diagnostics.
+        Requires the shap extra.
+    feature_plots : tuple[str, ...] or None, default None
+        Numerical features for monthly distribution plots. None selects all
+        numerical features; an empty tuple disables these plots.
+    ranking_selected_percents : tuple[float, ...], default (10.0,)
+        Nonempty review percentages in (0, 100] annotated on ranking plots.
+
+    Notes
+    -----
+    Choices are supplied by the project rather than a global toolkit config. PU
+    diagnostics show score distributions and known-positive capture;
+    conventional classification calibration and ranking plots are omitted.
+
+    Examples
+    --------
+    >>> from ml_toolkit.training import DiagnosticsOptions
+    >>> options = DiagnosticsOptions(task="frequency", psi=True, plots=False)
+    >>> options.plots
+    False
+    """
 
     task: Literal["classification", "pu_classification", "regression", "frequency", "severity"]
     psi: bool = True

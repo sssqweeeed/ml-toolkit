@@ -29,6 +29,47 @@ def cross_validate(
     metric: Callable, n_splits: int, skip_splits: int = 0,
     diagnostics: DiagnosticsOptions | None = None,
 ) -> CrossValidationResult:
+    """Evaluate a model on expanding chronological folds and log each fold.
+
+    Parameters
+    ----------
+    data : TrainingData
+        Project-owned data with equal, nonzero row counts; finite targets;
+        non-null ascending timestamps; and finite, nonnegative weights with
+        positive total.
+    params : dict[str, Any]
+        Parameters passed to each new model.
+    model_factory : Callable
+        Factory receiving a parameter dictionary and returning a model
+        implementing the Model protocol.
+    metric : Callable
+        Callable receiving target, predictions, and weights as NumPy arrays;
+        return a dataclass or mapping of names to numeric scalar values.
+    n_splits : int
+        Number of time-series folds; at least two.
+    skip_splits : int, default 0
+        Initial folds to omit, from zero to n_splits - 1.
+    diagnostics : DiagnosticsOptions or None, default None
+        Optional per-fold PSI and plot artifacts.
+
+    Returns
+    -------
+    CrossValidationResult
+        Validation metric dictionaries and available zero-based best iteration
+        indices.
+
+    Raises
+    ------
+    ValueError
+        Input data or chronological split settings are invalid.
+
+    Notes
+    -----
+    Each fold creates a nested MLflow run, fits a fresh model, evaluates both
+    splits, and logs the model using validation rows as the serving example.
+    Mean validation metrics are logged to the enclosing run under "cv/".
+    Configure MLflow and start a parent run when calling this independently.
+    """
     splits = _time_series_splits(len(data), n_splits, skip_splits)
     validate_training_data(data)
     logger.info("Starting cross-validation with %s evaluated folds", n_splits - skip_splits)

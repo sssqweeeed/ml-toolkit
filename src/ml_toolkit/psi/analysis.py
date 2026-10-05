@@ -36,6 +36,34 @@ def _resolve_time(data: pl.DataFrame, time: pl.Series | str | None) -> pl.Series
 
 @dataclass
 class PSIAnalysis:
+    """Compare a current population against fitted reference feature levels.
+
+    Parameters
+    ----------
+    config : PSIConfig
+        Feature definitions, numerical bin count, and share floor.
+
+    Attributes
+    ----------
+    transformer : LevelTransformer
+        Transformer learning levels from reference data.
+    reference_levels : polars.DataFrame or None
+        Transformed reference frame; None before fitting.
+    reference_time : polars.Series or None
+        Optional reference timestamps for monthly distributions.
+
+    Examples
+    --------
+    >>> import polars as pl
+    >>> from ml_toolkit.psi import PSIAnalysis, PSIConfig, PSIFeature
+    >>> reference = pl.DataFrame({"segment": ["a", "a", "b", "b"]})
+    >>> current = pl.DataFrame({"segment": ["a", "b", "a", "b"]})
+    >>> analysis = PSIAnalysis(PSIConfig((PSIFeature("segment", "categorical"),)))
+    >>> result = analysis.fit(reference).compare(current)
+    >>> result.psi.get_column("psi").to_list()
+    [0.0]
+    """
+
     config: PSIConfig
     transformer: LevelTransformer = field(init=False)
     reference_levels: pl.DataFrame | None = field(init=False, default=None)
@@ -50,7 +78,29 @@ class PSIAnalysis:
         *,
         time: pl.Series | str | None = None,
     ) -> PSIAnalysis:
-        """Learn feature levels from reference data and optionally record dates."""
+        """Learn feature levels from reference data and optionally record dates.
+
+        Parameters
+        ----------
+        reference : polars.DataFrame
+            Nonempty reference frame containing all configured features.
+        time : polars.Series, str, or None, default None
+            Optional non-null Date/Datetime Series aligned with rows, or the name
+            of a timestamp column. Provide time for both samples or neither.
+
+        Returns
+        -------
+        Self
+            Analysis with stored reference levels and optional timestamps.
+
+        Raises
+        ------
+        ValueError
+            Reference data is empty, features are missing, or supplied timestamps
+            are null or misaligned.
+        TypeError
+            Supplied timestamps are not Date or Datetime.
+        """
         if not isinstance(reference, pl.DataFrame) or reference.is_empty():
             raise ValueError("reference must be a non-empty Polars DataFrame")
         reference_time = _resolve_time(reference, time)
@@ -71,7 +121,30 @@ class PSIAnalysis:
         *,
         time: pl.Series | str | None = None,
     ) -> PSIResult:
-        """Score current data with the fitted reference levels."""
+        """Score current data using the fitted reference levels.
+
+        Parameters
+        ----------
+        current : polars.DataFrame
+            Nonempty current frame containing all configured features.
+        time : polars.Series, str, or None, default None
+            Optional non-null Date/Datetime Series aligned with rows, or the name
+            of a timestamp column. Provide time for both samples or neither.
+
+        Returns
+        -------
+        PSIResult
+            Per-feature PSI, level shares for both samples, optional monthly
+            shares, and fitted level definitions.
+
+        Raises
+        ------
+        RuntimeError
+            The analysis has not been fitted.
+        ValueError
+            Data is empty, required features are missing, timestamps are invalid,
+            or only one sample supplies time.
+        """
         if self.reference_levels is None or self.transformer.config is None:
             raise RuntimeError("PSIAnalysis must be fitted before compare")
         if not isinstance(current, pl.DataFrame) or current.is_empty():

@@ -26,10 +26,85 @@ def train_model(
     metric_to_optimize: str | None = None,
     optimize_direction: str = "maximize", n_trials: int = 50,
 ) -> TrainingResult:
-    """Select, tune, validate and fit, logging every stage to active MLflow tracking.
+    """Select features, tune, validate, and fit a model with MLflow logging.
 
-    The caller owns ``data`` and all settings. Model factories receive a plain
-    parameter dictionary. An existing MLflow run can contain this workflow.
+    Parameters
+    ----------
+    data : TrainingData
+        Project-owned data with equal, nonzero row counts; finite targets;
+        non-null ascending timestamps; and finite, nonnegative weights with
+        positive total.
+    params : dict[str, Any]
+        Initial model parameters. The input dictionary is copied.
+    model_factory : Callable
+        Factory receiving a parameter dictionary and returning a model
+        implementing the Model protocol.
+    metric : Callable
+        Callable receiving target, predictions, and weights as NumPy arrays;
+        return a dataclass or mapping of names to numeric scalar values.
+    run_name : str
+        Name of the MLflow run created for this workflow.
+    n_splits : int
+        Number of expanding-window time-series folds; at least two.
+    skip_splits : int, default 0
+        Number of initial folds to omit; must be smaller than n_splits.
+    diagnostics : DiagnosticsOptions or None, default None
+        Optional PSI tables and diagnostic plots for evaluated folds.
+    select_features : int or None, default None
+        Number of features to retain. Selection uses only training rows of the
+        first evaluated fold, then reuses the subset throughout the workflow.
+    tune_params : bool, default False
+        Run Optuna search before cross-validation and final fitting.
+    param_space : Callable or None, default None
+        Function accepting an Optuna Trial and returning model parameter
+        overrides; required when tuning.
+    metric_to_optimize : str or None, default None
+        Name returned by metric to optimize; required when tuning.
+    optimize_direction : {'maximize', 'minimize'}, default 'maximize'
+        Direction of Optuna optimization.
+    n_trials : int, default 50
+        Number of Optuna trials when tuning is enabled.
+
+    Returns
+    -------
+    TrainingResult
+        Fitted model, fold results, final parameters, and retained feature
+        names.
+
+    Raises
+    ------
+    ValueError
+        Training data or split settings are invalid, selection has too few
+        rows, or required tuning arguments are missing.
+
+    Notes
+    -----
+    The caller owns data preparation, model settings, and MLflow configuration.
+    This function creates a run, nested when a run is already active, logs each
+    stage, and fits the final model on all retained rows. When folds report
+    best iterations, their median zero-based index plus one replaces an
+    existing iterations, n_estimators, or num_trees setting for final fitting.
+    Diagnostics after tuning evaluate the winning parameters again.
+
+    PU models require a matching PUMetric and, if enabled, diagnostics with
+    task="pu_classification".
+
+    Examples
+    --------
+    Prepare a project-owned data object and configure MLflow before calling:
+
+    >>> from ml_toolkit.models import CatBoostRegressionModel
+    >>> from ml_toolkit.metrics import metrics_frequency
+    >>> from ml_toolkit.training import train_model
+    >>> result = train_model(  # doctest: +SKIP
+    ...     data=data,
+    ...     params={"iterations": 100, "loss_function": "Poisson"},
+    ...     model_factory=CatBoostRegressionModel,
+    ...     metric=metrics_frequency,
+    ...     run_name="frequency",
+    ...     n_splits=3,
+    ... )
+    >>> result.cross_validation.mean_metrics  # doctest: +SKIP
     """
     validate_training_data(data)
     logger.info("Starting training run %s", run_name)

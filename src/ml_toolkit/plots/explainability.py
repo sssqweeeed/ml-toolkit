@@ -11,7 +11,37 @@ from .utils import numeric_vector, same_length, save_figure
 
 def feature_importance(feature_names, importance, save_fig: str | Path, *,
                        max_features_display: int = 10) -> pd.DataFrame:
-    """Plot supplied importance values without requiring a model-specific object."""
+    """Save supplied feature importance values in descending order.
+
+    Parameters
+    ----------
+    feature_names : Sequence[str]
+        Names aligned with importance values.
+    importance : array-like
+        Nonempty finite numerical importance values; no backend model is
+        required.
+    save_fig : str or pathlib.Path
+        Output figure path; parent directories are created.
+    max_features_display : int, default 10
+        Positive maximum number of features shown.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Displayed feature and importance columns, sorted descending with stable
+        ties and a reset row index.
+
+    Raises
+    ------
+    PlotError
+        Importance values are invalid or do not match feature names.
+    ValueError
+        max_features_display is nonpositive.
+
+    Notes
+    -----
+    Creates parent directories for save_fig and closes the figure after saving.
+    """
     values = numeric_vector(importance, "importance")
     names = list(feature_names)
     same_length(feature_names=names, importance=values)
@@ -37,18 +67,83 @@ def _shap():
 
 
 def shap_importance(values, save_fig: str | Path, *, max_features_display: int = 10) -> None:
+    """Save a SHAP bar plot of mean absolute feature contributions.
+
+    Parameters
+    ----------
+    values : shap.Explanation
+        Single-output explanation, such as calculate_shap_values returns.
+    save_fig : str or pathlib.Path
+        Output figure path; parent directories are created.
+    max_features_display : int, default 10
+        Maximum displayed feature count passed to SHAP.
+
+    Raises
+    ------
+    ImportError
+        The optional shap extra is unavailable.
+
+    Notes
+    -----
+    Creates parent directories for save_fig and closes the figure after saving.
+    Requires ml-toolkit[shap].
+    """
     shap = _shap()
     ax = shap.plots.bar(values, max_display=max_features_display, show=False)
     save_figure(ax.figure, save_fig)
 
 
 def shap_beeswarm(values, save_fig: str | Path, *, max_features_display: int = 10) -> None:
+    """Save a SHAP beeswarm plot of per-row feature contributions.
+
+    Parameters
+    ----------
+    values : shap.Explanation
+        Single-output explanation, such as calculate_shap_values returns.
+    save_fig : str or pathlib.Path
+        Output figure path; parent directories are created.
+    max_features_display : int, default 10
+        Maximum displayed feature count passed to SHAP.
+
+    Raises
+    ------
+    ImportError
+        The optional shap extra is unavailable.
+
+    Notes
+    -----
+    Creates parent directories for save_fig and closes the figure after saving.
+    Requires ml-toolkit[shap].
+    """
     shap = _shap()
     ax = shap.plots.beeswarm(values, max_display=max_features_display, show=False)
     save_figure(ax.figure, save_fig)
 
 
 def shap_dependence(values, feature: str, save_fig: str | Path) -> None:
+    """Save SHAP contribution against one feature, colored by interactions.
+
+    Parameters
+    ----------
+    values : shap.Explanation
+        Single-output explanation containing feature names and data.
+    feature : str
+        Feature name present in the explanation.
+    save_fig : str or pathlib.Path
+        Output figure path; parent directories are created.
+
+    Raises
+    ------
+    ValueError
+        The requested feature is absent from the explanation.
+    ImportError
+        The optional shap extra is unavailable.
+
+    Notes
+    -----
+    Creates parent directories for save_fig and closes the figure after saving.
+    Requires ml-toolkit[shap].
+    """
     if not values.feature_names or feature not in values.feature_names:
         raise ValueError(f"Feature {feature!r} is not in SHAP feature names")
     shap = _shap()

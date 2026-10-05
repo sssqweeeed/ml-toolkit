@@ -21,7 +21,25 @@ logger = logging.getLogger(__name__)
 
 
 class InflationAdjustedModel(mlflow.pyfunc.PythonModel):  # type: ignore
-    """CatBoost model trained at one price level and predicted at row dates."""
+    """Train at one price level and predict at each observation date.
+
+    Parameters
+    ----------
+    model : CatBoostRegressionModel
+        Wrapped regression adapter fitted on inflation-normalized targets.
+    inflation : InflationAdjuster
+        Strategy converting monetary targets and predictions between dates.
+    reference_date : datetime.date
+        Common price date used to normalize targets before fitting.
+    prediction_date_column : str, default 'prediction_date'
+        Serving input column containing requested price dates. Must not
+        overwrite a fitted model feature when logging.
+
+    Notes
+    -----
+    Training data must supply with_target. Pool predictions use data.time;
+    pandas serving predictions use prediction_date_column.
+    """
 
     def __init__(
         self,
@@ -38,13 +56,35 @@ class InflationAdjustedModel(mlflow.pyfunc.PythonModel):  # type: ignore
 
     @property
     def native_model(self) -> catboost.CatBoostRegressor:
+        """Return the wrapped fitted CatBoost regressor."""
         return self.model.native_model
 
     @property
     def best_iteration(self) -> int | None:
+        """Return the wrapped zero-based best iteration index, or None if unavailable."""
         return self.model.best_iteration
 
     def fit(self, train: TrainingData, validation: TrainingData | None = None) -> Self:
+        """Fit inflation on training rows and regress targets at the reference date.
+
+        Parameters
+        ----------
+        train : TrainingData
+            Project-owned training data supplying the conversion methods required
+            by this model.
+        validation : TrainingData or None, default None
+            Optional holdout data for early stopping and model selection.
+
+        Returns
+        -------
+        Self
+            This adapter with fitted inflation and native regression state.
+
+        Notes
+        -----
+        Validation targets are normalized using the inflation strategy fitted on
+        training data.
+        """
         logger.debug("Fitting inflation-adjusted model at reference date %s", self.reference_date)
         self.inflation.fit(
             dates=train.time,
@@ -60,6 +100,19 @@ class InflationAdjustedModel(mlflow.pyfunc.PythonModel):  # type: ignore
         return self
 
     def predict_pool(self, data: TrainingData) -> np.ndarray:
+        """Predict monetary values at each row's observation date.
+
+        Parameters
+        ----------
+        data : TrainingData
+            Project data containing fitted feature columns and Date/Datetime values
+            in time.
+
+        Returns
+        -------
+        numpy.ndarray of shape (n_samples,)
+            Reference-date regression predictions adjusted to data.time.
+        """
         prediction = self.model.predict_pool(data)
         return self.inflation.adjust(
             values=prediction,
@@ -73,6 +126,28 @@ class InflationAdjustedModel(mlflow.pyfunc.PythonModel):  # type: ignore
         validation: TrainingData,
         num_features_to_select: int,
     ) -> list[str]:
+        """Select regression features after normalizing targets to the reference date.
+
+        Parameters
+        ----------
+        train : TrainingData
+            Data used to train the temporary feature-selection model.
+        validation : TrainingData
+            Holdout data used to evaluate candidate feature subsets.
+        num_features_to_select : int
+            Number of features to keep, between one and the available feature
+            count.
+
+        Returns
+        -------
+        list[str]
+            Names selected by the wrapped regression adapter.
+
+        Notes
+        -----
+        Fits the inflation strategy on training rows before converting either
+        split.
+        """
         self.inflation.fit(
             dates=train.time,
             y=train.y.to_numpy(),
@@ -90,6 +165,32 @@ class InflationAdjustedModel(mlflow.pyfunc.PythonModel):  # type: ignore
         model_input: pd.DataFrame,
         params: dict[str, Any] | None = None,
     ) -> np.ndarray:
+        """Predict monetary values at dates supplied in a pandas serving frame.
+
+        Parameters
+        ----------
+        context : Any
+            MLflow context; unused.
+        model_input : pandas.DataFrame
+            Fitted feature columns plus prediction_date_column with parseable,
+            non-null dates.
+        params : dict[str, Any] or None, default None
+            MLflow inference parameters; unused.
+
+        Returns
+        -------
+        numpy.ndarray of shape (n_samples,)
+            Date-adjusted predictions; an empty array for an empty frame with the
+            required date column.
+
+        Raises
+        ------
+        TypeError
+            model_input is not a pandas DataFrame.
+        ValueError
+            The date column is missing, null, unparseable, or outside the inflation
+            strategy range.
+        """
         del context, params
         if not isinstance(model_input, pd.DataFrame):
             raise TypeError("model_input must be a pandas.DataFrame")
@@ -129,6 +230,36 @@ class InflationAdjustedModel(mlflow.pyfunc.PythonModel):  # type: ignore
         registered_model_name=None,
         conda_env=None,
     ) -> tuple[Any, Any]:
+        """Log native and inflation-adjusted serving models to MLflow.
+
+        Parameters
+        ----------
+        sample : TrainingData
+            Rows used to build a serving example including observation dates.
+        name : str, default 'inflation_adjusted_model'
+            Adjusted model artifact name.
+        registered_model_name : str or None, default None
+            Optional registry name for the adjusted model.
+        conda_env : str, pathlib.Path, or None, default None
+            Existing serving environment file; None pins installed versions.
+
+        Returns
+        -------
+        tuple[mlflow.models.ModelInfo, mlflow.models.ModelInfo]
+            Native regression model information followed by adjusted serving model
+            information.
+
+        Raises
+        ------
+        ValueError
+            The inflation strategy cannot be reconstructed or the prediction date
+            column overlaps a model feature.
+
+        Notes
+        -----
+        Writes both models, reference-date and strategy parameters, and serialized
+        inflation metadata to configured MLflow tracking.
+        """
         logger.debug("Packaging inflation-adjusted model %s", name)
         inflation_config = self.inflation.to_config()
         inflation_from_config(inflation_config)

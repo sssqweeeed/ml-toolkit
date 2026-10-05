@@ -10,7 +10,32 @@ from .utils import save_figure
 
 
 def score_distribution(labels, probabilities, save_fig: str | Path, *, weights=None) -> None:
-    """Compare model scores for known positives and unlabeled rows."""
+    """Save score distributions for known positives and unlabeled rows.
+
+    Parameters
+    ----------
+    labels : array-like of shape (n_samples,)
+        1 identifies a known positive; 0 identifies an unlabeled observation.
+    probabilities : array-like of shape (n_samples,)
+        Finite model scores in [0, 1].
+    save_fig : str or pathlib.Path
+        Output figure path; parent directories are created.
+    weights : array-like or None, default None
+        Finite, nonnegative aligned weights with positive total in each group;
+        None uses equal weights.
+
+    Raises
+    ------
+    ValueError
+        Inputs are empty, invalid, misaligned, or a group has no positive
+        weight.
+
+    Notes
+    -----
+    Creates parent directories for save_fig and closes the figure after saving.
+    Histograms use 30 equal-width bins in [0, 1] and normalize weights within
+    each group. Unlabeled rows are not confirmed negatives.
+    """
     y, p, w = _inputs(labels, probabilities, weights)
     fig, ax = plt.subplots(figsize=(9, 6))
     for value, label in ((1, "Known positive"), (0, "Unlabeled")):
@@ -24,7 +49,36 @@ def score_distribution(labels, probabilities, save_fig: str | Path, *, weights=N
 
 
 def positive_capture(labels, probabilities, save_fig: str | Path, *, weights=None) -> None:
-    """Plot known-positive capture against the share of U flagged."""
+    """Save known-positive capture against unlabeled review capacity.
+
+    Parameters
+    ----------
+    labels : array-like of shape (n_samples,)
+        1 identifies a known positive; 0 identifies an unlabeled observation.
+    probabilities : array-like of shape (n_samples,)
+        Finite model scores in [0, 1].
+    save_fig : str or pathlib.Path
+        Output figure path; parent directories are created.
+    weights : array-like or None, default None
+        Finite, nonnegative aligned weights with positive total in each group;
+        None uses equal weights.
+
+    Raises
+    ------
+    ValueError
+        Inputs are empty, invalid, misaligned, or a group has no positive
+        weight.
+
+    See Also
+    --------
+    ml_toolkit.metrics.positive_capture_curve : Calculate the underlying fractions.
+
+    Notes
+    -----
+    Creates parent directories for save_fig and closes the figure after saving.
+    Cutoffs include all tied scores. Both axes show percentages; capture
+    approximates recall only under representative positive labeling.
+    """
     u, capture = positive_capture_curve(labels, probabilities, weights)
     fig, ax = plt.subplots(figsize=(9, 6))
     ax.plot(u * 100, capture * 100)

@@ -28,7 +28,24 @@ def level_distributions(
     current_levels: pl.DataFrame,
     config: LevelConfig,
 ) -> pl.DataFrame:
-    """Return every fitted level for both samples, including zero-share levels."""
+    """Tabulate every fitted level for both samples, including zero shares.
+
+    Parameters
+    ----------
+    reference_levels : polars.DataFrame
+        Nonempty transformed reference frame.
+    current_levels : polars.DataFrame
+        Nonempty transformed current frame.
+    config : LevelConfig
+        Fitted feature definitions matching the transformed columns.
+
+    Returns
+    -------
+    polars.DataFrame
+        feature, sample, level, rows, and share columns, ordered by configured
+        feature, reference/current sample, and fitted level. Shares use each
+        sample row count.
+    """
     tables = []
     for feature_order, feature in enumerate(config.features):
         grid = pl.DataFrame(
@@ -68,7 +85,33 @@ def monthly_level_distributions(
     current_time: pl.Series,
     config: LevelConfig,
 ) -> pl.DataFrame:
-    """Return each level's share for every sample month, including zeros."""
+    """Tabulate fitted level shares in each observed sample month.
+
+    Parameters
+    ----------
+    reference_levels : polars.DataFrame
+        Transformed reference frame.
+    reference_time : polars.Series
+        Non-null Date/Datetime values aligned with reference rows.
+    current_levels : polars.DataFrame
+        Transformed current frame.
+    current_time : polars.Series
+        Non-null Date/Datetime values aligned with current rows.
+    config : LevelConfig
+        Fitted feature definitions matching both transformed frames.
+
+    Returns
+    -------
+    polars.DataFrame
+        feature, month, sample, level, and share columns. Months are
+        first-of-month Dates; shares sum to one per feature, sample, and
+        observed month.
+
+    Notes
+    -----
+    Includes zero-share levels within observed months; does not create months
+    with no rows.
+    """
     tables = []
     for feature_order, feature in enumerate(config.features):
         grid = pl.DataFrame(

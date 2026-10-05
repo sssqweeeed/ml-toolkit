@@ -15,6 +15,24 @@ logger = logging.getLogger("ml_toolkit.models.lightgbm")
 
 
 class LightGBMWrapper(mlflow.pyfunc.PythonModel):
+    """Log and serve a LightGBM regressor without pickling the model.
+
+    Parameters
+    ----------
+    model : lightgbm.Booster or fitted estimator or None, default None
+        Native Booster or fitted scikit-learn-style LightGBM estimator. None is
+        used when MLflow loads artifacts.
+    numerical_features : Sequence[str] or None, default None
+        Numerical feature names; None uses an empty list.
+    cat_features : Sequence[str] or None, default None
+        Categorical feature names; None uses an empty list.
+
+    Notes
+    -----
+    Requires the lightgbm extra and a working native installation. Numerical
+    and categorical names must partition native model features when logging.
+    """
+
     def __init__(self, model=None, numerical_features=None, cat_features=None):
         self.model = model
         self.numerical_features = (
@@ -24,6 +42,7 @@ class LightGBMWrapper(mlflow.pyfunc.PythonModel):
 
     @property
     def native_model(self):
+        """Return the native Booster; raise RuntimeError if no model is loaded."""
         if self.model is None:
             raise RuntimeError("The LightGBM model has not been loaded.")
         return (
@@ -34,6 +53,7 @@ class LightGBMWrapper(mlflow.pyfunc.PythonModel):
 
     @property
     def feature_names(self):
+        """Return native LightGBM feature names in prediction order."""
         return self.native_model.feature_name()
 
     def load_context(self, context):
@@ -45,6 +65,28 @@ class LightGBMWrapper(mlflow.pyfunc.PythonModel):
         logger.debug("Loaded LightGBM serving model")
 
     def predict(self, context, model_input, params=None):
+        """Predict with native feature order and pandas categorical conversion.
+
+        Parameters
+        ----------
+        context : Any
+            MLflow context; unused.
+        model_input : pandas.DataFrame
+            Frame containing all native feature columns. Configured categorical
+            columns are cast to pandas category dtype.
+        params : dict or None, default None
+            MLflow inference parameters; unused.
+
+        Returns
+        -------
+        numpy.ndarray
+            Native Booster predictions.
+
+        Raises
+        ------
+        RuntimeError
+            No model is loaded.
+        """
         if self.model is None:
             raise RuntimeError("The LightGBM model has not been loaded.")
         X = model_input.loc[:, self.feature_names].copy()
@@ -61,6 +103,36 @@ class LightGBMWrapper(mlflow.pyfunc.PythonModel):
         registered_model_name="severity_osago",
         conda_env=None,
     ):
+        """Log native LightGBM artifacts and a serving signature to MLflow.
+
+        Parameters
+        ----------
+        sample : TrainingData
+            Project data supplying at least one serving row via to_model_input; up
+            to five rows are used.
+        name : str, default 'severity_osago'
+            MLflow model artifact name.
+        registered_model_name : str or None, default 'severity_osago'
+            Model registry name; None disables registration.
+        conda_env : str, pathlib.Path, or None, default None
+            Existing environment file; None pins installed dependency versions.
+
+        Returns
+        -------
+        mlflow.models.ModelInfo
+            Logged model information.
+
+        Raises
+        ------
+        ValueError
+            Feature metadata does not partition native model features or the
+            serving sample is empty.
+
+        Notes
+        -----
+        Writes a native Booster file and feature configuration with this module as
+        serving code. Configure MLflow tracking and an experiment before calling.
+        """
         from .artifacts import log_model_from_code
 
         features = self.numerical_features + self.cat_features

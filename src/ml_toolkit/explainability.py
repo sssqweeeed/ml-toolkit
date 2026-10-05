@@ -9,7 +9,33 @@ logger = logging.getLogger(__name__)
 
 
 def calculate_shap_values(model, data: pl.DataFrame, *, n_samples: int = 100_000):
-    """Return a SHAP Explanation; no model-specific Pool is accepted as input."""
+    """Calculate a single-output SHAP explanation from a native tree model.
+
+    Parameters
+    ----------
+    model : catboost.CatBoost or lightgbm.Booster
+        Fitted native model, rather than a toolkit adapter or project Pool.
+    data : polars.DataFrame
+        Nonempty feature frame containing the native model feature names.
+    n_samples : int, default 100000
+        Positive maximum row count sampled without replacement using seed zero.
+
+    Returns
+    -------
+    shap.Explanation
+        Sampled row contributions, row base values, feature data, and model
+        feature names. Contributions are on the native raw-output scale.
+
+    Raises
+    ------
+    ImportError
+        The shap extra or a working LightGBM installation is unavailable.
+    TypeError
+        The native model backend is unsupported.
+    ValueError
+        Data is empty, n_samples is nonpositive, the model lacks fitted feature
+        names, or contributions are not single-output.
+    """
     try:
         import shap
     except ImportError as error:
@@ -51,6 +77,26 @@ def calculate_shap_values(model, data: pl.DataFrame, *, n_samples: int = 100_000
 
 
 def top_shap_features(values, top_n: int) -> list[str]:
+    """Rank feature names by descending mean absolute SHAP contribution.
+
+    Parameters
+    ----------
+    values : shap.Explanation
+        Single-output explanation with one feature name per contribution
+        column.
+    top_n : int
+        Positive maximum number of feature names to return.
+
+    Returns
+    -------
+    list[str]
+        Up to top_n feature names, with ties preserving original column order.
+
+    Raises
+    ------
+    ValueError
+        top_n is nonpositive or feature names are missing or misaligned.
+    """
     if top_n < 1:
         raise ValueError("top_n must be positive")
     importance = np.asarray(values.abs.mean(0).values)

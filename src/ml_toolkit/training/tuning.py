@@ -20,6 +20,52 @@ def tune_optuna(
     metric_to_optimize: str, n_trials: int = 50, n_splits: int = 5,
     skip_splits: int = 0, direction: str = "maximize",
 ) -> TuningResult:
+    """Optimize model parameters using chronological validation and MLflow.
+
+    Parameters
+    ----------
+    data : TrainingData
+        Project-owned data with equal, nonzero row counts; finite targets;
+        non-null ascending timestamps; and finite, nonnegative weights with
+        positive total.
+    base_params : dict[str, Any]
+        Parameters merged with trial-specific overrides.
+    model_factory : Callable
+        Factory receiving a parameter dictionary and returning a model
+        implementing the Model protocol.
+    metric : Callable
+        Callable receiving target, predictions, and weights as NumPy arrays;
+        return a dataclass or mapping of names to numeric scalar values.
+    param_space : Callable[[optuna.Trial], dict[str, Any]]
+        Return parameter overrides for a trial using Optuna suggestion methods.
+    metric_to_optimize : str
+        Metric name present in cross-validation mean_metrics.
+    n_trials : int, default 50
+        Number of optimization trials.
+    n_splits : int, default 5
+        Number of chronological folds.
+    skip_splits : int, default 0
+        Number of initial folds omitted from evaluation.
+    direction : {'maximize', 'minimize'}, default 'maximize'
+        Optimization direction.
+
+    Returns
+    -------
+    TuningResult
+        Best Optuna-suggested parameters and the associated cross-validation
+        result. Fixed base parameters are not included in best_params.
+
+    Raises
+    ------
+    ValueError
+        The requested metric is unavailable or validation settings are invalid.
+
+    Notes
+    -----
+    Trial overrides take precedence over base_params. Each trial creates a
+    nested MLflow run with fold runs beneath it. Configure MLflow and start a
+    parent run before using this function independently.
+    """
     trial_results: dict[int, CrossValidationResult] = {}
     study = optuna.create_study(direction=direction)
     logger.info(

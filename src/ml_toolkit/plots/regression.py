@@ -21,7 +21,57 @@ def _aggregate(groups, observed, fitted, weight, name: str, *, sort: bool) -> pd
 
 def observed_fitted(feature, observed, fitted, save_fig: str | Path, *,
                     weight=None, feature_name: str = "Feature", n_bins: int = 10) -> pd.DataFrame:
-    """Plot weighted actual and fitted means by feature value or quantile bin."""
+    """Plot weighted observed and fitted means by feature group.
+
+    Parameters
+    ----------
+    feature : array-like of shape (n_samples,)
+        Feature values. Varying numeric features are quantile-binned;
+        categorical and constant features are grouped by value. Missing values
+        form a missing group.
+    observed : array-like of shape (n_samples,)
+        Nonempty finite observed values.
+    fitted : array-like of shape (n_samples,)
+        Finite predictions aligned with observations.
+    save_fig : str or pathlib.Path
+        Output figure path; parent directories are created.
+    weight : array-like or None, default None
+        Finite, nonnegative exposure weights with positive total; None uses row
+        counts.
+    feature_name : str, default 'Feature'
+        Feature label used on the plot.
+    n_bins : int, default 10
+        Positive requested number of numeric quantile bins; duplicate edges are
+        dropped.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Columns feature, observed, fitted, and volume. Means are weighted by
+        exposure; volume is group total weight. Zero-weight groups are omitted.
+
+    Raises
+    ------
+    PlotError
+        Values, lengths, or exposure weights are invalid.
+    ValueError
+        n_bins is nonpositive.
+
+    Notes
+    -----
+    Creates parent directories for save_fig and closes the figure after saving.
+
+    Examples
+    --------
+    >>> from pathlib import Path
+    >>> from tempfile import TemporaryDirectory
+    >>> from ml_toolkit.plots.regression import observed_fitted
+    >>> with TemporaryDirectory() as directory:
+    ...     path = Path(directory) / "observed.png"
+    ...     table = observed_fitted(["a", "a"], [1.0, 3.0], [2.0, 2.0], path)
+    ...     print(table["observed"].tolist(), path.is_file())
+    [2.0] True
+    """
     y, prediction = numeric_vector(observed, "observed"), numeric_vector(fitted, "fitted")
     values = pd.Series(feature, name=feature_name)
     same_length(feature=values, observed=y, fitted=prediction)
@@ -54,10 +104,53 @@ def monthly_observed_fitted(reference_timestamp, reference_observed, reference_f
                             current_timestamp, current_observed, current_fitted,
                             save_fig: str | Path, *, reference_weight=None, current_weight=None,
                             reference_group=None, current_group=None) -> pd.DataFrame:
-    """Plot monthly weighted means for two data splits and optional groups.
+    """Plot monthly weighted means for two samples and optional groups.
 
-    Both splits may use any datetime-like values. Groups replace the source
-    project's business-type assumption and can be omitted.
+    Parameters
+    ----------
+    reference_timestamp : array-like
+        Datetime-like values aligned with reference observations.
+    reference_observed : array-like
+        Nonempty finite reference targets.
+    reference_fitted : array-like
+        Finite reference predictions aligned with targets.
+    current_timestamp : array-like
+        Datetime-like values aligned with current observations.
+    current_observed : array-like
+        Nonempty finite current targets.
+    current_fitted : array-like
+        Finite current predictions aligned with targets.
+    save_fig : str or pathlib.Path
+        Output figure path; parent directories are created.
+    reference_weight : array-like or None, default None
+        Finite, nonnegative reference weights with positive total; None uses
+        equal weights.
+    current_weight : array-like or None, default None
+        Finite, nonnegative current weights with positive total; None uses
+        equal weights.
+    reference_group : array-like or None, default None
+        Optional reference group labels; None groups all rows as all.
+    current_group : array-like or None, default None
+        Optional current group labels; None groups all rows as all.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Columns month, plot_date, group, split, observed, fitted, and volume.
+        month is month start; plot_date is mean observation time; means use
+        weights and zero-weight groups are omitted.
+
+    Raises
+    ------
+    PlotError
+        Vectors are misaligned, timestamps are missing, or numeric values and
+        weights are invalid.
+
+    Notes
+    -----
+    Creates parent directories for save_fig and closes the figure after saving.
+    Both samples accept datetime-like values, normalized to UTC before monthly
+    grouping. Groups replace project-specific business-type assumptions.
     """
     splits = []
     for name, timestamps, observed, fitted, weight, group in (

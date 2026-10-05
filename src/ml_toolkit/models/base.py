@@ -9,21 +9,95 @@ if TYPE_CHECKING:
 
 
 class Model(Protocol):
-    @property
-    def native_model(self) -> Any: ...
+    """Describe the model adapter interface consumed by the training workflow.
+
+    Notes
+    -----
+    Factories receive a parameter dictionary. fit returns the adapter;
+    predict_pool returns one finite prediction per row. Models may use any
+    native backend.
+    """
 
     @property
-    def best_iteration(self) -> int | None: ...
+    def native_model(self) -> Any:
+        """Return the underlying fitted backend model for diagnostics."""
+        ...
 
-    def fit(self, train: TrainingData, validation: TrainingData | None = None) -> Self: ...
+    @property
+    def best_iteration(self) -> int | None:
+        """Return the zero-based best iteration index, or None when unavailable."""
+        ...
 
-    def predict_pool(self, data: TrainingData) -> np.ndarray: ...
+    def fit(self, train: TrainingData, validation: TrainingData | None = None) -> Self:
+        """Fit the adapter using project-owned training and optional holdout data.
+
+        Parameters
+        ----------
+        train : TrainingData
+            Project-owned training data supplying the conversion methods required
+            by this model.
+        validation : TrainingData or None, default None
+            Optional holdout data for early stopping and model selection.
+
+        Returns
+        -------
+        Self
+            Fitted model adapter.
+        """
+        ...
+
+    def predict_pool(self, data: TrainingData) -> np.ndarray:
+        """Predict one numeric value per project data row.
+
+        Parameters
+        ----------
+        data : TrainingData
+            Aligned feature rows accepted by this adapter.
+
+        Returns
+        -------
+        numpy.ndarray of shape (n_samples,)
+            Task-appropriate predictions; classifiers return positive-class
+            probabilities.
+        """
+        ...
 
     def select_features(
         self,
         train: TrainingData,
         validation: TrainingData,
         num_features_to_select: int,
-    ) -> list[str]: ...
+    ) -> list[str]:
+        """Return selected feature names using training and holdout data.
 
-    def log(self, sample: TrainingData) -> Any: ...
+        Parameters
+        ----------
+        train : TrainingData
+            Data used to train the temporary feature-selection model.
+        validation : TrainingData
+            Holdout data used to evaluate candidate feature subsets.
+        num_features_to_select : int
+            Number of features to keep, between one and the available feature
+            count.
+
+        Returns
+        -------
+        list[str]
+            Names of the retained features.
+        """
+        ...
+
+    def log(self, sample: TrainingData) -> Any:
+        """Log a fitted model to the configured MLflow tracking store.
+
+        Parameters
+        ----------
+        sample : TrainingData
+            Data supplying a representative serving input example.
+
+        Returns
+        -------
+        Any
+            Backend-specific model logging result.
+        """
+        ...

@@ -19,6 +19,29 @@ from .config import (
 
 @dataclass
 class LevelTransformer:
+    """Learn reference categories and quantile boundaries for PSI.
+
+    Parameters
+    ----------
+    features : tuple[PSIFeature, ...]
+        Feature definitions with unique names.
+    n_bins : int, default 10
+        Positive requested number of numerical intervals.
+
+    Attributes
+    ----------
+    config : LevelConfig or None
+        Fitted level definitions; None until fit is called.
+
+    Notes
+    -----
+    Numerical ties can reduce the number of quantile boundaries. Nulls,
+    floating NaNs, and configured missing sentinels map to __NULL__.
+    Categorical values absent from the reference map to __UNSEEN__; configured
+    error sentinels and out-of-bound numerical values map to __ERROR__.
+    Transformation retains unconfigured columns.
+    """
+
     features: Sequence[PSIFeature]
     n_bins: int = 10
     config: LevelConfig | None = field(init=False, default=None)
@@ -34,7 +57,26 @@ class LevelTransformer:
             raise ValueError("n_bins must be a positive integer")
 
     def fit(self, reference: pl.DataFrame) -> LevelTransformer:
-        """Learn levels and numerical boundaries from reference data."""
+        """Learn levels and numerical boundaries from reference data.
+
+        Parameters
+        ----------
+        reference : polars.DataFrame
+            Nonempty frame containing every configured feature. Regular numerical
+            values must be finite and castable to Float64.
+
+        Returns
+        -------
+        Self
+            Transformer with fitted config; calling fit again replaces previous
+            levels.
+
+        Raises
+        ------
+        ValueError
+            Reference data is empty, features are missing, regular numerical values
+            are non-finite, or categories use reserved level names.
+        """
         if not isinstance(reference, pl.DataFrame) or reference.is_empty():
             raise ValueError("reference must be a non-empty polars DataFrame")
         names = [feature.name for feature in self.features]
@@ -140,7 +182,31 @@ class LevelTransformer:
         return self
 
     def transform(self, data: pl.DataFrame) -> pl.DataFrame:
-        """Replace configured features with fitted pl.Categorical levels."""
+        """Replace configured features with fitted categorical level labels.
+
+        Parameters
+        ----------
+        data : polars.DataFrame
+            Nonempty frame containing the configured features.
+
+        Returns
+        -------
+        polars.DataFrame
+            Frame with configured columns cast to Categorical; unconfigured columns
+            and row order are retained.
+
+        Raises
+        ------
+        RuntimeError
+            The transformer has not been fitted.
+        ValueError
+            Data is empty or configured features are missing.
+
+        Notes
+        -----
+        Numerical intervals are left-inclusive. A value equal to an internal
+        boundary enters the interval on its right.
+        """
         if self.config is None:
             raise RuntimeError("LevelTransformer must be fitted before transform")
         if not isinstance(data, pl.DataFrame) or data.is_empty():

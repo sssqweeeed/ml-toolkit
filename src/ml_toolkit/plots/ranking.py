@@ -11,7 +11,19 @@ def gains_curve(
     ranking: RankingMetrics,
     save_fig: Path,
 ) -> None:
-    """Plot cumulative gains using precomputed ranking metrics."""
+    """Save cumulative gains and selected exposure-capacity annotations.
+
+    Parameters
+    ----------
+    ranking : RankingMetrics
+        Precomputed results from ml_toolkit.metrics.ranking_metrics.
+    save_fig : pathlib.Path
+        Output figure path; pass a Path object, not a string.
+
+    Notes
+    -----
+    Creates parent directories for save_fig and closes the figure after saving.
+    """
     fig, ax = plt.subplots(figsize=(10, 6))
 
     ax.plot(
@@ -64,7 +76,19 @@ def lift_curve(
     ranking: RankingMetrics,
     save_fig: Path,
 ) -> None:
-    """Plot cumulative lift using precomputed ranking metrics."""
+    """Save cumulative lift and selected exposure-capacity annotations.
+
+    Parameters
+    ----------
+    ranking : RankingMetrics
+        Precomputed results from ml_toolkit.metrics.ranking_metrics.
+    save_fig : pathlib.Path
+        Output figure path; pass a Path object, not a string.
+
+    Notes
+    -----
+    Creates parent directories for save_fig and closes the figure after saving.
+    """
     fig, ax = plt.subplots(figsize=(10, 6))
 
     finite_mask = np.isfinite(ranking.cumulative_lift)

@@ -9,12 +9,48 @@ class CumulativeCurve:
 
 @dataclass(frozen=True)
 class SelectedRankingPoint:
+    """Store gain and lift at a selected exposure percentage.
+
+    Attributes
+    ----------
+    percent : float
+        Exposure percentage in (0, 100].
+    gain : float
+        Interpolated fraction of total observed outcome captured.
+    lift : float
+        Gain divided by percent / 100.
+    """
+
     percent: float
     gain: float
     lift: float
 
 @dataclass(frozen=True)
 class RankingMetrics:
+    """Store an exposure-based ranking curve and its summary scores.
+
+    Attributes
+    ----------
+    gini : float
+        Twice the area under the gains curve minus one.
+    normalized_gini : float
+        Gini divided by perfect_gini; NaN when perfect_gini is close to zero.
+    gini_area : float
+        Area under the cumulative gains curve.
+    perfect_gini : float
+        Gini obtained by ranking rows by their observed target.
+    cumulative_exposure : numpy.ndarray
+        Cumulative exposure fractions, including the initial zero.
+    cumulative_observed : numpy.ndarray
+        Cumulative shares of exposure-weighted observed outcomes.
+    cumulative_lift : numpy.ndarray
+        Cumulative observed share divided by exposure share; NaN at zero
+        exposure.
+    selected_points : tuple[SelectedRankingPoint, ...]
+        Interpolated gain and lift at each requested percentage, in request
+        order.
+    """
+
     gini: float
     normalized_gini: float
     gini_area: float
@@ -163,6 +199,51 @@ def _ranking_metrics(
     exposure: np.ndarray,
     selected_percents: tuple[float, ...] = (10.0,),
 ) -> RankingMetrics:
+    """Calculate gains, lift, and Gini after ranking by descending prediction.
+
+    Parameters
+    ----------
+    y_target : numpy.ndarray of shape (n_samples,)
+        Finite observed rates with positive exposure-weighted total.
+    y_pred : numpy.ndarray of shape (n_samples,)
+        Finite scores used to order observations from highest to lowest.
+    exposure : numpy.ndarray of shape (n_samples,)
+        Finite, nonnegative row exposures with positive total.
+    selected_percents : tuple[float, ...], default (10.0,)
+        Exposure percentages in (0, 100] at which to interpolate gains and
+        lift.
+
+    Returns
+    -------
+    RankingMetrics
+        Full cumulative curves, model and perfect Gini, and selected gain/lift
+        points.
+
+    Raises
+    ------
+    ValueError
+        Shapes differ, inputs are non-finite, exposures are negative, totals
+        are nonpositive, or a selected percentage is out of range.
+
+    Notes
+    -----
+    Exposed publicly as ranking_metrics. Rows with zero exposure are omitted;
+    score ties retain input order. Ranking capacity is measured by exposure,
+    and observed amounts are y_target * exposure. Normalized Gini is NaN when
+    the perfect-ranking Gini is close to zero.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from ml_toolkit.metrics import ranking_metrics
+    >>> result = ranking_metrics(
+    ...     np.array([0.0, 1.0, 2.0]),
+    ...     np.array([0.1, 0.5, 0.9]),
+    ...     np.ones(3),
+    ... )
+    >>> round(result.normalized_gini, 2)
+    1.0
+    """
     model_curve = _cumulative_curve(
         y_target=y_target,
         y_score=y_pred,

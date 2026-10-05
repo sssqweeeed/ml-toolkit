@@ -16,6 +16,40 @@ UNSEEN_LEVEL = "__UNSEEN__"
 
 @dataclass(frozen=True)
 class PSIFeature:
+    """Configure how one feature is assigned to PSI levels.
+
+    Parameters
+    ----------
+    name : str
+        Nonempty feature column name.
+    ftype : {'categorical', 'numerical'}
+        Choose category levels or reference quantile intervals.
+    error_level : Any or None, default None
+        Optional sentinel mapped to __ERROR__; must differ from null_level and
+        must not be NaN.
+    null_level : Any or None, default None
+        Optional sentinel treated as missing alongside actual nulls and
+        floating NaNs.
+    lower_bound : float or None, default None
+        Inclusive numerical lower bound; values below it map to __ERROR__. None
+        leaves the lower tail unbounded.
+    upper_bound : float or None, default None
+        Inclusive numerical upper bound; values above it map to __ERROR__. None
+        leaves the upper tail unbounded.
+
+    Notes
+    -----
+    Bounds apply only to numerical features. Regular categories must not use
+    reserved PSI level strings.
+
+    Examples
+    --------
+    >>> from ml_toolkit.psi import PSIFeature
+    >>> feature = PSIFeature("age", "numerical", lower_bound=0)
+    >>> feature.name, feature.lower_bound
+    ('age', 0)
+    """
+
     name: str
     ftype: FeatureType
     error_level: Any | None = None
@@ -55,6 +89,20 @@ class PSIFeature:
 
 @dataclass(frozen=True)
 class PSIConfig:
+    """Configure reference-based population stability analysis.
+
+    Parameters
+    ----------
+    features : tuple[PSIFeature, ...]
+        Nonempty collection of uniquely named feature definitions, normalized
+        to a tuple.
+    n_bins : int, default 10
+        Positive requested number of numerical quantile bins. Ties and constant
+        features may produce fewer bins.
+    epsilon : float, default 1e-6
+        Share floor strictly between zero and one, applied before logarithms.
+    """
+
     features: tuple[PSIFeature, ...]
     n_bins: int = 10
     epsilon: float = 1e-6
@@ -76,6 +124,33 @@ class PSIConfig:
 
 @dataclass(frozen=True)
 class FeatureLevelConfig:
+    """Store learned levels for one PSI feature.
+
+    Attributes
+    ----------
+    name : str
+        Original feature name.
+    ftype : {'categorical', 'numerical'}
+        Feature interpretation used during transformation.
+    levels : tuple[str, ...]
+        Ordered interval or category labels followed by applicable special
+        levels.
+    boundaries : tuple[float, ...]
+        Internal numerical cut points; empty for categorical or single-interval
+        features.
+    categories : tuple[Any, ...]
+        Reference categories in first-occurrence order; empty for numerical
+        features.
+    error_level : Any or None
+        Configured error sentinel.
+    null_level : Any or None
+        Configured missing-value sentinel.
+    lower_bound : float or None
+        Inclusive numerical lower bound.
+    upper_bound : float or None
+        Inclusive numerical upper bound.
+    """
+
     name: str
     ftype: FeatureType
     levels: tuple[str, ...]
@@ -89,4 +164,12 @@ class FeatureLevelConfig:
 
 @dataclass(frozen=True)
 class LevelConfig:
+    """Store fitted PSI level definitions in feature order.
+
+    Attributes
+    ----------
+    features : tuple[FeatureLevelConfig, ...]
+        Learned levels and transformation settings for each feature.
+    """
+
     features: tuple[FeatureLevelConfig, ...]

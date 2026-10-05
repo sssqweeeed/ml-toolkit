@@ -5,6 +5,27 @@ from sklearn.metrics import accuracy_score, average_precision_score, f1_score, l
 
 @dataclass(frozen=True)
 class MetricsClassification:
+    """Store weighted binary classification scores.
+
+    Attributes
+    ----------
+    accuracy : float
+        Share of correct thresholded predictions.
+    precision : float
+        Positive predictive value; zero when undefined.
+    recall : float
+        Share of positives recovered; zero when undefined.
+    f1 : float
+        Harmonic mean of precision and recall.
+    roc_auc : float
+        ROC area from probability scores; NaN when only one target class is
+        present.
+    average_precision : float
+        Average precision from scores; zero when no positives are present.
+    log_loss : float
+        Binary cross-entropy calculated from probabilities.
+    """
+
     accuracy: float
     precision: float
     recall: float
@@ -20,7 +41,46 @@ def metrics_classification(
     *,
     threshold: float = 0.5,
 ) -> MetricsClassification:
-    """Evaluate binary labels and predicted positive-class probabilities."""
+    """Evaluate binary labels and predicted positive-class probabilities.
+
+    Parameters
+    ----------
+    y_target : numpy.ndarray of shape (n_samples,)
+        Observed binary labels, containing only 0 and 1.
+    y_prob : numpy.ndarray of shape (n_samples,)
+        Finite positive-class probabilities in [0, 1].
+    sample_weight : numpy.ndarray or None, default None
+        Finite, nonnegative weights aligned with labels. None uses equal
+        weights.
+    threshold : float, default 0.5
+        Probability cutoff in [0, 1]; scores at or above it predict label 1.
+
+    Returns
+    -------
+    MetricsClassification
+        Threshold-based accuracy, precision, recall, and F1, plus score-based
+        ROC AUC, average precision, and log loss.
+
+    Raises
+    ------
+    ValueError
+        Labels, probabilities, weights, lengths, or threshold are invalid.
+
+    Notes
+    -----
+    ROC AUC is NaN for a single target class. Precision and recall use zero for
+    undefined divisions; average precision is zero with no positives. These
+    metrics require binary ground truth; do not treat PU unlabeled rows as
+    confirmed negatives.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from ml_toolkit.metrics import metrics_classification
+    >>> scores = metrics_classification(np.array([0, 1]), np.array([0.2, 0.8]))
+    >>> scores.accuracy, scores.f1
+    (1.0, 1.0)
+    """
     target = np.asarray(y_target).reshape(-1)
     probability = np.asarray(y_prob, dtype=float).reshape(-1)
     weight = None if sample_weight is None else np.asarray(sample_weight, dtype=float).reshape(-1)
@@ -52,7 +112,33 @@ def confusion_matrix(
     y_pred: np.ndarray,
     sample_weight: np.ndarray | None = None,
 ) -> tuple[float, float, float, float]:
-    """Return weighted or unweighted binary counts as TN, FP, FN, TP."""
+    """Return weighted binary counts in TN, FP, FN, TP order.
+
+    Parameters
+    ----------
+    y_true : numpy.ndarray of shape (n_samples,)
+        Observed binary labels.
+    y_pred : numpy.ndarray of shape (n_samples,)
+        Predicted binary labels, rather than probability scores.
+    sample_weight : numpy.ndarray or None, default None
+        Row weights aligned with labels; None counts every row as one.
+
+    Returns
+    -------
+    tuple[float, float, float, float]
+        True negatives, false positives, false negatives, and true positives.
+
+    Raises
+    ------
+    ValueError
+        Lengths differ or labels are not binary.
+
+    Examples
+    --------
+    >>> from ml_toolkit.metrics import confusion_matrix
+    >>> confusion_matrix([0, 0, 1, 1], [0, 1, 0, 1])
+    (1.0, 1.0, 1.0, 1.0)
+    """
     target = np.asarray(y_true).reshape(-1)
     prediction = np.asarray(y_pred).reshape(-1)
     weight = np.ones(len(target)) if sample_weight is None else np.asarray(sample_weight, dtype=float).reshape(-1)

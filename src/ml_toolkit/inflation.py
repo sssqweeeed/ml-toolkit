@@ -11,22 +11,16 @@ logger = logging.getLogger("ml_toolkit.inflation")
 
 
 class InflationAdjuster(ABC):
-    """
-    Strategy for converting monetary values between price levels.
+    """Convert monetary values between price levels.
 
-    The inflation module accepts only Polars Series with Date or
-    Datetime dtype.
-
-    factor(from_dates, to_dates) returns a multiplicative factor:
-
-        value_at_to_date =
-            value_at_from_date * factor(from_dates, to_dates)
-
-    Both Series must have the same length. Broadcasting is deliberately
-    handled outside the inflation module.
-
-    Simple strategies can keep the default no-op fit().
-    Learned inflation models can override fit().
+    Notes
+    -----
+    The inflation module accepts only non-null Polars Series with Date or
+    Datetime dtype. factor(from_dates, to_dates) returns multipliers such that
+    value_at_to_date = value_at_from_date * factor(from_dates, to_dates). Both
+    date Series must have equal length; date broadcasting belongs to the
+    caller. Simple strategies can keep the default no-op fit method; learned
+    inflation models can override it.
     """
 
     def fit(
@@ -35,6 +29,31 @@ class InflationAdjuster(ABC):
         y: np.ndarray,
         sample_weight: np.ndarray | None = None,
     ) -> Self:
+        """Validate dates and return the strategy without learning parameters.
+
+        Parameters
+        ----------
+        dates : polars.Series
+            Non-null Date or Datetime observations.
+        y : numpy.ndarray
+            Targets available to learned subclasses; unused by the default
+            implementation.
+        sample_weight : numpy.ndarray or None, default None
+            Optional row weights for learned subclasses; unused by the default
+            implementation.
+
+        Returns
+        -------
+        Self
+            This strategy, unchanged.
+
+        Raises
+        ------
+        TypeError
+            dates is not a Polars Date/Datetime Series.
+        ValueError
+            dates contains nulls.
+        """
         _validate_dates(
             dates,
             name="dates",
@@ -52,6 +71,22 @@ class InflationAdjuster(ABC):
         from_dates: pl.Series,
         to_dates: pl.Series,
     ) -> np.ndarray:
+        """Return one multiplicative price-level conversion factor per date pair.
+
+        Parameters
+        ----------
+        from_dates : polars.Series
+            Non-null Date/Datetime values representing original price dates.
+        to_dates : polars.Series
+            Non-null Date/Datetime values representing desired price dates, with
+            equal length to from_dates.
+
+        Returns
+        -------
+        numpy.ndarray of shape (n_dates,)
+            Factors converting values at from_dates to equivalent values at
+            to_dates.
+        """
         raise NotImplementedError
 
     def adjust(
@@ -60,6 +95,30 @@ class InflationAdjuster(ABC):
         from_dates: pl.Series,
         to_dates: pl.Series,
     ) -> np.ndarray:
+        """Apply price-level factors to scalar or row-aligned monetary values.
+
+        Parameters
+        ----------
+        values : numpy.ndarray or float
+            Values at from_dates. A scalar is broadcast to all dates; other inputs
+            must contain exactly one value per date.
+        from_dates : polars.Series
+            Non-null Date/Datetime values representing original price dates.
+        to_dates : polars.Series
+            Non-null Date/Datetime values representing desired price dates, with
+            equal length to from_dates.
+
+        Returns
+        -------
+        numpy.ndarray of shape (n_dates,)
+            Values expressed at the corresponding to_dates price levels.
+
+        Raises
+        ------
+        ValueError
+            Date lengths differ, dates contain nulls, or values do not align with
+            dates.
+        """
         values = np.asarray(
             values,
             dtype=float,
@@ -86,16 +145,38 @@ class InflationAdjuster(ABC):
         return values * factor
 
     def to_config(self) -> dict[str, Any]:
-        """Return an audit-friendly representation for experiment artifacts."""
+        """Return an audit-friendly representation for experiment artifacts.
+
+        Returns
+        -------
+        dict[str, Any]
+            Strategy name; subclasses can include parameters needed for
+            reconstruction.
+        """
         return {"strategy": type(self).__name__}
 
 
 class ConstantRateInflation(InflationAdjuster):
-    """
-    Constant annual compound inflation.
+    """Convert price levels using constant annual compound inflation.
 
-    Example:
-        annual_rate=0.08 means 8% annual inflation.
+    Parameters
+    ----------
+    annual_rate : float
+        Annual proportional rate greater than -1; 0.08 means 8% annual
+        inflation.
+
+    Notes
+    -----
+    Elapsed years are computed using 365.25 days, including fractional days.
+
+    Examples
+    --------
+    >>> from datetime import date
+    >>> import polars as pl
+    >>> from ml_toolkit.inflation import ConstantRateInflation
+    >>> dates = pl.Series([date(2026, 1, 1)])
+    >>> ConstantRateInflation(0.08).adjust(100.0, dates, dates).tolist()
+    [100.0]
     """
 
     def __init__(
@@ -112,6 +193,28 @@ class ConstantRateInflation(InflationAdjuster):
         from_dates: pl.Series,
         to_dates: pl.Series,
     ) -> np.ndarray:
+        """Calculate compound factors using elapsed time in 365.25-day years.
+
+        Parameters
+        ----------
+        from_dates : polars.Series
+            Non-null Date/Datetime values representing original price dates.
+        to_dates : polars.Series
+            Non-null Date/Datetime values representing desired price dates, with
+            equal length to from_dates.
+
+        Returns
+        -------
+        numpy.ndarray of shape (n_dates,)
+            (1 + annual_rate) raised to elapsed years for each date pair.
+
+        Raises
+        ------
+        TypeError
+            Dates are not Polars Date/Datetime Series.
+        ValueError
+            Dates contain nulls or have different lengths.
+        """
         _validate_date_pair(
             from_dates=from_dates,
             to_dates=to_dates,
@@ -130,6 +233,7 @@ class ConstantRateInflation(InflationAdjuster):
         )
 
     def to_config(self) -> dict[str, Any]:
+        """Return the strategy name and annual_rate for reconstruction."""
         return {
             "strategy": type(self).__name__,
             "annual_rate": self.annual_rate,
@@ -137,28 +241,41 @@ class ConstantRateInflation(InflationAdjuster):
 
 
 class ManualInflation(InflationAdjuster):
-    """
-    Sparse manually specified monthly price index.
+    """Convert prices using a sparse monthly index with log-linear interpolation.
 
-    Example:
-        ManualInflation({
-            date(2025, 10, 1): 0.94,
-            date(2025, 12, 1): 0.98,
-            date(2026, 2, 1): 1.02,
-            date(2026, 4, 1): 1.05,
-        })
+    Parameters
+    ----------
+    monthly_index : dict[datetime.date, float]
+        At least two distinct anchor months mapped to finite, strictly positive
+        index values. Keys are interpreted at month granularity.
 
-    Missing months between anchor points are filled using
-    log-linear interpolation.
+    Raises
+    ------
+    TypeError
+        An anchor key is not a datetime.date.
+    ValueError
+        Too few anchors are supplied, a month occurs twice, or an index value
+        is nonpositive or non-finite.
 
-    Dates are interpreted at month granularity:
-        2026-03-01
-        2026-03-15
-        2026-03-31
+    Notes
+    -----
+    Missing months between anchors are filled by linear interpolation in
+    log(index), producing constant compound growth between anchors. Every day
+    in a month uses that month's index. Extrapolation outside the supplied
+    anchor range is forbidden.
 
-    all use the same March 2026 index.
-
-    Extrapolation outside the supplied anchor range is forbidden.
+    Examples
+    --------
+    >>> from datetime import date
+    >>> import polars as pl
+    >>> from ml_toolkit.inflation import ManualInflation
+    >>> inflation = ManualInflation({date(2026, 1, 1): 1.0, date(2026, 3, 1): 1.21})
+    >>> factor = inflation.factor(
+    ...     pl.Series([date(2026, 1, 15)]),
+    ...     pl.Series([date(2026, 2, 28)]),
+    ... )
+    >>> round(float(factor[0]), 2)
+    1.1
     """
 
     def __init__(
@@ -207,6 +324,27 @@ class ManualInflation(InflationAdjuster):
         from_dates: pl.Series,
         to_dates: pl.Series,
     ) -> np.ndarray:
+        """Calculate monthly destination-to-source price index ratios.
+
+        Parameters
+        ----------
+        from_dates : polars.Series
+            Non-null Date/Datetime values representing original price dates.
+        to_dates : polars.Series
+            Non-null Date/Datetime values representing desired price dates, with
+            equal length to from_dates.
+
+        Returns
+        -------
+        numpy.ndarray of shape (n_dates,)
+            Interpolated destination index divided by source index.
+
+        Raises
+        ------
+        ValueError
+            Date lengths differ, dates contain nulls, or a month is outside the
+            anchor range.
+        """
         _validate_date_pair(
             from_dates=from_dates,
             to_dates=to_dates,
@@ -219,6 +357,7 @@ class ManualInflation(InflationAdjuster):
         return to_index / from_index
 
     def to_config(self) -> dict[str, Any]:
+        """Return the strategy name and monthly anchors keyed by YYYY-MM."""
         return {
             "strategy": type(self).__name__,
             "monthly_index": {
@@ -290,7 +429,26 @@ class ManualInflation(InflationAdjuster):
 
 
 def inflation_from_config(config: dict[str, Any]) -> InflationAdjuster:
-    """Reconstruct a supported inflation strategy from its persisted state."""
+    """Reconstruct a supported inflation strategy from its persisted state.
+
+    Parameters
+    ----------
+    config : dict[str, Any]
+        Configuration from to_config with strategy and either annual_rate or
+        monthly_index keyed by YYYY-MM.
+
+    Returns
+    -------
+    ConstantRateInflation or ManualInflation
+        Strategy reconstructed from the stored parameters.
+
+    Raises
+    ------
+    ValueError
+        The strategy is unsupported or its parameters are invalid.
+    KeyError
+        A required configuration key is missing.
+    """
     strategy = config["strategy"]
     if strategy == "ConstantRateInflation":
         return ConstantRateInflation(config["annual_rate"])

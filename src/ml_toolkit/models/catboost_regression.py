@@ -21,7 +21,20 @@ logger = logging.getLogger(__name__)
 
 
 class CatBoostModel(mlflow.pyfunc.PythonModel):  # type: ignore
-    """CatBoost regression model with a constant log-scale baseline."""
+    """Adapt a CatBoost regressor with a constant log-scale baseline.
+
+    Parameters
+    ----------
+    params : dict[str, Any]
+        CatBoostRegressor constructor parameters, copied on construction.
+
+    Notes
+    -----
+    Exported as CatBoostRegressionModel from ml_toolkit.models. Training
+    initializes raw predictions with log(weighted target mean), which requires
+    a finite positive mean. The fitted model bias incorporates this baseline.
+    Predictions use CatBoost's Exponent output, yielding positive rates.
+    """
 
     def __init__(self, params: dict[str, Any]) -> None:
         self.params = params.copy()
@@ -30,18 +43,21 @@ class CatBoostModel(mlflow.pyfunc.PythonModel):  # type: ignore
 
     @property
     def native_model(self) -> catboost.CatBoostRegressor:
+        """Return the fitted native CatBoost model; raise RuntimeError before fitting."""
         if self._model is None:
             raise RuntimeError("Model has not been fitted")
         return self._model
 
     @property
     def baseline(self) -> float:
+        """Return the fitted log-mean baseline; raise RuntimeError before fitting."""
         if self._baseline is None:
             raise RuntimeError("Model has not been fitted")
         return self._baseline
 
     @property
     def best_iteration(self) -> int | None:
+        """Return the zero-based best iteration index, or None when unavailable."""
         value = self.native_model.get_best_iteration()
         if value is None or value < 0:
             return None
@@ -49,12 +65,40 @@ class CatBoostModel(mlflow.pyfunc.PythonModel):  # type: ignore
 
     @property
     def feature_names(self) -> list[str]:
+        """Return fitted feature names in native model order."""
         names = self.native_model.feature_names_
         if not names:
             raise RuntimeError("Fitted model does not contain feature names")
         return list(names)
 
     def fit(self, train: TrainingData, validation: TrainingData | None = None) -> Self:
+        """Fit a regressor using the training target log-mean baseline.
+
+        Parameters
+        ----------
+        train : TrainingData
+            Project-owned training data supplying the conversion methods required
+            by this model.
+        validation : TrainingData or None, default None
+            Optional holdout data for early stopping and model selection.
+
+        Returns
+        -------
+        Self
+            This fitted adapter, replacing any previous fitted state.
+
+        Raises
+        ------
+        ValueError
+            The exposure-weighted target mean is not finite and positive.
+
+        Notes
+        -----
+        train.to_catboost and validation.to_catboost must apply the supplied
+        baseline and aligned weights. After fitting, the baseline is folded into
+        the native model bias. Without validation, early stopping is removed and
+        use_best_model is disabled.
+        """
         logger.debug(
             "Fitting CatBoost regressor: %s training rows, validation=%s",
             len(train),
@@ -85,6 +129,23 @@ class CatBoostModel(mlflow.pyfunc.PythonModel):  # type: ignore
         return self
 
     def predict_pool(self, data: TrainingData) -> np.ndarray:
+        """Predict positive rates for project data.
+
+        Parameters
+        ----------
+        data : TrainingData
+            Project data whose X contains all fitted model features.
+
+        Returns
+        -------
+        numpy.ndarray of shape (n_samples,)
+            Positive predictions on the exponentiated raw-model scale.
+
+        Raises
+        ------
+        RuntimeError
+            The model has not been fitted.
+        """
         return self.predict_frame(data.to_model_input())
 
     def select_features(
@@ -93,6 +154,34 @@ class CatBoostModel(mlflow.pyfunc.PythonModel):  # type: ignore
         validation: TrainingData,
         num_features_to_select: int,
     ) -> list[str]:
+        """Select features by recursive SHAP elimination without fitting the adapter.
+
+        Parameters
+        ----------
+        train : TrainingData
+            Data used to train the temporary feature-selection model.
+        validation : TrainingData
+            Holdout data used to evaluate candidate feature subsets.
+        num_features_to_select : int
+            Number of features to keep, between one and the available feature
+            count.
+
+        Returns
+        -------
+        list[str]
+            Selected feature names, or all names when the requested count equals
+            the available count.
+
+        Raises
+        ------
+        ValueError
+            The requested count is outside the available feature range.
+
+        Notes
+        -----
+        Uses a temporary native model with train_final_model=False. CatBoost
+        selection output retains its existing Verbose logging level.
+        """
         feature_names = train.X.columns
         if not 0 < num_features_to_select <= len(feature_names):
             raise ValueError(
@@ -126,10 +215,31 @@ class CatBoostModel(mlflow.pyfunc.PythonModel):  # type: ignore
         return names
 
     def predict(self, context, model_input, params=None) -> np.ndarray:
+        """Predict through the MLflow PythonModel interface.
+
+        Parameters
+        ----------
+        context : Any
+            MLflow context; unused.
+        model_input : pandas.DataFrame
+            Serving frame containing fitted feature names.
+        params : dict or None, default None
+            MLflow inference parameters; unused.
+
+        Returns
+        -------
+        numpy.ndarray of shape (n_samples,)
+            Positive predictions on the exponentiated raw-model scale.
+
+        See Also
+        --------
+        predict_frame : Predict directly from a Polars or pandas feature frame.
+        """
         return self.predict_frame(model_input)
 
     @property
     def cat_features(self) -> list[str]:
+        """Return categorical feature names in native model order."""
         return [
             self.feature_names[index]
             for index in self.native_model.get_cat_feature_indices()
@@ -137,6 +247,7 @@ class CatBoostModel(mlflow.pyfunc.PythonModel):  # type: ignore
 
     @property
     def numerical_features(self) -> list[str]:
+        """Return fitted feature names not marked categorical."""
         categorical = set(self.cat_features)
         return [name for name in self.feature_names if name not in categorical]
 
@@ -148,6 +259,31 @@ class CatBoostModel(mlflow.pyfunc.PythonModel):  # type: ignore
         registered_model_name=None,
         conda_env=None,
     ) -> Any:
+        """Package and log the fitted model with a serving input example.
+
+        Parameters
+        ----------
+        sample : TrainingData
+            Data used to supply up to five serving example rows via to_model_input.
+        name : str, default 'catboost_model'
+            MLflow model artifact name.
+        registered_model_name : str or None, default None
+            Optional model registry name.
+        conda_env : str, pathlib.Path, or None, default None
+            Existing Conda environment file. None pins the installed serving
+            dependency versions.
+
+        Returns
+        -------
+        mlflow.models.ModelInfo
+            Logged model information, including its model URI.
+
+        Notes
+        -----
+        Writes native model and configuration artifacts, infers a serving
+        signature, and logs baseline and input-schema metadata to MLflow. Configure
+        tracking and an experiment before calling.
+        """
         sample_frame = sample.to_model_input(n_rows=5).loc[:, self.feature_names]
         model_info = self.log_artifacts(
             sample_frame,
@@ -177,6 +313,36 @@ class CatBoostModel(mlflow.pyfunc.PythonModel):  # type: ignore
         metadata=None,
         code_paths=None,
     ) -> Any:
+        """Log regression serving code with native artifacts and custom metadata.
+
+        Parameters
+        ----------
+        sample_frame : pandas.DataFrame
+            Nonempty serving example, including any wrapper-specific columns.
+        sample_prediction : array-like
+            Predictions aligned with sample_frame for signature inference.
+        name : str
+            MLflow model artifact name.
+        registered_model_name : str or None, default None
+            Optional registry name.
+        conda_env : str, pathlib.Path, or None, default None
+            Existing environment file; None pins installed dependency versions.
+        metadata : dict or None, default None
+            Additional serving configuration merged over feature and baseline
+            metadata.
+        code_paths : list[str] or None, default None
+            Additional source paths bundled by MLflow.
+
+        Returns
+        -------
+        mlflow.models.ModelInfo
+            Logged regression serving model information.
+
+        Notes
+        -----
+        Packages the fitted model and JSON configuration with CatBoostWrapper
+        serving code. Writes artifacts to configured MLflow tracking.
+        """
         metadata = {
             "numerical_features": self.numerical_features,
             "cat_features": self.cat_features,
@@ -204,6 +370,26 @@ class CatBoostModel(mlflow.pyfunc.PythonModel):  # type: ignore
             )
 
     def predict_frame(self, data: pl.DataFrame | pd.DataFrame) -> np.ndarray:
+        """Predict exponentiated regression outputs from a feature frame.
+
+        Parameters
+        ----------
+        data : polars.DataFrame or pandas.DataFrame
+            Frame containing all fitted feature names. Columns are selected and
+            reordered to match the model; extra columns are ignored.
+
+        Returns
+        -------
+        numpy.ndarray of shape (n_samples,)
+            Positive predictions on the exponentiated raw-model scale.
+
+        Raises
+        ------
+        TypeError
+            Input is not a supported DataFrame.
+        RuntimeError
+            The model has not been fitted.
+        """
         if isinstance(data, pl.DataFrame):
             feature_frame: pl.DataFrame | pd.DataFrame = data.select(self.feature_names)
         elif isinstance(data, pd.DataFrame):

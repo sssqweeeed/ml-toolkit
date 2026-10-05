@@ -10,7 +10,40 @@ from .utils import save_figure
 
 def monthly_feature_distribution(reference: pl.DataFrame, current: pl.DataFrame,
                                  feature: str, timestamp: str, save_fig: str | Path) -> pl.DataFrame:
-    """Plot monthly 5/25/50/75/95 percentiles and mean for a numeric feature."""
+    """Plot monthly quantiles and means for a numerical feature.
+
+    Parameters
+    ----------
+    reference : polars.DataFrame
+        Reference frame containing feature and timestamp columns.
+    current : polars.DataFrame
+        Current frame containing the same required columns.
+    feature : str
+        Name of the numerical feature to summarize.
+    timestamp : str
+        Name of a Date/Datetime column used for calendar-month grouping.
+    save_fig : str or pathlib.Path
+        Output figure path; parent directories are created.
+
+    Returns
+    -------
+    polars.DataFrame
+        Columns month, split, p05, p25, p50, mean, p75, and p95. split is
+        reference or current; quantiles and means are unweighted.
+
+    Raises
+    ------
+    ValueError
+        Required columns are missing.
+    TypeError
+        The feature is not numerical or the timestamp is not temporal.
+
+    Notes
+    -----
+    Creates parent directories for save_fig and closes the figure after saving.
+    Null and non-finite feature values are omitted. An empty summary produces a
+    plot labeled No finite values.
+    """
     frames = []
     for split, data in (("reference", reference), ("current", current)):
         if feature not in data.columns or timestamp not in data.columns:

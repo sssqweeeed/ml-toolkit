@@ -8,7 +8,26 @@ import polars as pl
 
 
 def feature_psi_plot(scores: pl.DataFrame, save_fig: Path) -> None:
-    """Save a horizontal bar chart of PSI values by feature."""
+    """Save a horizontal bar chart of PSI values by feature.
+
+    Parameters
+    ----------
+    scores : polars.DataFrame
+        Nonempty frame with feature and finite psi columns, such as
+        PSIResult.psi.
+    save_fig : pathlib.Path
+        Output figure path; pass a Path object, not a string.
+
+    Raises
+    ------
+    ValueError
+        Required columns are missing, scores are empty, or PSI values are
+        non-finite.
+
+    Notes
+    -----
+    Creates parent directories for save_fig and closes the figure after saving.
+    """
     required = {"feature", "psi"}
     missing = sorted(required - set(scores.columns))
     if missing:
@@ -38,7 +57,29 @@ def monthly_psi_level_distribution(
     feature: str,
     save_fig: Path,
 ) -> None:
-    """Plot precomputed monthly PSI level shares as touching stacked bars."""
+    """Save monthly fitted-level shares as touching stacked bars.
+
+    Parameters
+    ----------
+    distribution : polars.DataFrame
+        Monthly share table with feature, month, sample, level, and share
+        columns, such as PSIResult.monthly_distribution.
+    feature : str
+        Feature name present in the distribution table.
+    save_fig : pathlib.Path
+        Output figure path; pass a Path object, not a string.
+
+    Raises
+    ------
+    ValueError
+        Required columns or the requested feature are missing.
+
+    Notes
+    -----
+    Creates parent directories for save_fig and closes the figure after saving.
+    The reference/current boundary is marked. Supply periods in the desired
+    order, as produced by PSIAnalysis.
+    """
     required = {"feature", "month", "sample", "level", "share"}
     missing = sorted(required - set(distribution.columns))
     if missing:
