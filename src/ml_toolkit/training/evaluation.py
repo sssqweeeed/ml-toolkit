@@ -117,9 +117,9 @@ def _log_post_fit_evaluation(
             raise ValueError("Predictions must contain one finite value per row")
         if target.shape != (len(data),) or not np.isfinite(target).all():
             raise ValueError("Targets must contain one finite value per row")
-        values = evaluator.evaluate(
-            object_id=getattr(data, "object_id"), y_pred=predicted, y_true=target, split=split,
-        )
+        inputs = dict(object_id=getattr(data, "object_id"), y_pred=predicted,
+                      y_true=target, split=split)
+        values = evaluator.evaluate(**inputs)
         if not isinstance(values, dict):
             raise TypeError("post_fit_evaluator must return dict[str, float]")
         metrics = {}
@@ -138,9 +138,44 @@ def _log_post_fit_evaluation(
         if metrics:
             mlflow.log_metrics(metrics)
             logger.debug("Evaluation %s %s custom metrics: %s", name, split.value, metrics)
+        writer = getattr(evaluator, "write_artifacts", None)
+        if writer is not None:
+            _log_post_fit_artifacts(writer, inputs)
     except Exception as exc:
         exc.add_note(f"Post-fit evaluation stage={name}, split={split}")
         raise
+
+
+def _log_post_fit_artifacts(writer, inputs) -> None:
+    with TemporaryDirectory(prefix="ml-toolkit-post-fit-") as directory:
+        root = Path(directory).resolve()
+        paths = writer(**inputs, artifact_dir=root)
+        if paths is None:
+            return
+        if not isinstance(paths, list):
+            raise TypeError("write_artifacts must return list[Path] or None")
+        images = []
+        for path in paths:
+            if not isinstance(path, Path):
+                raise TypeError("write_artifacts paths must be pathlib.Path objects")
+            image = (root / path).resolve()
+            if not image.is_relative_to(root):
+                raise ValueError("write_artifacts images must be inside artifact_dir")
+            if not image.is_file():
+                raise ValueError(f"write_artifacts image does not exist: {path}")
+            if image.suffix.lower() not in {
+                ".png", ".jpg", ".jpeg", ".svg", ".webp", ".gif", ".tif", ".tiff", ".bmp",
+            }:
+                raise ValueError(f"write_artifacts accepts only image files: {path}")
+            images.append(image)
+        for image in images:
+            relative = image.relative_to(root)
+            parent = relative.parent.as_posix()
+            artifact_path = f"custom/{inputs['split'].value}"
+            if parent != ".":
+                artifact_path += f"/{parent}"
+            mlflow.log_artifact(str(image), artifact_path=artifact_path)
+            logger.debug("Logged post-fit image %s to %s", relative, artifact_path)
 
 
 def log_evaluation(

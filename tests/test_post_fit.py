@@ -1,4 +1,5 @@
 from dataclasses import dataclass, replace
+from pathlib import Path
 from types import SimpleNamespace
 
 import mlflow
@@ -49,6 +50,24 @@ class RecordingEvaluator:
         return {"rows": np.float64(len(object_id))}
 
 
+class RecordingArtifactEvaluator(RecordingEvaluator):
+    def __init__(self):
+        super().__init__()
+        self.artifact_calls = []
+
+    def write_artifacts(self, *, object_id, y_pred, y_true, split, artifact_dir):
+        np.testing.assert_array_equal(object_id.to_numpy(), y_true + 1000)
+        np.testing.assert_allclose(y_pred, y_true - 0.75)
+        assert self.calls[-1][:2] == (split, object_id.to_list())
+        self.artifact_calls.append((split, artifact_dir))
+        # A tiny valid SVG is enough to verify actual MLflow uploads.
+        image = artifact_dir / "figures" / "summary.svg"
+        image.parent.mkdir()
+        image.write_text('<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"/>')
+        (artifact_dir / "ignored.parquet").write_bytes(b"not selected for upload")
+        return [image]
+
+
 @pytest.mark.parametrize("tuning, skip, repeat_cv, expected_calls", [
     (False, 0, False, 5),
     (False, 1, False, 3),
@@ -72,7 +91,7 @@ def test_post_fit_lifecycle_alignment_and_mlflow(
             predictions.append(len(data))
             return data.X["x"].to_numpy() + 0.25
 
-    evaluator: PostFitEvaluator = RecordingEvaluator()
+    evaluator: PostFitEvaluator = RecordingArtifactEvaluator()
     result = train_model(
         data=identified_data, params={}, model_factory=Model, metric=mae,
         run_name="post-fit", n_splits=2, skip_splits=skip, select_features=1,
@@ -83,6 +102,9 @@ def test_post_fit_lifecycle_alignment_and_mlflow(
         if repeat_cv else None,
     )
     assert len(evaluator.calls) == expected_calls
+    assert len(evaluator.artifact_calls) == expected_calls
+    assert len({root for _, root in evaluator.artifact_calls}) == expected_calls
+    assert all(not root.exists() for _, root in evaluator.artifact_calls)
     # CV reuses predictions; only final fitting adds one prediction call.
     assert len(predictions) == expected_calls
     assert result.cross_validation.mean_metrics == {"mae": 0.75}
@@ -92,6 +114,12 @@ def test_post_fit_lifecycle_alignment_and_mlflow(
     for split, ids, run_id in evaluator.calls:
         run = runs[run_id]
         assert run.data.metrics[f"{split.value}/custom/rows"] == len(ids)
+        client = mlflow.MlflowClient()
+        artifacts = client.list_artifacts(run_id, f"custom/{split.value}/figures")
+        assert [item.path for item in artifacts] == [f"custom/{split.value}/figures/summary.svg"]
+        assert [item.path for item in client.list_artifacts(run_id, f"custom/{split.value}")] == [
+            f"custom/{split.value}/figures",
+        ]
         if run.data.tags["mlflow.runName"] == "final_fit":
             assert "val/custom/rows" not in run.data.metrics
     parent = next(run for run in runs.values() if run.data.tags["mlflow.runName"] == "post-fit")
@@ -223,3 +251,126 @@ def test_disabled_evaluator_needs_no_ids_and_no_final_predictions(tmp_path):
     train_model(data=make_data(), params={}, model_factory=Model, metric=mae,
                 run_name="no-post-fit", n_splits=2)
     assert predictions == [8, 8, 16, 8]
+
+
+def test_artifacts_work_with_empty_metrics_and_preserve_selected_paths(identified_data, monkeypatch):
+    uploaded = []
+    roots = []
+
+    def writer(**kwargs):
+        root = kwargs["artifact_dir"]
+        roots.append(root)
+        (root / "nested").mkdir()
+        (root / "nested" / "plot.PNG").write_bytes(b"image")
+        (root / "ignored.parquet").write_bytes(b"table")
+        return [Path("nested/plot.PNG")]
+
+    def upload(path, artifact_path):
+        assert Path(path).is_file()
+        uploaded.append((Path(path).name, artifact_path))
+
+    monkeypatch.setattr(mlflow, "log_metrics", lambda metrics: pytest.fail("empty metrics"))
+    monkeypatch.setattr(mlflow, "log_artifact", upload)
+    _log_post_fit_evaluation(
+        evaluator=SimpleNamespace(evaluate=lambda **kwargs: {}, write_artifacts=writer),
+        data=identified_data, prediction=np.ones(24), split=DatasetSplit.TEST, name="manual",
+    )
+    assert uploaded == [("plot.PNG", "custom/test/nested")]
+    assert all(not root.exists() for root in roots)
+
+
+@pytest.mark.parametrize("result", [None, []])
+def test_artifact_skip_does_not_upload_existing_files(identified_data, monkeypatch, result):
+    roots = []
+
+    def writer(**kwargs):
+        roots.append(kwargs["artifact_dir"])
+        (roots[-1] / "unused.png").write_bytes(b"image")
+        return result
+
+    monkeypatch.setattr(mlflow, "log_artifact", lambda *a, **k: pytest.fail("skip must not upload"))
+    _log_post_fit_evaluation(
+        evaluator=SimpleNamespace(evaluate=lambda **kwargs: {}, write_artifacts=writer),
+        data=identified_data, prediction=np.ones(24), split=DatasetSplit.VAL, name="fold_1",
+    )
+    assert all(not root.exists() for root in roots)
+
+
+@pytest.mark.parametrize("mode, error", [
+    ("nan", TypeError), ("tuple", TypeError), ("string", TypeError),
+    ("missing", ValueError), ("table", ValueError), ("outside", ValueError),
+    ("symlink", ValueError),
+])
+def test_invalid_artifact_results_fail_before_upload(
+    tmp_path, identified_data, monkeypatch, mode, error,
+):
+    roots = []
+    external = tmp_path / "outside.png"
+    external.write_bytes(b"image")
+
+    def writer(**kwargs):
+        root = kwargs["artifact_dir"]
+        roots.append(root)
+        image = root / "valid.png"
+        image.write_bytes(b"image")
+        if mode == "nan":
+            return float("nan")
+        if mode == "tuple":
+            return (image,)
+        if mode == "string":
+            return [str(image)]
+        if mode == "missing":
+            return [image, root / "missing.png"]
+        if mode == "table":
+            table = root / "data.parquet"
+            table.write_bytes(b"table")
+            return [image, table]
+        if mode == "symlink":
+            link = root / "link.png"
+            link.symlink_to(external)
+            return [link]
+        return [external]
+
+    monkeypatch.setattr(mlflow, "log_artifact", lambda *a, **k: pytest.fail("invalid images"))
+    with pytest.raises(error) as raised:
+        _log_post_fit_evaluation(
+            evaluator=SimpleNamespace(evaluate=lambda **kwargs: {}, write_artifacts=writer),
+            data=identified_data, prediction=np.ones(24), split=DatasetSplit.VAL, name="fold_2",
+        )
+    assert "stage=fold_2, split=val" in raised.value.__notes__[0]
+    assert all(not root.exists() for root in roots)
+
+
+@pytest.mark.parametrize("source", ["writer", "upload"])
+def test_artifact_errors_propagate_and_clean_temporary_directory(identified_data, monkeypatch, source):
+    roots = []
+    original = RuntimeError("artifact failure")
+
+    def writer(**kwargs):
+        root = kwargs["artifact_dir"]
+        roots.append(root)
+        if source == "writer":
+            raise original
+        image = root / "plot.png"
+        image.write_bytes(b"image")
+        return [image]
+
+    def upload(*args, **kwargs):
+        raise original
+
+    monkeypatch.setattr(mlflow, "log_artifact", upload)
+    with pytest.raises(RuntimeError) as raised:
+        _log_post_fit_evaluation(
+            evaluator=SimpleNamespace(evaluate=lambda **kwargs: {}, write_artifacts=writer),
+            data=identified_data, prediction=np.ones(24), split=DatasetSplit.TRAIN, name="final_fit",
+        )
+    assert raised.value is original
+    assert "stage=final_fit, split=train" in original.__notes__[0]
+    assert all(not root.exists() for root in roots)
+
+
+def test_non_callable_artifact_writer_is_rejected(identified_data):
+    with pytest.raises(TypeError, match="write_artifacts must be callable"):
+        _validate_post_fit_evaluator(
+            identified_data, SimpleNamespace(evaluate=lambda **kwargs: {}, write_artifacts=True),
+        )

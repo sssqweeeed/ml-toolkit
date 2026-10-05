@@ -76,6 +76,8 @@ def train_model(
         <split>/custom/ and excluded from ordinary CV metrics and optimization.
         The toolkit does not copy or reset evaluator state. Feature-selection
         fits do not invoke it; test data are not evaluated by this workflow.
+        If present, write_artifacts is called after each evaluation and its
+        returned images are logged; returning None skips image upload.
 
     Returns
     -------

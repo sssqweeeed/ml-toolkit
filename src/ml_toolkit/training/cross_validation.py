@@ -59,6 +59,7 @@ def cross_validate(
         after each fold fit. Requires data.object_id. The same instance is reused
         without resetting; results are logged as train/custom/* and val/custom/*
         in fold runs and excluded from CV aggregation and optimization.
+        Optional write_artifacts returns images to upload, or None to skip.
 
     Returns
     -------

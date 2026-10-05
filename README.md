@@ -189,6 +189,50 @@ Existing custom containers need no changes unless using this feature; for it,
 implement `IdentifiedTrainingData`, including ID-preserving `take`,
 `select_features`, and `with_target` operations.
 
+### Custom post-fit images
+
+Optionally add `write_artifacts` to the same evaluator object. It receives the
+same `object_id`, `y_pred`, `y_true`, and `split`, plus a fresh temporary
+`artifact_dir: Path`. Return `None` or `[]` to skip upload, or return a list of
+existing `Path` objects selecting images saved inside that directory. Absolute
+paths and paths relative to `artifact_dir` are supported. Unlisted files are
+ignored; tables and other non-image files are rejected if returned.
+
+For example, add this method to `CampaignEvaluator`:
+
+```python
+from pathlib import Path
+import matplotlib.pyplot as plt
+from ml_toolkit.plots.utils import save_figure
+
+def write_artifacts(
+    self, *, object_id: pl.Series, y_pred: np.ndarray,
+    y_true: np.ndarray, split: DatasetSplit, artifact_dir: Path,
+) -> list[Path] | None:
+    if split != DatasetSplit.VAL:
+        return None
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.hist(y_pred, bins=20)
+    ax.set(title="Validation scores", xlabel="Score", ylabel="Count")
+    ax.grid(alpha=0.25)
+    fig.tight_layout()
+    return [save_figure(fig, artifact_dir / "figures/scores.png")]
+```
+
+No extra `train_model` option is needed. The method is called immediately after
+each scalar evaluation, including Optuna trials, repeated CV, and final fitting,
+even when `evaluate` returns `{}`. Existing evaluators without this method keep
+their behavior. Each method can prepare its data independently; no cache is
+required. Image generation is independent of `DiagnosticsOptions`, and the
+writer decides whether to render for a given split. There is no automatic
+refitting to produce images.
+
+Only selected images are uploaded to `custom/<split>/`, preserving nested
+directories; for example, `custom/val/figures/scores.png`. PNG, JPEG, SVG, WebP,
+GIF, TIFF, and BMP extensions are supported. Temporary directories are removed
+after upload or on errors. Use the exported `PostFitArtifactWriter` protocol
+for the optional method's type contract; explicit inheritance is unnecessary.
+
 For positive–unlabeled learning, label `1` means confirmed positive and `0`
 means unlabeled. Use a PU loss, a prevalence estimate, `PUMetric`, and PU
 diagnostics together:

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from enum import StrEnum
+from pathlib import Path
 from typing import Any, Protocol, Self
 
 import numpy as np
@@ -43,6 +44,9 @@ class PostFitEvaluator(Protocol):
     Reference data and caches may be stored internally, but returned metrics
     should describe the supplied rows rather than accumulate unrelated fits.
     Intermediate feature-selection fits do not invoke this evaluator.
+    Implement PostFitArtifactWriter.write_artifacts on the same object to
+    optionally save additional images after each evaluation. No training flag
+    is required; returning None from that method skips image logging.
     """
 
     def evaluate(
@@ -76,6 +80,62 @@ class PostFitEvaluator(Protocol):
             "<split>/custom/" prefix and logs to the current MLflow run. An
             empty dictionary skips logging. Results are excluded from ordinary
             CV metrics and optimization. Inputs must not be mutated.
+        """
+        ...
+
+
+class PostFitArtifactWriter(Protocol):
+    """Describe optional image generation on a post-fit evaluator.
+
+    Notes
+    -----
+    A user-owned evaluator may implement both evaluate and write_artifacts
+    without inheriting either protocol. Image generation receives the same
+    inputs immediately after scalar evaluation, even when metrics are empty.
+    Each method can independently prepare its data; no caching is required.
+    """
+
+    def write_artifacts(
+        self,
+        *,
+        object_id: pl.Series,
+        y_pred: np.ndarray,
+        y_true: np.ndarray,
+        split: DatasetSplit,
+        artifact_dir: Path,
+    ) -> list[Path] | None:
+        """Save and select images to log for the current split.
+
+        Parameters
+        ----------
+        object_id : polars.Series of shape (n_samples,)
+            Aligned non-null string or integer IDs; repeats are allowed.
+        y_pred : numpy.ndarray of shape (n_samples,)
+            Finite task-appropriate model outputs, as supplied to evaluate.
+        y_true : numpy.ndarray of shape (n_samples,)
+            Finite observed target values aligned with IDs and outputs.
+        split : DatasetSplit
+            The current train, val, or test split.
+        artifact_dir : pathlib.Path
+            Fresh temporary directory owned by the toolkit. Save images inside
+            this directory; nested directories are preserved in MLflow.
+
+        Returns
+        -------
+        list[pathlib.Path] or None
+            Existing image files to upload under custom/<split>/ in the current
+            MLflow run. Paths may be absolute or relative to artifact_dir. None
+            or an empty list skips upload. Only returned files are logged; PNG,
+            JPEG, SVG, WebP, GIF, TIFF, and BMP extensions are accepted. Tables
+            are not accepted. The directory is removed after the call and
+            uploads, including on errors; returned paths must not be retained.
+
+        Notes
+        -----
+        Invoked wherever scalar evaluation runs, including Optuna trials and
+        final fitting, regardless of DiagnosticsOptions. Choose whether to
+        render inside this method. Inputs must not be mutated. Errors propagate
+        with evaluation stage and split context.
         """
         ...
 
@@ -241,6 +301,9 @@ def _validate_post_fit_evaluator(
         return
     if not callable(getattr(evaluator, "evaluate", None)):
         raise TypeError("post_fit_evaluator must provide an evaluate method")
+    writer = getattr(evaluator, "write_artifacts", None)
+    if writer is not None and not callable(writer):
+        raise TypeError("post_fit_evaluator.write_artifacts must be callable")
     object_id = getattr(data, "object_id", None)
     if object_id is None:
         raise ValueError("object_id is required when post_fit_evaluator is supplied")

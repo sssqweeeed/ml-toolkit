@@ -53,6 +53,8 @@ def tune_optuna(
         Optional evaluator reused across every trial and fold. Requires aligned
         data.object_id; logs custom split metrics without adding them to the
         optimization objective or cross-validation metric dictionaries.
+        Optional write_artifacts runs for each evaluated split in each trial;
+        return None to skip image upload.
 
     Returns
     -------
