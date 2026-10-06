@@ -12,14 +12,6 @@ SHAP and LightGBM are optional: install `.[shap]`, `.[lightgbm]`, or `.[all]`
 when those integrations are needed. CatBoost, Polars, Matplotlib, Optuna,
 scikit-learn, and MLflow are installed by default.
 
-## CodeGraph for Codex
-
-This repository includes a project-local Codex MCP configuration for
-[CodeGraph](https://github.com/colbymchenry/codegraph). Install the CodeGraph
-CLI using its upstream instructions, then run `codegraph init` in the repository
-root to build the local code index. Restart Codex to load the MCP server.
-The generated `.codegraph/` index is ignored by Git.
-
 ## Training from a project
 
 Projects own their data preparation, model settings, experiment names, and

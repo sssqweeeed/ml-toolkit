@@ -9,4 +9,6 @@ __pycache__/
 build/
 dist/
 .DS_Store
+AGENTS.md
+.codex/
 .codegraph/
