@@ -48,7 +48,7 @@ def _feature_filename(prefix: str, index: int, feature: str) -> str:
 
 
 def _scores(metric, data: TrainingData, prediction: np.ndarray) -> dict[str, float]:
-    p = np.asarray(prediction, dtype=float).reshape(-1)
+    p = np.asarray(prediction, dtype=float)
     if p.shape != (len(data),) or not np.isfinite(p).all():
         raise ValueError("Predictions must contain one finite value per row")
     result = metric(data.y.to_numpy(), p, data.weight.to_numpy())
@@ -173,12 +173,12 @@ def log_evaluation(
     post_fit: PostFitEvaluationConfig | None = None,
 ) -> dict[str, dict[str, float]]:
     """Log split metrics, optional PSI and figures; return numeric scores."""
-    pu_loss = getattr(model, "_pu_loss", None)
+    pu_loss = model.pu_loss if getattr(model, "task", None) == "pu_classification" else None
     if pu_loss is not None:
         if (
             not isinstance(metric, PUMetric)
             or metric.loss != pu_loss
-            or metric.prior != model._pu_prior
+            or metric.prior != model.pu_prior
         ):
             raise ValueError(
                 "PU models require PUMetric with the model's loss and prior"

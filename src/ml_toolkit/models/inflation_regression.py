@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import logging
 from datetime import date
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, Self
 
 import catboost
@@ -12,10 +11,12 @@ import pandas as pd
 import polars as pl
 
 from ..inflation import InflationAdjuster, inflation_from_config
-from .catboost_regression import CatBoostModel
+from .catboost_regression import CatBoostRegressionModel, CatBoostLogLinkRegressionModel
+from ._catboost import read_state
+from ..tracking._model_state import log_catboost
 
 if TYPE_CHECKING:
-    from ..config import FeatureSelectionConfig, TrackingConfig
+    from ..config import TrackingConfig
     from ..training.contracts import TrainingData
 
 logger = logging.getLogger(__name__)
@@ -26,11 +27,11 @@ class InflationAdjustedModel(mlflow.pyfunc.PythonModel):  # type: ignore
 
     Parameters
     ----------
-    model : CatBoostRegressionModel
+    model : CatBoostRegressionModel or None, default None
         Wrapped regression adapter fitted on inflation-normalized targets.
-    inflation : InflationAdjuster
+    inflation : InflationAdjuster or None, default None
         Strategy converting monetary targets and predictions between dates.
-    reference_date : datetime.date
+    reference_date : datetime.date or None, default None
         Common price date used to normalize targets before fitting.
     prediction_date_column : str, default 'prediction_date'
         Serving input column containing requested price dates. Must not
@@ -39,17 +40,20 @@ class InflationAdjustedModel(mlflow.pyfunc.PythonModel):  # type: ignore
     Notes
     -----
     Training data must supply with_target. Pool predictions use data.time;
-    pandas serving predictions use prediction_date_column.
+    frame predictions use prediction_date_column. All three construction values
+    may be omitted for artifact loading; partial configuration is rejected.
     """
 
     def __init__(
         self,
-        model: CatBoostModel,
-        inflation: InflationAdjuster,
-        reference_date: date,
+        model: CatBoostRegressionModel | None = None,
+        inflation: InflationAdjuster | None = None,
+        reference_date: date | None = None,
         prediction_date_column: str = "prediction_date",
     ) -> None:
         super().__init__()
+        if any(value is None for value in (model, inflation, reference_date)) and not all(value is None for value in (model, inflation, reference_date)):
+            raise ValueError("Supply model, inflation and reference_date together")
         self.model = model
         self.inflation = inflation
         self.reference_date = reference_date
@@ -58,11 +62,15 @@ class InflationAdjustedModel(mlflow.pyfunc.PythonModel):  # type: ignore
     @property
     def native_model(self) -> catboost.CatBoostRegressor:
         """Return the wrapped fitted CatBoost regressor."""
+        if self.model is None:
+            raise RuntimeError("Model has not been fitted")
         return self.model.native_model
 
     @property
     def best_iteration(self) -> int | None:
         """Return the wrapped zero-based best iteration index, or None if unavailable."""
+        if self.model is None:
+            raise RuntimeError("Model has not been fitted")
         return self.model.best_iteration
 
     def fit(self, train: TrainingData, validation: TrainingData | None = None) -> Self:
@@ -89,6 +97,8 @@ class InflationAdjustedModel(mlflow.pyfunc.PythonModel):  # type: ignore
         logger.debug(
             "Fitting inflation-adjusted model at reference date %s", self.reference_date
         )
+        if self.model is None or self.inflation is None or self.reference_date is None:
+            raise RuntimeError("Configure model, inflation and reference_date before fitting")
         self.inflation.fit(
             dates=train.time,
             y=train.y.to_numpy(),
@@ -116,69 +126,25 @@ class InflationAdjustedModel(mlflow.pyfunc.PythonModel):  # type: ignore
         numpy.ndarray of shape (n_samples,)
             Reference-date regression predictions adjusted to data.time.
         """
-        prediction = self.model.predict_pool(data)
-        return self.inflation.adjust(
-            values=prediction,
-            from_dates=self._reference_dates(len(data)),
-            to_dates=data.time,
+        frame = data.to_model_input()
+        if self.prediction_date_column in frame.columns:
+            raise ValueError("prediction_date_column must not overwrite a model feature")
+        frame[self.prediction_date_column] = pd.Series(
+            data.time.to_list(), index=frame.index, dtype="datetime64[ns]",
         )
+        return self.predict_frame(frame)
 
-    def select_features(
+    def predict_frame(
         self,
-        train: TrainingData,
-        validation: TrainingData,
-        config: FeatureSelectionConfig,
-    ) -> list[str]:
-        """Select regression features after normalizing targets to the reference date.
-
-        Parameters
-        ----------
-        train : TrainingData
-            Data used to train the temporary feature-selection model.
-        validation : TrainingData
-            Holdout data used to evaluate candidate feature subsets.
-        config : FeatureSelectionConfig
-            Feature count and backend options. The holdout fraction is used by
-            the workflow before calling this method.
-
-        Returns
-        -------
-        list[str]
-            Names selected by the wrapped regression adapter.
-
-        Notes
-        -----
-        Fits the inflation strategy on training rows before converting either
-        split.
-        """
-        self.inflation.fit(
-            dates=train.time,
-            y=train.y.to_numpy(),
-            sample_weight=train.weight.to_numpy(),
-        )
-        return self.model.select_features(
-            train=self._at_reference_date(train),
-            validation=self._at_reference_date(validation),
-            config=config,
-        )
-
-    def predict(  # type: ignore
-        self,
-        context: Any,
-        model_input: pd.DataFrame,
-        params: dict[str, Any] | None = None,
+        model_input: pl.DataFrame | pd.DataFrame,
     ) -> np.ndarray:
-        """Predict monetary values at dates supplied in a pandas serving frame.
+        """Predict monetary values at dates supplied in a serving frame.
 
         Parameters
         ----------
-        context : Any
-            MLflow context; unused.
-        model_input : pandas.DataFrame
+        model_input : polars.DataFrame or pandas.DataFrame
             Fitted feature columns plus prediction_date_column with parseable,
             non-null dates.
-        params : dict[str, Any] or None, default None
-            MLflow inference parameters; unused.
 
         Returns
         -------
@@ -189,43 +155,59 @@ class InflationAdjustedModel(mlflow.pyfunc.PythonModel):  # type: ignore
         Raises
         ------
         TypeError
-            model_input is not a pandas DataFrame.
+            model_input is not a Polars or pandas DataFrame.
         ValueError
             The date column is missing, null, unparseable, or outside the inflation
             strategy range.
         """
-        del context, params
-        if not isinstance(model_input, pd.DataFrame):
-            raise TypeError("model_input must be a pandas.DataFrame")
+        if not isinstance(model_input, (pl.DataFrame, pd.DataFrame)):
+            raise TypeError("model_input must be a Polars or pandas DataFrame")
         if self.prediction_date_column not in model_input.columns:
             raise ValueError(
                 f"Missing model input column: {self.prediction_date_column}"
             )
-        if model_input.empty:
+        if len(model_input) == 0:
             return np.asarray([], dtype=float)
 
         logger.debug(
             "Predicting with inflation-adjusted model: %s rows", len(model_input)
         )
-        prediction_dates = pd.to_datetime(
-            model_input[self.prediction_date_column],
-            errors="raise",
-        )
+        dates = model_input[self.prediction_date_column]
+        if isinstance(dates, pl.Series):
+            dates = dates.to_pandas()
+        prediction_dates = pd.to_datetime(dates, errors="raise")
         if prediction_dates.isna().any():
             raise ValueError(
                 f"{self.prediction_date_column} must not contain null values"
             )
 
         prediction = self.model.predict_frame(model_input)
+        if prediction.shape != (len(model_input),):
+            raise ValueError("Inflation adjustment requires one prediction per row")
         return self.inflation.adjust(
             values=prediction,
             from_dates=self._reference_dates(len(model_input)),
-            to_dates=pl.Series(
-                self.prediction_date_column,
-                prediction_dates.dt.date.to_list(),
-                dtype=pl.Date,
-            ),
+            to_dates=pl.from_pandas(prediction_dates.rename(self.prediction_date_column)),
         )
+
+    def predict(self, context, model_input: pd.DataFrame, params=None) -> np.ndarray:
+        """Predict through MLflow using the date-aware frame API.
+
+        Parameters
+        ----------
+        context : Any
+            MLflow context; unused.
+        model_input : pandas.DataFrame
+            Fitted features and prediction dates.
+        params : dict or None, default None
+            Unused inference parameters.
+
+        Returns
+        -------
+        numpy.ndarray of shape (n_samples,)
+            Predictions adjusted to the requested dates.
+        """
+        return self.predict_frame(model_input)
 
     def log(
         self,
@@ -290,16 +272,17 @@ class InflationAdjustedModel(mlflow.pyfunc.PythonModel):  # type: ignore
         sample_frame[self.prediction_date_column] = pd.Series(
             sample.time.head(len(sample_frame)).to_list(),
             dtype="datetime64[ns]",
+            index=sample_frame.index,
         )
         sample_prediction = self.predict(None, sample_frame)
 
-        wrapper_info = self.model.log_artifacts(
+        wrapper_info = log_catboost(
+            self,
             sample_frame,
             sample_prediction,
             name=name,
             registered_model_name=registered_model_name,
             conda_env=conda_env,
-            code_paths=[str(Path(__file__).resolve().parents[1] / "inflation.py")],
             metadata={
                 "reference_date": self.reference_date.isoformat(),
                 "prediction_date_column": self.prediction_date_column,
@@ -332,3 +315,34 @@ class InflationAdjustedModel(mlflow.pyfunc.PythonModel):  # type: ignore
             [self.reference_date] * length,
             dtype=pl.Date,
         )
+
+    @property
+    def task(self) -> str:
+        """Return the regression task identifier."""
+        return "regression"
+
+    def _export_state(self):
+        return {
+            "version": 1, "model_type": type(self).__name__,
+            "baseline_mode": "nested_model", "regressor": self.model._export_state(),
+            "inflation": self.inflation.to_config(),
+            "reference_date": self.reference_date.isoformat(),
+            "prediction_date_column": self.prediction_date_column,
+        }
+
+    def load_context(self, context):
+        state = read_state(context, type(self).__name__, "nested_model")
+        types = {
+            cls.__name__: cls
+            for cls in (CatBoostRegressionModel, CatBoostLogLinkRegressionModel)
+        }
+        regressor = state["regressor"]
+        if regressor.get("version") != 1 or regressor["model_type"] not in types:
+            raise ValueError("Unsupported nested regression state")
+        self.model = types[regressor["model_type"]]()
+        if regressor.get("baseline_mode") != self.model._baseline_mode:
+            raise ValueError("Invalid nested regression baseline mode")
+        self.model._restore_state(regressor, context.artifacts["model"])
+        self.inflation = inflation_from_config(state["inflation"])
+        self.reference_date = date.fromisoformat(state["reference_date"])
+        self.prediction_date_column = state["prediction_date_column"]

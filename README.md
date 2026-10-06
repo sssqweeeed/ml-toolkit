@@ -51,7 +51,7 @@ per-row baseline and includes millisecond timestamps and row weights.
 ```python
 import mlflow
 
-from ml_toolkit.models import CatBoostRegressionModel
+from ml_toolkit.models import CatBoostLogLinkRegressionModel
 from ml_toolkit.metrics import metrics_frequency
 from ml_toolkit.config import (
     CrossValidationConfig, PUDiagnosticsConfig, RegressionDiagnosticsConfig,
@@ -65,7 +65,7 @@ data = prepare_frequency_data(raw_data)  # Your project prepares and returns a P
 result = train_model(
     data=data,
     params={"iterations": 200, "loss_function": "Poisson", "verbose": False},
-    model_factory=CatBoostRegressionModel,
+    model_factory=CatBoostLogLinkRegressionModel,
     metric=metrics_frequency,
     run_name="frequency",
     config=TrainingConfig(
@@ -103,11 +103,53 @@ For classification, supply `CatBoostClassificationModel`,
 The same `train_model` function performs the workflow. Optuna tuning is enabled
 with `TrainingConfig(tuning=TuningConfig(...), ...)` and a separately supplied
 `param_space`. Set the metric name, direction, trial/time budget, and seed in
-`TuningConfig`. Feature selection uses `FeatureSelectionConfig` and the model's
-existing `select_features` method; no separate selector object is required.
-Custom adapters accept `select_features(..., config=FeatureSelectionConfig)`
-and `log(sample, config=TrackingConfig)`. Final iteration budgets follow
+`TuningConfig`. Feature selection uses `FeatureSelectionConfig` inside
+`train_model`: a fresh adapter is fitted on an internal chronological split,
+then scikit-learn `SelectFromModel` keeps the top-k features. CatBoost uses
+`PredictionValuesChange`; other fitted native estimators must expose
+`feature_importances_` or `coef_`. The original column order is preserved and
+one subset is reused for all folds, trials and final fitting. Keeping all
+features skips the extra fit. Custom adapters implement `fit`, `native_model`,
+`predict_pool`, `best_iteration` and `log(sample, config=TrackingConfig)`. Final iteration budgets follow
 `FinalFitConfig(iteration_policy="cv_median")`; use `"provided"` to retain yours.
+
+### Model policies and serving
+
+`CatBoostRegressionModel` accepts CatBoost's native losses and custom objective
+objects without a toolkit whitelist. It keeps native initialization and
+loss-dependent prediction behavior (`prediction_type=None`), including signed
+RMSE outputs. `loss` aliases `loss_function`; conflicting values are rejected.
+Multi-output native predictions keep their dimensions, while the shared
+training workflow requires one finite prediction per row.
+
+`CatBoostLogLinkRegressionModel` specializes regression for Poisson and Tweedie.
+Its baseline is `log(weighted target mean)`, requiring a finite positive mean.
+It disables `boost_from_average`, supplies the same baseline to training and
+validation, then adds it to native bias once. Other initialization settings are
+preserved by the general regressor. The public `baseline` is None for native
+initialization and a float for the specialized regressor.
+
+`CatBoostClassificationModel` supports binary Logloss/CrossEntropy and uses
+clipped weighted prevalence log-odds. It selects an unweighted F1 threshold on
+validation (highest cutoff on ties), or 0.5 without validation. Set
+`decision_threshold` to disable tuning. `CatBoostPUClassificationModel` inherits
+the shared fit and prediction operations and uses population-prior log-odds,
+CPU uPU/nnPU training and an explicit threshold policy. Both classification
+classes add their baseline once to raw scores before the sigmoid.
+
+`InflationAdjustedModel` composes either regressor with an inflation strategy.
+The strategy is fitted on training rows only; serving dates come from
+`data.time` for pool inputs or `prediction_date_column` for frame inputs.
+
+Full classes implement training and MLflow inference. `predict_frame` is the
+common prediction path; `predict` and `predict_pool` delegate to it. Models From
+Code exports contain a small entry point, package sources, pinned dependencies,
+a native model file and version-1 JSON state. Loading restores the exact model
+class, baseline policy, threshold, PU settings and nested inflation regressor.
+Ordinary imports perform no MLflow registration. Custom objective objects are
+passed unchanged during training; JSON records their type for audit and native
+artifacts supply inference. Inflation logging emits both native and adjusted
+models; only the adjusted artifact uses the configured registry name.
 
 ### Custom post-fit evaluation
 
@@ -254,11 +296,11 @@ from ml_toolkit.config import (
     TrainingConfig,
 )
 from ml_toolkit.training import train_model
-from ml_toolkit.models import CatBoostClassificationModel
+from ml_toolkit.models import CatBoostPUClassificationModel
 
 prior = 0.08  # Estimate from the target population, not the labeled fraction.
 result = train_model(
-    data=pu_data, model_factory=CatBoostClassificationModel,
+    data=pu_data, model_factory=CatBoostPUClassificationModel,
     params={"loss": "nnPU", "pu_prior": prior, "iterations": 200,
             "depth": 5, "learning_rate": 0.05, "task_type": "CPU"},
     metric=PUMetric(prior, loss="nnPU"),
@@ -309,8 +351,8 @@ plot, and artifact operations. `WARNING` suppresses routine toolkit progress
 and details. Exceptions propagate normally without duplicate error logs.
 
 These settings control toolkit messages. CatBoost, Optuna, and MLflow retain
-their own output configuration. CatBoost feature selection uses
-`CatBoostSelectionConfig.logging_level` (default `"Silent"`); nnPU's internal one-tree fits still use
+their own output configuration. The temporary selection model uses the supplied
+training parameters; nnPU's internal one-tree fits use
 `"Silent"`. Toolkit levels do not override those choices or caller-supplied
 dependency settings. Python logging does not change MLflow metric or artifact
 recording.
@@ -345,7 +387,7 @@ functions, so manual and automatic figures have one implementation.
 | `data.py` | Shared Pool container, aligned row operations, and model conversions. |
 | `training/train.py` | Select, tune, validate, fit, and log one experiment. |
 | `training/cross_validation.py` | Time-based folds, evaluation, and nested MLflow runs. |
-| `training/feature_selection.py` | Model-driven feature elimination. |
+| `training/feature_selection.py` | Shared top-k importance selection. |
 | `training/tuning.py` | Optuna search through the same validation path. |
 | `training/evaluation.py` | Metrics, PSI, plot generation, and MLflow artifacts. |
 | `training/contracts.py` | Training data and post-fit evaluator protocols; dataset split enum. |

@@ -16,7 +16,6 @@ import pytest
 
 import ml_toolkit.config as settings
 from ml_toolkit.config import (
-    CatBoostSelectionConfig,
     ClassificationDiagnosticsConfig,
     ClassificationPlotsConfig,
     CommonPlotsConfig,
@@ -77,7 +76,6 @@ def test_invalid_types_and_task_combinations_fail_on_construction(factory):
         lambda: CrossValidationConfig(n_splits=3, gap=-1),
         lambda: FeatureSelectionConfig(n_features=0),
         lambda: FeatureSelectionConfig(n_features=1, validation_fraction=1),
-        lambda: CatBoostSelectionConfig(max_steps=0),
         lambda: TuningConfig(metric="", direction="minimize"),
         lambda: TuningConfig(metric="mae", direction="minimize", timeout_seconds=0),
         lambda: PSIOptions(epsilon=0),
@@ -142,7 +140,7 @@ def test_markdown_has_one_executable_fully_expanded_recipe_per_task():
                     f.name for f in fields(cls)
                 }, cls
         exec(block, namespace)
-    assert namespace["pu_classification_config"].feature_selection is None
+    assert namespace["pu_classification_config"].feature_selection.n_features == 10
     assert namespace["severity_config"].diagnostics.plots.gains
     assert not namespace["regression_config"].diagnostics.plots.gains
 
@@ -157,65 +155,32 @@ def test_cv_honors_gap_and_row_window_sizes():
 
 
 @pytest.mark.parametrize("classifier", [False, True])
-@pytest.mark.parametrize("max_steps", [1, 3, 7])
-def test_model_owned_selector_receives_native_options(
-    monkeypatch, classifier, max_steps
-):
-    module = import_module(
-        f"ml_toolkit.models.catboost_{'classification' if classifier else 'regression'}"
-    )
-    calls = []
-
-    class Native:
-        def __init__(self, **params):
-            pass
-
-        def select_features(self, *args, **kwargs):
-            calls.append(kwargs)
-            return {"selected_features_names": ["x"]}
-
-    monkeypatch.setattr(
-        module.catboost,
-        "CatBoostClassifier" if classifier else "CatBoostRegressor",
-        Native,
-    )
+def test_selection_fits_native_model_with_normal_parameters(classifier):
+    from ml_toolkit.models import CatBoostClassificationModel
+    from ml_toolkit.training.feature_selection import _select_features
     data = make_data()
     if classifier:
         data = data.with_target(pl.Series("target", [0, 1] * 12))
-    data = replace(
-        data,
-        X=data.X.with_columns(
-            pl.col("x").alias("a"),
-            pl.col("x").alias("b"),
-            pl.col("x").alias("c"),
-        ),
-    )
-    config = FeatureSelectionConfig(
-        n_features=1,
-        catboost=CatBoostSelectionConfig(
-            max_steps=max_steps,
-            algorithm="RecursiveByLossFunctionChange",
-            shap_calc_type="Approximate",
-            logging_level="Info",
-        ),
-    )
-    result = module.CatBoostModel({}).select_features(data, data, config)
-    assert result == ["x"]
-    assert calls[0]["steps"] == min(max_steps, 4)
-    assert calls[0]["algorithm"].name == config.catboost.algorithm
-    assert calls[0]["shap_calc_type"].name == "Approximate"
-    assert calls[0]["logging_level"] == "Info"
+    fitted = []
+    factory = CatBoostClassificationModel if classifier else CatBoostRegressionModel
+    def record(params):
+        model = factory(params)
+        fitted.append(model)
+        return model
+    params = {"iterations": 3, "verbose": False, "allow_writing_files": False}
+    result = _select_features(data=data, params=params, model_factory=record, config=FeatureSelectionConfig(n_features=1))
+    assert len(result.X.columns) == 1
+    assert fitted[0].native_model.tree_count_ > 0
+    assert fitted[0].params == params
+    assert not hasattr(fitted[0], "select_features")
+
 
 
 def test_selection_fraction_and_cv_gap_reach_workflow(monkeypatch, tmp_path):
     setup_mlflow(tmp_path)
-    selections, fits = [], []
+    fits = []
 
     class Model(MeanModel):
-        def select_features(self, train, validation, config):
-            selections.append((len(train), len(validation), config))
-            return ["x"]
-
         def fit(self, train, validation=None):
             fits.append(
                 (
@@ -237,8 +202,9 @@ def test_selection_fraction_and_cv_gap_reach_workflow(monkeypatch, tmp_path):
         run_name="split-options",
         config=config,
     )
-    assert selections == [(3, 3, selection)]
-    assert fits[0][0][-1] == 5 and fits[0][1][0] == 8
+    assert len(fits[0][0]) == len(fits[0][1]) == 3
+    assert fits[0][0][-1] == 2 and fits[0][1][0] == 3
+    assert fits[1][0][-1] == 5 and fits[1][1][0] == 8
 
 
 @pytest.mark.parametrize("policy, expected", [("cv_median", 4), ("provided", 20)])
@@ -316,19 +282,19 @@ def test_standalone_model_logging_uses_example_size(monkeypatch):
     assert len(examples[0][0]) == 2 and examples[0][1]["name"] == "two-rows"
 
 
-def test_inflation_wrapper_forwards_selection_config(monkeypatch):
+def test_inflation_wrapper_uses_shared_importance_selection():
+    from ml_toolkit.training.feature_selection import _select_features
     data = make_data()
-    native = CatBoostRegressionModel({})
-    calls = []
-    monkeypatch.setattr(
-        native, "select_features", lambda **kwargs: calls.append(kwargs) or ["x"]
-    )
-    model = InflationAdjustedModel(
-        native, ConstantRateInflation(0.03), date(2024, 1, 1)
-    )
-    config = FeatureSelectionConfig(n_features=1)
-    assert model.select_features(data, data, config) == ["x"]
-    assert calls[0]["config"] is config
+    fitted = []
+    def factory(params):
+        model = InflationAdjustedModel(CatBoostRegressionModel(params), ConstantRateInflation(0.03), date(2024, 1, 1))
+        fitted.append(model)
+        return model
+    result = _select_features(data=data, params={"iterations": 3, "verbose": False, "allow_writing_files": False}, model_factory=factory, config=FeatureSelectionConfig(n_features=1))
+    assert len(result.X.columns) == 1
+    assert fitted[0].native_model.tree_count_ > 0
+    assert not hasattr(fitted[0], "select_features")
+
 
 
 @pytest.mark.parametrize(

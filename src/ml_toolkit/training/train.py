@@ -1,4 +1,4 @@
-"""Compose model-owned selection, tuning, validation, and final fitting."""
+"""Compose importance selection, tuning, validation, and final fitting."""
 
 import logging
 from collections.abc import Callable
@@ -23,7 +23,8 @@ from .contracts import (
 )
 from .cross_validation import _time_series_splits, cross_validate
 from .evaluation import _diagnostics_requested, _log_post_fit_evaluation
-from .feature_selection import feature_elimination
+from .feature_selection import _select_features
+from ..tracking._model_state import audit_value
 from .results import TrainingResult
 from .tuning import tune_optuna
 
@@ -39,13 +40,15 @@ def _configuration_json(value):
                 for item in fields(value)
             },
         }
-    if isinstance(value, tuple):
+    if isinstance(value, dict):
+        return {str(key): _configuration_json(item) for key, item in value.items()}
+    if isinstance(value, (tuple, list)):
         return [_configuration_json(item) for item in value]
     if isinstance(value, (Path, date, datetime)):
         return str(value)
     if isinstance(value, np.generic):
         return value.item()
-    return value
+    return audit_value(value)
 
 
 def train_model(
@@ -69,7 +72,7 @@ def train_model(
     params : dict[str, Any]
         Native model settings. Factories receive copies; input is not mutated.
     model_factory : Callable[[dict[str, Any]], Model]
-        Factory whose adapters implement fit, predict_pool, select_features,
+        Factory whose adapters implement fit, predict_pool, native_model,
         best_iteration, and log(sample, config=TrackingConfig).
     metric : Callable
         Callable receiving target, predictions, and weights as NumPy arrays;
@@ -127,16 +130,9 @@ def train_model(
         first_train = next(
             indices for index, (indices, _) in splits if index > config.cv.skip_splits
         )
-        if len(first_train) < 2:
+        if len(first_train) < 2 and config.feature_selection.n_features < len(data.X.columns):
             raise ValueError(
                 "First evaluated fold has fewer than two training rows for feature selection"
-            )
-        if params.get("loss", params.get("loss_function")) in (
-            "uPU",
-            "nnPU",
-        ) or isinstance(metric, PUMetric):
-            raise NotImplementedError(
-                "CatBoost's built-in feature selection cannot optimize PU risk"
             )
     if (
         isinstance(metric, PUMetric)
@@ -159,7 +155,7 @@ def train_model(
         mlflow.log_dict(_configuration_json(config), "configuration/requested.json")
         working = data
         if config.feature_selection is not None:
-            selected = feature_elimination(
+            selected = _select_features(
                 data=data.take(first_train),
                 params=params,
                 model_factory=model_factory,
@@ -222,7 +218,7 @@ def train_model(
         mlflow.log_dict(
             {
                 "features": working.X.columns,
-                "model_params": final_params,
+                "model_params": audit_value(final_params),
                 "cv_selected_iterations": selected_iterations,
             },
             "configuration/resolved.json",
@@ -230,7 +226,7 @@ def train_model(
         with mlflow.start_run(run_name="final_fit", nested=True):
             logger.info("Starting final fit for run %s", run_name)
             logger.debug("Final fit selected iterations: %s", selected_iterations)
-            mlflow.log_params(final_params)
+            mlflow.log_params(audit_value(final_params))
             if selected_iterations is not None:
                 mlflow.log_param("selected_iterations", selected_iterations)
             model = model_factory(final_params.copy())

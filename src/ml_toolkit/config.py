@@ -46,7 +46,6 @@ class _Config:
             if (
                 item.name
                 in {
-                    "max_steps",
                     "n_features",
                     "n_splits",
                     "test_size",
@@ -93,35 +92,8 @@ def _names(names, name):
 
 
 @dataclass(frozen=True, kw_only=True, slots=True)
-class CatBoostSelectionConfig(_Config):
-    """Configure native CatBoost recursive feature elimination.
-
-    Parameters
-    ----------
-    max_steps : int, default 20
-        Positive upper bound on repeated selector fits. Actual steps are capped
-        at the number of removed features; this is not the tree count.
-    algorithm : {'RecursiveByShapValues', 'RecursiveByLossFunctionChange', 'RecursiveByPredictionValuesChange'}
-        Native selection algorithm; default is RecursiveByShapValues.
-    shap_calc_type : {'Approximate', 'Regular', 'Exact'}, default 'Regular'
-        SHAP calculation method for algorithms that use SHAP.
-    logging_level : {'Silent', 'Verbose', 'Info', 'Debug'}, default 'Silent'
-        Native selector stdout verbosity, independent of Python logging.
-    """
-
-    max_steps: int = 20
-    algorithm: Literal[
-        "RecursiveByShapValues",
-        "RecursiveByLossFunctionChange",
-        "RecursiveByPredictionValuesChange",
-    ] = "RecursiveByShapValues"
-    shap_calc_type: Literal["Approximate", "Regular", "Exact"] = "Regular"
-    logging_level: Literal["Silent", "Verbose", "Info", "Debug"] = "Silent"
-
-
-@dataclass(frozen=True, kw_only=True, slots=True)
 class FeatureSelectionConfig(_Config):
-    """Configure model-owned selection on the first evaluated fold's training rows.
+    """Configure top-k importance selection on the first evaluated fold's training rows.
 
     Parameters
     ----------
@@ -130,19 +102,15 @@ class FeatureSelectionConfig(_Config):
     validation_fraction : float, default 0.25
         Trailing fraction of selection rows reserved for internal validation,
         strictly between zero and one. Outer CV validation rows are excluded.
-    catboost : CatBoostSelectionConfig
-        Native settings used by bundled CatBoost adapters. Defaults to a fresh
-        CatBoostSelectionConfig. Custom adapters own their selection behavior.
 
     Notes
     -----
     Selection is performed once, then reused in every fold, trial, and final
-    fit. Bundled PU adapters reject feature selection.
+    fit. A fresh model is fitted on an internal chronological split.
     """
 
     n_features: int
     validation_fraction: float = 0.25
-    catboost: CatBoostSelectionConfig = field(default_factory=CatBoostSelectionConfig)
 
     def __post_init__(self):
         _Config.__post_init__(self)
@@ -663,7 +631,7 @@ class TrainingConfig(_Config):
     cv : CrossValidationConfig
         Required chronological validation settings, reused by every trial.
     feature_selection : FeatureSelectionConfig or None, default None
-        Optional early model-owned selection; None retains every feature.
+        Optional early importance selection; None retains every feature.
     tuning : TuningConfig or None, default None
         Optional Optuna search; requires a separately supplied param_space.
     final_fit : FinalFitConfig
@@ -708,7 +676,6 @@ class TrainingConfig(_Config):
 
 
 __all__ = [
-    "CatBoostSelectionConfig",
     "FeatureSelectionConfig",
     "CrossValidationConfig",
     "TuningConfig",

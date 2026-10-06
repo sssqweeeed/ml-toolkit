@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any, Protocol, Self
 import numpy as np
 
 if TYPE_CHECKING:
-    from ..config import FeatureSelectionConfig, TrackingConfig
+    from ..config import TrackingConfig
     from ..training.contracts import TrainingData
 
 
@@ -60,31 +60,6 @@ class Model(Protocol):
         numpy.ndarray of shape (n_samples,)
             Task-appropriate predictions; classifiers return positive-class
             probabilities.
-        """
-        ...
-
-    def select_features(
-        self,
-        train: TrainingData,
-        validation: TrainingData,
-        config: FeatureSelectionConfig,
-    ) -> list[str]:
-        """Return selected feature names using training and holdout data.
-
-        Parameters
-        ----------
-        train : TrainingData
-            Data used to train the temporary feature-selection model.
-        validation : TrainingData
-            Holdout data used to evaluate candidate feature subsets.
-        config : FeatureSelectionConfig
-            Feature count and backend options. The holdout fraction is used by
-            the workflow before calling this method.
-
-        Returns
-        -------
-        list[str]
-            Names of the retained features.
         """
         ...
 

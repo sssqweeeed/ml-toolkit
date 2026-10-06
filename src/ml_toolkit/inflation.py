@@ -6,7 +6,6 @@ from typing import Any, Self
 import numpy as np
 import polars as pl
 
-# This module is also bundled as standalone MLflow serving code.
 logger = logging.getLogger("ml_toolkit.inflation")
 
 

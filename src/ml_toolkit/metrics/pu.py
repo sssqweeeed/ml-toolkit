@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 
 import numpy as np
+from ._pu import risk_components
 
 
 def _inputs(labels, probabilities, weights):
@@ -140,11 +141,7 @@ class PUMetric:
         positive = y == 1
         unlabeled = ~positive
         clipped = np.clip(p, np.finfo(float).eps, 1 - np.finfo(float).eps)
-        positive_risk = self.prior * np.average(-np.log(clipped[positive]), weights=w[positive])
-        negative_risk = (
-            np.average(-np.log1p(-clipped[unlabeled]), weights=w[unlabeled])
-            - self.prior * np.average(-np.log1p(-clipped[positive]), weights=w[positive])
-        )
+        positive_risk, negative_risk = risk_components(-np.log(clipped), -np.log1p(-clipped), y, w, self.prior)
         result = {
             "positive_risk": float(positive_risk),
             "estimated_negative_risk": float(negative_risk),

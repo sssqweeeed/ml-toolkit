@@ -5,6 +5,7 @@ from collections.abc import Callable
 from typing import Any
 
 import mlflow
+from ..tracking._model_state import audit_value
 import optuna
 
 from ..config import (
@@ -98,7 +99,7 @@ def tune_optuna(
         params = base_params | overrides
         logger.debug("Starting tuning trial %s", trial.number + 1)
         with mlflow.start_run(run_name=f"trial_{trial.number + 1}", nested=True):
-            mlflow.log_params(params)
+            mlflow.log_params(audit_value(params))
             result = cross_validate(
                 data=data,
                 params=params,

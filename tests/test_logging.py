@@ -37,7 +37,7 @@ from ml_toolkit.psi import PSIAnalysis, PSIConfig, PSIFeature
 from ml_toolkit.tracking.mlflow import log_polars_table
 from ml_toolkit.tracking.model_artifacts import log_model_from_code
 from ml_toolkit.training import train_model
-from ml_toolkit.training.feature_selection import feature_elimination
+from ml_toolkit.training.feature_selection import _select_features
 from test_training import MeanModel, make_data, setup_mlflow
 
 
@@ -158,7 +158,7 @@ def test_module_override_propagates_once(caplog):
     handler = logging.StreamHandler(stream)
     package.addHandler(handler)
     try:
-        selected = feature_elimination(
+        selected = _select_features(
             data=make_data(),
             params={},
             model_factory=MeanModel,
@@ -258,51 +258,28 @@ def test_model_and_shap_debug_logs_preserve_verbosity(caplog):
 
 
 @pytest.mark.parametrize("classifier", [False, True])
-def test_serving_logs_keep_namespace_under_dynamic_loading(
-    tmp_path, caplog, monkeypatch, classifier
-):
+def test_serving_logs_keep_namespace_under_dynamic_loading(tmp_path, caplog, monkeypatch, classifier):
     caplog.set_level(logging.DEBUG, logger="ml_toolkit")
     data = make_data()
     if classifier:
-        data = data.with_target(pl.Series("target", [0, 1] * (len(data) // 2)))
-    params = {
-        "iterations": 3,
-        "depth": 2,
-        "verbose": False,
-        "allow_writing_files": False,
-    }
-    model = (CatBoostClassificationModel if classifier else CatBoostRegressionModel)(
-        params
-    ).fit(data)
+        data = data.with_target(pl.Series("target", [0, 1] * 12))
+    factory = CatBoostClassificationModel if classifier else CatBoostRegressionModel
+    model = factory({"iterations": 3, "depth": 2, "verbose": False, "allow_writing_files": False}).fit(data)
     path = tmp_path / "model.cbm"
     model.native_model.save_model(str(path))
-    config = {
-        "baseline": model.baseline,
-        "numerical_features": model.numerical_features,
-        "cat_features": model.cat_features,
-    }
     config_path = tmp_path / "config.json"
-    config_path.write_text(json.dumps(config))
-    module = "catboost_classification" if classifier else "catboost_wrapper"
-    source = (
-        Path(__file__).resolve().parents[1] / "src/ml_toolkit/models" / f"{module}.py"
-    )
-    monkeypatch.setattr(mlflow.models, "set_model", lambda model: None)
-    loaded = runpy.run_path(str(source), run_name="generated_mlflow_module")
-    assert loaded["logger"].name == f"ml_toolkit.models.{module}"
-    wrapper = loaded["CatBoostModel" if classifier else "CatBoostWrapper"]()
-    wrapper.load_context(
-        SimpleNamespace(artifacts={"model": str(path), "config": str(config_path)})
-    )
-    prediction = wrapper.predict(None, data.to_model_input())
-    np.testing.assert_allclose(prediction, model.predict_pool(data))
-    messages = [
-        record.getMessage()
-        for record in toolkit_records(caplog)
-        if record.name == f"ml_toolkit.models.{module}"
-    ]
-    assert any(message.startswith("Loaded CatBoost") for message in messages)
-    assert any(message.startswith("Predicting with CatBoost") for message in messages)
+    config_path.write_text(json.dumps(model._export_state()))
+    registered = []
+    monkeypatch.setattr(mlflow.models, "set_model", registered.append)
+    source = Path(__file__).resolve().parents[1] / "src/ml_toolkit/tracking/entrypoints" / f"{factory.__name__}.py"
+    runpy.run_path(str(source), run_name="generated_mlflow_module")
+    assert len(registered) == 1 and type(registered[0]) is factory
+    wrapper = registered[0]
+    wrapper.load_context(SimpleNamespace(artifacts={"model": str(path), "config": str(config_path)}))
+    np.testing.assert_allclose(wrapper.predict(None, data.to_model_input()), model.predict_pool(data))
+    module = "catboost_classification" if classifier else "catboost_regression"
+    assert any(record.name == f"ml_toolkit.models.{module}" and record.getMessage().startswith("Predicting with CatBoost") for record in toolkit_records(caplog))
+
 
 
 def test_lightgbm_serving_namespace(tmp_path, caplog, monkeypatch):
@@ -341,41 +318,23 @@ def test_lightgbm_serving_namespace(tmp_path, caplog, monkeypatch):
 
 @pytest.mark.parametrize("level", [logging.DEBUG, logging.WARNING])
 @pytest.mark.parametrize("classifier", [False, True])
-def test_feature_selection_keeps_catboost_verbosity(
-    caplog, monkeypatch, classifier, level
-):
+def test_feature_selection_keeps_catboost_verbosity(caplog, classifier, level):
     caplog.set_level(level, logger="ml_toolkit")
-    calls = []
-
-    class NativeModel:
-        def __init__(self, **params):
-            calls.append(params)
-
-        def select_features(self, *args, **kwargs):
-            calls.append(kwargs)
-            return {"selected_features_names": ["x"]}
-
-    module = import_module(
-        "ml_toolkit.models.catboost_classification"
-        if classifier
-        else "ml_toolkit.models.catboost_regression"
-    )
-    monkeypatch.setattr(
-        module.catboost,
-        "CatBoostClassifier" if classifier else "CatBoostRegressor",
-        NativeModel,
-    )
     data = make_data()
     if classifier:
-        data = data.with_target(pl.Series("target", [0, 1] * (len(data) // 2)))
-    params = {"verbose": False}
-    model = module.CatBoostModel(params)
-    assert model.select_features(data, data, FeatureSelectionConfig(n_features=1)) == [
-        "x"
-    ]
-    assert calls[0]["verbose"] is False
-    assert calls[1]["logging_level"] == "Silent"
-    assert params == model.params == {"verbose": False}
+        data = data.with_target(pl.Series("target", [0, 1] * 12))
+    fitted = []
+    factory = CatBoostClassificationModel if classifier else CatBoostRegressionModel
+    def record(params):
+        model = factory(params)
+        fitted.append(model)
+        return model
+    params = {"iterations": 3, "verbose": False, "allow_writing_files": False}
+    result = _select_features(data=data, params=params, model_factory=record, config=FeatureSelectionConfig(n_features=1))
+    assert len(result.X.columns) == 1
+    assert fitted[0].native_model.get_params()["verbose"] is False
+    assert params == fitted[0].params
+
 
 
 def test_exceptions_propagate_without_error_records(tmp_path, caplog):

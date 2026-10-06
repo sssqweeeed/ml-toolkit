@@ -7,7 +7,6 @@ from .contracts import (
     PostFitEvaluator,
 )
 from ..config import (
-    CatBoostSelectionConfig,
     FeatureSelectionConfig,
     CrossValidationConfig,
     TuningConfig,

@@ -1,11 +1,11 @@
-"""Model adapters used by training; project-defined factories also work."""
-
+"""Full training and serving model adapters."""
 from .base import Model
-from .catboost_classification import CatBoostModel as CatBoostClassificationModel
-from .catboost_regression import CatBoostModel as CatBoostRegressionModel
+from .catboost_regression import CatBoostRegressionModel, CatBoostLogLinkRegressionModel
+from .catboost_classification import CatBoostClassificationModel, CatBoostPUClassificationModel
 from .inflation_regression import InflationAdjustedModel
 
 __all__ = [
-    "Model", "CatBoostClassificationModel", "CatBoostRegressionModel",
+    "Model", "CatBoostRegressionModel", "CatBoostLogLinkRegressionModel",
+    "CatBoostClassificationModel", "CatBoostPUClassificationModel",
     "InflationAdjustedModel",
 ]

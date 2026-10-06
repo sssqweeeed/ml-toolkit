@@ -1,10 +1,7 @@
 from __future__ import annotations
 
-import json
 import logging
 import math
-from pathlib import Path
-from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, Any, Self
 
 import catboost
@@ -13,12 +10,12 @@ import numpy as np
 import pandas as pd
 import polars as pl
 from mlflow.pyfunc.utils import pyfunc
+from ..metrics._pu import risk_components
 
 if TYPE_CHECKING:
-    from ..config import FeatureSelectionConfig, TrackingConfig
+    from ..config import TrackingConfig
     from ..training.contracts import TrainingData
 
-# MLflow also executes this source under a generated module name.
 logger = logging.getLogger("ml_toolkit.models.catboost_classification")
 
 
@@ -47,15 +44,7 @@ def _pu_risks(
     if weights[positive].sum() <= 0 or weights[unlabeled].sum() <= 0:
         raise ValueError("PU training needs positive-weight rows in both groups")
 
-    positive_risk = prior * np.average(
-        np.logaddexp(0.0, -logits[positive]), weights=weights[positive]
-    )
-    negative_risk = np.average(
-        np.logaddexp(0.0, logits[unlabeled]), weights=weights[unlabeled]
-    ) - prior * np.average(
-        np.logaddexp(0.0, logits[positive]), weights=weights[positive]
-    )
-    return float(positive_risk), float(negative_risk)
+    return risk_components(np.logaddexp(0.0, -logits), np.logaddexp(0.0, logits), labels, weights, prior)
 
 
 class _PURiskMetric:
@@ -141,30 +130,19 @@ class _PULogisticObjective:
         return result
 
 
-class CatBoostModel(mlflow.pyfunc.PythonModel):  # type: ignore
-    """Adapt a binary or positive-unlabeled CatBoost classifier.
+from ._catboost import native_fit, normalize_loss, prepare_frame, read_state
+from ..tracking._model_state import audit_value, log_catboost
+
+class CatBoostClassificationModel(mlflow.pyfunc.PythonModel):
+    """Train and serve a binary CatBoost classifier with weighted log-odds.
 
     Parameters
     ----------
-    params : dict[str, Any] or None, default None
-        Copied CatBoost parameters. loss may name a native loss, uPU, or nnPU.
-        PU requires finite pu_prior in (0, 1) and CPU training;
-        decision_threshold optionally supplies a hard-label cutoff in [0, 1].
-
-    Notes
-    -----
-    Exported as CatBoostClassificationModel from ml_toolkit.models. Supervised
-    fitting starts from weighted target log-odds and tunes an unweighted
-    positive-class F1 threshold on validation, preferring the highest threshold
-    on ties. Without validation, the threshold is 0.5.
-
-    For uPU and nnPU, labels mean known positive (1) and unlabeled (0). Both
-    groups require positive total weight. The baseline uses population prior
-    log-odds; class-weight parameters are unsupported. PU fitting never tunes
-    an F1 threshold, so hard labels require decision_threshold. Returned
-    probabilities are model scores, not guaranteed calibrated risks.
+    params : dict or None, default None
+        Copied CatBoost parameters; loss accepts Logloss or CrossEntropy.
+        ``decision_threshold`` fixes the label cutoff and disables F1 tuning.
+        Otherwise validation tunes unweighted F1, or the cutoff defaults to 0.5.
     """
-
     def __init__(self, params: dict[str, Any] | None = None) -> None:
         self.params = {} if params is None else params.copy()
         self._model: catboost.CatBoostClassifier | None = None
@@ -174,32 +152,6 @@ class CatBoostModel(mlflow.pyfunc.PythonModel):  # type: ignore
         self._pu_loss: str | None = None
         self._pu_prior: float | None = None
         self._best_iteration: int | None = None
-
-    def load_context(self, context) -> None:
-        self._model = catboost.CatBoostClassifier()
-        self._model.load_model(context.artifacts["model"])
-        self.params = self._model.get_all_params()
-        with open(context.artifacts["config"], encoding="utf-8") as handle:
-            config = json.load(handle)
-        self._baseline = float(config["baseline"])
-        # Older artifacts have no tuned threshold.
-        stored_threshold = config.get("threshold", 0.5)
-        self._threshold = None if stored_threshold is None else float(stored_threshold)
-        score = config.get("validation_f1")
-        self._validation_f1 = None if score is None else float(score)
-        self._pu_loss = config.get("pu_loss")
-        prior = config.get("pu_prior")
-        self._pu_prior = None if prior is None else float(prior)
-        self._best_iteration = config.get("best_iteration")
-        if self._pu_loss is not None:
-            self.params = config.get("training_params", self.params)
-            # Older PU artifacts stored an F1-tuned threshold from U-as-negative
-            # validation. It is not a valid PU decision rule.
-            if "decision_threshold" not in self.params:
-                self._threshold = None
-            self._validation_f1 = None
-
-        logger.debug("Loaded CatBoost classifier: PU loss=%s", self._pu_loss)
 
     @property
     def native_model(self) -> catboost.CatBoostClassifier:
@@ -223,7 +175,7 @@ class CatBoostModel(mlflow.pyfunc.PythonModel):  # type: ignore
         -------
         float
             Supervised F1-selected cutoff, 0.5 without validation, or explicitly
-            supplied PU decision_threshold.
+            supplied decision_threshold.
 
         Raises
         ------
@@ -251,7 +203,7 @@ class CatBoostModel(mlflow.pyfunc.PythonModel):  # type: ignore
     @property
     def best_iteration(self) -> int | None:
         """Return the zero-based best iteration index, or None when unavailable."""
-        if self._pu_loss == "nnPU":
+        if self._best_iteration is not None:
             return self._best_iteration
         value = self.native_model.get_best_iteration()
         if value is None or value < 0:
@@ -266,157 +218,435 @@ class CatBoostModel(mlflow.pyfunc.PythonModel):  # type: ignore
             raise RuntimeError("Fitted model does not contain feature names")
         return list(names)
 
+    @property
+    def cat_features(self) -> list[str]:
+        """Return categorical feature names in native model order."""
+        return [
+            self.feature_names[index]
+            for index in self.native_model.get_cat_feature_indices()
+        ]
+
+    @property
+    def numerical_features(self) -> list[str]:
+        """Return fitted feature names not marked categorical."""
+        categorical = set(self.cat_features)
+        return [name for name in self.feature_names if name not in categorical]
+
+    @property
+    def task(self) -> str:
+        """Return the supervised binary classification task identifier."""
+        return "classification"
+
     def fit(self, train: TrainingData, validation: TrainingData | None = None) -> Self:
-        """Fit a classifier and select its supervised validation threshold.
+        """Fit the classifier with the subclass's baseline and training policy.
 
         Parameters
         ----------
         train : TrainingData
-            Project-owned training data supplying the conversion methods required
-            by this model.
+            Aligned features, labels and exposure weights.
         validation : TrainingData or None, default None
-            Optional holdout data for early stopping and model selection.
+            Optional holdout for early stopping and supervised F1 tuning.
 
         Returns
         -------
         Self
-            This fitted adapter, replacing any previous fitted state.
-
-        Raises
-        ------
-        ValueError
-            The weighted target mean or PU settings are invalid.
-
-        Notes
-        -----
-        train.to_catboost must apply the supplied baseline and aligned weights.
-        Without validation, early stopping is removed and use_best_model is
-        disabled. PU models use population prior log-odds and do not tune F1.
+            Fitted adapter, resetting earlier threshold and iteration state.
         """
         logger.debug(
             "Fitting CatBoost classifier: %s training rows, validation=%s",
-            len(train),
-            validation is not None,
+            len(train), validation is not None,
         )
-        params = self.params.copy()
-        decision_threshold = params.pop("decision_threshold", None)
-        requested_loss = params.pop("loss", None)
-        native_loss = params.get("loss_function")
-        if (
-            requested_loss is not None
-            and native_loss is not None
-            and requested_loss not in ("uPU", "nnPU")
-            and requested_loss != native_loss
-        ):
-            raise ValueError("Specify only one of loss and loss_function")
-        selected_loss = requested_loss if requested_loss is not None else native_loss
-        if selected_loss not in ("uPU", "nnPU"):
-            if decision_threshold is not None:
-                raise ValueError("decision_threshold is only supported for PU loss")
-            if requested_loss is not None:
-                params["loss_function"] = requested_loss
-            if "pu_prior" in params:
-                raise ValueError("pu_prior requires loss='uPU' or loss='nnPU'")
-            baseline = self._calculate_baseline(train)
-            pu_prior = None
-            pu_objective = None
-            self._pu_loss = None
-        else:
-            if decision_threshold is not None:
-                try:
-                    decision_threshold = float(decision_threshold)
-                except (TypeError, ValueError) as error:
-                    raise ValueError(
-                        "decision_threshold must be a number between 0 and 1"
-                    ) from error
-                if (
-                    not np.isfinite(decision_threshold)
-                    or not 0 <= decision_threshold <= 1
-                ):
-                    raise ValueError(
-                        "decision_threshold must be finite and between 0 and 1"
-                    )
-            params.pop("loss_function", None)
-            prior_value = params.pop("pu_prior", None)
-            if prior_value is None:
-                raise ValueError("PU loss requires pu_prior in params")
-            pu_prior = float(prior_value)
-            if not 0 < pu_prior < 1 or not np.isfinite(pu_prior):
-                raise ValueError("pu_prior must be finite and strictly between 0 and 1")
-            if str(params.get("task_type", "CPU")).upper() != "CPU":
-                raise ValueError("Python PU objectives require task_type='CPU'")
-            for name in ("class_weights", "auto_class_weights", "scale_pos_weight"):
-                if name in params:
-                    raise ValueError(f"{name} is incompatible with PU loss")
-            labels = train.y.to_numpy()
-            weights = train.weight.to_numpy()
-            baseline = float(math.log(pu_prior / (1.0 - pu_prior)))
-            _pu_risks(np.full(len(labels), baseline), labels, weights, pu_prior)
-            positive_weight = float(weights[labels == 1].sum())
-            unlabeled_weight = float(weights[labels == 0].sum())
-            total_weight = positive_weight + unlabeled_weight
-            pu_objective = _PULogisticObjective(
-                prior=pu_prior,
-                positive_scale=pu_prior * total_weight / positive_weight,
-                unlabeled_scale=total_weight / unlabeled_weight,
-            )
-            params["leaf_estimation_method"] = "Gradient"
-            params["leaf_estimation_iterations"] = 1
-            params["boosting_type"] = "Plain"
-            eval_metric = params.get("eval_metric", selected_loss)
-            if eval_metric in ("uPU", "nnPU"):
-                metric_class = UPUMetric if eval_metric == "uPU" else NNPUMetric
-                params["eval_metric"] = metric_class(pu_prior)
-            self._pu_loss = selected_loss
-        params["boost_from_average"] = False
-        train_data = train.to_catboost(baseline=baseline)
-
-        if selected_loss == "nnPU":
-            assert pu_objective is not None and pu_prior is not None
-            model, self._best_iteration = self._fit_nnpu(
-                train=train,
-                validation=validation,
-                train_data=train_data,
-                baseline=baseline,
-                prior=pu_prior,
-                objective=pu_objective,
-                params=params,
-            )
-        else:
-            self._best_iteration = None
-            if validation is None:
-                params.pop("early_stopping_rounds", None)
-                params["use_best_model"] = False
-            if pu_objective is not None:
-                params["loss_function"] = pu_objective
-                if validation is not None:
-                    params.setdefault("use_best_model", True)
-            model = catboost.CatBoostClassifier(**params)
-            if validation is None:
-                model.fit(train_data)
-            else:
-                model.fit(
-                    train_data,
-                    eval_set=validation.to_catboost(baseline=baseline),
-                )
-
-        self._model = model
-        self._baseline = baseline
-        self._pu_prior = pu_prior
-        # Reset on every fit, including refits without validation.
-        self._threshold = decision_threshold if pu_prior is not None else 0.5
+        params = normalize_loss(self.params)
+        threshold = params.pop("decision_threshold", None)
+        if threshold is not None:
+            try:
+                threshold = float(threshold)
+            except (TypeError, ValueError) as error:
+                raise ValueError("decision_threshold must be a number between 0 and 1") from error
+            if not np.isfinite(threshold) or not 0 <= threshold <= 1:
+                raise ValueError("decision_threshold must be finite and between 0 and 1")
         self._validation_f1 = None
-        if validation is not None and pu_prior is None:
-            self._threshold, self._validation_f1 = self._select_threshold(
-                validation.y.to_numpy(),
-                self.predict_pool(validation),
-            )
+        self._best_iteration = None
+        self._validate_params(params, train)
+        baseline = self._calculate_baseline(train)
+        params["boost_from_average"] = False
+        self._model = self._fit_backend(train, validation, baseline, params)
+        self._baseline = baseline
+        self._configure_threshold(validation, threshold)
         logger.debug(
             "Fitted CatBoost classifier: PU loss=%s, threshold=%s",
-            self._pu_loss,
-            self._threshold,
+            self._pu_loss, self._threshold,
         )
         return self
+
+    def _validate_params(self, params, train):
+        loss = params.setdefault("loss_function", "Logloss")
+        if not isinstance(loss, str) or loss.split(":", 1)[0] not in ("Logloss", "CrossEntropy"):
+            raise ValueError("Binary classification requires Logloss or CrossEntropy")
+        if "pu_prior" in params:
+            raise ValueError("pu_prior requires CatBoostPUClassificationModel")
+        y = train.y.to_numpy()
+        if not np.isfinite(y).all() or (y < 0).any() or (y > 1).any():
+            raise ValueError("Binary classification targets must be between 0 and 1")
+        if loss.split(":", 1)[0] == "Logloss" and not np.isin(y, [0, 1]).all():
+            raise ValueError("Logloss targets must be binary")
+
+    def _fit_backend(self, train, validation, baseline, params):
+        return native_fit(
+            catboost.CatBoostClassifier, params, train.to_catboost(baseline=baseline),
+            None if validation is None else validation.to_catboost(baseline=baseline),
+        )
+
+    def _configure_threshold(self, validation, threshold):
+        self._threshold = 0.5 if threshold is None else threshold
+        if validation is not None and threshold is None:
+            self._threshold, self._validation_f1 = self._select_threshold(
+                validation.y.to_numpy(), self.predict_pool(validation),
+            )
+
+    def predict_pool(self, data: TrainingData) -> np.ndarray:
+        """Predict positive-class probabilities for project data.
+
+        Parameters
+        ----------
+        data : TrainingData
+            Project data whose X contains all fitted model features.
+
+        Returns
+        -------
+        numpy.ndarray of shape (n_samples,)
+            Positive-class probabilities, including the fitted log-odds baseline.
+
+        Raises
+        ------
+        RuntimeError
+            The model has not been fitted.
+        """
+        return self.predict_frame(data.to_model_input())
+
+    def predict_labels(self, data: pl.DataFrame | pd.DataFrame) -> np.ndarray:
+        """Predict labels using probability >= the stored threshold.
+
+        Parameters
+        ----------
+        data : polars.DataFrame or pandas.DataFrame
+            Feature frame containing all fitted feature names.
+
+        Returns
+        -------
+        numpy.ndarray of shape (n_samples,)
+            Integer labels 0 and 1.
+
+        Raises
+        ------
+        RuntimeError
+            The model is unfitted or PU label prediction lacks decision_threshold.
+        """
+        return (self.predict_frame(data) >= self.threshold).astype(np.int64)
+
+    def predict_labels_pool(self, data: TrainingData) -> np.ndarray:
+        """Predict thresholded binary labels for project-owned data.
+
+        Parameters
+        ----------
+        data : TrainingData
+            Project data with fitted feature columns in X.
+
+        Returns
+        -------
+        numpy.ndarray of shape (n_samples,)
+            Integer labels produced using the stored threshold.
+
+        Raises
+        ------
+        RuntimeError
+            The model is unfitted or a PU model lacks decision_threshold.
+        """
+        return self.predict_labels(data.to_model_input())
+
+    @pyfunc
+    def predict(self, context, model_input: pd.DataFrame, params=None) -> np.ndarray:  # type: ignore
+        """Predict through the MLflow PythonModel interface.
+
+        Parameters
+        ----------
+        context : Any
+            MLflow context; unused.
+        model_input : pandas.DataFrame
+            Serving frame containing fitted feature names.
+        params : dict or None, default None
+            MLflow inference parameters; unused.
+
+        Returns
+        -------
+        numpy.ndarray of shape (n_samples,)
+            Positive-class probabilities, including the fitted log-odds baseline.
+
+        See Also
+        --------
+        predict_frame : Predict directly from a Polars or pandas feature frame.
+        """
+        return self.predict_frame(model_input)
+
+    def log(
+        self,
+        sample: TrainingData,
+        *,
+        config: TrackingConfig | None = None,
+    ) -> Any:
+        """Package and log the fitted model with a serving input example.
+
+        Parameters
+        ----------
+        sample : TrainingData
+            Serving example rows, capped by config.input_example_rows.
+        config : TrackingConfig or None, default None
+            Artifact name, positive example-row limit, registry name, and serving
+            environment. None uses TrackingConfig defaults.
+
+        Returns
+        -------
+        mlflow.models.ModelInfo
+            Logged model information, including its model URI.
+
+        Notes
+        -----
+        Writes native model and configuration artifacts, infers a serving
+        signature, and logs baseline and input-schema metadata to MLflow. Configure
+        tracking and an experiment before calling. Classification artifacts also
+        preserve threshold and PU settings.
+        """
+        from ..config import TrackingConfig
+
+        config = TrackingConfig() if config is None else config
+        name = config.model_name
+        registered_model_name = config.registered_model_name
+        conda_env = config.conda_env
+        sample_frame = sample.to_model_input(n_rows=config.input_example_rows).loc[
+            :, self.feature_names
+        ]
+        model_info = self._log_artifacts(
+            sample_frame,
+            self.predict_frame(sample_frame),
+            name=name,
+            registered_model_name=registered_model_name,
+            conda_env=conda_env,
+        )
+        mlflow.log_param("baseline", self.baseline)
+        if self._threshold is not None:
+            mlflow.log_param("threshold", self._threshold)
+        if self.validation_f1 is not None:
+            mlflow.log_metric("validation_f1_at_threshold", self.validation_f1)
+        mlflow.log_dict(
+            {
+                "numerical_features": self.numerical_features,
+                "cat_features": self.cat_features,
+            },
+            "model_metadata/catboost_input_schema.json",
+        )
+        return model_info
+
+    @staticmethod
+    def _select_threshold(
+        y_true: np.ndarray, probabilities: np.ndarray
+    ) -> tuple[float, float]:
+        """Maximize unweighted binary F1; prefer the highest threshold on ties."""
+        y_true = np.asarray(y_true)
+        probabilities = np.asarray(probabilities, dtype=float)
+        if (
+            y_true.ndim != 1
+            or probabilities.ndim != 1
+            or y_true.size == 0
+            or y_true.shape != probabilities.shape
+        ):
+            raise ValueError(
+                "Labels and probabilities must be matching nonempty vectors"
+            )
+        if not np.isin(y_true, [0, 1]).all():
+            raise ValueError("Threshold tuning requires binary labels 0 and 1")
+        if (
+            not np.isfinite(probabilities).all()
+            or (probabilities < 0).any()
+            or (probabilities > 1).any()
+        ):
+            raise ValueError("Probabilities must be finite and between 0 and 1")
+
+        # Without positive examples, every threshold has F1=0
+        # under the zero_division=0 convention. Keep the default.
+        if not (y_true == 1).any():
+            return 0.5, 0.0
+
+        # Sort once and evaluate each distinct score as a threshold.
+        # Group tied probabilities so this matches the >= prediction rule.
+        order = np.argsort(-probabilities, kind="stable")
+        sorted_probabilities = probabilities[order]
+        cumulative_tp = np.cumsum(y_true[order] == 1)
+        group_ends = np.r_[
+            np.flatnonzero(np.diff(sorted_probabilities) != 0),
+            y_true.size - 1,
+        ]
+        true_positives = cumulative_tp[group_ends]
+        predicted_positives = group_ends + 1
+        actual_positives = cumulative_tp[-1]
+        # F1 = 2*TP / (2*TP + FP + FN).
+        scores = 2.0 * true_positives / (predicted_positives + actual_positives)
+        # Thresholds are descending: argmax chooses the highest on ties.
+        best_index = int(np.argmax(scores))
+        threshold = sorted_probabilities[group_ends[best_index]]
+        return float(threshold), float(scores[best_index])
+
+    @staticmethod
+    def _calculate_baseline(data: TrainingData) -> float:
+        """Calculate the baseline log-odds from the positive class prevalence."""
+        weights = data.weight.to_numpy()
+        y_values = data.y.to_numpy()
+        weighted_sum = np.average(y_values, weights=weights)
+        if not np.isfinite(weighted_sum):
+            raise ValueError("Weighted target mean must be finite")
+        epsilon = 1e-7
+        weighted_sum = np.clip(weighted_sum, epsilon, 1 - epsilon)
+        return float(np.log(weighted_sum / (1 - weighted_sum)))
+
+    def predict_frame(self, data: pl.DataFrame | pd.DataFrame) -> np.ndarray:
+        """Predict positive-class probabilities, adding fitted log-odds once.
+
+        Parameters
+        ----------
+        data : polars.DataFrame or pandas.DataFrame
+            Features selected and reordered to the fitted native schema.
+
+        Returns
+        -------
+        numpy.ndarray of shape (n_samples,)
+            Positive-class probabilities. PU scores need not be calibrated.
+        """
+        logger.debug("Predicting with CatBoost classifier: %s rows", len(data))
+        frame = prepare_frame(data, self.feature_names, self.cat_features)
+        logits = np.asarray(
+            self.native_model.predict(frame, prediction_type="RawFormulaVal"),
+            dtype=float,
+        ) + self.baseline
+        return np.exp(-np.logaddexp(0.0, -logits))
+
+    def _log_artifacts(self, sample_frame, sample_prediction, **options):
+        return log_catboost(self, sample_frame, sample_prediction, **options)
+
+    def _export_state(self):
+        return {
+            "version": 1, "model_type": type(self).__name__,
+            "prediction_type": "Probability", "baseline": self.baseline,
+            "baseline_mode": "raw_prediction", "threshold": self._threshold,
+            "validation_f1": self._validation_f1,
+            "pu_loss": self._pu_loss, "pu_prior": self._pu_prior,
+            "best_iteration": self._best_iteration,
+            "training_params": audit_value(self.params),
+        }
+
+    def load_context(self, context):
+        state = read_state(context, type(self).__name__, "raw_prediction")
+        self._model = catboost.CatBoostClassifier()
+        self._model.load_model(context.artifacts["model"])
+        self.params = state["training_params"]
+        self._baseline = state["baseline"]
+        self._threshold = state["threshold"]
+        self._validation_f1 = state["validation_f1"]
+        self._pu_loss, self._pu_prior = state["pu_loss"], state["pu_prior"]
+        self._best_iteration = state["best_iteration"]
+        logger.debug("Loaded CatBoost classifier: PU loss=%s", self._pu_loss)
+
+
+class CatBoostPUClassificationModel(CatBoostClassificationModel):
+    """Train positive-unlabeled CatBoost with a population-prior baseline.
+
+    Parameters
+    ----------
+    params : dict or None, default None
+        Copied parameters: ``loss`` is uPU (default) or nnPU; ``pu_prior`` must
+        be finite and strictly between zero and one. Training requires CPU,
+        both label groups with positive weight, and no class-weight options.
+        Labels mean known positive (1) and unlabeled (0). Hard-label prediction
+        requires an explicit ``decision_threshold``; F1 is never tuned.
+
+    Notes
+    -----
+    nnPU evaluates the complete training risk before each tree, reversing the
+    negative-risk gradient when needed (beta=0, gamma=1).
+    """
+    @property
+    def task(self) -> str:
+        """Return the positive-unlabeled classification task identifier."""
+        return "pu_classification"
+
+    @property
+    def pu_loss(self) -> str:
+        """Return the fitted PU risk policy, uPU or nnPU."""
+        self.native_model
+        return self._pu_loss
+
+    @property
+    def pu_prior(self) -> float:
+        """Return the fitted positive population prior."""
+        self.native_model
+        return self._pu_prior
+
+    def _validate_params(self, params, train):
+        loss = params.pop("loss_function", "uPU")
+        if loss not in ("uPU", "nnPU"):
+            raise ValueError("PU classification requires uPU or nnPU loss")
+        if "pu_prior" not in params:
+            raise ValueError("PU loss requires pu_prior in params")
+        prior = float(params.pop("pu_prior"))
+        if not np.isfinite(prior) or not 0 < prior < 1:
+            raise ValueError("pu_prior must be finite and strictly between 0 and 1")
+        if str(params.get("task_type", "CPU")).upper() != "CPU":
+            raise ValueError("Python PU objectives require task_type='CPU'")
+        for name in ("class_weights", "auto_class_weights", "scale_pos_weight"):
+            if name in params:
+                raise ValueError(f"{name} is incompatible with PU loss")
+        self._pu_loss, self._pu_prior = loss, prior
+        _pu_risks(
+            np.zeros(len(train)), train.y.to_numpy(), train.weight.to_numpy(), prior,
+        )
+
+    def _calculate_baseline(self, train):
+        return float(np.log(self._pu_prior / (1.0 - self._pu_prior)))
+
+    def _fit_backend(self, train, validation, baseline, params):
+        labels, weights = train.y.to_numpy(), train.weight.to_numpy()
+        positive_weight = weights[labels == 1].sum()
+        unlabeled_weight = weights[labels == 0].sum()
+        total = positive_weight + unlabeled_weight
+        objective = _PULogisticObjective(
+            self._pu_prior, self._pu_prior * total / positive_weight,
+            total / unlabeled_weight,
+        )
+        params.update(
+            leaf_estimation_method="Gradient", leaf_estimation_iterations=1,
+            boosting_type="Plain",
+        )
+        metric = params.get("eval_metric", self._pu_loss)
+        if isinstance(metric, str) and metric in ("uPU", "nnPU"):
+            metric_class = UPUMetric if metric == "uPU" else NNPUMetric
+            params["eval_metric"] = metric_class(self._pu_prior)
+        if validation is not None:
+            _pu_risks(
+                np.full(len(validation), baseline), validation.y.to_numpy(),
+                validation.weight.to_numpy(), self._pu_prior,
+            )
+        if self._pu_loss == "nnPU":
+            model, self._best_iteration = self._fit_nnpu(
+                train=train, validation=validation,
+                train_data=train.to_catboost(baseline=baseline), baseline=baseline,
+                prior=self._pu_prior, objective=objective, params=params,
+            )
+            return model
+        params["loss_function"] = objective
+        if validation is not None:
+            params.setdefault("use_best_model", True)
+        return super()._fit_backend(train, validation, baseline, params)
+
+    def _configure_threshold(self, validation, threshold):
+        self._threshold = threshold
 
     @staticmethod
     def _fit_nnpu(
@@ -518,398 +748,3 @@ class CatBoostModel(mlflow.pyfunc.PythonModel):  # type: ignore
             assert best_model is not None
             model = best_model
         return model, best_iteration
-
-    def predict_pool(self, data: TrainingData) -> np.ndarray:
-        """Predict positive-class probabilities for project data.
-
-        Parameters
-        ----------
-        data : TrainingData
-            Project data whose X contains all fitted model features.
-
-        Returns
-        -------
-        numpy.ndarray of shape (n_samples,)
-            Positive-class probabilities, including the fitted log-odds baseline.
-
-        Raises
-        ------
-        RuntimeError
-            The model has not been fitted.
-        """
-        return self.predict_frame(data.to_model_input())
-
-    def predict_labels(self, data: pl.DataFrame | pd.DataFrame) -> np.ndarray:
-        """Predict labels using probability >= the stored threshold.
-
-        Parameters
-        ----------
-        data : polars.DataFrame or pandas.DataFrame
-            Feature frame containing all fitted feature names.
-
-        Returns
-        -------
-        numpy.ndarray of shape (n_samples,)
-            Integer labels 0 and 1.
-
-        Raises
-        ------
-        RuntimeError
-            The model is unfitted or PU label prediction lacks decision_threshold.
-        """
-        return (self.predict_frame(data) >= self.threshold).astype(np.int64)
-
-    def predict_labels_pool(self, data: TrainingData) -> np.ndarray:
-        """Predict thresholded binary labels for project-owned data.
-
-        Parameters
-        ----------
-        data : TrainingData
-            Project data with fitted feature columns in X.
-
-        Returns
-        -------
-        numpy.ndarray of shape (n_samples,)
-            Integer labels produced using the stored threshold.
-
-        Raises
-        ------
-        RuntimeError
-            The model is unfitted or a PU model lacks decision_threshold.
-        """
-        return self.predict_labels(data.to_model_input())
-
-    def select_features(
-        self,
-        train: TrainingData,
-        validation: TrainingData,
-        config: FeatureSelectionConfig,
-    ) -> list[str]:
-        """Select features by recursive SHAP elimination without fitting the adapter.
-
-        Parameters
-        ----------
-        train : TrainingData
-            Data used to train the temporary feature-selection model.
-        validation : TrainingData
-            Holdout data used to evaluate candidate feature subsets.
-        config : FeatureSelectionConfig
-            Feature count and backend options. The holdout fraction is used by
-            the workflow before calling this method.
-
-        Returns
-        -------
-        list[str]
-            Selected feature names, or all names when the requested count equals
-            the available count.
-
-        Raises
-        ------
-        ValueError
-            The requested count is outside the available feature range.
-        NotImplementedError
-            PU losses do not support CatBoost built-in feature selection.
-
-        Notes
-        -----
-        Uses a temporary native model with train_final_model=False. CatBoost
-        selection verbosity follows config.catboost.logging_level.
-        """
-        if self.params.get("loss", self.params.get("loss_function")) in ("uPU", "nnPU"):
-            raise NotImplementedError(
-                "CatBoost's built-in feature selection cannot optimize PU risk"
-            )
-        num_features_to_select = config.n_features
-        feature_names = train.X.columns
-        if not 0 < num_features_to_select <= len(feature_names):
-            raise ValueError(
-                "num_features_to_select must be between 1 and the feature count"
-            )
-        if num_features_to_select == len(feature_names):
-            logger.debug(
-                "CatBoost feature selection retained all %s features",
-                len(feature_names),
-            )
-            return feature_names
-
-        logger.debug(
-            "Selecting %s of %s CatBoost features",
-            num_features_to_select,
-            len(feature_names),
-        )
-        baseline = self._calculate_baseline(train)
-        params = self.params.copy()
-        params["boost_from_average"] = False
-        model = catboost.CatBoostClassifier(**params)
-        summary = model.select_features(
-            train.to_catboost(baseline=baseline),
-            eval_set=validation.to_catboost(baseline=baseline),
-            features_for_select=feature_names,
-            num_features_to_select=num_features_to_select,
-            steps=min(
-                config.catboost.max_steps, len(feature_names) - num_features_to_select
-            ),
-            algorithm=catboost.EFeaturesSelectionAlgorithm[config.catboost.algorithm],
-            shap_calc_type=catboost.EShapCalcType[config.catboost.shap_calc_type],
-            train_final_model=False,
-            plot=False,
-            logging_level=config.catboost.logging_level,
-        )
-        names = list(summary["selected_features_names"])
-        logger.debug("CatBoost selected features: %s", names)
-        return names
-
-    @pyfunc
-    def predict(self, context, model_input: pd.DataFrame, params=None) -> np.ndarray:  # type: ignore
-        """Predict through the MLflow PythonModel interface.
-
-        Parameters
-        ----------
-        context : Any
-            MLflow context; unused.
-        model_input : pandas.DataFrame
-            Serving frame containing fitted feature names.
-        params : dict or None, default None
-            MLflow inference parameters; unused.
-
-        Returns
-        -------
-        numpy.ndarray of shape (n_samples,)
-            Positive-class probabilities, including the fitted log-odds baseline.
-
-        See Also
-        --------
-        predict_frame : Predict directly from a Polars or pandas feature frame.
-        """
-        return self.predict_frame(model_input)
-
-    @property
-    def cat_features(self) -> list[str]:
-        """Return categorical feature names in native model order."""
-        return [
-            self.feature_names[index]
-            for index in self.native_model.get_cat_feature_indices()
-        ]
-
-    @property
-    def numerical_features(self) -> list[str]:
-        """Return fitted feature names not marked categorical."""
-        categorical = set(self.cat_features)
-        return [name for name in self.feature_names if name not in categorical]
-
-    def log(
-        self,
-        sample: TrainingData,
-        *,
-        config: TrackingConfig | None = None,
-    ) -> Any:
-        """Package and log the fitted model with a serving input example.
-
-        Parameters
-        ----------
-        sample : TrainingData
-            Data used to supply up to config.input_example_rows serving example rows via to_model_input.
-        config : TrackingConfig or None, default None
-            Artifact name, positive example-row limit, registry name, and serving
-            environment. None uses TrackingConfig defaults.
-
-        Returns
-        -------
-        mlflow.models.ModelInfo
-            Logged model information, including its model URI.
-
-        Notes
-        -----
-        Writes native model and configuration artifacts, infers a serving
-        signature, and logs baseline and input-schema metadata to MLflow. Configure
-        tracking and an experiment before calling. Classification artifacts also
-        preserve threshold and PU settings.
-        """
-        from ..config import TrackingConfig
-
-        config = TrackingConfig() if config is None else config
-        name = config.model_name
-        registered_model_name = config.registered_model_name
-        conda_env = config.conda_env
-        sample_frame = sample.to_model_input(n_rows=config.input_example_rows).loc[
-            :, self.feature_names
-        ]
-        model_info = self._log_artifacts(
-            sample_frame,
-            self.predict_frame(sample_frame),
-            name=name,
-            registered_model_name=registered_model_name,
-            conda_env=conda_env,
-        )
-        mlflow.log_param("baseline", self.baseline)
-        if self._threshold is not None:
-            mlflow.log_param("threshold", self._threshold)
-        if self.validation_f1 is not None:
-            mlflow.log_metric("validation_f1_at_threshold", self.validation_f1)
-        mlflow.log_dict(
-            {
-                "numerical_features": self.numerical_features,
-                "cat_features": self.cat_features,
-            },
-            "model_metadata/catboost_input_schema.json",
-        )
-        return model_info
-
-    def _log_artifacts(
-        self,
-        sample_frame,
-        sample_prediction,
-        *,
-        name,
-        registered_model_name=None,
-        conda_env=None,
-        metadata=None,
-        code_paths=None,
-        source=None,
-    ) -> Any:
-        from .artifacts import log_model_from_code
-
-        metadata = {
-            **(metadata or {}),
-            "numerical_features": self.numerical_features,
-            "cat_features": self.cat_features,
-            "baseline": self.baseline,
-            "threshold": self._threshold,
-            "validation_f1": self.validation_f1,
-            "pu_loss": self._pu_loss,
-            "pu_prior": self._pu_prior,
-            "best_iteration": self._best_iteration,
-            **({"training_params": self.params} if self._pu_loss else {}),
-        }
-        with TemporaryDirectory(prefix="catboost-mlflow-") as directory:
-            logger.debug("Packaging CatBoost classification model %s", name)
-            model_path = Path(directory) / "model.cbm"
-            config_path = Path(directory) / "config.json"
-            self.native_model.save_model(str(model_path))
-            config_path.write_text(json.dumps(metadata), encoding="utf-8")
-            return log_model_from_code(
-                source=Path(__file__).resolve() if source is None else source,
-                sample_frame=sample_frame,
-                sample_prediction=sample_prediction,
-                artifacts={"model": str(model_path), "config": str(config_path)},
-                metadata=metadata,
-                params=self.native_model.get_all_params(),
-                name=name,
-                registered_model_name=registered_model_name,
-                conda_env=conda_env,
-                code_paths=code_paths,
-                packages=("catboost", "polars", "pyarrow"),
-            )
-
-    def predict_frame(self, data: pl.DataFrame | pd.DataFrame) -> np.ndarray:
-        """Predict positive-class probabilities from a feature frame.
-
-        Parameters
-        ----------
-        data : polars.DataFrame or pandas.DataFrame
-            Frame containing all fitted feature names. Columns are selected and
-            reordered to match the model; extra columns are ignored.
-
-        Returns
-        -------
-        numpy.ndarray of shape (n_samples,)
-            Positive-class probabilities, including the fitted log-odds baseline.
-
-        Raises
-        ------
-        TypeError
-            Input is not a supported DataFrame.
-        RuntimeError
-            The model has not been fitted.
-        """
-        if not isinstance(data, (pl.DataFrame, pd.DataFrame)):
-            raise TypeError("Prediction data must be a Polars or Pandas DataFrame")
-
-        feature_names = self.feature_names
-        missing = sorted(set(feature_names) - set(data.columns))
-        if missing:
-            raise ValueError(f"Missing model input columns: {missing}")
-
-        if isinstance(data, pl.DataFrame):
-            feature_frame = data.select(feature_names).to_pandas()
-        else:
-            feature_frame = data.loc[:, feature_names]
-
-        logger.debug("Predicting with CatBoost classifier: %s rows", len(feature_frame))
-        raw_predictions = np.asarray(
-            self.native_model.predict(
-                feature_frame,
-                prediction_type="RawFormulaVal",
-            ),
-            dtype=float,
-        ).reshape(-1)
-
-        # DataFrame predictions have no attached baseline; add it exactly once.
-        logits = raw_predictions + self.baseline
-
-        # Numerically stable sigmoid, without an additional dependency.
-        return np.exp(-np.logaddexp(0.0, -logits))
-
-    @staticmethod
-    def _select_threshold(
-        y_true: np.ndarray, probabilities: np.ndarray
-    ) -> tuple[float, float]:
-        """Maximize unweighted binary F1; prefer the highest threshold on ties."""
-        y_true = np.asarray(y_true)
-        probabilities = np.asarray(probabilities, dtype=float)
-        if (
-            y_true.ndim != 1
-            or probabilities.ndim != 1
-            or y_true.size == 0
-            or y_true.shape != probabilities.shape
-        ):
-            raise ValueError(
-                "Labels and probabilities must be matching nonempty vectors"
-            )
-        if not np.isin(y_true, [0, 1]).all():
-            raise ValueError("Threshold tuning requires binary labels 0 and 1")
-        if (
-            not np.isfinite(probabilities).all()
-            or (probabilities < 0).any()
-            or (probabilities > 1).any()
-        ):
-            raise ValueError("Probabilities must be finite and between 0 and 1")
-
-        # Without positive examples, every threshold has F1=0
-        # under the zero_division=0 convention. Keep the default.
-        if not (y_true == 1).any():
-            return 0.5, 0.0
-
-        # Sort once and evaluate each distinct score as a threshold.
-        # Group tied probabilities so this matches the >= prediction rule.
-        order = np.argsort(-probabilities, kind="stable")
-        sorted_probabilities = probabilities[order]
-        cumulative_tp = np.cumsum(y_true[order] == 1)
-        group_ends = np.r_[
-            np.flatnonzero(np.diff(sorted_probabilities) != 0),
-            y_true.size - 1,
-        ]
-        true_positives = cumulative_tp[group_ends]
-        predicted_positives = group_ends + 1
-        actual_positives = cumulative_tp[-1]
-        # F1 = 2*TP / (2*TP + FP + FN).
-        scores = 2.0 * true_positives / (predicted_positives + actual_positives)
-        # Thresholds are descending: argmax chooses the highest on ties.
-        best_index = int(np.argmax(scores))
-        threshold = sorted_probabilities[group_ends[best_index]]
-        return float(threshold), float(scores[best_index])
-
-    @staticmethod
-    def _calculate_baseline(data: TrainingData) -> float:
-        """Calculate the baseline log-odds from the positive class prevalence."""
-        weights = data.weight.to_numpy()
-        y_values = data.y.to_numpy()
-        weighted_sum = np.average(y_values, weights=weights)
-        if not np.isfinite(weighted_sum):
-            raise ValueError("Weighted target mean must be finite")
-        epsilon = 1e-7
-        weighted_sum = np.clip(weighted_sum, epsilon, 1 - epsilon)
-        return float(np.log(weighted_sum / (1 - weighted_sum)))
-
-
-mlflow.models.set_model(CatBoostModel())  # type: ignore

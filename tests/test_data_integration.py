@@ -73,8 +73,9 @@ def test_training_feature_selection_accepts_shared_pool(pool, tmp_path):
     class RecordingModel(MeanModel):
         def fit(self, train, validation=None):
             assert isinstance(train, Pool)
-            assert train.numerical_features == ("x",)
-            assert train.cat_features == ()
+            if len(train.X.columns) == 1:
+                assert train.numerical_features == ("x",)
+                assert train.cat_features == ()
             assert len(train.business_type) == len(train)
             fitted.append(train)
             return super().fit(train, validation)
@@ -146,13 +147,14 @@ def test_inflation_logging_keeps_feature_rows_aligned_with_dates(
     )
     model.fit(pool)
     examples = []
-    log_artifacts = regression.log_artifacts
+    import ml_toolkit.models.inflation_regression as module
+    log_artifacts = module.log_catboost
 
-    def capture(frame, prediction, **kwargs):
+    def capture(adapter, frame, prediction, **kwargs):
         examples.append((frame.copy(), prediction.copy()))
-        return log_artifacts(frame, prediction, **kwargs)
+        return log_artifacts(adapter, frame, prediction, **kwargs)
 
-    monkeypatch.setattr(regression, "log_artifacts", capture)
+    monkeypatch.setattr(module, "log_catboost", capture)
     with mlflow.start_run():
         _, info = model.log(pool)
     frame, prediction = examples[-1]

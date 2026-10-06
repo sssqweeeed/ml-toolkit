@@ -6,6 +6,7 @@ from dataclasses import replace
 from typing import Any, Literal
 
 import mlflow
+from ..tracking._model_state import audit_value
 import numpy as np
 from sklearn.model_selection import TimeSeriesSplit
 
@@ -135,7 +136,7 @@ def cross_validate(
             len(validation),
         )
         with mlflow.start_run(run_name=f"fold_{fold_index}", nested=True):
-            mlflow.log_params(params)
+            mlflow.log_params(audit_value(params))
             model = model_factory(params.copy())
             model.fit(train, validation)
             scores = log_evaluation(

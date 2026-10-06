@@ -46,6 +46,11 @@ class LightGBMWrapper(mlflow.pyfunc.PythonModel):
         self.cat_features = list(cat_features) if cat_features is not None else []
 
     @property
+    def task(self) -> str:
+        """Return the regression task identifier."""
+        return "regression"
+
+    @property
     def native_model(self):
         """Return the native Booster; raise RuntimeError if no model is loaded."""
         if self.model is None:
@@ -130,11 +135,11 @@ class LightGBMWrapper(mlflow.pyfunc.PythonModel):
 
         Notes
         -----
-        Writes a native Booster file and feature configuration with this module as
-        serving code. Configure MLflow tracking and an experiment before calling.
+        Writes native Booster and feature artifacts with a separate registration
+        entry point and package sources. Configure MLflow before calling.
         """
         from ..config import TrackingConfig
-        from .artifacts import log_model_from_code
+        from ..tracking.model_artifacts import log_model_from_code
 
         config = TrackingConfig() if config is None else config
         name = config.model_name
@@ -149,7 +154,10 @@ class LightGBMWrapper(mlflow.pyfunc.PythonModel):
                 "numerical_features and cat_features must partition the model features."
             )
 
-        wrapper_path = Path(__file__).resolve()
+        wrapper_path = (
+            Path(__file__).resolve().parents[1]
+            / "tracking" / "entrypoints" / "LightGBMWrapper.py"
+        )
         sample_frame = sample.to_model_input(n_rows=config.input_example_rows).loc[
             :, self.feature_names
         ]
@@ -186,6 +194,3 @@ class LightGBMWrapper(mlflow.pyfunc.PythonModel):
             )
 
         return model_info
-
-
-mlflow.models.set_model(LightGBMWrapper())

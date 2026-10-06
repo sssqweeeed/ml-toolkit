@@ -28,7 +28,7 @@ import polars as pl
 import pytest
 
 from ml_toolkit.models import CatBoostRegressionModel
-from ml_toolkit.models import CatBoostClassificationModel
+from ml_toolkit.models import CatBoostClassificationModel, CatBoostPUClassificationModel
 from ml_toolkit.metrics import PUMetric, metrics_classification
 from ml_toolkit.inflation import ConstantRateInflation
 from ml_toolkit.models import InflationAdjustedModel
@@ -104,6 +104,15 @@ class MeanModel:
         return None
 
     def fit(self, train, validation=None):
+        from sklearn.base import BaseEstimator
+
+        class Native(BaseEstimator):
+            def fit(self, X):
+                self.feature_names_in_ = np.asarray(X.columns)
+                self.feature_importances_ = np.arange(len(X.columns), 0, -1, dtype=float)
+                return self
+
+        self._native = Native().fit(train.X)
         self.mean = float(
             np.average(train.y.to_numpy(), weights=train.weight.to_numpy())
         )
@@ -112,8 +121,9 @@ class MeanModel:
     def predict_pool(self, data):
         return np.full(len(data), self.mean)
 
-    def select_features(self, train, validation, config):
-        return train.X.columns[: config.n_features]
+    @property
+    def native_model(self):
+        return self._native
 
     def log(self, sample, *, config=None):
         mlflow.log_dict({"mean": self.mean}, "model.json")
@@ -123,22 +133,18 @@ def recording_model():
     calls = {"selection": [], "fit": []}
 
     class RecordingModel(MeanModel):
-        def select_features(self, train, validation, config):
-            calls["selection"].append(
-                (
-                    tuple(train.X["x"].to_list()),
-                    tuple(validation.X["x"].to_list()),
-                )
-            )
-            return ["unused"]
-
         def fit(self, train, validation=None):
             calls["fit"].append(tuple(train.X.columns))
             if validation is not None:
                 assert tuple(validation.X.columns) == tuple(train.X.columns)
-            return super().fit(train, validation)
+            super().fit(train, validation)
+            if train.X.columns == ["x", "unused"] and validation is not None and len(train) > len(validation) and len(train) + len(validation) <= 16:
+                calls["selection"].append((tuple(train.X["x"].to_list()), tuple(validation.X["x"].to_list())))
+                self._native.feature_importances_ = np.array([0., 1.])
+            return self
 
     return RecordingModel, calls
+
 
 
 def mae(y, prediction, weight):
@@ -230,7 +236,8 @@ def test_feature_selection_uses_only_first_evaluated_fold_training_rows(
             tuple(range(int(first_validation_row * 0.75), first_validation_row)),
         )
     ]
-    assert calls["fit"] == [("unused",)] * (2 - skip_splits + 1)
+    assert calls["fit"][0] == ("x", "unused")
+    assert calls["fit"][1:] == [("unused",)] * (2 - skip_splits + 1)
     assert result.features == ("unused",)
 
 
@@ -254,7 +261,8 @@ def test_tuning_and_final_fit_reuse_early_selected_features(tmp_path):
     )
 
     assert len(calls["selection"]) == 1
-    assert calls["fit"] == [("unused",)] * 5
+    assert calls["fit"][0] == ("x", "unused")
+    assert calls["fit"][1:] == [("unused",)] * 5
     assert result.features == ("unused",)
 
 
@@ -481,7 +489,7 @@ def test_positive_unlabeled_classifier_is_preserved():
     binary = ProjectData(
         source.X, pl.Series("target", [0, 1] * 12), source.time, source.weight
     )
-    model = CatBoostClassificationModel(
+    model = CatBoostPUClassificationModel(
         {
             "loss": "uPU",
             "pu_prior": 0.5,
@@ -520,7 +528,7 @@ def test_pu_training_logs_only_pu_diagnostics(tmp_path):
     }
     result = train_model(
         data=binary,
-        model_factory=CatBoostClassificationModel,
+        model_factory=CatBoostPUClassificationModel,
         params=params,
         metric=PUMetric(0.5, loss="uPU"),
         run_name="pu",
@@ -560,7 +568,7 @@ def test_pu_training_rejects_supervised_metrics(tmp_path):
     with pytest.raises(ValueError, match="require PUMetric"):
         train_model(
             data=binary,
-            model_factory=CatBoostClassificationModel,
+            model_factory=CatBoostPUClassificationModel,
             params={
                 "loss": "uPU",
                 "pu_prior": 0.5,
@@ -574,3 +582,20 @@ def test_pu_training_rejects_supervised_metrics(tmp_path):
             run_name="invalid_pu",
             config=TrainingConfig(cv=CrossValidationConfig(n_splits=2)),
         )
+
+
+def test_keeping_all_features_skips_extra_fit_with_tiny_first_window(tmp_path):
+    setup_mlflow(tmp_path)
+    fitted = []
+    class RecordingModel(MeanModel):
+        def fit(self, train, validation=None):
+            fitted.append((len(train), None if validation is None else len(validation)))
+            return super().fit(train, validation)
+    result = train_model(
+        data=make_data().take(range(3)), params={}, model_factory=RecordingModel,
+        metric=mae, run_name="keep-all",
+        config=TrainingConfig(cv=CrossValidationConfig(n_splits=2),
+                              feature_selection=FeatureSelectionConfig(n_features=2)),
+    )
+    assert result.features == ("x", "unused")
+    assert fitted == [(1, 1), (2, 1), (3, None)]

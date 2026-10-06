@@ -6,7 +6,7 @@ presets: use `dataclasses.replace` to change a recipe without mutating it.
 
 ```python
 from ml_toolkit.config import (
-    CatBoostSelectionConfig, ClassificationDiagnosticsConfig,
+    ClassificationDiagnosticsConfig,
     ClassificationPlotsConfig, CommonPlotsConfig, CrossValidationConfig,
     FeatureSelectionConfig, FigureConfig, FinalFitConfig,
     NumericalFeatureDistributionConfig, PostFitEvaluationConfig,
@@ -18,8 +18,8 @@ from ml_toolkit.config import (
 
 - CV sizes and `gap` are **rows**, not days; timestamps must be ascending.
 - Feature selection uses only training rows of the first evaluated CV fold.
-  `n_features=10` assumes at least ten input features. Native PU selection is
-  unsupported, so the PU recipe disables it.
+  `n_features=10` assumes at least ten input features. Every model, including
+  PU, uses one fitted native model for top-k importance selection.
 - `None` disables optional stages; `features=None` selects all eligible features,
   whereas `features=()` selects none. PSI definitions must be nonempty when
   explicitly supplied; use `psi=None` to disable PSI.
@@ -56,12 +56,6 @@ classification_config = TrainingConfig(
     feature_selection=FeatureSelectionConfig(
         n_features=10,
         validation_fraction=0.25,
-        catboost=CatBoostSelectionConfig(
-            max_steps=20,
-            algorithm='RecursiveByShapValues',
-            shap_calc_type='Regular',
-            logging_level='Silent',
-        ),
     ),
     tuning=TuningConfig(
         metric='log_loss',
@@ -141,7 +135,10 @@ pu_classification_config = TrainingConfig(
         test_size=None,
         max_train_size=None,
     ),
-    feature_selection=None,
+    feature_selection=FeatureSelectionConfig(
+        n_features=10,
+        validation_fraction=0.25,
+    ),
     tuning=TuningConfig(
         metric='pu_risk',
         direction='minimize',
@@ -217,12 +214,6 @@ frequency_config = TrainingConfig(
     feature_selection=FeatureSelectionConfig(
         n_features=10,
         validation_fraction=0.25,
-        catboost=CatBoostSelectionConfig(
-            max_steps=20,
-            algorithm='RecursiveByShapValues',
-            shap_calc_type='Regular',
-            logging_level='Silent',
-        ),
     ),
     tuning=TuningConfig(
         metric='mean_poisson_deviance',
@@ -300,12 +291,6 @@ severity_config = TrainingConfig(
     feature_selection=FeatureSelectionConfig(
         n_features=10,
         validation_fraction=0.25,
-        catboost=CatBoostSelectionConfig(
-            max_steps=20,
-            algorithm='RecursiveByShapValues',
-            shap_calc_type='Regular',
-            logging_level='Silent',
-        ),
     ),
     tuning=TuningConfig(
         metric='mean_tweedie_deviance',
@@ -383,12 +368,6 @@ regression_config = TrainingConfig(
     feature_selection=FeatureSelectionConfig(
         n_features=10,
         validation_fraction=0.25,
-        catboost=CatBoostSelectionConfig(
-            max_steps=20,
-            algorithm='RecursiveByShapValues',
-            shap_calc_type='Regular',
-            logging_level='Silent',
-        ),
     ),
     tuning=TuningConfig(
         metric='mae',
@@ -476,11 +455,16 @@ For PU, use matching model `loss`/`pu_prior` and `PUMetric(prior, loss=...)`.
 For severity, bind the Tweedie `power` in the metric, for example with
 `functools.partial(metrics_severity, power=2)` for positive Gamma targets.
 For ordinary regression, the supplied metric must return `mae`. Choose an adapter
-suitable for your target: the bundled CatBoost regression adapter predicts
-exponentiated positive rates; it is not a signed-output general regressor.
+suitable for your target: `CatBoostRegressionModel` keeps native initialization
+and prediction semantics and accepts signed targets with losses such as RMSE.
+For Poisson/Tweedie with a manual log-mean baseline use
+`CatBoostLogLinkRegressionModel`. Binary classification uses
+`CatBoostClassificationModel`; PU uses `CatBoostPUClassificationModel`.
+Both regressors can be composed inside `InflationAdjustedModel`.
 
 Standalone `cross_validate` accepts `config=CrossValidationConfig(...)`,
 `tune_optuna` accepts `config=TuningConfig(...)` plus `cv=CrossValidationConfig(...)`,
-and `feature_elimination` accepts `config=FeatureSelectionConfig(...)`.
+and feature selection is configured only through
+`TrainingConfig(feature_selection=FeatureSelectionConfig(...))`.
 Plotting functions accept the same family config and optional `FigureConfig`;
 `calculate_shap_values` accepts `config=ShapConfig(...)`.
