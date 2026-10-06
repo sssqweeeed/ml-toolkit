@@ -10,6 +10,7 @@ from tempfile import TemporaryDirectory
 import lightgbm
 import mlflow
 import numpy as np
+import pandas as pd
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -68,7 +69,7 @@ class LightGBMWrapper(mlflow.pyfunc.PythonModel):
         self.cat_features = features["cat_features"]
         logger.debug("Loaded LightGBM serving model")
 
-    def predict(self, context, model_input, params=None):
+    def predict(self, context, model_input: pd.DataFrame, params=None) -> np.ndarray:
         """Predict with native feature order and pandas categorical conversion.
 
         Parameters

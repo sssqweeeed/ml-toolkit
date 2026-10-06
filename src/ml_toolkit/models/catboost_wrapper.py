@@ -38,7 +38,7 @@ class CatBoostWrapper(mlflow.pyfunc.PythonModel):
 
         logger.debug("Loaded CatBoost serving model: inflation=%s", self.inflation is not None)
 
-    def predict(self, context, model_input, params=None):
+    def predict(self, context, model_input: pd.DataFrame, params=None) -> np.ndarray:
         """Predict exponentiated outputs with optional row-date inflation adjustment.
 
         Parameters

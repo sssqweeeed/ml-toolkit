@@ -221,7 +221,7 @@ class CatBoostModel(mlflow.pyfunc.PythonModel):  # type: ignore
         logger.debug("CatBoost selected features: %s", names)
         return names
 
-    def predict(self, context, model_input, params=None) -> np.ndarray:
+    def predict(self, context, model_input: pd.DataFrame, params=None) -> np.ndarray:
         """Predict through the MLflow PythonModel interface.
 
         Parameters
