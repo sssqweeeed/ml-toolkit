@@ -1,18 +1,28 @@
-"""One reusable fitting workflow called by project-specific training recipes."""
+"""Compose model-owned selection, tuning, validation, and final fitting."""
 
 import logging
 from collections.abc import Callable
+from dataclasses import fields, is_dataclass
+from datetime import date, datetime
+from pathlib import Path
 from typing import Any
 
 import mlflow
+import numpy as np
 import optuna
 
+from ..config import PUDiagnosticsConfig, TrainingConfig
+from ..metrics.pu import PUMetric
+from ..models.base import Model
 from .contracts import (
-    DatasetSplit, PostFitEvaluator, TrainingData, _validate_post_fit_evaluator,
+    DatasetSplit,
+    PostFitEvaluator,
+    TrainingData,
+    _validate_post_fit_evaluator,
     validate_training_data,
 )
 from .cross_validation import _time_series_splits, cross_validate
-from .evaluation import DiagnosticsOptions, _log_post_fit_evaluation
+from .evaluation import _diagnostics_requested, _log_post_fit_evaluation
 from .feature_selection import feature_elimination
 from .results import TrainingResult
 from .tuning import tune_optuna
@@ -20,166 +30,187 @@ from .tuning import tune_optuna
 logger = logging.getLogger(__name__)
 
 
+def _configuration_json(value):
+    if is_dataclass(value) and not isinstance(value, type):
+        return {
+            "type": type(value).__name__,
+            **{
+                item.name: _configuration_json(getattr(value, item.name))
+                for item in fields(value)
+            },
+        }
+    if isinstance(value, tuple):
+        return [_configuration_json(item) for item in value]
+    if isinstance(value, (Path, date, datetime)):
+        return str(value)
+    if isinstance(value, np.generic):
+        return value.item()
+    return value
+
+
 def train_model(
-    *, data: TrainingData, params: dict[str, Any], model_factory: Callable,
-    metric: Callable, run_name: str, n_splits: int, skip_splits: int = 0,
-    diagnostics: DiagnosticsOptions | None = None,
-    select_features: int | None = None, tune_params: bool = False,
+    *,
+    data: TrainingData,
+    params: dict[str, Any],
+    model_factory: Callable[[dict[str, Any]], Model],
+    metric: Callable,
+    run_name: str,
+    config: TrainingConfig,
     param_space: Callable[[optuna.Trial], dict[str, Any]] | None = None,
-    metric_to_optimize: str | None = None,
-    optimize_direction: str = "maximize", n_trials: int = 50,
     post_fit_evaluator: PostFitEvaluator | None = None,
 ) -> TrainingResult:
-    """Select features, tune, validate, and fit a model with MLflow logging.
+    """Select, tune, validate, and fit using an immutable workflow configuration.
 
     Parameters
     ----------
     data : TrainingData
-        Project-owned data with equal, nonzero row counts; finite targets;
-        non-null ascending timestamps; and finite, nonnegative weights with
-        positive total.
+        Aligned nonempty project data with finite targets, ascending non-null
+        timestamps, and finite nonnegative weights with positive total.
     params : dict[str, Any]
-        Initial model parameters. The input dictionary is copied.
-    model_factory : Callable
-        Factory receiving a parameter dictionary and returning a model
-        implementing the Model protocol.
+        Native model settings. Factories receive copies; input is not mutated.
+    model_factory : Callable[[dict[str, Any]], Model]
+        Factory whose adapters implement fit, predict_pool, select_features,
+        best_iteration, and log(sample, config=TrackingConfig).
     metric : Callable
         Callable receiving target, predictions, and weights as NumPy arrays;
-        return a dataclass or mapping of names to numeric scalar values.
+        returns a dataclass or mapping of metric names to scalar values.
     run_name : str
-        Name of the MLflow run created for this workflow.
-    n_splits : int
-        Number of expanding-window time-series folds; at least two.
-    skip_splits : int, default 0
-        Number of initial folds to omit; must be smaller than n_splits.
-    diagnostics : DiagnosticsOptions or None, default None
-        Optional PSI tables and diagnostic plots for evaluated folds.
-    select_features : int or None, default None
-        Number of features to retain. Selection uses only training rows of the
-        first evaluated fold, then reuses the subset throughout the workflow.
-    tune_params : bool, default False
-        Run Optuna search before cross-validation and final fitting.
-    param_space : Callable or None, default None
-        Function accepting an Optuna Trial and returning model parameter
-        overrides; required when tuning.
-    metric_to_optimize : str or None, default None
-        Name returned by metric to optimize; required when tuning.
-    optimize_direction : {'maximize', 'minimize'}, default 'maximize'
-        Direction of Optuna optimization.
-    n_trials : int, default 50
-        Number of Optuna trials when tuning is enabled.
+        Name of the enclosing MLflow run.
+    config : TrainingConfig
+        Selection, tuning, chronological CV, diagnostics, final iteration, model
+        packaging, and custom evaluator policies.
+    param_space : Callable[[optuna.Trial], dict[str, Any]] or None, default None
+        Trial parameter overrides; required when config.tuning is enabled.
     post_fit_evaluator : PostFitEvaluator or None, default None
-        User-created evaluator receiving aligned IDs, model outputs, targets,
-        and DatasetSplit. Requires non-null string or integer data.object_id.
-        The same instance evaluates train/val for CV and tuning folds, including
-        repeated CV, and train after final fitting. Results are logged under
-        <split>/custom/ and excluded from ordinary CV metrics and optimization.
-        The toolkit does not copy or reset evaluator state. Feature-selection
-        fits do not invoke it; test data are not evaluated by this workflow.
-        If present, write_artifacts is called after each evaluation and its
-        returned images are logged; returning None skips image upload.
+        Custom evaluator receiving aligned IDs, predictions, targets, and split.
+        Enabled calls require data.object_id. The instance is reused without
+        resetting. Optional images follow config.post_fit.write_artifacts.
 
     Returns
     -------
     TrainingResult
-        Fitted model, fold results, final parameters, and retained feature
-        names.
+        Final fitted model, CV scores, effective native settings, and features.
 
     Raises
     ------
     ValueError
-        Training data or split settings are invalid, selection has too few
-        rows, required tuning arguments are missing, or post-fit IDs, prediction
-        shapes, metric names, or finite metric values are invalid.
-    TypeError
-        The evaluator has no evaluate method, IDs have an unsupported type, or
-        its result is not a dictionary of floating scalars.
+        Data, split sizes, feature count, tuning dependencies, or PU task settings
+        are invalid. Enabled custom evaluation lacks valid aligned IDs.
 
     Notes
     -----
-    The caller owns data preparation, model settings, and MLflow configuration.
-    This function creates a run, nested when a run is already active, logs each
-    stage, and fits the final model on all retained rows. When folds report
-    best iterations, their median zero-based index plus one replaces an
-    existing iterations, n_estimators, or num_trees setting for final fitting.
-    Diagnostics after tuning evaluate the winning parameters again.
-
-    PU models require a matching PUMetric and, if enabled, diagnostics with
-    task="pu_classification".
+    The caller owns the MLflow URI and experiment. Creates a nested run when a
+    parent is active. Selection uses training rows of the first evaluated fold
+    only. Tuning uses the same CV splits. Winning parameters are evaluated again
+    only when evaluation diagnostics, fold packaging, or custom CV evaluation
+    need a dedicated pass. Configuration and resolved settings are saved as
+    JSON artifacts. Final fitting uses all rows, with early stopping disabled.
 
     Examples
     --------
-    Prepare a project-owned data object and configure MLflow before calling:
-
-    >>> from ml_toolkit.models import CatBoostRegressionModel
-    >>> from ml_toolkit.metrics import metrics_frequency
-    >>> from ml_toolkit.training import train_model
+    >>> from ml_toolkit.config import CrossValidationConfig, TrainingConfig
+    >>> settings = TrainingConfig(cv=CrossValidationConfig(n_splits=3))
     >>> result = train_model(  # doctest: +SKIP
-    ...     data=data,
-    ...     params={"iterations": 100, "loss_function": "Poisson"},
-    ...     model_factory=CatBoostRegressionModel,
-    ...     metric=metrics_frequency,
-    ...     run_name="frequency",
-    ...     n_splits=3,
+    ...     data=data, params=params, model_factory=model_factory,
+    ...     metric=metric, run_name="experiment", config=settings,
     ... )
-    >>> result.cross_validation.mean_metrics  # doctest: +SKIP
     """
+    if not isinstance(config, TrainingConfig):
+        raise TypeError("config must be a TrainingConfig")
     validate_training_data(data)
-    _validate_post_fit_evaluator(data, post_fit_evaluator)
+    splits = list(_time_series_splits(len(data), config.cv))
+    if config.tuning is not None and param_space is None:
+        raise ValueError("param_space is required when tuning is enabled")
+    if config.feature_selection is not None:
+        if config.feature_selection.n_features > len(data.X.columns):
+            raise ValueError("n_features must not exceed the input feature count")
+        first_train = next(
+            indices for index, (indices, _) in splits if index > config.cv.skip_splits
+        )
+        if len(first_train) < 2:
+            raise ValueError(
+                "First evaluated fold has fewer than two training rows for feature selection"
+            )
+        if params.get("loss", params.get("loss_function")) in (
+            "uPU",
+            "nnPU",
+        ) or isinstance(metric, PUMetric):
+            raise NotImplementedError(
+                "CatBoost's built-in feature selection cannot optimize PU risk"
+            )
+    if (
+        isinstance(metric, PUMetric)
+        and config.diagnostics is not None
+        and not isinstance(config.diagnostics, PUDiagnosticsConfig)
+    ):
+        raise ValueError("PU models require PUDiagnosticsConfig")
+    active_stages = {"cv"}
+    if config.tuning is not None:
+        active_stages.add("tuning")
+    enabled_evaluator = bool(
+        set(config.post_fit.stages) & active_stages and config.post_fit.splits
+    ) or ("final" in config.post_fit.stages and "train" in config.post_fit.splits)
+    _validate_post_fit_evaluator(
+        data, post_fit_evaluator if enabled_evaluator else None
+    )
     logger.info("Starting training run %s", run_name)
     logger.debug("Training data: %s rows, %s features", len(data), len(data.X.columns))
     with mlflow.start_run(run_name=run_name, nested=mlflow.active_run() is not None):
+        mlflow.log_dict(_configuration_json(config), "configuration/requested.json")
         working = data
-        if select_features is not None:
-            selection_index = next(
-                train_index
-                for fold_index, (train_index, _) in _time_series_splits(
-                    len(data), n_splits, skip_splits,
-                )
-                if fold_index > skip_splits
-            )
-            if len(selection_index) < 2:
-                raise ValueError(
-                    "First evaluated fold has fewer than two training rows "
-                    "for feature selection"
-                )
+        if config.feature_selection is not None:
             selected = feature_elimination(
-                data=data.take(selection_index), params=params, model_factory=model_factory,
-                num_features_to_select=select_features,
+                data=data.take(first_train),
+                params=params,
+                model_factory=model_factory,
+                config=config.feature_selection,
             )
             working = data.select_features(selected.X.columns)
             mlflow.log_dict({"features": working.X.columns}, "selection/features.json")
-        _validate_post_fit_evaluator(working, post_fit_evaluator)
         final_params = params.copy()
-        if tune_params:
-            if param_space is None or metric_to_optimize is None:
-                raise ValueError("param_space and metric_to_optimize are required for tuning")
+        if config.tuning is not None:
             tuning = tune_optuna(
-                data=working, base_params=final_params, model_factory=model_factory,
-                metric=metric, param_space=param_space,
-                metric_to_optimize=metric_to_optimize, n_trials=n_trials,
-                n_splits=n_splits, skip_splits=skip_splits,
-                direction=optimize_direction,
+                data=working,
+                base_params=final_params,
+                model_factory=model_factory,
+                metric=metric,
+                param_space=param_space,
+                config=config.tuning,
+                cv=config.cv,
+                tracking=config.tracking,
                 post_fit_evaluator=post_fit_evaluator,
+                post_fit=config.post_fit,
             )
             final_params.update(tuning.best_params)
             cv = tuning.cross_validation
-            # The selected parameters need diagnostic plots as well as metrics.
-            if diagnostics is not None:
-                cv = cross_validate(
-                    data=working, params=final_params, model_factory=model_factory,
-                    metric=metric, n_splits=n_splits, skip_splits=skip_splits,
-                    diagnostics=diagnostics,
-                    post_fit_evaluator=post_fit_evaluator,
+            need_cv = (
+                _diagnostics_requested(config.diagnostics)
+                or config.tracking.log_fold_models
+                or (
+                    post_fit_evaluator is not None
+                    and "cv" in config.post_fit.stages
+                    and config.post_fit.splits
                 )
-        else:
-            cv = cross_validate(
-                data=working, params=final_params, model_factory=model_factory,
-                metric=metric, n_splits=n_splits, skip_splits=skip_splits,
-                diagnostics=diagnostics,
-                post_fit_evaluator=post_fit_evaluator,
             )
-        selected_iterations = cv.final_iterations
+        else:
+            need_cv = True
+        if need_cv:
+            cv = cross_validate(
+                data=working,
+                params=final_params,
+                model_factory=model_factory,
+                metric=metric,
+                config=config.cv,
+                diagnostics=config.diagnostics,
+                tracking=config.tracking,
+                post_fit_evaluator=post_fit_evaluator,
+                post_fit=config.post_fit,
+            )
+        selected_iterations = (
+            cv.final_iterations
+            if config.final_fit.iteration_policy == "cv_median"
+            else None
+        )
         if selected_iterations is not None:
             for name in ("iterations", "n_estimators", "num_trees"):
                 if name in final_params:
@@ -188,26 +219,44 @@ def train_model(
         final_params.pop("early_stopping_rounds", None)
         if "use_best_model" in final_params:
             final_params["use_best_model"] = False
+        mlflow.log_dict(
+            {
+                "features": working.X.columns,
+                "model_params": final_params,
+                "cv_selected_iterations": selected_iterations,
+            },
+            "configuration/resolved.json",
+        )
         with mlflow.start_run(run_name="final_fit", nested=True):
             logger.info("Starting final fit for run %s", run_name)
             logger.debug("Final fit selected iterations: %s", selected_iterations)
             mlflow.log_params(final_params)
             if selected_iterations is not None:
                 mlflow.log_param("selected_iterations", selected_iterations)
-            model = model_factory(final_params)
+            model = model_factory(final_params.copy())
             model.fit(working)
-            if post_fit_evaluator is not None:
+            if (
+                post_fit_evaluator is not None
+                and "final" in config.post_fit.stages
+                and "train" in config.post_fit.splits
+            ):
                 _log_post_fit_evaluation(
-                    evaluator=post_fit_evaluator, data=working,
+                    evaluator=post_fit_evaluator,
+                    data=working,
                     prediction=model.predict_pool(working),
-                    split=DatasetSplit.TRAIN, name="final_fit",
+                    split=DatasetSplit.TRAIN,
+                    name="final_fit",
+                    write_artifacts=config.post_fit.write_artifacts,
                 )
-            model.log(working)
-            mlflow.log_params({
-                "train_n_rows": len(working),
-                "train_date_start": str(working.time.min()),
-                "train_date_end": str(working.time.max()),
-            })
+            if config.tracking.log_final_model:
+                model.log(working, config=config.tracking)
+            mlflow.log_params(
+                {
+                    "train_n_rows": len(working),
+                    "train_date_start": str(working.time.min()),
+                    "train_date_end": str(working.time.max()),
+                }
+            )
             logger.info("Completed final fit for run %s", run_name)
         logger.info("Completed training run %s", run_name)
         return TrainingResult(model, cv, final_params, tuple(working.X.columns))

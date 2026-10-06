@@ -61,7 +61,11 @@ import mlflow
 
 from ml_toolkit.models import CatBoostRegressionModel
 from ml_toolkit.metrics import metrics_frequency
-from ml_toolkit.training import DiagnosticsOptions, train_model
+from ml_toolkit.config import (
+    CrossValidationConfig, PUDiagnosticsConfig, RegressionDiagnosticsConfig,
+    TrainingConfig,
+)
+from ml_toolkit.training import train_model
 from my_project.data import prepare_frequency_data
 
 mlflow.set_experiment("Frequency")
@@ -72,9 +76,10 @@ result = train_model(
     model_factory=CatBoostRegressionModel,
     metric=metrics_frequency,
     run_name="frequency",
-    n_splits=4,
-    select_features=None,
-    diagnostics=DiagnosticsOptions(task="frequency", shap_top_n=None),
+    config=TrainingConfig(
+        cv=CrossValidationConfig(n_splits=4),
+        diagnostics=RegressionDiagnosticsConfig(task="frequency"),
+    ),
 )
 print(result.cross_validation.mean_metrics)
 ```
@@ -82,8 +87,12 @@ print(result.cross_validation.mean_metrics)
 `train_model` starts an MLflow run, performs time-series cross-validation,
 optionally selects features and tunes parameters, fits a final model, logs it,
 and returns the fitted model and metrics. Each fold logs metrics and, when
-requested, PSI tables and figures. `DiagnosticsOptions(psi=False, plots=False)`
-disables those diagnostic artifacts without changing training.
+requested, PSI tables and figures. `diagnostics=None` disables diagnostics.
+Task-specific diagnostics default to the last evaluated fold, with SHAP disabled.
+Models are packaged only at final fit by default. See
+[configuration by task](docs/configuration.md) for one fully expanded example
+per supported task. Every configuration field has NumPy-style documentation
+in `ml_toolkit.config`; these classes are also exported by `ml_toolkit.training`.
 When feature selection is enabled, it uses only the training rows of the first
 evaluated fold. The selected features are then reused for all folds, tuning
 trials, and the final model.
@@ -98,10 +107,15 @@ use a different project data representation if it satisfies the training
 operations it invokes.
 
 For classification, supply `CatBoostClassificationModel`,
-`metrics_classification`, and `DiagnosticsOptions(task="classification")`.
+`metrics_classification`, and `ClassificationDiagnosticsConfig()`.
 The same `train_model` function performs the workflow. Optuna tuning is enabled
-with `tune_params=True`, `param_space`, `metric_to_optimize`, and
-`optimize_direction`.
+with `TrainingConfig(tuning=TuningConfig(...), ...)` and a separately supplied
+`param_space`. Set the metric name, direction, trial/time budget, and seed in
+`TuningConfig`. Feature selection uses `FeatureSelectionConfig` and the model's
+existing `select_features` method; no separate selector object is required.
+Custom adapters accept `select_features(..., config=FeatureSelectionConfig)`
+and `log(sample, config=TrackingConfig)`. Final iteration budgets follow
+`FinalFitConfig(iteration_policy="cv_median")`; use `"provided"` to retain yours.
 
 ### Custom post-fit evaluation
 
@@ -118,6 +132,7 @@ import polars as pl
 
 from ml_toolkit.metrics import metrics_classification
 from ml_toolkit.models import CatBoostClassificationModel
+from ml_toolkit.config import CrossValidationConfig, TrainingConfig
 from ml_toolkit.training import train_model
 from ml_toolkit.training.contracts import DatasetSplit, PostFitEvaluator
 
@@ -152,7 +167,8 @@ result = train_model(
     model_factory=CatBoostClassificationModel,
     metric=metrics_classification,
     post_fit_evaluator=evaluator,
-    run_name="campaign", n_splits=3,
+    run_name="campaign",
+    config=TrainingConfig(cv=CrossValidationConfig(n_splits=3)),
 )
 ```
 
@@ -170,11 +186,12 @@ rejected. Names may contain word characters, spaces, periods, dashes, and
 slashes, but no empty or relative path segments. The toolkit adds the prefix:
 `train/custom/expected_profit`, `val/custom/expected_profit`, and so on. Results
 are logged to each fold's MLflow run; they are not merged into `fold_metrics`,
-averaged into `cv/*`, or made available to `metric_to_optimize`.
+averaged into `cv/*`, or made available to the tuning objective.
 
-The same evaluator instance is reused, without copying or resetting, for every
-CV fold and every Optuna trial, any repeated CV for diagnostics, and the final
-fit. The final fit evaluates train only and adds one prediction pass when the
+The same evaluator instance is reused without copying or resetting.
+`PostFitEvaluationConfig` enables CV and final fit by default; trials are excluded.
+Use its `stages`, `splits`, and `write_artifacts` fields to control calls.
+After tuning, custom CV evaluation uses a dedicated pass on the winning settings. The final fit evaluates train only and adds one prediction pass when the
 evaluator is enabled. Intermediate feature-selection fits do not invoke it.
 Stored reference data and caches are supported; metrics should describe the
 current inputs rather than accumulate unrelated folds or trials. Do not mutate
@@ -184,7 +201,7 @@ context attached to the traceback.
 `Pool.object_id` is optional and keyword-only. Supplied IDs must be aligned,
 non-null strings or integers; repeated IDs are allowed. Their original values
 and dtype are preserved by row/feature/target operations, and IDs are not added
-to model inputs. Supplying an evaluator without IDs fails before fitting.
+to model inputs. Enabled evaluation without IDs fails before fitting.
 Existing custom containers need no changes unless using this feature; for it,
 implement `IdentifiedTrainingData`, including ID-preserving `take`,
 `select_features`, and `with_target` operations.
@@ -220,12 +237,13 @@ def write_artifacts(
 ```
 
 No extra `train_model` option is needed. The method is called immediately after
-each scalar evaluation, including Optuna trials, repeated CV, and final fitting,
-even when `evaluate` returns `{}`. Existing evaluators without this method keep
-their behavior. Each method can prepare its data independently; no cache is
-required. Image generation is independent of `DiagnosticsOptions`, and the
-writer decides whether to render for a given split. There is no automatic
-refitting to produce images.
+each enabled scalar evaluation, even when `evaluate` returns `{}`.
+Set `PostFitEvaluationConfig(write_artifacts=False)` to suppress image calls.
+Existing evaluators without this method keep their behavior. Each method can
+prepare its data independently; no cache is required. Custom image generation
+is independent of built-in diagnostics. The post-fit stage/split policy and
+writer decide when to render. After tuning, enabled custom CV evaluation runs
+in a dedicated validation pass for the winning parameters.
 
 Only selected images are uploaded to `custom/<split>/`, preserving nested
 directories; for example, `custom/val/figures/scores.png`. PNG, JPEG, SVG, WebP,
@@ -239,7 +257,11 @@ diagnostics together:
 
 ```python
 from ml_toolkit.metrics import PUMetric
-from ml_toolkit.training import DiagnosticsOptions, train_model
+from ml_toolkit.config import (
+    CrossValidationConfig, PUDiagnosticsConfig, RegressionDiagnosticsConfig,
+    TrainingConfig,
+)
+from ml_toolkit.training import train_model
 from ml_toolkit.models import CatBoostClassificationModel
 
 prior = 0.08  # Estimate from the target population, not the labeled fraction.
@@ -248,8 +270,11 @@ result = train_model(
     params={"loss": "nnPU", "pu_prior": prior, "iterations": 200,
             "depth": 5, "learning_rate": 0.05, "task_type": "CPU"},
     metric=PUMetric(prior, loss="nnPU"),
-    diagnostics=DiagnosticsOptions(task="pu_classification"),
-    run_name="pu", n_splits=3,
+    config=TrainingConfig(
+        cv=CrossValidationConfig(n_splits=3),
+        diagnostics=PUDiagnosticsConfig(),
+    ),
+    run_name="pu",
 )
 ```
 
@@ -292,8 +317,8 @@ plot, and artifact operations. `WARNING` suppresses routine toolkit progress
 and details. Exceptions propagate normally without duplicate error logs.
 
 These settings control toolkit messages. CatBoost, Optuna, and MLflow retain
-their own output configuration. CatBoost feature selection still uses its
-existing `logging_level="Verbose"`; nnPU's internal one-tree fits still use
+their own output configuration. CatBoost feature selection uses
+`CatBoostSelectionConfig.logging_level` (default `"Silent"`); nnPU's internal one-tree fits still use
 `"Silent"`. Toolkit levels do not override those choices or caller-supplied
 dependency settings. Python logging does not change MLflow metric or artifact
 recording.
@@ -324,6 +349,7 @@ functions, so manual and automatic figures have one implementation.
 
 | Path | Purpose |
 | --- | --- |
+| `config.py` | Immutable, validated settings for workflow and task-specific plots. |
 | `data.py` | Shared Pool container, aligned row operations, and model conversions. |
 | `training/train.py` | Select, tune, validate, fit, and log one experiment. |
 | `training/cross_validation.py` | Time-based folds, evaluation, and nested MLflow runs. |

@@ -57,7 +57,11 @@ class CrossValidationResult:
     @property
     def final_iterations(self) -> int | None:
         """Return the median best iteration index plus one, or None if unavailable."""
-        return None if not self.best_iterations else int(np.median(self.best_iterations)) + 1
+        return (
+            None
+            if not self.best_iterations
+            else int(np.median(self.best_iterations)) + 1
+        )
 
 
 @dataclass(frozen=True)
@@ -67,8 +71,8 @@ class TuningResult:
     Attributes
     ----------
     best_params : dict[str, Any]
-        Parameters suggested by the winning trial, excluding fixed base
-        settings.
+        Parameter overrides returned by param_space for the winning trial,
+        including fixed callback values and excluding unchanged base settings.
     cross_validation : CrossValidationResult
         Fold results recorded for that trial.
     """

@@ -2,12 +2,17 @@
 
 from pathlib import Path
 
+from ..config import FigureConfig
+from .utils import save_figure
+
 import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
 
 
-def feature_psi_plot(scores: pl.DataFrame, save_fig: Path) -> None:
+def feature_psi_plot(
+    scores: pl.DataFrame, save_fig: Path, *, figure: FigureConfig | None = None
+) -> None:
     """Save a horizontal bar chart of PSI values by feature.
 
     Parameters
@@ -17,6 +22,10 @@ def feature_psi_plot(scores: pl.DataFrame, save_fig: Path) -> None:
         PSIResult.psi.
     save_fig : pathlib.Path
         Output figure path; pass a Path object, not a string.
+
+    figure : FigureConfig or None, default None
+        Optional export dimensions, DPI, and format. None preserves native
+        dimensions and the requested path format.
 
     Raises
     ------
@@ -42,20 +51,20 @@ def feature_psi_plot(scores: pl.DataFrame, save_fig: Path) -> None:
 
     fig, ax = plt.subplots(figsize=(9, max(3, 0.45 * len(names) + 1)))
     ax.barh(names, values, color="tab:blue")
-    ax.set(xlabel="Population Stability Index", ylabel="Feature", title="PSI by feature")
+    ax.set(
+        xlabel="Population Stability Index", ylabel="Feature", title="PSI by feature"
+    )
     ax.grid(axis="x", alpha=0.2)
     fig.tight_layout()
-    save_fig.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        fig.savefig(save_fig, bbox_inches="tight")
-    finally:
-        plt.close(fig)
+    save_figure(fig, save_fig, config=figure)
 
 
 def monthly_psi_level_distribution(
     distribution: pl.DataFrame,
     feature: str,
     save_fig: Path,
+    *,
+    figure: FigureConfig | None = None,
 ) -> None:
     """Save monthly fitted-level shares as touching stacked bars.
 
@@ -68,6 +77,10 @@ def monthly_psi_level_distribution(
         Feature name present in the distribution table.
     save_fig : pathlib.Path
         Output figure path; pass a Path object, not a string.
+
+    figure : FigureConfig or None, default None
+        Optional export dimensions, DPI, and format. None preserves native
+        dimensions and the requested path format.
 
     Raises
     ------
@@ -174,8 +187,4 @@ def monthly_psi_level_distribution(
         frameon=False,
     )
     fig.tight_layout()
-    save_fig.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        fig.savefig(save_fig, bbox_inches="tight")
-    finally:
-        plt.close(fig)
+    save_figure(fig, save_fig, config=figure)

@@ -15,6 +15,7 @@ import polars as pl
 from .artifacts import log_model_from_code
 
 if TYPE_CHECKING:
+    from ..config import FeatureSelectionConfig, TrackingConfig
     from ..training.contracts import TrainingData
 
 logger = logging.getLogger(__name__)
@@ -152,7 +153,7 @@ class CatBoostModel(mlflow.pyfunc.PythonModel):  # type: ignore
         self,
         train: TrainingData,
         validation: TrainingData,
-        num_features_to_select: int,
+        config: FeatureSelectionConfig,
     ) -> list[str]:
         """Select features by recursive SHAP elimination without fitting the adapter.
 
@@ -162,9 +163,9 @@ class CatBoostModel(mlflow.pyfunc.PythonModel):  # type: ignore
             Data used to train the temporary feature-selection model.
         validation : TrainingData
             Holdout data used to evaluate candidate feature subsets.
-        num_features_to_select : int
-            Number of features to keep, between one and the available feature
-            count.
+        config : FeatureSelectionConfig
+            Feature count and backend options. The holdout fraction is used by
+            the workflow before calling this method.
 
         Returns
         -------
@@ -180,15 +181,19 @@ class CatBoostModel(mlflow.pyfunc.PythonModel):  # type: ignore
         Notes
         -----
         Uses a temporary native model with train_final_model=False. CatBoost
-        selection output retains its existing Verbose logging level.
+        selection verbosity follows config.catboost.logging_level.
         """
+        num_features_to_select = config.n_features
         feature_names = train.X.columns
         if not 0 < num_features_to_select <= len(feature_names):
             raise ValueError(
                 "num_features_to_select must be between 1 and the feature count"
             )
         if num_features_to_select == len(feature_names):
-            logger.debug("CatBoost feature selection retained all %s features", len(feature_names))
+            logger.debug(
+                "CatBoost feature selection retained all %s features",
+                len(feature_names),
+            )
             return feature_names
 
         logger.debug(
@@ -203,12 +208,14 @@ class CatBoostModel(mlflow.pyfunc.PythonModel):  # type: ignore
             eval_set=validation.to_catboost(baseline=baseline),
             features_for_select=feature_names,
             num_features_to_select=num_features_to_select,
-            steps=min(50, len(feature_names) - num_features_to_select),
-            algorithm=catboost.EFeaturesSelectionAlgorithm.RecursiveByShapValues,
-            shap_calc_type=catboost.EShapCalcType.Regular,
+            steps=min(
+                config.catboost.max_steps, len(feature_names) - num_features_to_select
+            ),
+            algorithm=catboost.EFeaturesSelectionAlgorithm[config.catboost.algorithm],
+            shap_calc_type=catboost.EShapCalcType[config.catboost.shap_calc_type],
             train_final_model=False,
             plot=False,
-            logging_level="Verbose",
+            logging_level=config.catboost.logging_level,
         )
         names = list(summary["selected_features_names"])
         logger.debug("CatBoost selected features: %s", names)
@@ -255,23 +262,17 @@ class CatBoostModel(mlflow.pyfunc.PythonModel):  # type: ignore
         self,
         sample: TrainingData,
         *,
-        name="catboost_model",
-        registered_model_name=None,
-        conda_env=None,
+        config: TrackingConfig | None = None,
     ) -> Any:
         """Package and log the fitted model with a serving input example.
 
         Parameters
         ----------
         sample : TrainingData
-            Data used to supply up to five serving example rows via to_model_input.
-        name : str, default 'catboost_model'
-            MLflow model artifact name.
-        registered_model_name : str or None, default None
-            Optional model registry name.
-        conda_env : str, pathlib.Path, or None, default None
-            Existing Conda environment file. None pins the installed serving
-            dependency versions.
+            Data used to supply up to config.input_example_rows serving example rows via to_model_input.
+        config : TrackingConfig or None, default None
+            Artifact name, positive example-row limit, registry name, and serving
+            environment. None uses TrackingConfig defaults.
 
         Returns
         -------
@@ -284,7 +285,15 @@ class CatBoostModel(mlflow.pyfunc.PythonModel):  # type: ignore
         signature, and logs baseline and input-schema metadata to MLflow. Configure
         tracking and an experiment before calling.
         """
-        sample_frame = sample.to_model_input(n_rows=5).loc[:, self.feature_names]
+        from ..config import TrackingConfig
+
+        config = TrackingConfig() if config is None else config
+        name = config.model_name
+        registered_model_name = config.registered_model_name
+        conda_env = config.conda_env
+        sample_frame = sample.to_model_input(n_rows=config.input_example_rows).loc[
+            :, self.feature_names
+        ]
         model_info = self.log_artifacts(
             sample_frame,
             self.predict_frame(sample_frame),

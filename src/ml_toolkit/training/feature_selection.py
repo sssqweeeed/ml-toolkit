@@ -1,4 +1,4 @@
-"""Optional model-driven feature elimination."""
+"""Optional selection implemented by each model adapter."""
 
 import logging
 from collections.abc import Callable
@@ -6,61 +6,60 @@ from typing import Any
 
 import numpy as np
 
-from .contracts import TrainingData
+from ..config import FeatureSelectionConfig
+from ..models.base import Model
+from .contracts import TrainingData, validate_training_data
 
 logger = logging.getLogger(__name__)
 
 
 def feature_elimination(
-    *, data: TrainingData, params: dict[str, Any], model_factory: Callable,
-    num_features_to_select: int, validation_fraction: float = 0.25,
+    *,
+    data: TrainingData,
+    params: dict[str, Any],
+    model_factory: Callable[[dict[str, Any]], Model],
+    config: FeatureSelectionConfig,
 ) -> TrainingData:
-    """Select features using a chronological holdout and return reduced data.
+    """Select features on a chronological internal holdout and return all rows.
 
     Parameters
     ----------
     data : TrainingData
-        Project-owned data in chronological order. All rows are returned with
-        the selected columns.
+        Chronological selection data, excluding outer CV validation rows.
     params : dict[str, Any]
-        Model parameters used for feature selection.
-    model_factory : Callable
-        Factory receiving a parameter dictionary and returning a model
-        implementing the Model protocol.
-    num_features_to_select : int
-        Number of features requested from the model selector.
-    validation_fraction : float, default 0.25
-        Fraction of trailing rows used as validation; strictly between zero and
-        one.
+        Native parameters for the temporary model; copied before factory use.
+    model_factory : Callable[[dict[str, Any]], Model]
+        Factory whose adapter implements select_features.
+    config : FeatureSelectionConfig
+        Retained feature count, internal holdout fraction, and backend options.
 
     Returns
     -------
     TrainingData
-        Data returned by data.select_features with the model-selected column
-        names.
+        All original selection rows restricted to the selected feature names.
 
     Raises
     ------
     ValueError
-        The validation fraction is invalid or the split leaves an empty
-        partition.
+        Data are invalid, too few rows remain in either split, or n_features
+        exceeds the input feature count.
     """
-    if not 0 < validation_fraction < 1:
-        raise ValueError("validation_fraction must be between 0 and 1")
-    split = int(len(data) * (1 - validation_fraction))
+    validate_training_data(data)
+    if config.n_features > len(data.X.columns):
+        raise ValueError("n_features must not exceed the input feature count")
+    split = int(len(data) * (1 - config.validation_fraction))
     if split <= 0 or split >= len(data):
         raise ValueError("Not enough rows for feature-selection validation")
     train = data.take(np.arange(split))
     validation = data.take(np.arange(split, len(data)))
-    logger.info("Starting feature selection: %s features requested", num_features_to_select)
+    logger.info("Starting feature selection: %s features requested", config.n_features)
     logger.debug(
         "Feature selection: %s training rows, %s validation rows",
         len(train),
         len(validation),
     )
-    names = model_factory(params).select_features(
-        train=train, validation=validation,
-        num_features_to_select=num_features_to_select,
+    names = model_factory(params.copy()).select_features(
+        train=train, validation=validation, config=config
     )
     selected = data.select_features(names)
     logger.info("Completed feature selection: %s features selected", len(names))

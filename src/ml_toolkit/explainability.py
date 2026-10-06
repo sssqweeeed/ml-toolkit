@@ -5,10 +5,14 @@ import logging
 import numpy as np
 import polars as pl
 
+from .config import ShapConfig
+
 logger = logging.getLogger(__name__)
 
 
-def calculate_shap_values(model, data: pl.DataFrame, *, n_samples: int = 100_000):
+def calculate_shap_values(
+    model, data: pl.DataFrame, *, config: ShapConfig | None = None
+):
     """Calculate a single-output SHAP explanation from a native tree model.
 
     Parameters
@@ -17,8 +21,9 @@ def calculate_shap_values(model, data: pl.DataFrame, *, n_samples: int = 100_000
         Fitted native model, rather than a toolkit adapter or project Pool.
     data : polars.DataFrame
         Nonempty feature frame containing the native model feature names.
-    n_samples : int, default 100000
-        Positive maximum row count sampled without replacement using seed zero.
+    config : ShapConfig or None, default None
+        Maximum sampled rows and sampling seed. None uses ShapConfig defaults.
+        Display settings are consumed by plotting, not this calculation.
 
     Returns
     -------
@@ -33,19 +38,22 @@ def calculate_shap_values(model, data: pl.DataFrame, *, n_samples: int = 100_000
     TypeError
         The native model backend is unsupported.
     ValueError
-        Data is empty, n_samples is nonpositive, the model lacks fitted feature
+        Data is empty, the model lacks fitted feature
         names, or contributions are not single-output.
     """
     try:
         import shap
     except ImportError as error:
-        raise ImportError("Install ml-toolkit[shap] to calculate SHAP values") from error
+        raise ImportError(
+            "Install ml-toolkit[shap] to calculate SHAP values"
+        ) from error
     if not len(data):
         raise ValueError("Cannot calculate SHAP values for an empty dataset")
-    if n_samples < 1:
-        raise ValueError("n_samples must be positive")
-    sampled = data.sample(min(n_samples, len(data)), seed=0)
-    logger.debug("Calculating SHAP for %s: %s sampled rows", type(model).__name__, len(sampled))
+    config = ShapConfig() if config is None else config
+    sampled = data.sample(min(config.max_samples, len(data)), seed=config.seed)
+    logger.debug(
+        "Calculating SHAP for %s: %s sampled rows", type(model).__name__, len(sampled)
+    )
     import catboost
 
     if isinstance(model, catboost.CatBoost):
@@ -53,15 +61,19 @@ def calculate_shap_values(model, data: pl.DataFrame, *, n_samples: int = 100_000
         if not names:
             raise ValueError("Fit the model before calculating SHAP")
         features = sampled.select(names).to_pandas()
-        contributions = np.asarray(model.get_feature_importance(
-            catboost.Pool(features, cat_features=model.get_cat_feature_indices()),
-            type="ShapValues",
-        ))
+        contributions = np.asarray(
+            model.get_feature_importance(
+                catboost.Pool(features, cat_features=model.get_cat_feature_indices()),
+                type="ShapValues",
+            )
+        )
     else:
         try:
             import lightgbm
         except (ImportError, OSError) as error:
-            raise ImportError("LightGBM SHAP requires a working LightGBM installation") from error
+            raise ImportError(
+                "LightGBM SHAP requires a working LightGBM installation"
+            ) from error
         if not isinstance(model, lightgbm.Booster):
             raise TypeError(f"Unsupported model for SHAP: {type(model).__name__}")
         names = model.feature_name()
@@ -71,8 +83,10 @@ def calculate_shap_values(model, data: pl.DataFrame, *, n_samples: int = 100_000
         raise ValueError("Only single-output SHAP contributions are supported")
     logger.debug("Calculated SHAP: %s rows, %s features", len(sampled), len(names))
     return shap.Explanation(
-        values=contributions[:, :-1], base_values=contributions[:, -1],
-        data=features.to_numpy(), feature_names=list(names),
+        values=contributions[:, :-1],
+        base_values=contributions[:, -1],
+        data=features.to_numpy(),
+        feature_names=list(names),
     )
 
 
@@ -102,4 +116,7 @@ def top_shap_features(values, top_n: int) -> list[str]:
     importance = np.asarray(values.abs.mean(0).values)
     if values.feature_names is None or len(values.feature_names) != len(importance):
         raise ValueError("SHAP explanation must have feature names")
-    return [values.feature_names[index] for index in np.argsort(-importance, kind="stable")[:top_n]]
+    return [
+        values.feature_names[index]
+        for index in np.argsort(-importance, kind="stable")[:top_n]
+    ]

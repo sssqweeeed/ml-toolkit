@@ -1,16 +1,29 @@
-"""Cross-task feature monitoring plots (excluding PSI, owned by ml-psi)."""
+"""Monthly distributions of numerical features."""
 
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import polars as pl
 
+from ..config import FigureConfig, NumericalFeatureDistributionConfig
 from .utils import save_figure
 
 
-def monthly_feature_distribution(reference: pl.DataFrame, current: pl.DataFrame,
-                                 feature: str, timestamp: str, save_fig: str | Path) -> pl.DataFrame:
-    """Plot monthly quantiles and means for a numerical feature.
+def _quantile_name(quantile: float) -> str:
+    return f"p{quantile * 100:02g}".replace(".", "_")
+
+
+def monthly_feature_distribution(
+    reference: pl.DataFrame,
+    current: pl.DataFrame,
+    feature: str,
+    timestamp: str,
+    save_fig: str | Path,
+    *,
+    config: NumericalFeatureDistributionConfig | None = None,
+    figure: FigureConfig | None = None,
+) -> pl.DataFrame:
+    """Plot configured monthly quantile bands, median, and mean.
 
     Parameters
     ----------
@@ -19,78 +32,133 @@ def monthly_feature_distribution(reference: pl.DataFrame, current: pl.DataFrame,
     current : polars.DataFrame
         Current frame containing the same required columns.
     feature : str
-        Name of the numerical feature to summarize.
+        Numerical feature to summarize.
     timestamp : str
-        Name of a Date/Datetime column used for calendar-month grouping.
+        Date/Datetime column used for calendar-month grouping.
     save_fig : str or pathlib.Path
         Output figure path; parent directories are created.
+    config : NumericalFeatureDistributionConfig or None, default None
+        Quantile bands and displayed mean/median. None uses defaults. The
+        features list controls workflow selection; this call plots feature.
+    figure : FigureConfig or None, default None
+        Export dimensions, resolution, and format; None preserves native output.
 
     Returns
     -------
     polars.DataFrame
-        Columns month, split, p05, p25, p50, mean, p75, and p95. split is
-        reference or current; quantiles and means are unweighted.
+        month, split, mean, p50, and configured endpoint quantiles named by
+        percentage, such as p05 or p2_5. Defaults produce month, split, p05, p25,
+        p50, mean, p75, p95. Summaries are unweighted.
 
     Raises
     ------
     ValueError
         Required columns are missing.
     TypeError
-        The feature is not numerical or the timestamp is not temporal.
+        Feature is not numerical or timestamp is not Date/Datetime.
 
     Notes
     -----
-    Creates parent directories for save_fig and closes the figure after saving.
-    Null and non-finite feature values are omitted. An empty summary produces a
-    plot labeled No finite values.
+    Null and non-finite values are omitted. Saves and closes the figure,
+    including when there are no finite values.
     """
+    config = NumericalFeatureDistributionConfig() if config is None else config
+    quantiles = sorted({0.5, *(q for band in config.quantile_bands for q in band)})
+    columns = ["month", "split"]
+    columns += [_quantile_name(q) for q in quantiles if q <= 0.5]
+    columns += ["mean"]
+    columns += [_quantile_name(q) for q in quantiles if q > 0.5]
     frames = []
     for split, data in (("reference", reference), ("current", current)):
         if feature not in data.columns or timestamp not in data.columns:
             raise ValueError(f"{split} data needs {feature!r} and {timestamp!r}")
         if not data.schema[feature].is_numeric():
             raise TypeError(f"{feature!r} must be numerical")
-        if not data.schema[timestamp].is_temporal():
+        if (
+            data.schema[timestamp] != pl.Date
+            and data.schema[timestamp].base_type() != pl.Datetime
+        ):
             raise TypeError(f"{timestamp!r} must be a date or datetime")
-        frame = (data.select(
-            pl.col(timestamp).dt.truncate("1mo").cast(pl.Date).alias("month"),
-            pl.col(feature).cast(pl.Float64).alias("value"))
+        frame = (
+            data.select(
+                pl.col(timestamp).dt.truncate("1mo").cast(pl.Date).alias("month"),
+                pl.col(feature).cast(pl.Float64).alias("value"),
+            )
             .filter(pl.col("value").is_not_null() & pl.col("value").is_finite())
-            .group_by("month").agg(
-                pl.col("value").quantile(.05, interpolation="linear").alias("p05"),
-                pl.col("value").quantile(.25, interpolation="linear").alias("p25"),
-                pl.col("value").median().alias("p50"),
+            .group_by("month")
+            .agg(
+                *(
+                    pl.col("value")
+                    .quantile(q, interpolation="linear")
+                    .alias(_quantile_name(q))
+                    for q in quantiles
+                ),
                 pl.col("value").mean().alias("mean"),
-                pl.col("value").quantile(.75, interpolation="linear").alias("p75"),
-                pl.col("value").quantile(.95, interpolation="linear").alias("p95"))
+            )
             .with_columns(pl.lit(split).alias("split"))
-            .select("month", "split", "p05", "p25", "p50", "mean", "p75", "p95")
-            .sort("month"))
+            .select(columns)
+            .sort("month")
+        )
         frames.append(frame)
     grouped = pl.concat(frames)
     fig, ax = plt.subplots(figsize=(14, 6))
-    for split, color, linestyle in (("reference", "tab:blue", "-"), ("current", "tab:orange", "--")):
+    for split, color, linestyle in (
+        ("reference", "tab:blue", "-"),
+        ("current", "tab:orange", "--"),
+    ):
         part = grouped.filter(pl.col("split") == split)
         if part.is_empty():
             continue
         month = part.get_column("month").to_list()
-        ax.fill_between(month, part.get_column("p05").to_numpy(), part.get_column("p95").to_numpy(),
-                        color=color, alpha=.10, label=f"{split} 5–95%")
-        ax.fill_between(month, part.get_column("p25").to_numpy(), part.get_column("p75").to_numpy(),
-                        color=color, alpha=.25, label=f"{split} 25–75%")
-        ax.plot(month, part.get_column("p50").to_numpy(), color=color, linestyle=linestyle,
-                marker="o", markersize=3, label=f"{split} median")
-        ax.plot(month, part.get_column("mean").to_numpy(), color=color, linestyle=":", label=f"{split} mean")
-    current_months = grouped.filter(pl.col("split") == "current").get_column("month")
+        for index, (lower, upper) in enumerate(config.quantile_bands):
+            ax.fill_between(
+                month,
+                part[_quantile_name(lower)].to_numpy(),
+                part[_quantile_name(upper)].to_numpy(),
+                color=color,
+                alpha=min(0.10 + 0.15 * index, 0.5),
+                label=f"{split} {lower * 100:g}–{upper * 100:g}%",
+            )
+        if config.show_median:
+            ax.plot(
+                month,
+                part["p50"].to_numpy(),
+                color=color,
+                linestyle=linestyle,
+                marker="o",
+                markersize=3,
+                label=f"{split} median",
+            )
+        if config.show_mean:
+            ax.plot(
+                month,
+                part["mean"].to_numpy(),
+                color=color,
+                linestyle=":",
+                label=f"{split} mean",
+            )
+    current_months = grouped.filter(pl.col("split") == "current")["month"]
     if not current_months.is_empty():
-        ax.axvline(current_months.min(), color="tab:orange", linestyle=":", label="Current begins")
+        ax.axvline(
+            current_months.min(),
+            color="tab:orange",
+            linestyle=":",
+            label="Current begins",
+        )
     ax.set(title=f"Monthly distribution — {feature}", xlabel="Month", ylabel=feature)
-    ax.grid(alpha=.2)
+    ax.grid(alpha=0.2)
     if grouped.is_empty():
-        ax.text(.5, .5, "No finite values", ha="center", va="center", transform=ax.transAxes)
-    else:
+        ax.text(
+            0.5,
+            0.5,
+            "No finite values",
+            ha="center",
+            va="center",
+            transform=ax.transAxes,
+        )
+    elif ax.get_legend_handles_labels()[0]:
         ax.legend(loc="best", ncol=2)
     fig.autofmt_xdate()
     fig.tight_layout()
-    save_figure(fig, save_fig)
+    save_figure(fig, save_fig, config=figure)
     return grouped

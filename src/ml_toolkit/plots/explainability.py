@@ -2,6 +2,8 @@
 
 from pathlib import Path
 
+from ..config import FigureConfig, ShapConfig
+
 import matplotlib.pyplot as plt
 import pandas as pd
 
@@ -9,8 +11,14 @@ from ..explainability import top_shap_features
 from .utils import numeric_vector, same_length, save_figure
 
 
-def feature_importance(feature_names, importance, save_fig: str | Path, *,
-                       max_features_display: int = 10) -> pd.DataFrame:
+def feature_importance(
+    feature_names,
+    importance,
+    save_fig: str | Path,
+    *,
+    max_features_display: int = 10,
+    figure: FigureConfig | None = None,
+) -> pd.DataFrame:
     """Save supplied feature importance values in descending order.
 
     Parameters
@@ -24,6 +32,10 @@ def feature_importance(feature_names, importance, save_fig: str | Path, *,
         Output figure path; parent directories are created.
     max_features_display : int, default 10
         Positive maximum number of features shown.
+
+    figure : FigureConfig or None, default None
+        Optional export dimensions, DPI, and format. None preserves native
+        dimensions and the requested path format.
 
     Returns
     -------
@@ -47,14 +59,16 @@ def feature_importance(feature_names, importance, save_fig: str | Path, *,
     same_length(feature_names=names, importance=values)
     if max_features_display < 1:
         raise ValueError("max_features_display must be positive")
-    ordered = (pd.DataFrame({"feature": names, "importance": values})
-               .sort_values("importance", ascending=False, kind="stable")
-               .head(max_features_display))
+    ordered = (
+        pd.DataFrame({"feature": names, "importance": values})
+        .sort_values("importance", ascending=False, kind="stable")
+        .head(max_features_display)
+    )
     fig, ax = plt.subplots(figsize=(10, 6))
     ax.barh(ordered.feature.iloc[::-1], ordered.importance.iloc[::-1])
     ax.set(xlabel="Feature importance", ylabel="Feature", title="Feature importance")
     fig.tight_layout()
-    save_figure(fig, save_fig)
+    save_figure(fig, save_fig, config=figure)
     return ordered.reset_index(drop=True)
 
 
@@ -66,7 +80,13 @@ def _shap():
     return shap
 
 
-def shap_importance(values, save_fig: str | Path, *, max_features_display: int = 10) -> None:
+def shap_importance(
+    values,
+    save_fig: str | Path,
+    *,
+    config: ShapConfig | None = None,
+    figure: FigureConfig | None = None,
+) -> None:
     """Save a SHAP bar plot of mean absolute feature contributions.
 
     Parameters
@@ -75,8 +95,13 @@ def shap_importance(values, save_fig: str | Path, *, max_features_display: int =
         Single-output explanation, such as calculate_shap_values returns.
     save_fig : str or pathlib.Path
         Output figure path; parent directories are created.
-    max_features_display : int, default 10
-        Maximum displayed feature count passed to SHAP.
+    config : ShapConfig or None, default None
+        Maximum displayed feature count. None uses ShapConfig defaults.
+        Sampling settings apply during explanation calculation.
+
+    figure : FigureConfig or None, default None
+        Optional export dimensions, DPI, and format. None preserves native
+        dimensions and the requested path format.
 
     Raises
     ------
@@ -88,12 +113,19 @@ def shap_importance(values, save_fig: str | Path, *, max_features_display: int =
     Creates parent directories for save_fig and closes the figure after saving.
     Requires ml-toolkit[shap].
     """
+    config = ShapConfig() if config is None else config
     shap = _shap()
-    ax = shap.plots.bar(values, max_display=max_features_display, show=False)
-    save_figure(ax.figure, save_fig)
+    ax = shap.plots.bar(values, max_display=config.max_display, show=False)
+    save_figure(ax.figure, save_fig, config=figure)
 
 
-def shap_beeswarm(values, save_fig: str | Path, *, max_features_display: int = 10) -> None:
+def shap_beeswarm(
+    values,
+    save_fig: str | Path,
+    *,
+    config: ShapConfig | None = None,
+    figure: FigureConfig | None = None,
+) -> None:
     """Save a SHAP beeswarm plot of per-row feature contributions.
 
     Parameters
@@ -102,8 +134,13 @@ def shap_beeswarm(values, save_fig: str | Path, *, max_features_display: int = 1
         Single-output explanation, such as calculate_shap_values returns.
     save_fig : str or pathlib.Path
         Output figure path; parent directories are created.
-    max_features_display : int, default 10
-        Maximum displayed feature count passed to SHAP.
+    config : ShapConfig or None, default None
+        Maximum displayed feature count. None uses ShapConfig defaults.
+        Sampling settings apply during explanation calculation.
+
+    figure : FigureConfig or None, default None
+        Optional export dimensions, DPI, and format. None preserves native
+        dimensions and the requested path format.
 
     Raises
     ------
@@ -115,12 +152,15 @@ def shap_beeswarm(values, save_fig: str | Path, *, max_features_display: int = 1
     Creates parent directories for save_fig and closes the figure after saving.
     Requires ml-toolkit[shap].
     """
+    config = ShapConfig() if config is None else config
     shap = _shap()
-    ax = shap.plots.beeswarm(values, max_display=max_features_display, show=False)
-    save_figure(ax.figure, save_fig)
+    ax = shap.plots.beeswarm(values, max_display=config.max_display, show=False)
+    save_figure(ax.figure, save_fig, config=figure)
 
 
-def shap_dependence(values, feature: str, save_fig: str | Path) -> None:
+def shap_dependence(
+    values, feature: str, save_fig: str | Path, *, figure: FigureConfig | None = None
+) -> None:
     """Save SHAP contribution against one feature, colored by interactions.
 
     Parameters
@@ -131,6 +171,10 @@ def shap_dependence(values, feature: str, save_fig: str | Path) -> None:
         Feature name present in the explanation.
     save_fig : str or pathlib.Path
         Output figure path; parent directories are created.
+
+    figure : FigureConfig or None, default None
+        Optional export dimensions, DPI, and format. None preserves native
+        dimensions and the requested path format.
 
     Raises
     ------
@@ -148,4 +192,4 @@ def shap_dependence(values, feature: str, save_fig: str | Path) -> None:
         raise ValueError(f"Feature {feature!r} is not in SHAP feature names")
     shap = _shap()
     ax = shap.plots.scatter(values[:, feature], color=values, show=False)
-    save_figure(ax.figure, save_fig)
+    save_figure(ax.figure, save_fig, config=figure)

@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Any, Protocol, Self
 import numpy as np
 
 if TYPE_CHECKING:
+    from ..config import FeatureSelectionConfig, TrackingConfig
     from ..training.contracts import TrainingData
 
 
@@ -66,7 +67,7 @@ class Model(Protocol):
         self,
         train: TrainingData,
         validation: TrainingData,
-        num_features_to_select: int,
+        config: FeatureSelectionConfig,
     ) -> list[str]:
         """Return selected feature names using training and holdout data.
 
@@ -76,9 +77,9 @@ class Model(Protocol):
             Data used to train the temporary feature-selection model.
         validation : TrainingData
             Holdout data used to evaluate candidate feature subsets.
-        num_features_to_select : int
-            Number of features to keep, between one and the available feature
-            count.
+        config : FeatureSelectionConfig
+            Feature count and backend options. The holdout fraction is used by
+            the workflow before calling this method.
 
         Returns
         -------
@@ -87,13 +88,15 @@ class Model(Protocol):
         """
         ...
 
-    def log(self, sample: TrainingData) -> Any:
+    def log(self, sample: TrainingData, *, config: TrackingConfig | None = None) -> Any:
         """Log a fitted model to the configured MLflow tracking store.
 
         Parameters
         ----------
         sample : TrainingData
             Data supplying a representative serving input example.
+        config : TrackingConfig or None, default None
+            Model artifact name, sample size, registry, and environment settings.
 
         Returns
         -------

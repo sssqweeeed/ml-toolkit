@@ -10,6 +10,10 @@ from tempfile import TemporaryDirectory
 import lightgbm
 import mlflow
 import numpy as np
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ..config import TrackingConfig
 
 logger = logging.getLogger("ml_toolkit.models.lightgbm")
 
@@ -99,9 +103,7 @@ class LightGBMWrapper(mlflow.pyfunc.PythonModel):
         self,
         sample,
         *,
-        name="severity_osago",
-        registered_model_name="severity_osago",
-        conda_env=None,
+        config: TrackingConfig | None = None,
     ):
         """Log native LightGBM artifacts and a serving signature to MLflow.
 
@@ -109,13 +111,10 @@ class LightGBMWrapper(mlflow.pyfunc.PythonModel):
         ----------
         sample : TrainingData
             Project data supplying at least one serving row via to_model_input; up
-            to five rows are used.
-        name : str, default 'severity_osago'
-            MLflow model artifact name.
-        registered_model_name : str or None, default 'severity_osago'
-            Model registry name; None disables registration.
-        conda_env : str, pathlib.Path, or None, default None
-            Existing environment file; None pins installed dependency versions.
+            to config.input_example_rows rows are used.
+        config : TrackingConfig or None, default None
+            Artifact name, serving example row count, registry, and environment.
+            None uses TrackingConfig defaults, including no registration.
 
         Returns
         -------
@@ -133,7 +132,13 @@ class LightGBMWrapper(mlflow.pyfunc.PythonModel):
         Writes a native Booster file and feature configuration with this module as
         serving code. Configure MLflow tracking and an experiment before calling.
         """
+        from ..config import TrackingConfig
         from .artifacts import log_model_from_code
+
+        config = TrackingConfig() if config is None else config
+        name = config.model_name
+        registered_model_name = config.registered_model_name
+        conda_env = config.conda_env
 
         features = self.numerical_features + self.cat_features
         if len(features) != len(set(features)) or set(features) != set(
@@ -144,7 +149,9 @@ class LightGBMWrapper(mlflow.pyfunc.PythonModel):
             )
 
         wrapper_path = Path(__file__).resolve()
-        sample_frame = sample.to_model_input(n_rows=5).loc[:, self.feature_names]
+        sample_frame = sample.to_model_input(n_rows=config.input_example_rows).loc[
+            :, self.feature_names
+        ]
         if sample_frame.empty:
             raise ValueError("The logging sample must contain at least one row.")
         sample_prediction = self.predict(None, sample_frame)

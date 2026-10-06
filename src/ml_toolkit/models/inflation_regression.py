@@ -15,6 +15,7 @@ from ..inflation import InflationAdjuster, inflation_from_config
 from .catboost_regression import CatBoostModel
 
 if TYPE_CHECKING:
+    from ..config import FeatureSelectionConfig, TrackingConfig
     from ..training.contracts import TrainingData
 
 logger = logging.getLogger(__name__)
@@ -85,7 +86,9 @@ class InflationAdjustedModel(mlflow.pyfunc.PythonModel):  # type: ignore
         Validation targets are normalized using the inflation strategy fitted on
         training data.
         """
-        logger.debug("Fitting inflation-adjusted model at reference date %s", self.reference_date)
+        logger.debug(
+            "Fitting inflation-adjusted model at reference date %s", self.reference_date
+        )
         self.inflation.fit(
             dates=train.time,
             y=train.y.to_numpy(),
@@ -124,7 +127,7 @@ class InflationAdjustedModel(mlflow.pyfunc.PythonModel):  # type: ignore
         self,
         train: TrainingData,
         validation: TrainingData,
-        num_features_to_select: int,
+        config: FeatureSelectionConfig,
     ) -> list[str]:
         """Select regression features after normalizing targets to the reference date.
 
@@ -134,9 +137,9 @@ class InflationAdjustedModel(mlflow.pyfunc.PythonModel):  # type: ignore
             Data used to train the temporary feature-selection model.
         validation : TrainingData
             Holdout data used to evaluate candidate feature subsets.
-        num_features_to_select : int
-            Number of features to keep, between one and the available feature
-            count.
+        config : FeatureSelectionConfig
+            Feature count and backend options. The holdout fraction is used by
+            the workflow before calling this method.
 
         Returns
         -------
@@ -156,7 +159,7 @@ class InflationAdjustedModel(mlflow.pyfunc.PythonModel):  # type: ignore
         return self.model.select_features(
             train=self._at_reference_date(train),
             validation=self._at_reference_date(validation),
-            num_features_to_select=num_features_to_select,
+            config=config,
         )
 
     def predict(  # type: ignore
@@ -201,7 +204,9 @@ class InflationAdjustedModel(mlflow.pyfunc.PythonModel):  # type: ignore
         if model_input.empty:
             return np.asarray([], dtype=float)
 
-        logger.debug("Predicting with inflation-adjusted model: %s rows", len(model_input))
+        logger.debug(
+            "Predicting with inflation-adjusted model: %s rows", len(model_input)
+        )
         prediction_dates = pd.to_datetime(
             model_input[self.prediction_date_column],
             errors="raise",
@@ -226,9 +231,7 @@ class InflationAdjustedModel(mlflow.pyfunc.PythonModel):  # type: ignore
         self,
         sample: TrainingData,
         *,
-        name="inflation_adjusted_model",
-        registered_model_name=None,
-        conda_env=None,
+        config: TrackingConfig | None = None,
     ) -> tuple[Any, Any]:
         """Log native and inflation-adjusted serving models to MLflow.
 
@@ -236,12 +239,9 @@ class InflationAdjustedModel(mlflow.pyfunc.PythonModel):  # type: ignore
         ----------
         sample : TrainingData
             Rows used to build a serving example including observation dates.
-        name : str, default 'inflation_adjusted_model'
-            Adjusted model artifact name.
-        registered_model_name : str or None, default None
-            Optional registry name for the adjusted model.
-        conda_env : str, pathlib.Path, or None, default None
-            Existing serving environment file; None pins installed versions.
+        config : TrackingConfig or None, default None
+            Artifact name, positive example-row limit, registry name, and serving
+            environment. None uses TrackingConfig defaults.
 
         Returns
         -------
@@ -260,6 +260,12 @@ class InflationAdjustedModel(mlflow.pyfunc.PythonModel):  # type: ignore
         Writes both models, reference-date and strategy parameters, and serialized
         inflation metadata to configured MLflow tracking.
         """
+        from ..config import TrackingConfig
+
+        config = TrackingConfig() if config is None else config
+        name = config.model_name
+        registered_model_name = config.registered_model_name
+        conda_env = config.conda_env
         logger.debug("Packaging inflation-adjusted model %s", name)
         inflation_config = self.inflation.to_config()
         inflation_from_config(inflation_config)
@@ -267,9 +273,20 @@ class InflationAdjustedModel(mlflow.pyfunc.PythonModel):  # type: ignore
             raise ValueError(
                 "prediction_date_column must not overwrite a model feature"
             )
-        native_info = self.model.log(sample, conda_env=conda_env)
+        from dataclasses import replace
 
-        sample_frame = sample.to_model_input(n_rows=5).loc[:, self.model.feature_names]
+        native_info = self.model.log(
+            sample,
+            config=replace(
+                config,
+                model_name=f"{name}_native",
+                registered_model_name=None,
+            ),
+        )
+
+        sample_frame = sample.to_model_input(n_rows=config.input_example_rows).loc[
+            :, self.model.feature_names
+        ]
         sample_frame[self.prediction_date_column] = pd.Series(
             sample.time.head(len(sample_frame)).to_list(),
             dtype="datetime64[ns]",

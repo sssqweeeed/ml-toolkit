@@ -6,6 +6,8 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 
+from ..config import FigureConfig
+
 logger = logging.getLogger(__name__)
 
 
@@ -34,12 +36,36 @@ def weights(values, length: int) -> np.ndarray:
     return result
 
 
-def save_figure(fig, path: str | Path) -> Path:
-    """Create parent directories, save a plot, and release its figure."""
+def save_figure(fig, path: str | Path, *, config: FigureConfig | None = None) -> Path:
+    """Create parent directories, save a plot, and close its figure.
+
+    Parameters
+    ----------
+    fig : matplotlib.figure.Figure
+        Figure to export; always closed, including when saving fails.
+    path : str or pathlib.Path
+        Output path. An explicit config replaces the suffix with its format.
+    config : FigureConfig or None, default None
+        Dimensions, DPI, and format. None preserves native dimensions and the
+        path's format, using Matplotlib's default resolution.
+
+    Returns
+    -------
+    pathlib.Path
+        Actual output path, including any configured suffix replacement.
+    """
     path = Path(path)
+    if config is not None:
+        path = path.with_suffix(f".{config.format}")
     path.parent.mkdir(parents=True, exist_ok=True)
     try:
-        fig.savefig(path, bbox_inches="tight")
+        if config is not None and config.figsize is not None:
+            fig.set_size_inches(*config.figsize)
+            fig.tight_layout()
+        settings = (
+            {} if config is None else {"dpi": config.dpi, "format": config.format}
+        )
+        fig.savefig(path, bbox_inches="tight", **settings)
     finally:
         plt.close(fig)
     logger.debug("Saved figure to %s", path)

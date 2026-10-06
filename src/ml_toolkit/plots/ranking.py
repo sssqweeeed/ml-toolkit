@@ -2,14 +2,17 @@
 
 from pathlib import Path
 
+from ..config import FigureConfig
+from .utils import save_figure
+
 import matplotlib.pyplot as plt
 import numpy as np
 
 from ..metrics.ranking import RankingMetrics
 
+
 def gains_curve(
-    ranking: RankingMetrics,
-    save_fig: Path,
+    ranking: RankingMetrics, save_fig: Path, *, figure: FigureConfig | None = None
 ) -> None:
     """Save cumulative gains and selected exposure-capacity annotations.
 
@@ -19,6 +22,10 @@ def gains_curve(
         Precomputed results from ml_toolkit.metrics.ranking_metrics.
     save_fig : pathlib.Path
         Output figure path; pass a Path object, not a string.
+
+    figure : FigureConfig or None, default None
+        Optional export dimensions, DPI, and format. None preserves native
+        dimensions and the requested path format.
 
     Notes
     -----
@@ -65,16 +72,11 @@ def gains_curve(
     ax.legend(loc="best")
     fig.tight_layout()
 
-    save_fig.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        fig.savefig(save_fig, bbox_inches="tight")
-    finally:
-        plt.close(fig)
+    save_figure(fig, save_fig, config=figure)
 
 
 def lift_curve(
-    ranking: RankingMetrics,
-    save_fig: Path,
+    ranking: RankingMetrics, save_fig: Path, *, figure: FigureConfig | None = None
 ) -> None:
     """Save cumulative lift and selected exposure-capacity annotations.
 
@@ -84,6 +86,10 @@ def lift_curve(
         Precomputed results from ml_toolkit.metrics.ranking_metrics.
     save_fig : pathlib.Path
         Output figure path; pass a Path object, not a string.
+
+    figure : FigureConfig or None, default None
+        Optional export dimensions, DPI, and format. None preserves native
+        dimensions and the requested path format.
 
     Notes
     -----
@@ -125,8 +131,4 @@ def lift_curve(
     ax.legend(loc="best")
     fig.tight_layout()
 
-    save_fig.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        fig.savefig(save_fig, bbox_inches="tight")
-    finally:
-        plt.close(fig)
+    save_figure(fig, save_fig, config=figure)
