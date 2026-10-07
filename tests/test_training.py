@@ -354,11 +354,22 @@ def test_training_logs_psi_and_plots(tmp_path, caplog):
         ),
     )
     runs = mlflow.search_runs(output_format="list")
-    fold = next(run for run in runs if run.data.tags.get("mlflow.runName") == "fold_1")
-    artifacts = list_all_artifacts(mlflow.MlflowClient(), fold.info.run_id)
-    assert "psi/fold_1/scores.json" in artifacts
-    assert any(path.endswith("psi_scores.png") for path in artifacts)
-    assert any(path.endswith("monthly_observed_fitted.png") for path in artifacts)
+    folds = [
+        run for run in runs if run.data.tags.get("mlflow.runName", "").startswith("fold_")
+    ]
+    assert {run.data.tags["mlflow.runName"] for run in folds} == {"fold_1", "fold_2"}
+    for fold in folds:
+        artifacts = list_all_artifacts(mlflow.MlflowClient(), fold.info.run_id)
+        assert set(artifacts) == {
+            "psi/scores.json",
+            "psi/level_distribution.json",
+            "psi/monthly_distribution.json",
+            "figures/psi_scores.png",
+            "figures/psi_000_x.png",
+            "figures/psi_001_unused.png",
+            "figures/monthly_observed_fitted.png",
+            "figures/feature_000_x.png",
+        }
     messages = [
         record.getMessage()
         for record in caplog.records
@@ -435,8 +446,9 @@ def test_bundled_classifier_and_classification_diagnostics(tmp_path):
     runs = mlflow.search_runs(output_format="list")
     fold = next(run for run in runs if run.data.tags.get("mlflow.runName") == "fold_1")
     artifacts = list_all_artifacts(mlflow.MlflowClient(), fold.info.run_id)
-    assert any(path.endswith("precision_recall.png") for path in artifacts)
-    assert any(path.endswith("calibration.png") for path in artifacts)
+    assert "figures/precision_recall.png" in artifacts
+    assert "figures/calibration.png" in artifacts
+    assert all(len(path.split("/")) == 2 for path in artifacts)
     final = next(
         run for run in runs if run.data.tags.get("mlflow.runName") == "final_fit"
     )
@@ -563,8 +575,9 @@ def test_pu_training_logs_only_pu_diagnostics(tmp_path):
     runs = mlflow.search_runs(output_format="list")
     fold = next(run for run in runs if run.data.tags.get("mlflow.runName") == "fold_1")
     artifacts = list_all_artifacts(mlflow.MlflowClient(), fold.info.run_id)
-    assert any(path.endswith("pu_score_distribution.png") for path in artifacts)
-    assert any(path.endswith("pu_positive_capture.png") for path in artifacts)
+    assert "figures/pu_score_distribution.png" in artifacts
+    assert "figures/pu_positive_capture.png" in artifacts
+    assert all(len(path.split("/")) == 2 for path in artifacts)
     assert not any(
         path.endswith(("precision_recall.png", "calibration.png", "gains.png"))
         for path in artifacts

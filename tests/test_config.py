@@ -457,11 +457,16 @@ def test_psi_definition_and_svg_output_reach_diagnostics(tmp_path):
     for run in runs:
         artifacts = list_all_artifacts(mlflow.MlflowClient(), run.info.run_id)
         if run.data.tags["mlflow.runName"] == "fold_2":
-            assert "figures/fold_2/psi_scores.svg" in artifacts
-            assert any(path.endswith("psi_000_x.svg") for path in artifacts)
+            assert set(artifacts) == {
+                "figures/psi_scores.svg",
+                "figures/psi_000_x.svg",
+                "psi/scores.json",
+                "psi/level_distribution.json",
+                "psi/monthly_distribution.json",
+            }
             table = Path(
                 mlflow.artifacts.download_artifacts(
-                    run_id=run.info.run_id, artifact_path="psi/fold_2/scores.json"
+                    run_id=run.info.run_id, artifact_path="psi/scores.json"
                 )
             )
             import json

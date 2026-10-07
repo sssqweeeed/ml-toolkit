@@ -294,7 +294,7 @@ def _log_diagnostics(
             figure = plots.common.figure
             path = (root / filename).with_suffix(f".{figure.format}")
             draw(*args, save_fig=path, figure=figure, **kwargs)
-            mlflow.log_artifact(str(path), artifact_path=f"figures/{name}")
+            mlflow.log_artifact(str(path), artifact_path="figures")
             logger.debug("Logged diagnostic figure %s for %s", path.name, name)
 
         psi_result = None
@@ -325,14 +325,14 @@ def _log_diagnostics(
                 .fit(train.X, time=train.time)
                 .compare(validation.X, time=validation.time)
             )
-            log_polars_table(psi_result.psi, f"psi/{name}/scores.json")
+            log_polars_table(psi_result.psi, "psi/scores.json")
             log_polars_table(
-                psi_result.level_distribution, f"psi/{name}/level_distribution.json"
+                psi_result.level_distribution, "psi/level_distribution.json"
             )
             if not psi_result.monthly_distribution.is_empty():
                 log_polars_table(
                     psi_result.monthly_distribution,
-                    f"psi/{name}/monthly_distribution.json",
+                    "psi/monthly_distribution.json",
                 )
         if plots is None:
             logger.debug("Plot diagnostics disabled for %s", name)
