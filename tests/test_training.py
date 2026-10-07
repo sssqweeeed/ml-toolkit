@@ -1,7 +1,7 @@
 """Train with a project-owned data object and inspect MLflow artifacts."""
 
 from ml_toolkit.config import (
-    FeatureSelectionConfig,
+    RFEFeatureSelectionConfig,
     CrossValidationConfig,
     TuningConfig,
     PSIOptions,
@@ -20,6 +20,8 @@ from ml_toolkit.config import (
 
 from dataclasses import dataclass
 from datetime import date, timedelta
+from pathlib import Path
+import json
 import logging
 
 import mlflow
@@ -38,7 +40,7 @@ from ml_toolkit.plots.explainability import (
     shap_dependence,
     shap_importance,
 )
-from ml_toolkit.training import train_model
+from ml_toolkit.training import importance_ranker, train_model
 
 
 @dataclass(frozen=True)
@@ -187,6 +189,7 @@ def list_all_artifacts(client, run_id, path=""):
 def test_train_model_selection_and_mlflow(tmp_path):
     setup_mlflow(tmp_path)
     result = train_model(
+        feature_ranker=importance_ranker,
         data=make_data(),
         params={"unused_param": 1},
         model_factory=MeanModel,
@@ -194,7 +197,7 @@ def test_train_model_selection_and_mlflow(tmp_path):
         run_name="example",
         config=TrainingConfig(
             cv=CrossValidationConfig(n_splits=2),
-            feature_selection=FeatureSelectionConfig(n_features=1),
+            feature_selection=RFEFeatureSelectionConfig(min_features=1, metric_name="mae", direction="minimize"),
         ),
     )
     assert result.features == ("x",)
@@ -205,9 +208,15 @@ def test_train_model_selection_and_mlflow(tmp_path):
     parent = next(
         run for run in runs if run.data.tags.get("mlflow.runName") == "example"
     )
-    assert "selection/features.json" in list_all_artifacts(
-        mlflow.MlflowClient(), parent.info.run_id
+    artifact = mlflow.artifacts.download_artifacts(
+        run_id=parent.info.run_id, artifact_path="selection/history.json"
     )
+    history = json.loads(Path(artifact).read_text())
+    assert history["features"] == list(result.features)
+    assert history["selected_step"] == result.feature_selection.selected_step
+    assert [step["features"] for step in history["steps"]] == [["x", "unused"], ["x"]]
+    assert parent.data.metrics["selection/n_fits"] == 2
+    assert parent.data.metrics["selection/n_features"] == 1
 
 
 @pytest.mark.parametrize("skip_splits, first_validation_row", [(0, 8), (1, 16)])
@@ -219,6 +228,7 @@ def test_feature_selection_uses_only_first_evaluated_fold_training_rows(
     setup_mlflow(tmp_path)
     model_factory, calls = recording_model()
     result = train_model(
+        feature_ranker=importance_ranker,
         data=make_data(),
         params={},
         model_factory=model_factory,
@@ -226,7 +236,7 @@ def test_feature_selection_uses_only_first_evaluated_fold_training_rows(
         run_name="early-selection",
         config=TrainingConfig(
             cv=CrossValidationConfig(n_splits=2, skip_splits=skip_splits),
-            feature_selection=FeatureSelectionConfig(n_features=1),
+            feature_selection=RFEFeatureSelectionConfig(min_features=1, metric_name="mae", direction="minimize"),
         ),
     )
 
@@ -237,7 +247,7 @@ def test_feature_selection_uses_only_first_evaluated_fold_training_rows(
         )
     ]
     assert calls["fit"][0] == ("x", "unused")
-    assert calls["fit"][1:] == [("unused",)] * (2 - skip_splits + 1)
+    assert calls["fit"][1:] == [("unused",)] * (2 - skip_splits + 2)
     assert result.features == ("unused",)
 
 
@@ -245,6 +255,7 @@ def test_tuning_and_final_fit_reuse_early_selected_features(tmp_path):
     setup_mlflow(tmp_path)
     model_factory, calls = recording_model()
     result = train_model(
+        feature_ranker=importance_ranker,
         data=make_data(),
         params={},
         model_factory=model_factory,
@@ -255,14 +266,14 @@ def test_tuning_and_final_fit_reuse_early_selected_features(tmp_path):
         },
         config=TrainingConfig(
             cv=CrossValidationConfig(n_splits=2),
-            feature_selection=FeatureSelectionConfig(n_features=1),
+            feature_selection=RFEFeatureSelectionConfig(min_features=1, metric_name="mae", direction="minimize"),
             tuning=TuningConfig(metric="mae", direction="minimize", n_trials=2),
         ),
     )
 
     assert len(calls["selection"]) == 1
     assert calls["fit"][0] == ("x", "unused")
-    assert calls["fit"][1:] == [("unused",)] * 5
+    assert calls["fit"][1:] == [("unused",)] * 6
     assert result.features == ("unused",)
 
 
@@ -286,9 +297,10 @@ def test_training_without_feature_selection_keeps_all_features(tmp_path):
 def test_feature_selection_rejects_too_small_first_training_window(tmp_path):
     setup_mlflow(tmp_path)
     with pytest.raises(
-        ValueError, match="First evaluated fold has fewer than two training rows"
+        ValueError, match="Not enough rows"
     ):
         train_model(
+            feature_ranker=importance_ranker,
             data=make_data().take(np.arange(3)),
             params={},
             model_factory=MeanModel,
@@ -296,7 +308,7 @@ def test_feature_selection_rejects_too_small_first_training_window(tmp_path):
             run_name="small-selection-window",
             config=TrainingConfig(
                 cv=CrossValidationConfig(n_splits=2),
-                feature_selection=FeatureSelectionConfig(n_features=1),
+                feature_selection=RFEFeatureSelectionConfig(min_features=1, metric_name="mae", direction="minimize"),
             ),
         )
 
@@ -582,20 +594,3 @@ def test_pu_training_rejects_supervised_metrics(tmp_path):
             run_name="invalid_pu",
             config=TrainingConfig(cv=CrossValidationConfig(n_splits=2)),
         )
-
-
-def test_keeping_all_features_skips_extra_fit_with_tiny_first_window(tmp_path):
-    setup_mlflow(tmp_path)
-    fitted = []
-    class RecordingModel(MeanModel):
-        def fit(self, train, validation=None):
-            fitted.append((len(train), None if validation is None else len(validation)))
-            return super().fit(train, validation)
-    result = train_model(
-        data=make_data().take(range(3)), params={}, model_factory=RecordingModel,
-        metric=mae, run_name="keep-all",
-        config=TrainingConfig(cv=CrossValidationConfig(n_splits=2),
-                              feature_selection=FeatureSelectionConfig(n_features=2)),
-    )
-    assert result.features == ("x", "unused")
-    assert fitted == [(1, 1), (2, 1), (3, None)]

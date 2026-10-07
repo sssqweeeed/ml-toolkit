@@ -103,15 +103,63 @@ For classification, supply `CatBoostClassificationModel`,
 The same `train_model` function performs the workflow. Optuna tuning is enabled
 with `TrainingConfig(tuning=TuningConfig(...), ...)` and a separately supplied
 `param_space`. Set the metric name, direction, trial/time budget, and seed in
-`TuningConfig`. Feature selection uses `FeatureSelectionConfig` inside
-`train_model`: a fresh adapter is fitted on an internal chronological split,
-then scikit-learn `SelectFromModel` keeps the top-k features. CatBoost uses
-`PredictionValuesChange`; other fitted native estimators must expose
-`feature_importances_` or `coef_`. The original column order is preserved and
-one subset is reused for all folds, trials and final fitting. Keeping all
-features skips the extra fit. Custom adapters implement `fit`, `native_model`,
+`TuningConfig`. Feature selection uses `RFEFeatureSelectionConfig`
+inside `train_model`: batch RFE fits fresh adapters on shrinking feature subsets
+using a fixed internal chronological train/validation split and optional row gap.
+Pass `feature_ranker=importance_ranker` or `feature_ranker=ShapRanker(...)` from
+`ml_toolkit.training`. Custom rankers accept a fitted adapter and validation data,
+returning a finite importance for every current column. The algorithm never
+invokes a backend's feature selector.
+
+`metric_name` selects one value from the existing metric callable; `direction`
+and absolute `score_tolerance` choose the smallest visited subset close enough
+to the best score. `min_features` is a search floor, and `max_fits` limits all
+selection fits, including the full set. Protected columns remain in every subset.
+The full set can win. The selected columns retain input order and are reused for
+CV, tuning and final fitting. Internal scores are selection results, not an
+independent estimate of performance.
+
+`result.feature_selection` contains the selected step and each subset's metrics,
+importances, removed columns, timings and best iteration. Training logs this
+history to `selection/history.json` and scalar selection summaries. Standalone
+`ml_toolkit.training.select_features` returns the same result without starting
+MLflow runs or invoking diagnostics, model packaging or post-fit evaluators.
+
+`importance_ranker` uses CatBoost prediction-change importance, LightGBM gain,
+or another estimator's importances/coefficients. `ShapRanker` uses weighted mean
+absolute native raw-output SHAP on a fixed validation sample, handles null
+categories, and requires no `shap` extra. This ranking explains the inner model;
+subset quality always uses the complete adapter's predictions and row weights.
+
+Custom adapters implement `fit`, `native_model`,
 `predict_pool`, `best_iteration` and `log(sample, config=TrackingConfig)`. Final iteration budgets follow
 `FinalFitConfig(iteration_policy="cv_median")`; use `"provided"` to retain yours.
+
+```python
+from ml_toolkit.config import RFEFeatureSelectionConfig
+from ml_toolkit.training import ShapRanker
+
+config = TrainingConfig(
+    cv=CrossValidationConfig(n_splits=4),
+    feature_selection=RFEFeatureSelectionConfig(
+        min_features=10,
+        metric_name="mean_poisson_deviance",
+        direction="minimize",
+        max_fits=6,
+    ),
+)
+# Use prepared frequency data with at least ten features and the imports above.
+result = train_model(
+    data=data,
+    params={"iterations": 200, "loss_function": "Poisson", "verbose": False},
+    model_factory=CatBoostLogLinkRegressionModel,
+    metric=metrics_frequency,
+    feature_ranker=ShapRanker(max_samples=1000, seed=42),
+    run_name="frequency-rfe",
+    config=config,
+)
+print(result.feature_selection.selected_step, result.features)
+```
 
 ### Model policies and serving
 
@@ -387,7 +435,7 @@ functions, so manual and automatic figures have one implementation.
 | `data.py` | Shared Pool container, aligned row operations, and model conversions. |
 | `training/train.py` | Select, tune, validate, fit, and log one experiment. |
 | `training/cross_validation.py` | Time-based folds, evaluation, and nested MLflow runs. |
-| `training/feature_selection.py` | Shared top-k importance selection. |
+| `training/feature_selection.py` | Adapter-driven batch RFE and full selection history. |
 | `training/tuning.py` | Optuna search through the same validation path. |
 | `training/evaluation.py` | Metrics, PSI, plot generation, and MLflow artifacts. |
 | `training/contracts.py` | Training data and post-fit evaluator protocols; dataset split enum. |

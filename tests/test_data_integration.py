@@ -7,7 +7,7 @@ from polars.testing import assert_frame_equal
 import pytest
 
 from ml_toolkit.config import (
-    FeatureSelectionConfig,
+    RFEFeatureSelectionConfig,
     CrossValidationConfig,
     PostFitEvaluationConfig,
     TrainingConfig,
@@ -21,7 +21,7 @@ from ml_toolkit.models import (
     CatBoostRegressionModel,
     InflationAdjustedModel,
 )
-from ml_toolkit.training import train_model
+from ml_toolkit.training import importance_ranker, train_model
 from test_training import MeanModel, mae, make_data, setup_mlflow
 
 
@@ -81,6 +81,7 @@ def test_training_feature_selection_accepts_shared_pool(pool, tmp_path):
             return super().fit(train, validation)
 
     result = train_model(
+        feature_ranker=importance_ranker,
         data=pool,
         params={},
         model_factory=RecordingModel,
@@ -88,7 +89,7 @@ def test_training_feature_selection_accepts_shared_pool(pool, tmp_path):
         run_name="shared-pool-selection",
         config=TrainingConfig(
             cv=CrossValidationConfig(n_splits=2),
-            feature_selection=FeatureSelectionConfig(n_features=1),
+            feature_selection=RFEFeatureSelectionConfig(min_features=1, metric_name="mae", direction="minimize"),
         ),
     )
     assert result.features == ("x",)

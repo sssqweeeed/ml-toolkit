@@ -20,7 +20,7 @@ from ml_toolkit.config import (
     ClassificationPlotsConfig,
     CommonPlotsConfig,
     CrossValidationConfig,
-    FeatureSelectionConfig,
+    RFEFeatureSelectionConfig,
     FigureConfig,
     FinalFitConfig,
     NumericalFeatureDistributionConfig,
@@ -43,7 +43,7 @@ from ml_toolkit.plots.classification import calibration, precision_recall
 from ml_toolkit.plots.monitoring import monthly_feature_distribution
 from ml_toolkit.plots.utils import save_figure
 from ml_toolkit.psi import PSIFeature
-from ml_toolkit.training import train_model
+from ml_toolkit.training import importance_ranker, train_model
 from ml_toolkit.training.cross_validation import _time_series_splits
 from test_training import MeanModel, list_all_artifacts, mae, make_data, setup_mlflow
 
@@ -74,8 +74,8 @@ def test_invalid_types_and_task_combinations_fail_on_construction(factory):
         lambda: CrossValidationConfig(n_splits=1),
         lambda: CrossValidationConfig(n_splits=3, skip_splits=3),
         lambda: CrossValidationConfig(n_splits=3, gap=-1),
-        lambda: FeatureSelectionConfig(n_features=0),
-        lambda: FeatureSelectionConfig(n_features=1, validation_fraction=1),
+        lambda: RFEFeatureSelectionConfig(min_features=0, metric_name="mae", direction="minimize"),
+        lambda: RFEFeatureSelectionConfig(min_features=1, metric_name="mae", direction="minimize", validation_fraction=1),
         lambda: TuningConfig(metric="", direction="minimize"),
         lambda: TuningConfig(metric="mae", direction="minimize", timeout_seconds=0),
         lambda: PSIOptions(epsilon=0),
@@ -140,7 +140,7 @@ def test_markdown_has_one_executable_fully_expanded_recipe_per_task():
                     f.name for f in fields(cls)
                 }, cls
         exec(block, namespace)
-    assert namespace["pu_classification_config"].feature_selection.n_features == 10
+    assert namespace["pu_classification_config"].feature_selection.min_features == 10
     assert namespace["severity_config"].diagnostics.plots.gains
     assert not namespace["regression_config"].diagnostics.plots.gains
 
@@ -157,7 +157,7 @@ def test_cv_honors_gap_and_row_window_sizes():
 @pytest.mark.parametrize("classifier", [False, True])
 def test_selection_fits_native_model_with_normal_parameters(classifier):
     from ml_toolkit.models import CatBoostClassificationModel
-    from ml_toolkit.training.feature_selection import _select_features
+    from ml_toolkit.training.feature_selection import select_features
     data = make_data()
     if classifier:
         data = data.with_target(pl.Series("target", [0, 1] * 12))
@@ -168,8 +168,9 @@ def test_selection_fits_native_model_with_normal_parameters(classifier):
         fitted.append(model)
         return model
     params = {"iterations": 3, "verbose": False, "allow_writing_files": False}
-    result = _select_features(data=data, params=params, model_factory=record, config=FeatureSelectionConfig(n_features=1))
-    assert len(result.X.columns) == 1
+    result = select_features(metric=mae, ranker=importance_ranker, data=data, params=params, model_factory=record, config=RFEFeatureSelectionConfig(min_features=1, metric_name="mae", direction="minimize"))
+    assert [len(step.features) for step in result.steps] == [2, 1]
+    assert result.features == result.steps[result.selected_step].features
     assert fitted[0].native_model.tree_count_ > 0
     assert fitted[0].params == params
     assert not hasattr(fitted[0], "select_features")
@@ -190,7 +191,7 @@ def test_selection_fraction_and_cv_gap_reach_workflow(monkeypatch, tmp_path):
             )
             return super().fit(train, validation)
 
-    selection = FeatureSelectionConfig(n_features=1, validation_fraction=0.5)
+    selection = RFEFeatureSelectionConfig(min_features=1, metric_name="mae", direction="minimize", validation_fraction=0.5, gap=1)
     config = TrainingConfig(
         cv=CrossValidationConfig(n_splits=2, gap=2), feature_selection=selection
     )
@@ -199,12 +200,14 @@ def test_selection_fraction_and_cv_gap_reach_workflow(monkeypatch, tmp_path):
         params={},
         model_factory=Model,
         metric=mae,
+        feature_ranker=importance_ranker,
         run_name="split-options",
         config=config,
     )
-    assert len(fits[0][0]) == len(fits[0][1]) == 3
-    assert fits[0][0][-1] == 2 and fits[0][1][0] == 3
-    assert fits[1][0][-1] == 5 and fits[1][1][0] == 8
+    assert len(fits[0][0]) == 2 and len(fits[0][1]) == 3
+    assert fits[0][0][-1] == 1 and fits[0][1][0] == 3
+    assert fits[1] == fits[0]
+    assert fits[2][0][-1] == 5 and fits[2][1][0] == 8
 
 
 @pytest.mark.parametrize("policy, expected", [("cv_median", 4), ("provided", 20)])
@@ -283,15 +286,16 @@ def test_standalone_model_logging_uses_example_size(monkeypatch):
 
 
 def test_inflation_wrapper_uses_shared_importance_selection():
-    from ml_toolkit.training.feature_selection import _select_features
+    from ml_toolkit.training.feature_selection import select_features
     data = make_data()
     fitted = []
     def factory(params):
         model = InflationAdjustedModel(CatBoostRegressionModel(params), ConstantRateInflation(0.03), date(2024, 1, 1))
         fitted.append(model)
         return model
-    result = _select_features(data=data, params={"iterations": 3, "verbose": False, "allow_writing_files": False}, model_factory=factory, config=FeatureSelectionConfig(n_features=1))
-    assert len(result.X.columns) == 1
+    result = select_features(metric=mae, ranker=importance_ranker, data=data, params={"iterations": 3, "verbose": False, "allow_writing_files": False}, model_factory=factory, config=RFEFeatureSelectionConfig(min_features=1, metric_name="mae", direction="minimize"))
+    assert [len(step.features) for step in result.steps] == [2, 1]
+    assert result.features == result.steps[result.selected_step].features
     assert fitted[0].native_model.tree_count_ > 0
     assert not hasattr(fitted[0], "select_features")
 

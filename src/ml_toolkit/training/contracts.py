@@ -2,16 +2,48 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from enum import StrEnum
 from pathlib import Path
-from typing import Any, Protocol, Self
+from typing import TYPE_CHECKING, Any, Protocol, Self
 
 import numpy as np
 import pandas as pd
 import polars as pl
 
 from .._validation import _validate_object_id
+
+if TYPE_CHECKING:
+    from ..models.base import Model
+
+
+class FeatureRanker(Protocol):
+    """Describe a callable ranking a fitted adapter's current input columns.
+
+    Notes
+    -----
+    Higher values indicate greater importance. Implementations may inspect the
+    adapter's native_model, but must preserve its state and all input metadata.
+    Explicit inheritance from this protocol is unnecessary.
+    """
+
+    def __call__(self, model: "Model", data: "TrainingData") -> Mapping[str, float]:
+        """Return finite ranking values keyed by every current feature name.
+
+        Parameters
+        ----------
+        model : Model
+            Fitted adapter for the current feature subset.
+        data : TrainingData
+            Internal validation rows with aligned features and weights.
+
+        Returns
+        -------
+        Mapping[str, float]
+            Exactly one finite numeric importance per data.X column. Signed
+            values are allowed; larger values rank higher.
+        """
+        ...
 
 
 class DatasetSplit(StrEnum):

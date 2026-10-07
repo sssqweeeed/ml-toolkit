@@ -1,4 +1,5 @@
 """Baseline policies, shared importance selection and portable serving state."""
+
 from datetime import date, timedelta
 from pathlib import Path
 import os
@@ -14,13 +15,14 @@ import polars as pl
 import pytest
 
 from ml_toolkit import Pool
-from ml_toolkit.config import FeatureSelectionConfig
+from ml_toolkit.config import RFEFeatureSelectionConfig
 from ml_toolkit.inflation import ConstantRateInflation, ManualInflation
 from ml_toolkit.models import (
     CatBoostRegressionModel, CatBoostLogLinkRegressionModel,
     CatBoostClassificationModel, CatBoostPUClassificationModel, InflationAdjustedModel,
 )
-from ml_toolkit.training.feature_selection import _select_features
+from ml_toolkit.training import ShapRanker, importance_ranker
+from ml_toolkit.training.feature_selection import select_features
 from ml_toolkit.training.evaluation import _scores
 from test_training import mae, setup_mlflow
 
@@ -200,7 +202,8 @@ def test_nnpu_correction_branch_early_stopping_and_best_tree(monkeypatch, data):
 
 
 @pytest.mark.parametrize("kind", ["regression", "log_link", "classification", "uPU", "nnPU", "inflation"])
-def test_top_k_selection_is_shared_and_preserves_original_order(data, kind):
+@pytest.mark.parametrize("ranker", [importance_ranker, ShapRanker(max_samples=5, seed=42)])
+def test_rfe_selection_preserves_adapter_policies_and_original_order(data, kind, ranker):
     if kind in ("classification", "uPU", "nnPU"):
         data = data.with_target(pl.Series("target", [1, 0, 0] * 16))
     fitted = []
@@ -217,31 +220,15 @@ def test_top_k_selection_is_shared_and_preserves_original_order(data, kind):
             model = InflationAdjustedModel(CatBoostLogLinkRegressionModel(params), ConstantRateInflation(0.03), date(2024, 1, 1))
         fitted.append(model)
         return model
-    result = _select_features(data=data.take(range(32)), params=PARAMS, model_factory=factory, config=FeatureSelectionConfig(n_features=2))
-    importance = fitted[0].native_model.get_feature_importance(type="PredictionValuesChange")
-    top_indices = np.argsort(-importance, kind="stable")[:2]
-    expected = [name for index, name in enumerate(data.X.columns) if index in top_indices]
-    assert result.X.columns == expected
-    assert len(result) == 32
-
-
-def test_selecting_all_features_skips_factory_and_insufficient_internal_split(data):
-    def fail(params):
-        pytest.fail("Factory should not run when keeping all columns")
-    result = _select_features(data=data, params=PARAMS, model_factory=fail, config=FeatureSelectionConfig(n_features=3))
-    assert result is data
-    with pytest.raises(ValueError, match="Not enough rows"):
-        _select_features(data=data.take([0]), params=PARAMS, model_factory=fail, config=FeatureSelectionConfig(n_features=1))
-
-
-def test_selection_errors_for_missing_importances(data):
-    from sklearn.dummy import DummyRegressor
-    class Adapter:
-        def fit(self, train, validation):
-            self.native_model = DummyRegressor().fit(train.X.to_pandas(), train.y.to_numpy())
-            return self
-    with pytest.raises(ValueError, match="feature importances or coefficients"):
-        _select_features(data=data, params={}, model_factory=lambda params: Adapter(), config=FeatureSelectionConfig(n_features=1))
+    from ml_toolkit.metrics import PUMetric
+    metric = PUMetric(0.2, loss=kind) if kind in ("uPU", "nnPU") else mae
+    metric_name = "pu_risk" if kind in ("uPU", "nnPU") else "mae"
+    result = select_features(metric=metric, ranker=ranker, data=data.take(range(32)), params=PARAMS, model_factory=factory, config=RFEFeatureSelectionConfig(min_features=2, metric_name=metric_name, direction="minimize"))
+    assert len(fitted) == len(result.steps) == 2
+    assert [len(step.features) for step in result.steps] == [3, 2]
+    assert result.features == result.steps[result.selected_step].features
+    assert list(result.features) == [name for name in data.X.columns if name in result.features]
+    assert all(np.isfinite(step.metrics[metric_name]) for step in result.steps)
 
 
 @pytest.mark.parametrize("kind", ["regression", "custom", "log_link", "classification", "uPU", "nnPU", "inflation_native", "inflation_log_link"])
@@ -349,9 +336,8 @@ def test_inflation_selection_fits_strategy_on_internal_training_only(data):
         def fit(self, dates, y, sample_weight=None):
             seen.append((dates.clone(), y.copy(), sample_weight.copy()))
             return super().fit(dates, y, sample_weight)
-    model = InflationAdjustedModel(CatBoostRegressionModel(PARAMS), RecordingInflation(0.03), date(2024, 1, 1))
-    _select_features(data=data.take(range(32)), params={}, model_factory=lambda params: model, config=FeatureSelectionConfig(n_features=2, validation_fraction=0.25))
-    assert len(seen) == 1
+    select_features(metric=mae, ranker=importance_ranker, data=data.take(range(32)), params={}, model_factory=lambda params: InflationAdjustedModel(CatBoostRegressionModel(PARAMS), RecordingInflation(0.03), date(2024, 1, 1)), config=RFEFeatureSelectionConfig(min_features=2, metric_name="mae", direction="minimize", validation_fraction=0.25))
+    assert len(seen) == 2
     assert seen[0][0].to_list() == data.time.head(24).to_list()
     np.testing.assert_array_equal(seen[0][1], data.y.head(24).to_numpy())
     np.testing.assert_array_equal(seen[0][2], data.weight.head(24).to_numpy())

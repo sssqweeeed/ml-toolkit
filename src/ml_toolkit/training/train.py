@@ -1,4 +1,4 @@
-"""Compose importance selection, tuning, validation, and final fitting."""
+"""Compose batch RFE, tuning, validation, and final fitting."""
 
 import logging
 from collections.abc import Callable
@@ -16,6 +16,7 @@ from ..metrics.pu import PUMetric
 from ..models.base import Model
 from .contracts import (
     DatasetSplit,
+    FeatureRanker,
     PostFitEvaluator,
     TrainingData,
     _validate_post_fit_evaluator,
@@ -23,7 +24,7 @@ from .contracts import (
 )
 from .cross_validation import _time_series_splits, cross_validate
 from .evaluation import _diagnostics_requested, _log_post_fit_evaluation
-from .feature_selection import _select_features
+from .feature_selection import _selection_data, select_features
 from ..tracking._model_state import audit_value
 from .results import TrainingResult
 from .tuning import tune_optuna
@@ -59,6 +60,7 @@ def train_model(
     metric: Callable,
     run_name: str,
     config: TrainingConfig,
+    feature_ranker: FeatureRanker | None = None,
     param_space: Callable[[optuna.Trial], dict[str, Any]] | None = None,
     post_fit_evaluator: PostFitEvaluator | None = None,
 ) -> TrainingResult:
@@ -82,6 +84,9 @@ def train_model(
     config : TrainingConfig
         Selection, tuning, chronological CV, diagnostics, final iteration, model
         packaging, and custom evaluator policies.
+    feature_ranker : FeatureRanker or None, default None
+        Required when feature selection is enabled. Ranks each fitted adapter's
+        current features using internal validation; not stored in configuration.
     param_space : Callable[[optuna.Trial], dict[str, Any]] or None, default None
         Trial parameter overrides; required when config.tuning is enabled.
     post_fit_evaluator : PostFitEvaluator or None, default None
@@ -92,7 +97,7 @@ def train_model(
     Returns
     -------
     TrainingResult
-        Final fitted model, CV scores, effective native settings, and features.
+        Final fitted model, CV scores, settings, features and optional RFE history.
 
     Raises
     ------
@@ -125,15 +130,12 @@ def train_model(
     if config.tuning is not None and param_space is None:
         raise ValueError("param_space is required when tuning is enabled")
     if config.feature_selection is not None:
-        if config.feature_selection.n_features > len(data.X.columns):
-            raise ValueError("n_features must not exceed the input feature count")
+        if not callable(feature_ranker):
+            raise ValueError("feature_ranker is required when feature selection is enabled")
         first_train = next(
             indices for index, (indices, _) in splits if index > config.cv.skip_splits
         )
-        if len(first_train) < 2 and config.feature_selection.n_features < len(data.X.columns):
-            raise ValueError(
-                "First evaluated fold has fewer than two training rows for feature selection"
-            )
+        _selection_data(data.take(first_train), config.feature_selection)
     if (
         isinstance(metric, PUMetric)
         and config.diagnostics is not None
@@ -154,15 +156,26 @@ def train_model(
     with mlflow.start_run(run_name=run_name, nested=mlflow.active_run() is not None):
         mlflow.log_dict(_configuration_json(config), "configuration/requested.json")
         working = data
+        selection = None
         if config.feature_selection is not None:
-            selected = _select_features(
+            selection = select_features(
                 data=data.take(first_train),
                 params=params,
                 model_factory=model_factory,
+                metric=metric,
+                ranker=feature_ranker,
                 config=config.feature_selection,
             )
-            working = data.select_features(selected.X.columns)
-            mlflow.log_dict({"features": working.X.columns}, "selection/features.json")
+            working = data.select_features(selection.features)
+            mlflow.log_dict(_configuration_json(selection), "selection/history.json")
+            mlflow.log_metrics({
+                "selection/n_fits": float(len(selection.steps)),
+                "selection/n_features": float(len(selection.features)),
+                "selection/selected_step": float(selection.selected_step),
+                "selection/score": selection.steps[selection.selected_step].metrics[
+                    config.feature_selection.metric_name
+                ],
+            })
         final_params = params.copy()
         if config.tuning is not None:
             tuning = tune_optuna(
@@ -255,4 +268,4 @@ def train_model(
             )
             logger.info("Completed final fit for run %s", run_name)
         logger.info("Completed training run %s", run_name)
-        return TrainingResult(model, cv, final_params, tuple(working.X.columns))
+        return TrainingResult(model, cv, final_params, tuple(working.X.columns), selection)

@@ -46,7 +46,8 @@ class _Config:
             if (
                 item.name
                 in {
-                    "n_features",
+                    "min_features",
+                    "max_fits",
                     "n_splits",
                     "test_size",
                     "max_train_size",
@@ -71,7 +72,9 @@ class _Config:
             ):
                 raise ValueError(f"{item.name} must be nonnegative")
             if (
-                item.name in {"metric", "model_name", "registered_model_name"}
+                item.name in {
+                    "metric", "metric_name", "model_name", "registered_model_name"
+                }
                 and value is not None
                 and not value.strip()
             ):
@@ -80,7 +83,10 @@ class _Config:
                 names = tuple(v.name if isinstance(v, PSIFeature) else v for v in value)
                 _names(names, "features")
             if (
-                item.name in {"dependence_features", "psi_distribution_features"}
+                item.name in {
+                    "dependence_features", "psi_distribution_features",
+                    "protected_features",
+                }
                 and value is not None
             ):
                 _names(value, item.name)
@@ -92,30 +98,57 @@ def _names(names, name):
 
 
 @dataclass(frozen=True, kw_only=True, slots=True)
-class FeatureSelectionConfig(_Config):
-    """Configure top-k importance selection on the first evaluated fold's training rows.
+class RFEFeatureSelectionConfig(_Config):
+    """Configure adapter-driven batch RFE on an internal chronological holdout.
 
     Parameters
     ----------
-    n_features : int
-        Positive number of features to retain, not exceeding the input count.
+    min_features : int
+        Positive lower bound on visited feature counts, at most the input count.
+        The selected subset may be larger, including all input features.
+    metric_name : str
+        Nonempty key returned by the existing training metric callable.
+    direction : {'minimize', 'maximize'}
+        Direction used to compare that metric across feature subsets.
+    max_fits : int, default 6
+        Positive maximum number of adapter fits, including the full feature set.
+        One evaluates only the full set. Rounded geometric sizes may use fewer.
     validation_fraction : float, default 0.25
         Trailing fraction of selection rows reserved for internal validation,
         strictly between zero and one. Outer CV validation rows are excluded.
+    gap : int, default 0
+        Nonnegative rows omitted immediately before internal validation.
+    score_tolerance : float, default 0.0
+        Nonnegative absolute distance from the best score. Select the smallest
+        visited subset within this distance, resolving ties by visit order.
+    protected_features : tuple[str, ...], default ()
+        Unique nonempty input column names that must remain in every subset.
+        Their count must not exceed min_features.
 
     Notes
     -----
-    Selection is performed once, then reused in every fold, trial, and final
-    fit. A fresh model is fitted on an internal chronological split.
+    Selection runs once on the first evaluated fold's training rows; the result
+    is reused by CV, tuning and final fitting. Parameters and split rows remain
+    fixed. The feature ranker is an executing dependency supplied separately.
     """
 
-    n_features: int
+    min_features: int
+    metric_name: str
+    direction: Literal["minimize", "maximize"]
+    max_fits: int = 6
     validation_fraction: float = 0.25
+    gap: int = 0
+    score_tolerance: float = 0.0
+    protected_features: tuple[str, ...] = ()
 
     def __post_init__(self):
         _Config.__post_init__(self)
         if not 0 < self.validation_fraction < 1:
             raise ValueError("validation_fraction must be between 0 and 1")
+        if self.score_tolerance < 0:
+            raise ValueError("score_tolerance must be nonnegative")
+        if len(self.protected_features) > self.min_features:
+            raise ValueError("protected_features count must not exceed min_features")
 
 
 @dataclass(frozen=True, kw_only=True, slots=True)
@@ -630,8 +663,9 @@ class TrainingConfig(_Config):
     ----------
     cv : CrossValidationConfig
         Required chronological validation settings, reused by every trial.
-    feature_selection : FeatureSelectionConfig or None, default None
-        Optional early importance selection; None retains every feature.
+    feature_selection : RFEFeatureSelectionConfig or None, default None
+        Optional early batch RFE; requires feature_ranker.
+        None retains every feature.
     tuning : TuningConfig or None, default None
         Optional Optuna search; requires a separately supplied param_space.
     final_fit : FinalFitConfig
@@ -645,9 +679,10 @@ class TrainingConfig(_Config):
 
     Notes
     -----
-    Data, native model params, model_factory, metric, param_space, evaluator,
-    and run_name remain explicit function arguments. Configurations contain no
-    executing dependencies. All fields are keyword-only, validated on creation,
+    Data, native model params, model_factory, metric, feature_ranker,
+    param_space, evaluator and run_name remain explicit function arguments.
+    Configurations contain no executing dependencies. All fields are
+    keyword-only, validated on creation,
     and immutable; dataclasses.replace creates modified configurations.
 
     Examples
@@ -658,7 +693,7 @@ class TrainingConfig(_Config):
     """
 
     cv: CrossValidationConfig
-    feature_selection: FeatureSelectionConfig | None = None
+    feature_selection: RFEFeatureSelectionConfig | None = None
     tuning: TuningConfig | None = None
     final_fit: FinalFitConfig = field(default_factory=FinalFitConfig)
     diagnostics: DiagnosticsConfig | None = None
@@ -676,7 +711,7 @@ class TrainingConfig(_Config):
 
 
 __all__ = [
-    "FeatureSelectionConfig",
+    "RFEFeatureSelectionConfig",
     "CrossValidationConfig",
     "TuningConfig",
     "FinalFitConfig",

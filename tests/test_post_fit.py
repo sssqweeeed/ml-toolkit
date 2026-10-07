@@ -1,5 +1,5 @@
 from ml_toolkit.config import (
-    FeatureSelectionConfig,
+    RFEFeatureSelectionConfig,
     CrossValidationConfig,
     TuningConfig,
     RegressionDiagnosticsConfig,
@@ -17,7 +17,7 @@ import polars as pl
 import pytest
 
 from ml_toolkit import Pool
-from ml_toolkit.training import DatasetSplit, PostFitEvaluator, train_model
+from ml_toolkit.training import DatasetSplit, PostFitEvaluator, importance_ranker, train_model
 from ml_toolkit.training.contracts import _validate_post_fit_evaluator
 from ml_toolkit.training.cross_validation import cross_validate
 from ml_toolkit.training.evaluation import _log_post_fit_evaluation
@@ -129,6 +129,7 @@ def test_post_fit_lifecycle_alignment_and_mlflow(
 
     evaluator: PostFitEvaluator = RecordingArtifactEvaluator()
     result = train_model(
+        feature_ranker=importance_ranker,
         data=identified_data,
         params={},
         model_factory=Model,
@@ -138,7 +139,7 @@ def test_post_fit_lifecycle_alignment_and_mlflow(
         param_space=lambda trial: {"parameter": trial.suggest_int("parameter", 1, 2)},
         config=TrainingConfig(
             cv=CrossValidationConfig(n_splits=2, skip_splits=skip),
-            feature_selection=FeatureSelectionConfig(n_features=1),
+            feature_selection=RFEFeatureSelectionConfig(min_features=1, metric_name="mae", direction="minimize"),
             diagnostics=(
                 RegressionDiagnosticsConfig(
                     folds="all", task="regression", psi=None, plots=None
@@ -158,8 +159,8 @@ def test_post_fit_lifecycle_alignment_and_mlflow(
     assert len(evaluator.artifact_calls) == expected_calls
     assert len({root for _, root in evaluator.artifact_calls}) == expected_calls
     assert all(not root.exists() for _, root in evaluator.artifact_calls)
-    # CV reuses predictions; only final fitting adds one prediction call.
-    assert len(predictions) == expected_calls
+    # CV reuses predictions; the two RFE fits evaluate their internal holdout.
+    assert len(predictions) == expected_calls + 2
     assert result.cross_validation.mean_metrics == {"mae": 0.75}
     assert all(
         set(scores) == {"mae"} for scores in result.cross_validation.fold_metrics

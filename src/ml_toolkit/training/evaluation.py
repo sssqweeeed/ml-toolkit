@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import asdict, is_dataclass
+from numbers import Real
 from pathlib import Path
 import re
 from tempfile import TemporaryDirectory
@@ -60,7 +61,12 @@ def _scores(metric, data: TrainingData, prediction: np.ndarray) -> dict[str, flo
         raise TypeError(
             "metric must return a dataclass or mapping of metric names to values"
         )
-    return {str(key): float(value) for key, value in values.items()}
+    scores = {}
+    for key, value in values.items():
+        if isinstance(value, (bool, np.bool_)) or not isinstance(value, Real):
+            raise ValueError(f"Metric {key!r} must be a numeric scalar")
+        scores[str(key)] = float(value)
+    return scores
 
 
 def _log_post_fit_evaluation(
@@ -159,20 +165,7 @@ def _log_post_fit_artifacts(writer, inputs) -> None:
             logger.debug("Logged post-fit image %s to %s", relative, artifact_path)
 
 
-def log_evaluation(
-    *,
-    model,
-    train: TrainingData,
-    validation: TrainingData,
-    train_prediction: np.ndarray,
-    validation_prediction: np.ndarray,
-    metric,
-    diagnostics: DiagnosticsConfig | None,
-    name: str,
-    post_fit_evaluator: PostFitEvaluator | None = None,
-    post_fit: PostFitEvaluationConfig | None = None,
-) -> dict[str, dict[str, float]]:
-    """Log split metrics, optional PSI and figures; return numeric scores."""
+def _validate_task_metric(model, metric, diagnostics=None):
     pu_loss = model.pu_loss if getattr(model, "task", None) == "pu_classification" else None
     if pu_loss is not None:
         if (
@@ -189,6 +182,23 @@ def log_evaluation(
         diagnostics is not None and isinstance(diagnostics, PUDiagnosticsConfig)
     ):
         raise ValueError("PU metrics and diagnostics require a PU model")
+
+
+def log_evaluation(
+    *,
+    model,
+    train: TrainingData,
+    validation: TrainingData,
+    train_prediction: np.ndarray,
+    validation_prediction: np.ndarray,
+    metric,
+    diagnostics: DiagnosticsConfig | None,
+    name: str,
+    post_fit_evaluator: PostFitEvaluator | None = None,
+    post_fit: PostFitEvaluationConfig | None = None,
+) -> dict[str, dict[str, float]]:
+    """Log split metrics, optional PSI and figures; return numeric scores."""
+    _validate_task_metric(model, metric, diagnostics)
     mlflow.log_params(
         {
             "train_n_rows": len(train),

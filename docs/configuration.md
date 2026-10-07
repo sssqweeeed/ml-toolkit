@@ -8,7 +8,7 @@ presets: use `dataclasses.replace` to change a recipe without mutating it.
 from ml_toolkit.config import (
     ClassificationDiagnosticsConfig,
     ClassificationPlotsConfig, CommonPlotsConfig, CrossValidationConfig,
-    FeatureSelectionConfig, FigureConfig, FinalFitConfig,
+    RFEFeatureSelectionConfig, FigureConfig, FinalFitConfig,
     NumericalFeatureDistributionConfig, PostFitEvaluationConfig,
     PUDiagnosticsConfig, PUPlotsConfig, PSIOptions,
     RegressionDiagnosticsConfig, RegressionPlotsConfig, ShapConfig,
@@ -18,8 +18,10 @@ from ml_toolkit.config import (
 
 - CV sizes and `gap` are **rows**, not days; timestamps must be ascending.
 - Feature selection uses only training rows of the first evaluated CV fold.
-  `n_features=10` assumes at least ten input features. Every model, including
-  PU, uses one fitted native model for top-k importance selection.
+  `min_features=10` assumes at least ten input features. Batch RFE evaluates
+  shrinking subsets through fresh adapters on a fixed internal holdout. Pass
+  `feature_ranker=importance_ranker` or `feature_ranker=ShapRanker(...)` to training.
+  Internal scores select a subset; outer CV estimates its quality.
 - `None` disables optional stages; `features=None` selects all eligible features,
   whereas `features=()` selects none. PSI definitions must be nonempty when
   explicitly supplied; use `psi=None` to disable PSI.
@@ -53,9 +55,15 @@ classification_config = TrainingConfig(
         test_size=None,
         max_train_size=None,
     ),
-    feature_selection=FeatureSelectionConfig(
-        n_features=10,
+    feature_selection=RFEFeatureSelectionConfig(
+        min_features=10,
+        metric_name='log_loss',
+        direction='minimize',
+        max_fits=6,
         validation_fraction=0.25,
+        gap=0,
+        score_tolerance=0.0,
+        protected_features=(),
     ),
     tuning=TuningConfig(
         metric='log_loss',
@@ -135,9 +143,15 @@ pu_classification_config = TrainingConfig(
         test_size=None,
         max_train_size=None,
     ),
-    feature_selection=FeatureSelectionConfig(
-        n_features=10,
+    feature_selection=RFEFeatureSelectionConfig(
+        min_features=10,
+        metric_name='pu_risk',
+        direction='minimize',
+        max_fits=6,
         validation_fraction=0.25,
+        gap=0,
+        score_tolerance=0.0,
+        protected_features=(),
     ),
     tuning=TuningConfig(
         metric='pu_risk',
@@ -211,9 +225,15 @@ frequency_config = TrainingConfig(
         test_size=None,
         max_train_size=None,
     ),
-    feature_selection=FeatureSelectionConfig(
-        n_features=10,
+    feature_selection=RFEFeatureSelectionConfig(
+        min_features=10,
+        metric_name='mean_poisson_deviance',
+        direction='minimize',
+        max_fits=6,
         validation_fraction=0.25,
+        gap=0,
+        score_tolerance=0.0,
+        protected_features=(),
     ),
     tuning=TuningConfig(
         metric='mean_poisson_deviance',
@@ -288,9 +308,15 @@ severity_config = TrainingConfig(
         test_size=None,
         max_train_size=None,
     ),
-    feature_selection=FeatureSelectionConfig(
-        n_features=10,
+    feature_selection=RFEFeatureSelectionConfig(
+        min_features=10,
+        metric_name='mean_tweedie_deviance',
+        direction='minimize',
+        max_fits=6,
         validation_fraction=0.25,
+        gap=0,
+        score_tolerance=0.0,
+        protected_features=(),
     ),
     tuning=TuningConfig(
         metric='mean_tweedie_deviance',
@@ -365,9 +391,15 @@ regression_config = TrainingConfig(
         test_size=None,
         max_train_size=None,
     ),
-    feature_selection=FeatureSelectionConfig(
-        n_features=10,
+    feature_selection=RFEFeatureSelectionConfig(
+        min_features=10,
+        metric_name='mae',
+        direction='minimize',
+        max_fits=6,
         validation_fraction=0.25,
+        gap=0,
+        score_tolerance=0.0,
+        protected_features=(),
     ),
     tuning=TuningConfig(
         metric='mae',
@@ -433,11 +465,11 @@ regression_config = TrainingConfig(
 
 ## Use a configuration
 
-Data, native parameters, model factories, metric callables, parameter search
-functions, and evaluators are separate dependencies:
+Data, native parameters, model factories, metric callables, feature rankers,
+parameter search functions and evaluators are separate dependencies:
 
 ```python
-from ml_toolkit.training import train_model
+from ml_toolkit.training import importance_ranker, train_model
 
 result = train_model(
     data=data,
@@ -445,6 +477,7 @@ result = train_model(
     model_factory=model_factory,
     metric=metric,
     param_space=param_space,
+    feature_ranker=importance_ranker,
     post_fit_evaluator=evaluator,  # Optional; omit when unused.
     run_name="severity",
     config=severity_config,
@@ -464,7 +497,9 @@ Both regressors can be composed inside `InflationAdjustedModel`.
 
 Standalone `cross_validate` accepts `config=CrossValidationConfig(...)`,
 `tune_optuna` accepts `config=TuningConfig(...)` plus `cv=CrossValidationConfig(...)`,
-and feature selection is configured only through
-`TrainingConfig(feature_selection=FeatureSelectionConfig(...))`.
+and feature selection uses
+`TrainingConfig(feature_selection=RFEFeatureSelectionConfig(...))` plus a supplied
+`feature_ranker`. The standalone `ml_toolkit.training.select_features` API returns
+the same history without MLflow logging, tuning, diagnostics or final fitting.
 Plotting functions accept the same family config and optional `FigureConfig`;
 `calculate_shap_values` accepts `config=ShapConfig(...)`.

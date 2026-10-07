@@ -10,6 +10,50 @@ from .config import ShapConfig
 logger = logging.getLogger(__name__)
 
 
+def _shap_contributions(model, data, cat_features=()):
+    import catboost
+
+    if isinstance(model, catboost.CatBoost):
+        names = model.feature_names_
+        if not names:
+            raise ValueError("Fit the model before calculating SHAP")
+        categorical = [names[index] for index in model.get_cat_feature_indices()]
+        features = (
+            data.select(names)
+            .with_columns(
+                pl.col(name).cast(pl.String).fill_null("unknown")
+                for name in categorical
+            )
+            .to_pandas()
+        )
+        contributions = np.asarray(
+            model.get_feature_importance(
+                catboost.Pool(features, cat_features=model.get_cat_feature_indices()),
+                type="ShapValues",
+            )
+        )
+    else:
+        try:
+            import lightgbm
+        except (ImportError, OSError) as error:
+            raise ImportError(
+                "LightGBM SHAP requires a working LightGBM installation"
+            ) from error
+        if not isinstance(model, lightgbm.Booster):
+            raise TypeError(f"Unsupported model for SHAP: {type(model).__name__}")
+        names = model.feature_name()
+        features = data.select(names).to_pandas()
+        for name in features.columns:
+            if name in cat_features or features[name].dtype.name in (
+                "object", "string", "category"
+            ):
+                features[name] = features[name].astype("category")
+        contributions = np.asarray(model.predict(features, pred_contrib=True))
+    if contributions.shape != (len(data), len(names) + 1):
+        raise ValueError("Only single-output SHAP contributions are supported")
+    return names, features, contributions
+
+
 def calculate_shap_values(
     model, data: pl.DataFrame, *, config: ShapConfig | None = None
 ):
@@ -54,33 +98,7 @@ def calculate_shap_values(
     logger.debug(
         "Calculating SHAP for %s: %s sampled rows", type(model).__name__, len(sampled)
     )
-    import catboost
-
-    if isinstance(model, catboost.CatBoost):
-        names = model.feature_names_
-        if not names:
-            raise ValueError("Fit the model before calculating SHAP")
-        features = sampled.select(names).to_pandas()
-        contributions = np.asarray(
-            model.get_feature_importance(
-                catboost.Pool(features, cat_features=model.get_cat_feature_indices()),
-                type="ShapValues",
-            )
-        )
-    else:
-        try:
-            import lightgbm
-        except (ImportError, OSError) as error:
-            raise ImportError(
-                "LightGBM SHAP requires a working LightGBM installation"
-            ) from error
-        if not isinstance(model, lightgbm.Booster):
-            raise TypeError(f"Unsupported model for SHAP: {type(model).__name__}")
-        names = model.feature_name()
-        features = sampled.select(names).to_pandas()
-        contributions = np.asarray(model.predict(features, pred_contrib=True))
-    if contributions.ndim != 2 or contributions.shape[1] != len(names) + 1:
-        raise ValueError("Only single-output SHAP contributions are supported")
+    names, features, contributions = _shap_contributions(model, sampled)
     logger.debug("Calculated SHAP: %s rows, %s features", len(sampled), len(names))
     return shap.Explanation(
         values=contributions[:, :-1],

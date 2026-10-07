@@ -21,7 +21,7 @@ import polars as pl
 import pytest
 
 from ml_toolkit.config import (
-    FeatureSelectionConfig,
+    RFEFeatureSelectionConfig,
     CrossValidationConfig,
     TuningConfig,
     ShapConfig,
@@ -36,9 +36,9 @@ from ml_toolkit.plots.utils import save_figure
 from ml_toolkit.psi import PSIAnalysis, PSIConfig, PSIFeature
 from ml_toolkit.tracking.mlflow import log_polars_table
 from ml_toolkit.tracking.model_artifacts import log_model_from_code
-from ml_toolkit.training import train_model
-from ml_toolkit.training.feature_selection import _select_features
-from test_training import MeanModel, make_data, setup_mlflow
+from ml_toolkit.training import importance_ranker, train_model
+from ml_toolkit.training.feature_selection import select_features
+from test_training import MeanModel, mae, make_data, setup_mlflow
 
 
 def toolkit_records(caplog):
@@ -99,6 +99,7 @@ def test_workflow_levels_and_results(tmp_path, caplog, level):
     caplog.set_level(level, logger="ml_toolkit")
     optuna_verbosity = optuna.logging.get_verbosity()
     result = train_model(
+        feature_ranker=importance_ranker,
         data=make_data(),
         params={"private_parameter": "do-not-log"},
         model_factory=MeanModel,
@@ -107,7 +108,7 @@ def test_workflow_levels_and_results(tmp_path, caplog, level):
         param_space=lambda trial: {"choice": trial.suggest_int("choice", 1, 2)},
         config=TrainingConfig(
             cv=CrossValidationConfig(n_splits=2, skip_splits=1),
-            feature_selection=FeatureSelectionConfig(n_features=1),
+            feature_selection=RFEFeatureSelectionConfig(min_features=1, metric_name="mae", direction="minimize"),
             tuning=TuningConfig(metric="mae", direction="minimize", n_trials=2),
         ),
     )
@@ -158,20 +159,21 @@ def test_module_override_propagates_once(caplog):
     handler = logging.StreamHandler(stream)
     package.addHandler(handler)
     try:
-        selected = _select_features(
+        selected = select_features(
+            metric=mae, ranker=importance_ranker,
             data=make_data(),
             params={},
             model_factory=MeanModel,
-            config=FeatureSelectionConfig(n_features=1),
+            config=RFEFeatureSelectionConfig(min_features=1, metric_name="mae", direction="minimize"),
         )
     finally:
         package.removeHandler(handler)
         handler.close()
-    assert selected.X.columns == ["x"]
+    assert list(selected.features) == ["x"]
     messages = [record.getMessage() for record in toolkit_records(caplog)]
-    assert "Selected features: ['x']" in messages
+    assert "Selected features: ('x',)" in messages
     assert stream.getvalue().splitlines() == messages
-    assert messages.count("Completed feature selection: 1 features selected") == 1
+    assert messages.count("Completed feature selection: 1 features selected at step 2") == 1
 
 
 def test_helper_debug_logs_preserve_outputs(tmp_path, caplog, monkeypatch):
@@ -330,8 +332,8 @@ def test_feature_selection_keeps_catboost_verbosity(caplog, classifier, level):
         fitted.append(model)
         return model
     params = {"iterations": 3, "verbose": False, "allow_writing_files": False}
-    result = _select_features(data=data, params=params, model_factory=record, config=FeatureSelectionConfig(n_features=1))
-    assert len(result.X.columns) == 1
+    result = select_features(metric=mae, ranker=importance_ranker, data=data, params=params, model_factory=record, config=RFEFeatureSelectionConfig(min_features=1, metric_name="mae", direction="minimize"))
+    assert [len(step.features) for step in result.steps] == [2, 1]
     assert fitted[0].native_model.get_params()["verbose"] is False
     assert params == fitted[0].params
 
