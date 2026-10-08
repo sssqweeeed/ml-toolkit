@@ -6,6 +6,7 @@ import sys
 import warnings
 from datetime import date, timedelta
 from pathlib import Path
+from types import SimpleNamespace
 
 import catboost
 import numpy as np
@@ -211,6 +212,41 @@ def test_gpu_routing_uses_cuda_objective_without_changing_user_params(
     assert type(captured["loss_function"]).__name__ == "GPUUPUObjective"
     assert isinstance(captured["eval_metric"], UPUMetric)
     assert model.params == params and "devices" not in params
+
+
+def test_cuda_kernel_type_inference_without_device(monkeypatch):
+    from numba import types
+    from numba.core.compiler import run_frontend
+    from numba.core.target_extension import target_override
+    from numba.core.typed_passes import type_inference_stage
+    from numba.cuda.descriptor import cuda_target
+
+    from ml_toolkit.models._catboost_upu_cuda import make_upu_gpu_objective
+
+    # Exercise the actual CUDA type checker; the simulator runs Python and
+    # cannot detect unsupported overloads such as the variadic max(a, b).
+    # Device overload compilation consults the architecture even before it
+    # checks argument signatures, so supply it without requiring a GPU.
+    monkeypatch.setattr(
+        "numba.cuda.dispatcher.get_current_device",
+        lambda: SimpleNamespace(compute_capability=(7, 5)),
+    )
+    method = type(make_upu_gpu_objective(0.71, 1.37)).calc_ders_range_gpu
+    array = types.Array(types.float32, 1, "C")
+    # CatBoost supplies a dummy self argument followed by six float32 arrays.
+    args = (types.int64,) + (array,) * 6
+    with target_override("cuda"):
+        cuda_target.typing_context.refresh()
+        cuda_target.target_context.refresh()
+        result = type_inference_stage(
+            cuda_target.typing_context,
+            cuda_target.target_context,
+            run_frontend(method),
+            args,
+            types.void,
+        )
+    assert result.return_type == types.void
+    assert not result.typing_errors
 
 
 def test_cuda_kernel_under_numba_simulator():

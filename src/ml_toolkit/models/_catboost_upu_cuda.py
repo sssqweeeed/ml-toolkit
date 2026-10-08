@@ -66,16 +66,19 @@ def make_upu_gpu_objective(
                 value = positive_scale * logit
             else:
                 if logit >= 0:
-                    probability = 1.0 / (1.0 + math.exp(-logit))
+                    exp_logit = math.exp(-logit)
+                    probability = 1.0 / (1.0 + exp_logit)
+                    softplus = logit + math.log1p(exp_logit)
                 else:
                     exp_logit = math.exp(logit)
                     probability = exp_logit / (1.0 + exp_logit)
+                    softplus = math.log1p(exp_logit)
                 der1 = -unlabeled_scale * probability
                 # GPU CatBoost expects positive curvature, unlike its CPU API.
                 der2 = unlabeled_scale * probability * (1.0 - probability)
-                value = -unlabeled_scale * (
-                    max(logit, 0.0) + math.log1p(math.exp(-abs(logit)))
-                )
+                # Avoid max(a, b): its variadic Numba overload can fail during
+                # CUDA compilation even though the simulator accepts it.
+                value = -unlabeled_scale * softplus
             if len(value_output):
                 cuda.atomic.add(value_output, 0, weight * value)
             if len(der1_output):
