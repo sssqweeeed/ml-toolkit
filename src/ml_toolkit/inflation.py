@@ -1,10 +1,31 @@
+import logging
 from abc import ABC, abstractmethod
 from datetime import date
-import logging
-from typing import Any, Self
+from typing import NotRequired, Self, TypedDict
 
 import numpy as np
 import polars as pl
+
+from .types import FloatArray, IntArray
+
+
+class InflationConfig(TypedDict):
+    """Describe persisted inflation strategy parameters.
+
+    Attributes
+    ----------
+    strategy : str
+        Strategy class name.
+    annual_rate : float, optional
+        Annual rate for ConstantRateInflation.
+    monthly_index : dict[str, float], optional
+        Month-to-index anchors for ManualInflation, keyed by YYYY-MM.
+    """
+
+    strategy: str
+    annual_rate: NotRequired[float]
+    monthly_index: NotRequired[dict[str, float]]
+
 
 logger = logging.getLogger("ml_toolkit.inflation")
 
@@ -25,8 +46,8 @@ class InflationAdjuster(ABC):
     def fit(
         self,
         dates: pl.Series,
-        y: np.ndarray,
-        sample_weight: np.ndarray | None = None,
+        y: FloatArray,
+        sample_weight: FloatArray | None = None,
     ) -> Self:
         """Validate dates and return the strategy without learning parameters.
 
@@ -69,7 +90,7 @@ class InflationAdjuster(ABC):
         self,
         from_dates: pl.Series,
         to_dates: pl.Series,
-    ) -> np.ndarray:
+    ) -> FloatArray:
         """Return one multiplicative price-level conversion factor per date pair.
 
         Parameters
@@ -90,10 +111,10 @@ class InflationAdjuster(ABC):
 
     def adjust(
         self,
-        values: np.ndarray,
+        values: FloatArray,
         from_dates: pl.Series,
         to_dates: pl.Series,
-    ) -> np.ndarray:
+    ) -> FloatArray:
         """Apply price-level factors to scalar or row-aligned monetary values.
 
         Parameters
@@ -140,15 +161,17 @@ class InflationAdjuster(ABC):
         if values.shape != (len(from_dates),):
             raise ValueError("values must contain exactly one value per date")
 
-        logger.debug("Adjusting inflation with %s: %s values", type(self).__name__, len(values))
+        logger.debug(
+            "Adjusting inflation with %s: %s values", type(self).__name__, len(values)
+        )
         return values * factor
 
-    def to_config(self) -> dict[str, Any]:
+    def to_config(self) -> InflationConfig:
         """Return an audit-friendly representation for experiment artifacts.
 
         Returns
         -------
-        dict[str, Any]
+        InflationConfig
             Strategy name; subclasses can include parameters needed for
             reconstruction.
         """
@@ -191,7 +214,7 @@ class ConstantRateInflation(InflationAdjuster):
         self,
         from_dates: pl.Series,
         to_dates: pl.Series,
-    ) -> np.ndarray:
+    ) -> FloatArray:
         """Calculate compound factors using elapsed time in 365.25-day years.
 
         Parameters
@@ -231,7 +254,7 @@ class ConstantRateInflation(InflationAdjuster):
             years,
         )
 
-    def to_config(self) -> dict[str, Any]:
+    def to_config(self) -> InflationConfig:
         """Return the strategy name and annual_rate for reconstruction."""
         return {
             "strategy": type(self).__name__,
@@ -287,8 +310,6 @@ class ManualInflation(InflationAdjuster):
         normalized: dict[int, float] = {}
 
         for month, value in monthly_index.items():
-            if not isinstance(month, date):
-                raise TypeError("monthly_index keys must be datetime.date")
 
             value = float(value)
 
@@ -322,7 +343,7 @@ class ManualInflation(InflationAdjuster):
         self,
         from_dates: pl.Series,
         to_dates: pl.Series,
-    ) -> np.ndarray:
+    ) -> FloatArray:
         """Calculate monthly destination-to-source price index ratios.
 
         Parameters
@@ -355,12 +376,12 @@ class ManualInflation(InflationAdjuster):
 
         return to_index / from_index
 
-    def to_config(self) -> dict[str, Any]:
+    def to_config(self) -> InflationConfig:
         """Return the strategy name and monthly anchors keyed by YYYY-MM."""
         return {
             "strategy": type(self).__name__,
             "monthly_index": {
-                self._format_month(month): float(np.exp(log_index))
+                self._format_month(int(month)): float(np.exp(log_index))
                 for month, log_index in zip(
                     self._anchor_months,
                     self._anchor_log_index,
@@ -372,7 +393,7 @@ class ManualInflation(InflationAdjuster):
     def _index_for_dates(
         self,
         dates: pl.Series,
-    ) -> np.ndarray:
+    ) -> FloatArray:
         months = self._to_month_numbers(dates)
 
         first_month = self._anchor_months[0]
@@ -382,7 +403,7 @@ class ManualInflation(InflationAdjuster):
 
         if np.any(outside_range):
             missing = sorted(
-                {self._format_month(month) for month in months[outside_range]}
+                {self._format_month(int(month)) for month in months[outside_range]}
             )
 
             raise ValueError(
@@ -408,7 +429,7 @@ class ManualInflation(InflationAdjuster):
     @staticmethod
     def _to_month_numbers(
         dates: pl.Series,
-    ) -> np.ndarray:
+    ) -> IntArray:
         years = dates.dt.year().to_numpy().astype(np.int64)
 
         months = dates.dt.month().to_numpy().astype(np.int64)
@@ -427,12 +448,12 @@ class ManualInflation(InflationAdjuster):
         return f"{year:04d}-{month + 1:02d}"
 
 
-def inflation_from_config(config: dict[str, Any]) -> InflationAdjuster:
+def inflation_from_config(config: InflationConfig) -> InflationAdjuster:
     """Reconstruct a supported inflation strategy from its persisted state.
 
     Parameters
     ----------
-    config : dict[str, Any]
+    config : InflationConfig
         Configuration from to_config with strategy and either annual_rate or
         monthly_index keyed by YYYY-MM.
 
@@ -450,8 +471,12 @@ def inflation_from_config(config: dict[str, Any]) -> InflationAdjuster:
     """
     strategy = config["strategy"]
     if strategy == "ConstantRateInflation":
+        if "annual_rate" not in config:
+            raise KeyError("annual_rate")
         return ConstantRateInflation(config["annual_rate"])
     if strategy == "ManualInflation":
+        if "monthly_index" not in config:
+            raise KeyError("monthly_index")
         return ManualInflation(
             {
                 date.fromisoformat(f"{month}-01"): value
@@ -466,11 +491,6 @@ def _validate_dates(
     *,
     name: str,
 ) -> None:
-    if not isinstance(
-        dates,
-        pl.Series,
-    ):
-        raise TypeError(f"{name} must be polars.Series, got {type(dates).__name__}")
 
     dtype = dates.dtype
 

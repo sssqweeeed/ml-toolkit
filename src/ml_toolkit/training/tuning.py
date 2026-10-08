@@ -1,139 +1,88 @@
-"""Optuna search through the shared chronological validation path."""
+"""Optuna optimization over an injected scalar scoring callback."""
 
 import logging
-from collections.abc import Callable
-from typing import Any
+from collections.abc import Callable, Mapping
 
-import mlflow
-from ..tracking._model_state import audit_value
+import numpy as np
 import optuna
 
-from ..config import (
-    CrossValidationConfig,
-    PostFitEvaluationConfig,
-    TrackingConfig,
-    TuningConfig,
-)
-from ..models.base import Model
-from .contracts import (
-    PostFitEvaluator,
-    TrainingData,
-    _validate_post_fit_evaluator,
-    validate_training_data,
-)
-from .cross_validation import cross_validate
-from .results import CrossValidationResult, TuningResult
+from ..config import TuningConfig
+from ..tracking import runs as tracking
+from ..types import ModelParams
+from .results import TuningResult
 
 logger = logging.getLogger(__name__)
 
 
 def tune_optuna(
     *,
-    data: TrainingData,
-    base_params: dict[str, Any],
-    model_factory: Callable[[dict[str, Any]], Model],
-    metric: Callable,
-    param_space: Callable[[optuna.Trial], dict[str, Any]],
+    base_params: ModelParams,
+    param_space: Callable[[optuna.Trial], Mapping[str, object]],
+    score: Callable[[ModelParams], float],
     config: TuningConfig,
-    cv: CrossValidationConfig,
-    tracking: TrackingConfig | None = None,
-    post_fit_evaluator: PostFitEvaluator | None = None,
-    post_fit: PostFitEvaluationConfig | None = None,
 ) -> TuningResult:
-    """Optimize model parameters with a seeded TPE sampler and chronological CV.
+    """Optimize parameters without knowing the data or validation strategy.
 
     Parameters
     ----------
-    data : TrainingData
-        Valid chronological data, already restricted to selected features.
-    base_params : dict[str, Any]
-        Fixed native settings merged with each trial's overrides.
-    model_factory : Callable[[dict[str, Any]], Model]
-        Factory returning a fresh model adapter.
-    metric : Callable
-        Target/prediction/weight callable returning named scalar scores.
-    param_space : Callable[[optuna.Trial], dict[str, Any]]
-        Function returning trial overrides using Optuna suggestion methods.
+    base_params : ModelParams
+        Fixed constructor parameters. Inputs are never mutated.
+    param_space : Callable[[optuna.Trial], ModelParams]
+        Trial overrides, including fixed values and Optuna suggestions.
+    score : Callable[[ModelParams], float]
+        Receives complete copied parameters and returns one finite objective.
     config : TuningConfig
-        Objective name, direction, trial/time budget, and sampler seed.
-    cv : CrossValidationConfig
-        Shared splits reused unchanged by every trial.
-    tracking : TrackingConfig or None, default None
-        Trial model packaging policy; None uses defaults.
-    post_fit_evaluator : PostFitEvaluator or None, default None
-        Custom evaluator, invoked only when tuning is an enabled stage.
-    post_fit : PostFitEvaluationConfig or None, default None
-        Stage/split/image policy; None uses defaults, excluding tuning.
+        Direction, trial/time budget and TPE seed. metric is interpreted by
+        the workflow callback rather than this optimizer.
 
     Returns
     -------
     TuningResult
-        Actual parameter overrides and CV result from the winning trial.
-        Includes fixed values returned by param_space, not only suggestions.
+        Complete winning parameters, objective and zero-based trial number.
 
     Notes
     -----
-    Each trial creates nested MLflow fold runs. Configure MLflow and start a
-    parent run before standalone use. No diagnostic plots run during search.
+    Creates a tuning run with nested trial runs. Configure MLflow externally.
     """
-    validate_training_data(data)
-    post_fit = PostFitEvaluationConfig() if post_fit is None else post_fit
-    evaluator = (
-        post_fit_evaluator if "tuning" in post_fit.stages and post_fit.splits else None
-    )
-    _validate_post_fit_evaluator(data, evaluator)
-    trial_results: dict[int, CrossValidationResult] = {}
-    trial_overrides: dict[int, dict[str, Any]] = {}
     study = optuna.create_study(
         direction=config.direction, sampler=optuna.samplers.TPESampler(seed=config.seed)
     )
+    parameters: dict[int, ModelParams] = {}
+
+    def objective(trial: optuna.Trial) -> float:
+        logger.debug("Starting tuning trial %s", trial.number + 1)
+        overrides = param_space(trial)
+        params = {**base_params, **overrides}
+        parameters[trial.number] = params.copy()
+        with tracking.run(f"trial_{trial.number + 1}"):
+            tracking.log_params(params)
+            value = score(params.copy())
+            if not np.isfinite(value):
+                raise ValueError("score must return a finite numeric scalar")
+            value = float(value)
+            tracking.log_metrics({"objective": value})
+            logger.debug(
+                "Completed tuning trial %s: objective=%s", trial.number + 1, value
+            )
+            return value
+
     logger.info(
         "Starting Optuna tuning: %s trials, metric %s, direction %s",
         config.n_trials,
         config.metric,
         config.direction,
     )
-
-    def objective(trial: optuna.Trial) -> float:
-        overrides = param_space(trial)
-        params = base_params | overrides
-        logger.debug("Starting tuning trial %s", trial.number + 1)
-        with mlflow.start_run(run_name=f"trial_{trial.number + 1}", nested=True):
-            mlflow.log_params(audit_value(params))
-            result = cross_validate(
-                data=data,
-                params=params,
-                model_factory=model_factory,
-                metric=metric,
-                config=cv,
-                tracking=tracking,
-                post_fit_evaluator=evaluator,
-                post_fit=post_fit,
-                stage="tuning",
-            )
-            trial_results[trial.number] = result
-            trial_overrides[trial.number] = overrides.copy()
-            if config.metric not in result.mean_metrics:
-                raise ValueError(
-                    f"Metric {config.metric!r} is unavailable. Available metrics: {sorted(result.mean_metrics)}"
-                )
-            value = result.mean_metrics[config.metric]
-            mlflow.log_metric("objective", value)
-            logger.debug(
-                "Completed tuning trial %s: %s=%s",
-                trial.number + 1,
-                config.metric,
-                value,
-            )
-            return value
-
-    study.optimize(objective, n_trials=config.n_trials, timeout=config.timeout_seconds)
+    with tracking.run("tuning"):
+        study.optimize(
+            objective, n_trials=config.n_trials, timeout=config.timeout_seconds
+        )
     logger.info(
-        "Completed Optuna tuning: best %s=%s at trial %s",
-        config.metric,
+        "Completed Optuna tuning: best objective=%s at trial %s",
         study.best_value,
         study.best_trial.number + 1,
     )
     return TuningResult(
-        trial_overrides[study.best_trial.number], trial_results[study.best_trial.number]
+        parameters[study.best_trial.number],
+        float(study.best_value),
+        study.best_trial.number,
     )

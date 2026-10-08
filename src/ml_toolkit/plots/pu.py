@@ -2,23 +2,23 @@
 
 from pathlib import Path
 
-from ..config import FigureConfig, PUPlotsConfig
-
 import matplotlib.pyplot as plt
 import numpy as np
+from numpy.typing import ArrayLike
 
-from ..metrics.pu import _inputs, positive_capture_curve
+from ..config import FigureConfig, PUPlotsConfig
+from ..metrics.pu import positive_capture_curve, pu_arrays
 from .utils import save_figure
 
 
 def score_distribution(
-    labels,
-    probabilities,
+    labels: ArrayLike,
+    probabilities: ArrayLike,
     save_fig: str | Path,
     *,
-    weights=None,
+    weights: ArrayLike | None = None,
     config: PUPlotsConfig | None = None,
-    figure: FigureConfig | None = None
+    figure: FigureConfig | None = None,
 ) -> None:
     """Save score distributions for known positives and unlabeled rows.
 
@@ -53,7 +53,7 @@ def score_distribution(
     each group. Unlabeled rows are not confirmed negatives.
     """
     config = PUPlotsConfig() if config is None else config
-    y, p, w = _inputs(labels, probabilities, weights)
+    y, p, w = pu_arrays(labels, probabilities, weights)
     fig, ax = plt.subplots(figsize=(9, 6))
     for value, label in ((1, "Known positive"), (0, "Unlabeled")):
         group = y == value
@@ -76,12 +76,12 @@ def score_distribution(
 
 
 def positive_capture(
-    labels,
-    probabilities,
+    labels: ArrayLike,
+    probabilities: ArrayLike,
     save_fig: str | Path,
     *,
-    weights=None,
-    figure: FigureConfig | None = None
+    weights: ArrayLike | None = None,
+    figure: FigureConfig | None = None,
 ) -> None:
     """Save known-positive capture against unlabeled review capacity.
 

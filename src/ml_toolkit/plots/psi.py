@@ -2,12 +2,12 @@
 
 from pathlib import Path
 
-from ..config import FigureConfig
-from .utils import save_figure
-
 import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
+
+from ..config import FigureConfig
+from .utils import save_figure
 
 
 def feature_psi_plot(
@@ -109,7 +109,7 @@ def monthly_psi_level_distribution(
 
     fig, ax = plt.subplots(figsize=(14, 6))
     colors = plt.get_cmap("tab20")
-    legend_handles = []
+    legend_handles: list[object] = []
     for index, level in enumerate(levels):
         shares = (
             periods.join(

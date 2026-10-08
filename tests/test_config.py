@@ -1,94 +1,85 @@
-"""Configuration contracts and observable workflow behavior."""
-
+import inspect
+import re
 from dataclasses import FrozenInstanceError, fields, is_dataclass, replace
 from datetime import date
 from importlib import import_module
 from pathlib import Path
 from types import SimpleNamespace
-import inspect
-import re
 
 import matplotlib.pyplot as plt
 import mlflow
 import numpy as np
 import polars as pl
 import pytest
+from evaluators import CallbackEvaluator
+from test_training import MeanModel, list_all_artifacts, mae, make_data, setup_mlflow
 
 import ml_toolkit.config as settings
+from ml_toolkit import Pool
 from ml_toolkit.config import (
     ClassificationDiagnosticsConfig,
     ClassificationPlotsConfig,
     CommonPlotsConfig,
-    CrossValidationConfig,
-    RFEFeatureSelectionConfig,
     FigureConfig,
-    FinalFitConfig,
+    HoldoutConfig,
     NumericalFeatureDistributionConfig,
     PostFitEvaluationConfig,
+    PSIOptions,
     PUDiagnosticsConfig,
     PUPlotsConfig,
-    PSIOptions,
     RegressionDiagnosticsConfig,
     RegressionPlotsConfig,
+    ReportingConfig,
+    RFEFeatureSelectionConfig,
     ShapConfig,
+    TimeSeriesCVConfig,
     TrackingConfig,
     TrainingConfig,
     TuningConfig,
 )
-from ml_toolkit import Pool
 from ml_toolkit.explainability import calculate_shap_values
-from ml_toolkit.models import CatBoostRegressionModel, InflationAdjustedModel
 from ml_toolkit.inflation import ConstantRateInflation
+from ml_toolkit.models import CatBoostRegressionModel, InflationAdjustedModel
 from ml_toolkit.plots.classification import calibration, precision_recall
 from ml_toolkit.plots.monitoring import monthly_feature_distribution
 from ml_toolkit.plots.utils import save_figure
 from ml_toolkit.psi import PSIFeature
-from ml_toolkit.training import importance_ranker, train_model
-from ml_toolkit.training.cross_validation import _time_series_splits
-from test_training import MeanModel, list_all_artifacts, mae, make_data, setup_mlflow
+from ml_toolkit.training import importance_ranker, split_holdout, train_model
+from ml_toolkit.training.splits import make_validation_splits
+
+"""Configuration contracts and observable workflow behavior."""
 
 
 @pytest.mark.parametrize(
     "factory",
     [
-        lambda: CrossValidationConfig(n_splits=True),
-        lambda: TuningConfig(metric="mae", direction="invalid"),
-        lambda: FigureConfig(figsize=(float("nan"), 5)),
-        lambda: ShapConfig(seed=False),
-        lambda: CommonPlotsConfig(psi_scores=1),
-        lambda: PUDiagnosticsConfig(plots=RegressionPlotsConfig()),
-        lambda: ClassificationDiagnosticsConfig(plots=PUPlotsConfig()),
-        lambda: RegressionDiagnosticsConfig(task="pu_classification"),
-        lambda: TrainingConfig(cv={"n_splits": 3}),
-        lambda: NumericalFeatureDistributionConfig(features=["x"]),
-    ],
-)
-def test_invalid_types_and_task_combinations_fail_on_construction(factory):
-    with pytest.raises(TypeError):
-        factory()
-
-
-@pytest.mark.parametrize(
-    "factory",
-    [
-        lambda: CrossValidationConfig(n_splits=1),
-        lambda: CrossValidationConfig(n_splits=3, skip_splits=3),
-        lambda: CrossValidationConfig(n_splits=3, gap=-1),
-        lambda: RFEFeatureSelectionConfig(min_features=0, metric_name="mae", direction="minimize"),
-        lambda: RFEFeatureSelectionConfig(min_features=1, metric_name="mae", direction="minimize", validation_fraction=1),
+        lambda: TimeSeriesCVConfig(n_splits=1),
+        lambda: TimeSeriesCVConfig(n_splits=3, skip_splits=3),
+        lambda: TimeSeriesCVConfig(n_splits=3, gap=-1),
+        lambda: RFEFeatureSelectionConfig(
+            min_features=0, metric="mae", direction="minimize"
+        ),
+        lambda: RFEFeatureSelectionConfig(
+            min_features=1,
+            metric="mae",
+            direction="minimize",
+            score_tolerance=-1,
+        ),
         lambda: TuningConfig(metric="", direction="minimize"),
         lambda: TuningConfig(metric="mae", direction="minimize", timeout_seconds=0),
         lambda: PSIOptions(epsilon=0),
         lambda: PSIOptions(features=()),
         lambda: FigureConfig(figsize=(0, 5)),
         lambda: ShapConfig(dependence_features=("x", "x")),
-        lambda: PUDiagnosticsConfig(folds=()),
-        lambda: PUDiagnosticsConfig(folds=(0,)),
+        lambda: ReportingConfig(validation_splits=()),
+        lambda: ReportingConfig(validation_splits=(0,)),
         lambda: NumericalFeatureDistributionConfig(quantile_bands=((0.9, 0.1),)),
-        lambda: PostFitEvaluationConfig(stages=("cv", "cv")),
+        lambda: PostFitEvaluationConfig(stages=("validation", "validation")),
         lambda: TrainingConfig(
-            cv=CrossValidationConfig(n_splits=3, skip_splits=1),
-            diagnostics=PUDiagnosticsConfig(folds=(1,)),
+            validation=TimeSeriesCVConfig(n_splits=3, skip_splits=1),
+            reporting=ReportingConfig(
+                diagnostics=PUDiagnosticsConfig(), validation_splits=(1,)
+            ),
         ),
     ],
 )
@@ -98,13 +89,11 @@ def test_invalid_ranges_fail_on_construction(factory):
 
 
 def test_configs_are_immutable_keyword_only_and_replaceable():
-    original = TrainingConfig(cv=CrossValidationConfig(n_splits=3))
+    original = TrainingConfig(validation=TimeSeriesCVConfig(n_splits=3))
     with pytest.raises(FrozenInstanceError):
-        original.cv.gap = 7
-    changed = replace(original, cv=replace(original.cv, gap=7))
-    assert original.cv.gap == 0 and changed.cv.gap == 7
-    with pytest.raises(TypeError):
-        CrossValidationConfig(3)
+        original.validation.gap = 7
+    changed = replace(original, validation=replace(original.validation, gap=7))
+    assert original.validation.gap == 0 and changed.validation.gap == 7
     assert not hasattr(original, "__dict__")
     assert "gains" not in {f.name for f in fields(PUPlotsConfig)}
     assert PUDiagnosticsConfig().task == "pu_classification"
@@ -141,34 +130,48 @@ def test_markdown_has_one_executable_fully_expanded_recipe_per_task():
                 }, cls
         exec(block, namespace)
     assert namespace["pu_classification_config"].feature_selection.min_features == 10
-    assert namespace["severity_config"].diagnostics.plots.gains
-    assert not namespace["regression_config"].diagnostics.plots.gains
+    assert namespace["severity_config"].reporting.diagnostics.plots.gains
+    assert not namespace["regression_config"].reporting.diagnostics.plots.gains
 
 
 def test_cv_honors_gap_and_row_window_sizes():
-    config = CrossValidationConfig(n_splits=3, gap=2, test_size=4, max_train_size=5)
-    splits = list(_time_series_splits(24, config))
+    config = TimeSeriesCVConfig(n_splits=3, gap=2, val_size=4, max_train_size=5)
+    splits = make_validation_splits(make_data(), config)
     assert len(splits) == 3
-    for index, (train, validation) in splits:
-        assert len(train) == 5 and len(validation) == 4
-        assert validation[0] - train[-1] == 3
+    for part in splits:
+        assert len(part.train) == 5 and len(part.val) == 4
+        assert part.val.X["x"][0] - part.train.X["x"][-1] == 3
 
 
 @pytest.mark.parametrize("classifier", [False, True])
 def test_selection_fits_native_model_with_normal_parameters(classifier):
     from ml_toolkit.models import CatBoostClassificationModel
     from ml_toolkit.training.feature_selection import select_features
+
     data = make_data()
     if classifier:
         data = data.with_target(pl.Series("target", [0, 1] * 12))
     fitted = []
     factory = CatBoostClassificationModel if classifier else CatBoostRegressionModel
+
     def record(params):
         model = factory(params)
         fitted.append(model)
         return model
+
     params = {"iterations": 3, "verbose": False, "allow_writing_files": False}
-    result = select_features(metric=mae, ranker=importance_ranker, data=data, params=params, model_factory=record, config=RFEFeatureSelectionConfig(min_features=1, metric_name="mae", direction="minimize"))
+    partition = split_holdout(data, HoldoutConfig(val_size=0.25))
+    result = select_features(
+        metric=mae,
+        ranker=importance_ranker,
+        train=partition.train,
+        validation=partition.val,
+        params=params,
+        model_factory=record,
+        config=RFEFeatureSelectionConfig(
+            min_features=1, metric="mae", direction="minimize"
+        ),
+    )
     assert [len(step.features) for step in result.steps] == [2, 1]
     assert result.features == result.steps[result.selected_step].features
     assert fitted[0].native_model.tree_count_ > 0
@@ -176,8 +179,7 @@ def test_selection_fits_native_model_with_normal_parameters(classifier):
     assert not hasattr(fitted[0], "select_features")
 
 
-
-def test_selection_fraction_and_cv_gap_reach_workflow(monkeypatch, tmp_path):
+def test_selection_uses_external_train_val_and_gap(monkeypatch, tmp_path):
     setup_mlflow(tmp_path)
     fits = []
 
@@ -191,9 +193,13 @@ def test_selection_fraction_and_cv_gap_reach_workflow(monkeypatch, tmp_path):
             )
             return super().fit(train, validation)
 
-    selection = RFEFeatureSelectionConfig(min_features=1, metric_name="mae", direction="minimize", validation_fraction=0.5, gap=1)
+    selection = RFEFeatureSelectionConfig(
+        min_features=1,
+        metric="mae",
+        direction="minimize",
+    )
     config = TrainingConfig(
-        cv=CrossValidationConfig(n_splits=2, gap=2), feature_selection=selection
+        validation=TimeSeriesCVConfig(n_splits=2, gap=2), feature_selection=selection
     )
     train_model(
         data=make_data(),
@@ -204,14 +210,14 @@ def test_selection_fraction_and_cv_gap_reach_workflow(monkeypatch, tmp_path):
         run_name="split-options",
         config=config,
     )
-    assert len(fits[0][0]) == 2 and len(fits[0][1]) == 3
-    assert fits[0][0][-1] == 1 and fits[0][1][0] == 3
+    assert len(fits[0][0]) == 6 and len(fits[0][1]) == 8
+    assert fits[0][0][-1] == 5 and fits[0][1][0] == 8
     assert fits[1] == fits[0]
     assert fits[2][0][-1] == 5 and fits[2][1][0] == 8
 
 
-@pytest.mark.parametrize("policy, expected", [("cv_median", 4), ("provided", 20)])
-def test_final_iteration_policy_and_model_packaging(tmp_path, policy, expected):
+def test_final_iteration_and_model_packaging(tmp_path):
+    expected = 4
     setup_mlflow(tmp_path)
     logged, fitted = [], []
 
@@ -228,7 +234,7 @@ def test_final_iteration_policy_and_model_packaging(tmp_path, policy, expected):
             logged.append((len(sample), config))
 
     tracking = TrackingConfig(
-        log_fold_models=True,
+        log_validation_models=True,
         input_example_rows=2,
         model_name="custom",
         registered_model_name="registry",
@@ -241,9 +247,7 @@ def test_final_iteration_policy_and_model_packaging(tmp_path, policy, expected):
         metric=mae,
         run_name="final-policy",
         config=TrainingConfig(
-            cv=CrossValidationConfig(n_splits=2),
-            tracking=tracking,
-            final_fit=FinalFitConfig(iteration_policy=policy),
+            validation=TimeSeriesCVConfig(n_splits=2), tracking=tracking
         ),
     )
     assert result.params["iterations"] == expected
@@ -287,23 +291,44 @@ def test_standalone_model_logging_uses_example_size(monkeypatch):
 
 def test_inflation_wrapper_uses_shared_importance_selection():
     from ml_toolkit.training.feature_selection import select_features
+
     data = make_data()
     fitted = []
+
     def factory(params):
-        model = InflationAdjustedModel(CatBoostRegressionModel(params), ConstantRateInflation(0.03), date(2024, 1, 1))
+        model = InflationAdjustedModel(
+            CatBoostRegressionModel(params),
+            ConstantRateInflation(0.03),
+            date(2024, 1, 1),
+        )
         fitted.append(model)
         return model
-    result = select_features(metric=mae, ranker=importance_ranker, data=data, params={"iterations": 3, "verbose": False, "allow_writing_files": False}, model_factory=factory, config=RFEFeatureSelectionConfig(min_features=1, metric_name="mae", direction="minimize"))
+
+    partition = split_holdout(data, HoldoutConfig(val_size=0.25))
+    result = select_features(
+        metric=mae,
+        ranker=importance_ranker,
+        train=partition.train,
+        validation=partition.val,
+        params={"iterations": 3, "verbose": False, "allow_writing_files": False},
+        model_factory=factory,
+        config=RFEFeatureSelectionConfig(
+            min_features=1, metric="mae", direction="minimize"
+        ),
+    )
     assert [len(step.features) for step in result.steps] == [2, 1]
     assert result.features == result.steps[result.selected_step].features
     assert fitted[0].native_model.tree_count_ > 0
     assert not hasattr(fitted[0], "select_features")
 
 
-
 @pytest.mark.parametrize(
     "folds, diagnosed",
-    [("last", ["fold_3"]), ("all", ["fold_1", "fold_2", "fold_3"]), ((2,), ["fold_2"])],
+    [
+        ("last", ["validation/split_3"]),
+        ("all", ["validation/split_1", "validation/split_2", "validation/split_3"]),
+        ((2,), ["validation/split_2"]),
+    ],
 )
 def test_diagnostics_only_run_for_selected_folds(
     tmp_path, monkeypatch, folds, diagnosed
@@ -311,8 +336,8 @@ def test_diagnostics_only_run_for_selected_folds(
     setup_mlflow(tmp_path)
     calls = []
     monkeypatch.setattr(
-        "ml_toolkit.training.evaluation._log_diagnostics",
-        lambda *args: calls.append(args[-1]),
+        "ml_toolkit.training.evaluation.report_diagnostics",
+        lambda *args: calls.append(args[-2]),
     )
     train_model(
         data=make_data(),
@@ -321,14 +346,17 @@ def test_diagnostics_only_run_for_selected_folds(
         metric=mae,
         run_name="fold-policy",
         config=TrainingConfig(
-            cv=CrossValidationConfig(n_splits=3),
-            diagnostics=RegressionDiagnosticsConfig(folds=folds, plots=None),
+            validation=TimeSeriesCVConfig(n_splits=3),
+            reporting=ReportingConfig(
+                diagnostics=RegressionDiagnosticsConfig(plots=None),
+                validation_splits=folds,
+            ),
         ),
     )
     assert calls == diagnosed
 
 
-def test_disabled_diagnostics_do_not_repeat_tuned_cv(tmp_path):
+def test_each_split_fits_winning_settings_after_tuning(tmp_path):
     setup_mlflow(tmp_path)
     fits = []
 
@@ -345,20 +373,32 @@ def test_disabled_diagnostics_do_not_repeat_tuned_cv(tmp_path):
         run_name="no-repeated-cv",
         param_space=lambda trial: {"fixed": 42},
         config=TrainingConfig(
-            cv=CrossValidationConfig(n_splits=2),
+            validation=TimeSeriesCVConfig(n_splits=2),
             tuning=TuningConfig(metric="mae", direction="minimize", n_trials=1, seed=7),
-            diagnostics=RegressionDiagnosticsConfig(psi=None, plots=None),
+            reporting=ReportingConfig(
+                diagnostics=RegressionDiagnosticsConfig(psi=None, plots=None)
+            ),
         ),
     )
-    assert fits == [8, 16, 24]
+    assert fits == [8, 8, 16, 16, 24]
     assert result.params["fixed"] == 42
 
 
 @pytest.mark.parametrize(
     "stages, splits, images, expected",
     [
-        (("cv", "final"), ("val",), False, [("fold_1", "val"), ("fold_2", "val")]),
-        (("tuning",), ("val",), True, [("fold_1", "val"), ("fold_2", "val")]),
+        (
+            ("validation", "final"),
+            ("val",),
+            False,
+            [("validation/split_1", "val"), ("validation/split_2", "val")],
+        ),
+        (
+            ("tuning",),
+            ("val",),
+            True,
+            [("trial_1", "val"), ("trial_1", "val")],
+        ),
         (("final",), ("train",), True, [("final_fit", "train")]),
     ],
 )
@@ -384,8 +424,9 @@ def test_post_fit_stage_split_and_image_policies(
 
     def writer(**kwargs):
         written.append(kwargs["split"].value)
+        return []
 
-    evaluator = SimpleNamespace(evaluate=evaluate, write_artifacts=writer)
+    evaluator = CallbackEvaluator(evaluate=evaluate, write_artifacts=writer)
     train_model(
         data=data,
         params={},
@@ -395,10 +436,12 @@ def test_post_fit_stage_split_and_image_policies(
         param_space=lambda trial: {},
         post_fit_evaluator=evaluator,
         config=TrainingConfig(
-            cv=CrossValidationConfig(n_splits=2),
+            validation=TimeSeriesCVConfig(n_splits=2),
             tuning=TuningConfig(metric="mae", direction="minimize", n_trials=1),
-            post_fit=PostFitEvaluationConfig(
-                stages=stages, splits=splits, write_artifacts=images
+            reporting=ReportingConfig(
+                post_fit=PostFitEvaluationConfig(
+                    stages=stages, splits=splits, write_artifacts=images
+                ),
             ),
         ),
     )
@@ -408,7 +451,7 @@ def test_post_fit_stage_split_and_image_policies(
 
 def test_disabled_post_fit_does_not_require_ids(tmp_path):
     setup_mlflow(tmp_path)
-    evaluator = SimpleNamespace(
+    evaluator = CallbackEvaluator(
         evaluate=lambda **kwargs: pytest.fail("disabled evaluator")
     )
     train_model(
@@ -419,8 +462,8 @@ def test_disabled_post_fit_does_not_require_ids(tmp_path):
         run_name="disabled-post",
         post_fit_evaluator=evaluator,
         config=TrainingConfig(
-            cv=CrossValidationConfig(n_splits=2),
-            post_fit=PostFitEvaluationConfig(stages=()),
+            validation=TimeSeriesCVConfig(n_splits=2),
+            reporting=ReportingConfig(post_fit=PostFitEvaluationConfig(stages=())),
         ),
     )
 
@@ -442,31 +485,33 @@ def test_psi_definition_and_svg_output_reach_diagnostics(tmp_path):
         metric=mae,
         run_name="psi-options",
         config=TrainingConfig(
-            cv=CrossValidationConfig(n_splits=2),
-            diagnostics=RegressionDiagnosticsConfig(
-                psi=PSIOptions(
-                    n_bins=2,
-                    epsilon=0.01,
-                    features=(PSIFeature("x", "numerical", lower_bound=0),),
+            validation=TimeSeriesCVConfig(n_splits=2),
+            reporting=ReportingConfig(
+                diagnostics=RegressionDiagnosticsConfig(
+                    psi=PSIOptions(
+                        n_bins=2,
+                        epsilon=0.01,
+                        features=(PSIFeature("x", "numerical", lower_bound=0),),
+                    ),
+                    plots=plots,
                 ),
-                plots=plots,
             ),
         ),
     )
     runs = mlflow.search_runs(output_format="list")
     for run in runs:
         artifacts = list_all_artifacts(mlflow.MlflowClient(), run.info.run_id)
-        if run.data.tags["mlflow.runName"] == "fold_2":
+        if run.data.tags["mlflow.runName"] == "validation/split_2":
             assert set(artifacts) == {
-                "figures/psi_scores.svg",
-                "figures/psi_000_x.svg",
-                "psi/scores.json",
-                "psi/level_distribution.json",
-                "psi/monthly_distribution.json",
+                "val/figures/psi_scores.svg",
+                "val/figures/psi_000_x.svg",
+                "val/psi/scores.json",
+                "val/psi/level_distribution.json",
+                "val/psi/monthly_distribution.json",
             }
             table = Path(
                 mlflow.artifacts.download_artifacts(
-                    run_id=run.info.run_id, artifact_path="psi/scores.json"
+                    run_id=run.info.run_id, artifact_path="val/psi/scores.json"
                 )
             )
             import json
@@ -475,7 +520,7 @@ def test_psi_definition_and_svg_output_reach_diagnostics(tmp_path):
                 row["feature"] for row in json.loads(table.read_text())["rows"]
             ] == ["x"]
         else:
-            assert not any(path.startswith("psi/") for path in artifacts)
+            assert not any(path.startswith("val/psi/") for path in artifacts)
 
 
 def test_custom_quantile_bands_and_hidden_curves(tmp_path):
@@ -586,7 +631,7 @@ def test_tuning_budget_seed_and_trial_packaging(tmp_path, monkeypatch):
         run_name="trial-packaging",
         param_space=lambda trial: {"choice": trial.suggest_int("choice", 1, 3)},
         config=TrainingConfig(
-            cv=CrossValidationConfig(n_splits=2),
+            validation=TimeSeriesCVConfig(n_splits=2),
             tuning=TuningConfig(
                 metric="mae",
                 direction="minimize",
@@ -601,10 +646,12 @@ def test_tuning_budget_seed_and_trial_packaging(tmp_path, monkeypatch):
             ),
         ),
     )
-    assert budgets == [{"n_trials": 2, "timeout": 60}]
-    assert studies[0]["sampler"]._rng.rng.randint(10000) == np.random.RandomState(
-        19
-    ).randint(10000)
+    assert budgets == [{"n_trials": 2, "timeout": 60}] * 2
+    assert len(studies) == 2
+    for study in studies:
+        assert study["sampler"]._rng.rng.randint(10000) == np.random.RandomState(
+            19
+        ).randint(10000)
     assert len(logged) == 4 and all(
         config.registered_model_name is None for config in logged
     )
@@ -621,13 +668,15 @@ def test_ordinary_regression_defaults_accept_signed_targets(tmp_path):
         metric=mae,
         run_name="signed-regression",
         config=TrainingConfig(
-            cv=CrossValidationConfig(n_splits=2),
-            diagnostics=RegressionDiagnosticsConfig(),
+            validation=TimeSeriesCVConfig(n_splits=2),
+            reporting=ReportingConfig(diagnostics=RegressionDiagnosticsConfig()),
         ),
     )
     assert np.all(result.model.predict_pool(data) < 0)
     runs = mlflow.search_runs(output_format="list")
-    fold = next(run for run in runs if run.data.tags["mlflow.runName"] == "fold_2")
+    fold = next(
+        run for run in runs if run.data.tags["mlflow.runName"] == "validation/split_2"
+    )
     paths = list_all_artifacts(mlflow.MlflowClient(), fold.info.run_id)
     assert any(path.endswith("monthly_observed_fitted.png") for path in paths)
     assert not any(path.endswith(("gains.png", "lift.png")) for path in paths)

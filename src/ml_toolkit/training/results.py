@@ -1,11 +1,11 @@
-"""Structured outputs from cross-validation, tuning, and final fitting."""
+"""Metadata-only validation results and the final fitted model."""
 
 from dataclasses import dataclass
-from typing import Any
 
 import numpy as np
 
 from ..models.base import Model
+from ..types import ModelParams
 
 
 @dataclass(frozen=True)
@@ -17,7 +17,7 @@ class FeatureSelectionStep:
     features : tuple[str, ...]
         Evaluated input columns in original order.
     metrics : dict[str, float]
-        All internal validation scores returned by the training metric.
+        All supplied validation scores returned by the training metric.
     importances : dict[str, float]
         Ranking values by feature name; empty when no elimination follows.
     eliminated_features : tuple[str, ...]
@@ -57,7 +57,7 @@ class FeatureSelectionResult:
 
     Notes
     -----
-    Internal validation scores describe selection, not independent performance.
+    Validation scores describe selection, not independent performance.
     Frozen result objects contain mutable metric and importance dictionaries.
     """
 
@@ -67,99 +67,139 @@ class FeatureSelectionResult:
 
 
 @dataclass(frozen=True)
-class CrossValidationResult:
-    """Store validation metrics and best iteration indices from evaluated folds.
+class SplitResult:
+    """Store one complete train/validation execution without retaining its model.
 
     Attributes
     ----------
-    fold_metrics : tuple[dict[str, float], ...]
-        One validation metric dictionary per evaluated fold, in fold order.
-    best_iterations : tuple[int, ...]
-        Zero-based best iteration indices from folds that report them; may be
-        shorter than fold_metrics.
-
-    Examples
-    --------
-    >>> from ml_toolkit.training import CrossValidationResult
-    >>> result = CrossValidationResult(({"mae": 2.0}, {"mae": 4.0}), (9, 19))
-    >>> result.mean_metrics
-    {'mae': 3.0}
-    >>> result.final_iterations
-    15
+    index : int
+        One-based original split index before skipping.
+    train_metrics : dict[str, float]
+        Metrics on the training rows.
+    val_metrics : dict[str, float]
+        Metrics on held-out validation rows.
+    features : tuple[str, ...]
+        Selected feature names in input order.
+    refit_params : ModelParams
+        Constructor parameters for fitting a new model without validation.
+    best_iteration : int or None
+        Zero-based best iteration of the post-tuning fit, not an RFE iteration.
+    feature_selection : FeatureSelectionResult or None
+        Selection history from this split before tuning.
+    tuning : TuningResult or None
+        Winning parameters and objective of this split's independent study.
     """
 
-    fold_metrics: tuple[dict[str, float], ...]
-    best_iterations: tuple[int, ...]
+    index: int
+    train_metrics: dict[str, float]
+    val_metrics: dict[str, float]
+    features: tuple[str, ...]
+    refit_params: ModelParams
+    best_iteration: int | None
+    feature_selection: FeatureSelectionResult | None = None
+    tuning: "TuningResult | None" = None
+
+
+@dataclass(frozen=True)
+class ValidationResult:
+    """Collect chronological split results and their validation averages.
+
+    Attributes
+    ----------
+    splits : tuple[SplitResult, ...]
+        Evaluated splits in chronological order, without fitted models.
+    """
+
+    splits: tuple[SplitResult, ...]
 
     @property
     def mean_metrics(self) -> dict[str, float]:
-        """Return the unweighted mean of each validation metric across folds.
+        """Return the unweighted mean of each validation metric over splits.
 
         Returns
         -------
         dict[str, float]
-            Means for keys in the first fold; all folds must contain those keys.
+            Named means; a single holdout returns its own validation metrics.
 
         Raises
         ------
         ValueError
-            The result contains no evaluated folds.
+            No splits exist or metric names differ between splits.
         """
-        if not self.fold_metrics:
-            raise ValueError("Cross-validation result contains no folds")
+        if not self.splits:
+            raise ValueError("Validation result contains no splits")
+        names = set(self.splits[0].val_metrics)
+        if any(set(split.val_metrics) != names for split in self.splits):
+            raise ValueError("Validation metric names must match across splits")
         return {
-            key: float(np.mean([metrics[key] for metrics in self.fold_metrics]))
-            for key in self.fold_metrics[0]
+            name: float(np.mean([split.val_metrics[name] for split in self.splits]))
+            for name in self.splits[0].val_metrics
         }
 
     @property
-    def final_iterations(self) -> int | None:
-        """Return the median best iteration index plus one, or None if unavailable."""
-        return (
-            None
-            if not self.best_iterations
-            else int(np.median(self.best_iterations)) + 1
-        )
+    def last_split(self) -> SplitResult:
+        """Return the latest evaluated split, used for final fitting.
+
+        Returns
+        -------
+        SplitResult
+            Last chronological validation result.
+
+        Raises
+        ------
+        ValueError
+            No validation splits exist.
+        """
+        if not self.splits:
+            raise ValueError("Validation result contains no splits")
+        return self.splits[-1]
 
 
 @dataclass(frozen=True)
 class TuningResult:
-    """Store the winning Optuna parameters and validation result.
+    """Store the winning parameters and objective of one Optuna study.
 
     Attributes
     ----------
-    best_params : dict[str, Any]
-        Parameter overrides returned by param_space for the winning trial,
-        including fixed callback values and excluding unchanged base settings.
-    cross_validation : CrossValidationResult
-        Fold results recorded for that trial.
+    best_params : ModelParams
+        Complete effective constructor parameters, including fixed overrides.
+    best_score : float
+        Finite objective returned by the winning score callback.
+    best_trial : int
+        Zero-based Optuna trial number.
     """
 
-    best_params: dict[str, Any]
-    cross_validation: CrossValidationResult
+    best_params: ModelParams
+    best_score: float
+    best_trial: int
 
 
 @dataclass(frozen=True)
 class TrainingResult:
-    """Store the fitted model and the settings used for final training.
+    """Store the final fitted model and independent split workflows' results.
 
     Attributes
     ----------
     model : Model
-        Model fitted on all rows with the retained features.
-    cross_validation : CrossValidationResult
-        Validation metrics from the selected parameter configuration.
-    params : dict[str, Any]
-        Final model parameters, including the selected iteration count when
-        available.
+        Fresh model fitted on all rows before test.
+    validation : ValidationResult
+        Per-split selection, tuning and post-tuning evaluation results.
+    params : ModelParams
+        Final constructor parameters from the last validation split.
     features : tuple[str, ...]
-        Retained feature names in data column order.
+        Features from the last validation split, in input order.
     feature_selection : FeatureSelectionResult or None
-        Internal RFE history, or None when selection was disabled.
+        Last validation split's selection history.
+    tuning : TuningResult or None
+        Last validation split's optional optimization result.
+    test_metrics : dict[str, float] or None
+        Final model's test scores; None when test_size is None.
     """
 
     model: Model
-    cross_validation: CrossValidationResult
-    params: dict[str, Any]
+    validation: ValidationResult
+    params: ModelParams
     features: tuple[str, ...]
     feature_selection: FeatureSelectionResult | None = None
+    tuning: TuningResult | None = None
+    test_metrics: dict[str, float] | None = None

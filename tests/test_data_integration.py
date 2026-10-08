@@ -3,16 +3,16 @@ from datetime import date
 import mlflow
 import numpy as np
 import polars as pl
-from polars.testing import assert_frame_equal
 import pytest
+from polars.testing import assert_frame_equal
+from test_training import MeanModel, mae, make_data, setup_mlflow
 
 from ml_toolkit.config import (
-    RFEFeatureSelectionConfig,
-    CrossValidationConfig,
     PostFitEvaluationConfig,
+    RFEFeatureSelectionConfig,
+    TimeSeriesCVConfig,
     TrainingConfig,
 )
-
 from ml_toolkit.data import Pool
 from ml_toolkit.inflation import ConstantRateInflation
 from ml_toolkit.metrics import metrics_classification
@@ -22,7 +22,6 @@ from ml_toolkit.models import (
     InflationAdjustedModel,
 )
 from ml_toolkit.training import importance_ranker, train_model
-from test_training import MeanModel, mae, make_data, setup_mlflow
 
 
 @pytest.fixture
@@ -88,12 +87,14 @@ def test_training_feature_selection_accepts_shared_pool(pool, tmp_path):
         metric=mae,
         run_name="shared-pool-selection",
         config=TrainingConfig(
-            cv=CrossValidationConfig(n_splits=2),
-            feature_selection=RFEFeatureSelectionConfig(min_features=1, metric_name="mae", direction="minimize"),
+            validation=TimeSeriesCVConfig(n_splits=2),
+            feature_selection=RFEFeatureSelectionConfig(
+                min_features=1, metric="mae", direction="minimize"
+            ),
         ),
     )
     assert result.features == ("x",)
-    assert len(result.cross_validation.fold_metrics) == 2
+    assert len(result.validation.splits) == 2
     assert len(fitted[-1]) == len(pool)
 
 
@@ -116,7 +117,7 @@ def test_catboost_pool_training_and_serving_roundtrip(pool, tmp_path, classifier
         ),
         metric=metrics_classification if classifier else mae,
         run_name="shared-pool-catboost",
-        config=TrainingConfig(cv=CrossValidationConfig(n_splits=2)),
+        config=TrainingConfig(validation=TimeSeriesCVConfig(n_splits=2)),
     )
     runs = mlflow.search_runs(output_format="list")
     final = next(
@@ -149,6 +150,7 @@ def test_inflation_logging_keeps_feature_rows_aligned_with_dates(
     model.fit(pool)
     examples = []
     import ml_toolkit.models.inflation_regression as module
+
     log_artifacts = module.log_catboost
 
     def capture(adapter, frame, prediction, **kwargs):

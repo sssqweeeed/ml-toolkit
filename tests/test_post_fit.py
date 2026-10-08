@@ -1,12 +1,3 @@
-from ml_toolkit.config import (
-    RFEFeatureSelectionConfig,
-    CrossValidationConfig,
-    TuningConfig,
-    RegressionDiagnosticsConfig,
-    PostFitEvaluationConfig,
-    TrainingConfig,
-)
-
 from dataclasses import dataclass, replace
 from pathlib import Path
 from types import SimpleNamespace
@@ -15,14 +6,28 @@ import mlflow
 import numpy as np
 import polars as pl
 import pytest
+from evaluators import CallbackEvaluator
+from test_training import MeanModel, ProjectData, mae, make_data, setup_mlflow
 
 from ml_toolkit import Pool
-from ml_toolkit.training import DatasetSplit, PostFitEvaluator, importance_ranker, train_model
-from ml_toolkit.training.contracts import _validate_post_fit_evaluator
-from ml_toolkit.training.cross_validation import cross_validate
-from ml_toolkit.training.evaluation import _log_post_fit_evaluation
+from ml_toolkit.config import (
+    PostFitEvaluationConfig,
+    RegressionDiagnosticsConfig,
+    ReportingConfig,
+    RFEFeatureSelectionConfig,
+    TimeSeriesCVConfig,
+    TrainingConfig,
+    TuningConfig,
+)
+from ml_toolkit.data import validate_training_data
+from ml_toolkit.training import (
+    DatasetSplit,
+    PostFitEvaluator,
+    importance_ranker,
+    train_model,
+)
+from ml_toolkit.training.reporting import report_custom_evaluation
 from ml_toolkit.training.tuning import tune_optuna
-from test_training import MeanModel, ProjectData, mae, make_data, setup_mlflow
 
 
 @dataclass(frozen=True)
@@ -60,7 +65,7 @@ def identified_data():
     )
 
 
-class RecordingEvaluator:
+class RecordingEvaluator(PostFitEvaluator):
     def __init__(self):
         self.calls = []
 
@@ -138,33 +143,35 @@ def test_post_fit_lifecycle_alignment_and_mlflow(
         post_fit_evaluator=evaluator,
         param_space=lambda trial: {"parameter": trial.suggest_int("parameter", 1, 2)},
         config=TrainingConfig(
-            cv=CrossValidationConfig(n_splits=2, skip_splits=skip),
-            feature_selection=RFEFeatureSelectionConfig(min_features=1, metric_name="mae", direction="minimize"),
-            diagnostics=(
-                RegressionDiagnosticsConfig(
-                    folds="all", task="regression", psi=None, plots=None
-                )
-                if repeat_cv
-                else None
+            validation=TimeSeriesCVConfig(n_splits=2, skip_splits=skip),
+            feature_selection=RFEFeatureSelectionConfig(
+                min_features=1, metric="mae", direction="minimize"
             ),
             tuning=(
                 TuningConfig(metric="mae", direction="minimize", n_trials=2)
                 if tuning
                 else None
             ),
-            post_fit=PostFitEvaluationConfig(stages=("tuning", "cv", "final")),
+            reporting=ReportingConfig(
+                diagnostics=(
+                    RegressionDiagnosticsConfig(task="regression", psi=None, plots=None)
+                    if repeat_cv
+                    else None
+                ),
+                post_fit=PostFitEvaluationConfig(
+                    stages=("tuning", "validation", "final")
+                ),
+            ),
         ),
     )
     assert len(evaluator.calls) == expected_calls
     assert len(evaluator.artifact_calls) == expected_calls
     assert len({root for _, root in evaluator.artifact_calls}) == expected_calls
     assert all(not root.exists() for _, root in evaluator.artifact_calls)
-    # CV reuses predictions; the two RFE fits evaluate their internal holdout.
-    assert len(predictions) == expected_calls + 2
-    assert result.cross_validation.mean_metrics == {"mae": 0.75}
-    assert all(
-        set(scores) == {"mae"} for scores in result.cross_validation.fold_metrics
-    )
+    # Reports reuse predictions; each split adds exactly two RFE predictions.
+    assert len(predictions) == expected_calls + 2 * (2 - skip)
+    assert result.validation.mean_metrics == {"mae": 0.75}
+    assert all(set(split.val_metrics) == {"mae"} for split in result.validation.splits)
     assert evaluator.calls[-1][:2] == (DatasetSplit.TRAIN, list(range(1001, 1025)))
     runs = {run.info.run_id: run for run in mlflow.search_runs(output_format="list")}
     for split, ids, run_id in evaluator.calls:
@@ -185,17 +192,16 @@ def test_post_fit_lifecycle_alignment_and_mlflow(
     parent = next(
         run for run in runs.values() if run.data.tags["mlflow.runName"] == "post-fit"
     )
-    assert any("cv/mae" in run.data.metrics for run in runs.values())
+    assert any("validation/mae" in run.data.metrics for run in runs.values())
     assert not any(
-        key.startswith("cv/custom/")
+        key.startswith("validation/custom/")
         for run in runs.values()
         for key in run.data.metrics
     )
     assert not any("custom/" in key for key in parent.data.metrics)
 
 
-@pytest.mark.parametrize("entry_point", ["train", "cv", "tune"])
-def test_missing_ids_fail_before_any_fit_or_run(tmp_path, entry_point):
+def test_missing_ids_fail_before_any_fit_or_run(tmp_path):
     setup_mlflow(tmp_path)
     fitted = []
 
@@ -206,33 +212,14 @@ def test_missing_ids_fail_before_any_fit_or_run(tmp_path, entry_point):
 
     kwargs = dict(
         data=make_data(),
+        params={},
         model_factory=Model,
         metric=mae,
         post_fit_evaluator=RecordingEvaluator(),
-        post_fit=PostFitEvaluationConfig(stages=("tuning", "cv", "final")),
+        config=TrainingConfig(validation=TimeSeriesCVConfig(n_splits=2)),
     )
     with pytest.raises(ValueError, match="object_id is required"):
-        if entry_point == "train":
-            train_model(
-                **{k: v for k, v in kwargs.items() if k != "post_fit"},
-                params={},
-                run_name="invalid",
-                config=TrainingConfig(
-                    cv=CrossValidationConfig(n_splits=2), post_fit=kwargs["post_fit"]
-                ),
-            )
-        elif entry_point == "cv":
-            cross_validate(
-                **kwargs, params={}, config=CrossValidationConfig(n_splits=2)
-            )
-        else:
-            tune_optuna(
-                **kwargs,
-                base_params={},
-                param_space=lambda trial: {},
-                config=TuningConfig(metric="mae", direction="minimize", n_trials=1),
-                cv=CrossValidationConfig(n_splits=2),
-            )
+        train_model(**kwargs, run_name="invalid")
     assert fitted == []
     assert mlflow.search_runs(output_format="list") == []
 
@@ -240,18 +227,12 @@ def test_missing_ids_fail_before_any_fit_or_run(tmp_path, entry_point):
 @pytest.mark.parametrize(
     "result, error",
     [
-        ([], TypeError),
-        ({"score": 1}, TypeError),
-        ({"score": True}, TypeError),
-        ({"score": "1.0"}, TypeError),
-        ({"score": np.array([1.0])}, TypeError),
         ({"score": float("nan")}, ValueError),
         ({"score": float("inf")}, ValueError),
         ({"": 1.0}, ValueError),
         ({"bad@name": 1.0}, ValueError),
         ({"../score": 1.0}, ValueError),
         ({"/score": 1.0}, ValueError),
-        ({"only spaces": 1.0, 42: 1.0}, ValueError),
     ],
 )
 def test_invalid_results_are_rejected_before_logging(
@@ -259,17 +240,17 @@ def test_invalid_results_are_rejected_before_logging(
 ):
     logged = []
     monkeypatch.setattr(mlflow, "log_metrics", lambda metrics: logged.append(metrics))
-    evaluator = SimpleNamespace(evaluate=lambda **kwargs: result)
+    evaluator = CallbackEvaluator(evaluate=lambda **kwargs: result)
     with pytest.raises(error) as raised:
-        _log_post_fit_evaluation(
+        report_custom_evaluation(
             evaluator=evaluator,
             data=identified_data,
             prediction=np.ones(24),
             split=DatasetSplit.VAL,
-            name="fold_2",
+            name="validation/split_2",
         )
     assert logged == []
-    assert "stage=fold_2, split=val" in raised.value.__notes__[0]
+    assert "stage=validation/split_2, split=val" in raised.value.__notes__[0]
 
 
 def test_empty_results_and_test_split_are_supported(identified_data, monkeypatch):
@@ -282,8 +263,8 @@ def test_empty_results_and_test_split_are_supported(identified_data, monkeypatch
         return {} if kwargs["split"] == DatasetSplit.TRAIN else {"business/profit": 2.5}
 
     for split in (DatasetSplit.TRAIN, DatasetSplit.TEST):
-        _log_post_fit_evaluation(
-            evaluator=SimpleNamespace(evaluate=evaluate),
+        report_custom_evaluation(
+            evaluator=CallbackEvaluator(evaluate=evaluate),
             data=identified_data,
             prediction=np.ones(24),
             split=split,
@@ -293,33 +274,14 @@ def test_empty_results_and_test_split_are_supported(identified_data, monkeypatch
     assert logged == [{"test/custom/business/profit": 2.5}]
 
 
-@pytest.mark.parametrize("split", ["train", "validation", "other"])
-def test_raw_split_strings_are_rejected(identified_data, split):
-    with pytest.raises(TypeError, match="DatasetSplit"):
-        _log_post_fit_evaluation(
-            evaluator=SimpleNamespace(evaluate=lambda **kwargs: {}),
-            data=identified_data,
-            prediction=np.ones(24),
-            split=split,
-            name="invalid",
-        )
-
-
 @pytest.mark.parametrize(
     "prediction", [np.ones(23), np.ones((24, 1)), np.full(24, np.nan)]
 )
 def test_invalid_predictions_do_not_reach_evaluator(identified_data, prediction):
-    calls = []
-    evaluator = SimpleNamespace(evaluate=lambda **kwargs: calls.append(kwargs))
+    from ml_toolkit.training.evaluation import calculate_metrics
+
     with pytest.raises(ValueError, match="Predictions"):
-        _log_post_fit_evaluation(
-            evaluator=evaluator,
-            data=identified_data,
-            prediction=prediction,
-            split=DatasetSplit.TRAIN,
-            name="final_fit",
-        )
-    assert calls == []
+        calculate_metrics(mae, identified_data, prediction)
 
 
 def test_evaluator_errors_keep_original_exception_and_context(identified_data):
@@ -329,15 +291,15 @@ def test_evaluator_errors_keep_original_exception_and_context(identified_data):
         raise original
 
     with pytest.raises(KeyError) as raised:
-        _log_post_fit_evaluation(
-            evaluator=SimpleNamespace(evaluate=evaluate),
+        report_custom_evaluation(
+            evaluator=CallbackEvaluator(evaluate=evaluate),
             data=identified_data,
             prediction=np.ones(24),
             split=DatasetSplit.VAL,
-            name="fold_1",
+            name="validation/split_1",
         )
     assert raised.value is original
-    assert "stage=fold_1, split=val" in raised.value.__notes__[0]
+    assert "stage=validation/split_1, split=val" in raised.value.__notes__[0]
 
 
 def test_custom_container_ids_are_checked_without_requiring_pool():
@@ -349,16 +311,14 @@ def test_custom_container_ids_are_checked_without_requiring_pool():
         data.weight,
         object_id=pl.Series("id", list(range(len(data)))),
     )
-    evaluator = SimpleNamespace(evaluate=lambda **kwargs: {})
-    _validate_post_fit_evaluator(source, evaluator)
+    evaluator = CallbackEvaluator(evaluate=lambda **kwargs: {})
+    validate_training_data(source)
     source = replace(source, object_id=source.object_id.head(2))
     with pytest.raises(ValueError, match="equal lengths"):
-        _validate_post_fit_evaluator(source, evaluator)
-    with pytest.raises(TypeError, match="evaluate method"):
-        _validate_post_fit_evaluator(source, object())
+        validate_training_data(source)
 
 
-def test_disabled_evaluator_needs_no_ids_and_no_final_predictions(tmp_path):
+def test_disabled_evaluator_needs_no_ids_but_final_metrics_predict(tmp_path):
     setup_mlflow(tmp_path)
     predictions = []
 
@@ -374,11 +334,15 @@ def test_disabled_evaluator_needs_no_ids_and_no_final_predictions(tmp_path):
         metric=mae,
         run_name="no-post-fit",
         config=TrainingConfig(
-            cv=CrossValidationConfig(n_splits=2),
-            post_fit=PostFitEvaluationConfig(stages=("tuning", "cv", "final")),
+            validation=TimeSeriesCVConfig(n_splits=2),
+            reporting=ReportingConfig(
+                post_fit=PostFitEvaluationConfig(
+                    stages=("tuning", "validation", "final")
+                ),
+            ),
         ),
     )
-    assert predictions == [8, 8, 16, 8]
+    assert predictions == [8, 8, 16, 8, 24]
 
 
 def test_artifacts_work_with_empty_metrics_and_preserve_selected_paths(
@@ -403,8 +367,10 @@ def test_artifacts_work_with_empty_metrics_and_preserve_selected_paths(
         mlflow, "log_metrics", lambda metrics: pytest.fail("empty metrics")
     )
     monkeypatch.setattr(mlflow, "log_artifact", upload)
-    _log_post_fit_evaluation(
-        evaluator=SimpleNamespace(evaluate=lambda **kwargs: {}, write_artifacts=writer),
+    report_custom_evaluation(
+        evaluator=CallbackEvaluator(
+            evaluate=lambda **kwargs: {}, write_artifacts=writer
+        ),
         data=identified_data,
         prediction=np.ones(24),
         split=DatasetSplit.TEST,
@@ -414,7 +380,7 @@ def test_artifacts_work_with_empty_metrics_and_preserve_selected_paths(
     assert all(not root.exists() for root in roots)
 
 
-@pytest.mark.parametrize("result", [None, []])
+@pytest.mark.parametrize("result", [[]])
 def test_artifact_skip_does_not_upload_existing_files(
     identified_data, monkeypatch, result
 ):
@@ -428,12 +394,14 @@ def test_artifact_skip_does_not_upload_existing_files(
     monkeypatch.setattr(
         mlflow, "log_artifact", lambda *a, **k: pytest.fail("skip must not upload")
     )
-    _log_post_fit_evaluation(
-        evaluator=SimpleNamespace(evaluate=lambda **kwargs: {}, write_artifacts=writer),
+    report_custom_evaluation(
+        evaluator=CallbackEvaluator(
+            evaluate=lambda **kwargs: {}, write_artifacts=writer
+        ),
         data=identified_data,
         prediction=np.ones(24),
         split=DatasetSplit.VAL,
-        name="fold_1",
+        name="validation/split_1",
     )
     assert all(not root.exists() for root in roots)
 
@@ -441,9 +409,6 @@ def test_artifact_skip_does_not_upload_existing_files(
 @pytest.mark.parametrize(
     "mode, error",
     [
-        ("nan", TypeError),
-        ("tuple", TypeError),
-        ("string", TypeError),
         ("missing", ValueError),
         ("table", ValueError),
         ("outside", ValueError),
@@ -488,16 +453,16 @@ def test_invalid_artifact_results_fail_before_upload(
         mlflow, "log_artifact", lambda *a, **k: pytest.fail("invalid images")
     )
     with pytest.raises(error) as raised:
-        _log_post_fit_evaluation(
-            evaluator=SimpleNamespace(
+        report_custom_evaluation(
+            evaluator=CallbackEvaluator(
                 evaluate=lambda **kwargs: {}, write_artifacts=writer
             ),
             data=identified_data,
             prediction=np.ones(24),
             split=DatasetSplit.VAL,
-            name="fold_2",
+            name="validation/split_2",
         )
-    assert "stage=fold_2, split=val" in raised.value.__notes__[0]
+    assert "stage=validation/split_2, split=val" in raised.value.__notes__[0]
     assert all(not root.exists() for root in roots)
 
 
@@ -522,8 +487,8 @@ def test_artifact_errors_propagate_and_clean_temporary_directory(
 
     monkeypatch.setattr(mlflow, "log_artifact", upload)
     with pytest.raises(RuntimeError) as raised:
-        _log_post_fit_evaluation(
-            evaluator=SimpleNamespace(
+        report_custom_evaluation(
+            evaluator=CallbackEvaluator(
                 evaluate=lambda **kwargs: {}, write_artifacts=writer
             ),
             data=identified_data,
@@ -534,11 +499,3 @@ def test_artifact_errors_propagate_and_clean_temporary_directory(
     assert raised.value is original
     assert "stage=final_fit, split=train" in original.__notes__[0]
     assert all(not root.exists() for root in roots)
-
-
-def test_non_callable_artifact_writer_is_rejected(identified_data):
-    with pytest.raises(TypeError, match="write_artifacts must be callable"):
-        _validate_post_fit_evaluator(
-            identified_data,
-            SimpleNamespace(evaluate=lambda **kwargs: {}, write_artifacts=True),
-        )

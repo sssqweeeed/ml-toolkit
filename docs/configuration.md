@@ -1,67 +1,82 @@
 # Configuration by task
 
-One fully expanded configuration per supported task. Every constructor field is
-written explicitly, including nested defaults. These are examples, not global
-presets: use `dataclasses.replace` to change a recipe without mutating it.
+Configurations are immutable, keyword-only dataclasses. Public contracts are
+checked statically with strict Pyright; each configuration checks its own value
+ranges without reflection or runtime type discovery. Use `dataclasses.replace`
+for changes; data, model factories, metrics, rankers and Optuna spaces are explicit
+function arguments. The examples below expand every constructor field.
 
 ```python
 from ml_toolkit.config import (
+    HoldoutConfig,
+    TimeSeriesCVConfig,
+    RFEFeatureSelectionConfig,
+    TuningConfig,
+    TrainingConfig,
+    TrackingConfig,
+    PSIOptions,
+    FigureConfig,
+    NumericalFeatureDistributionConfig,
+    ShapConfig,
+    CommonPlotsConfig,
+    ClassificationPlotsConfig,
+    RegressionPlotsConfig,
+    PUPlotsConfig,
     ClassificationDiagnosticsConfig,
-    ClassificationPlotsConfig, CommonPlotsConfig, CrossValidationConfig,
-    RFEFeatureSelectionConfig, FigureConfig, FinalFitConfig,
-    NumericalFeatureDistributionConfig, PostFitEvaluationConfig,
-    PUDiagnosticsConfig, PUPlotsConfig, PSIOptions,
-    RegressionDiagnosticsConfig, RegressionPlotsConfig, ShapConfig,
-    TrackingConfig, TrainingConfig, TuningConfig,
+    RegressionDiagnosticsConfig,
+    PUDiagnosticsConfig,
+    PostFitEvaluationConfig,
+    ReportingConfig,
 )
 ```
 
-- CV sizes and `gap` are **rows**, not days; timestamps must be ascending.
-- Feature selection uses only training rows of the first evaluated CV fold.
-  `min_features=10` assumes at least ten input features. Batch RFE evaluates
-  shrinking subsets through fresh adapters on a fixed internal holdout. Pass
-  `feature_ranker=importance_ranker` or `feature_ranker=ShapRanker(...)` to training.
-  Internal scores select a subset; outer CV estimates its quality.
-- `None` disables optional stages; `features=None` selects all eligible features,
-  whereas `features=()` selects none. PSI definitions must be nonempty when
-  explicitly supplied; use `psi=None` to disable PSI.
-- `figsize=None` preserves each figure's native or adaptive size.
-- SHAP is enabled in these examples to show every field; it requires `.[shap]`.
-  `dependence_features=()` disables dependence plots; importance and beeswarm
-  remain enabled. Use `shap=None` to disable all SHAP work.
-- Ranking defaults off for ordinary regression, which can have signed targets.
-  Explicit gains/lift require nonnegative validation targets and a positive
-  weighted observed total. Invalid enabled plots raise instead of being skipped.
-- Tuning is enabled here; supply `param_space` and a metric returning the objective
-  key shown below. Model, tuning, and SHAP seeds are independent.
-- Custom evaluation follows `post_fit` only when an evaluator is supplied; enabled
-  calls need aligned `object_id`. Final fitting evaluates only the train split.
-- Metrics and configuration artifacts are always logged. Model packaging defaults
-  to final fit only. Registration applies only to that final model.
+- `validation` is `HoldoutConfig` or `TimeSeriesCVConfig`. Both execute the same
+  complete train/validation operation, including optional feature selection.
+- Integers specify row counts; floats specify fractions strictly between 0 and 1,
+  rounded up. Fractions are relative to the data at that split: original rows for
+  test and retained non-test rows for validation. RFE uses the external train/val.
+- `test_size=None` disables test evaluation. Otherwise the last rows are reserved
+  before any training or optimization, and evaluated only after final fitting.
+- Rows must be ordered by ascending `time`; there is no shuffle. `gap` and
+  `max_train_size` are row counts. Explicit diagnostic indices use original
+  one-based split numbers before `skip_splits`.
+- Every split performs RFE once on its explicit train/val with base parameters,
+  then fixes its features for its own Optuna study and post-tuning fit. Final
+  fitting uses the last split's features, parameters, iterations and threshold.
+- Each split has an independent Optuna study scoring only its own val; trial and
+  time budgets apply per study. One fit with winning parameters follows each
+  search. Mean validation metrics are reports, not optimization objectives.
+- `reporting.validation_splits` selects built-in validation diagnostics only.
+  Test uses the same diagnostic functions when enabled. Trials have no built-in
+  diagnostics; custom trial evaluation can be enabled through `post_fit.stages`.
+- Custom evaluation defaults to validation and final stages, with train/val/test
+  enabled where available. It needs aligned `object_id` and does not contribute
+  to optimization or validation averages. Images follow `write_artifacts`.
+- Model packaging defaults to final fit only. Registry names apply only to that
+  final model. Metrics and configuration artifacts are always logged.
+- Regression ranking plots default off for signed targets. Frequency and severity
+  recipes enable gains/lift and require nonnegative targets with positive totals.
+- `None` disables optional stages. `features=None` selects all eligible features;
+  `features=()` selects none. SHAP defaults off; enable it with `ShapConfig` and
+  install the `shap` extra for diagnostic explanations.
 
-Classification and PU diagnostics have a fixed task determined by their class.
-Regression diagnostics label `regression`, `frequency`, or `severity` explicitly.
-All fields have NumPy-style documentation in `ml_toolkit.config` and are validated
-when constructed. Passing PU diagnostics a supervised plots object is an error.
-
-## Supervised binary classification
+## Binary classification
 
 ```python
 classification_config = TrainingConfig(
-    cv=CrossValidationConfig(
+    validation=TimeSeriesCVConfig(
         n_splits=5,
-        skip_splits=0,
+        val_size=None,
         gap=0,
-        test_size=None,
         max_train_size=None,
+        skip_splits=0,
     ),
+    test_size=0.2,
     feature_selection=RFEFeatureSelectionConfig(
         min_features=10,
-        metric_name='log_loss',
+        metric='log_loss',
         direction='minimize',
         max_fits=6,
-        validation_fraction=0.25,
-        gap=0,
         score_tolerance=0.0,
         protected_features=(),
     ),
@@ -72,332 +87,77 @@ classification_config = TrainingConfig(
         timeout_seconds=None,
         seed=42,
     ),
-    final_fit=FinalFitConfig(
-        iteration_policy='cv_median',
-    ),
-    diagnostics=ClassificationDiagnosticsConfig(
-        folds='last',
-        psi=PSIOptions(
-            n_bins=10,
-            epsilon=1e-06,
-            features=None,
-        ),
-        plots=ClassificationPlotsConfig(
-            common=CommonPlotsConfig(
-                figure=FigureConfig(
-                    figsize=None,
-                    dpi=150,
-                    format='png',
-                ),
-                psi_scores=True,
-                psi_distribution_features=None,
-                numerical_distributions=NumericalFeatureDistributionConfig(
-                    features=None,
-                    quantile_bands=((0.05, 0.95), (0.25, 0.75)),
-                    show_mean=True,
-                    show_median=True,
-                ),
-                shap=ShapConfig(
-                    max_samples=10000,
-                    seed=42,
-                    max_display=10,
-                    dependence_features=(),
-                ),
+    reporting=ReportingConfig(
+        diagnostics=ClassificationDiagnosticsConfig(
+            psi=PSIOptions(
+                n_bins=10,
+                epsilon=1e-06,
+                features=None,
             ),
-            precision_recall=True,
-            f1_threshold=True,
-            calibration=True,
-            gains=True,
-            lift=True,
-            monthly_observed_fitted=True,
-            max_curve_points=1000,
-            calibration_bins=10,
-            histogram_bins=30,
+            plots=ClassificationPlotsConfig(
+                common=CommonPlotsConfig(
+                    figure=FigureConfig(
+                        figsize=None,
+                        dpi=150,
+                        format='png',
+                    ),
+                    psi_scores=True,
+                    psi_distribution_features=None,
+                    numerical_distributions=NumericalFeatureDistributionConfig(
+                        features=None,
+                        quantile_bands=((0.05, 0.95), (0.25, 0.75)),
+                        show_mean=True,
+                        show_median=True,
+                    ),
+                    shap=None,
+                ),
+                precision_recall=True,
+                f1_threshold=True,
+                calibration=True,
+                gains=True,
+                lift=True,
+                monthly_observed_fitted=True,
+                max_curve_points=1000,
+                calibration_bins=10,
+                histogram_bins=30,
+            ),
+        ),
+        validation_splits='last',
+        post_fit=PostFitEvaluationConfig(
+            stages=('validation', 'final'),
+            splits=('train', 'val', 'test'),
+            write_artifacts=True,
         ),
     ),
     tracking=TrackingConfig(
         log_trial_models=False,
-        log_fold_models=False,
+        log_validation_models=False,
         log_final_model=True,
         input_example_rows=5,
         model_name='model',
         registered_model_name=None,
         conda_env=None,
     ),
-    post_fit=PostFitEvaluationConfig(
-        stages=('cv', 'final'),
-        splits=('train', 'val'),
-        write_artifacts=True,
-    ),
 )
 ```
 
-## Positive-unlabeled classification
-
-```python
-pu_classification_config = TrainingConfig(
-    cv=CrossValidationConfig(
-        n_splits=5,
-        skip_splits=0,
-        gap=0,
-        test_size=None,
-        max_train_size=None,
-    ),
-    feature_selection=RFEFeatureSelectionConfig(
-        min_features=10,
-        metric_name='pu_risk',
-        direction='minimize',
-        max_fits=6,
-        validation_fraction=0.25,
-        gap=0,
-        score_tolerance=0.0,
-        protected_features=(),
-    ),
-    tuning=TuningConfig(
-        metric='pu_risk',
-        direction='minimize',
-        n_trials=50,
-        timeout_seconds=None,
-        seed=42,
-    ),
-    final_fit=FinalFitConfig(
-        iteration_policy='cv_median',
-    ),
-    diagnostics=PUDiagnosticsConfig(
-        folds='last',
-        psi=PSIOptions(
-            n_bins=10,
-            epsilon=1e-06,
-            features=None,
-        ),
-        plots=PUPlotsConfig(
-            common=CommonPlotsConfig(
-                figure=FigureConfig(
-                    figsize=None,
-                    dpi=150,
-                    format='png',
-                ),
-                psi_scores=True,
-                psi_distribution_features=None,
-                numerical_distributions=NumericalFeatureDistributionConfig(
-                    features=None,
-                    quantile_bands=((0.05, 0.95), (0.25, 0.75)),
-                    show_mean=True,
-                    show_median=True,
-                ),
-                shap=ShapConfig(
-                    max_samples=10000,
-                    seed=42,
-                    max_display=10,
-                    dependence_features=(),
-                ),
-            ),
-            score_distribution=True,
-            positive_capture=True,
-            histogram_bins=30,
-        ),
-    ),
-    tracking=TrackingConfig(
-        log_trial_models=False,
-        log_fold_models=False,
-        log_final_model=True,
-        input_example_rows=5,
-        model_name='model',
-        registered_model_name=None,
-        conda_env=None,
-    ),
-    post_fit=PostFitEvaluationConfig(
-        stages=('cv', 'final'),
-        splits=('train', 'val'),
-        write_artifacts=True,
-    ),
-)
-```
-
-## Frequency
-
-```python
-frequency_config = TrainingConfig(
-    cv=CrossValidationConfig(
-        n_splits=5,
-        skip_splits=0,
-        gap=0,
-        test_size=None,
-        max_train_size=None,
-    ),
-    feature_selection=RFEFeatureSelectionConfig(
-        min_features=10,
-        metric_name='mean_poisson_deviance',
-        direction='minimize',
-        max_fits=6,
-        validation_fraction=0.25,
-        gap=0,
-        score_tolerance=0.0,
-        protected_features=(),
-    ),
-    tuning=TuningConfig(
-        metric='mean_poisson_deviance',
-        direction='minimize',
-        n_trials=50,
-        timeout_seconds=None,
-        seed=42,
-    ),
-    final_fit=FinalFitConfig(
-        iteration_policy='cv_median',
-    ),
-    diagnostics=RegressionDiagnosticsConfig(
-        task='frequency',
-        folds='last',
-        psi=PSIOptions(
-            n_bins=10,
-            epsilon=1e-06,
-            features=None,
-        ),
-        plots=RegressionPlotsConfig(
-            common=CommonPlotsConfig(
-                figure=FigureConfig(
-                    figsize=None,
-                    dpi=150,
-                    format='png',
-                ),
-                psi_scores=True,
-                psi_distribution_features=None,
-                numerical_distributions=NumericalFeatureDistributionConfig(
-                    features=None,
-                    quantile_bands=((0.05, 0.95), (0.25, 0.75)),
-                    show_mean=True,
-                    show_median=True,
-                ),
-                shap=ShapConfig(
-                    max_samples=10000,
-                    seed=42,
-                    max_display=10,
-                    dependence_features=(),
-                ),
-            ),
-            gains=True,
-            lift=True,
-            monthly_observed_fitted=True,
-        ),
-    ),
-    tracking=TrackingConfig(
-        log_trial_models=False,
-        log_fold_models=False,
-        log_final_model=True,
-        input_example_rows=5,
-        model_name='model',
-        registered_model_name=None,
-        conda_env=None,
-    ),
-    post_fit=PostFitEvaluationConfig(
-        stages=('cv', 'final'),
-        splits=('train', 'val'),
-        write_artifacts=True,
-    ),
-)
-```
-
-## Severity
-
-```python
-severity_config = TrainingConfig(
-    cv=CrossValidationConfig(
-        n_splits=5,
-        skip_splits=0,
-        gap=0,
-        test_size=None,
-        max_train_size=None,
-    ),
-    feature_selection=RFEFeatureSelectionConfig(
-        min_features=10,
-        metric_name='mean_tweedie_deviance',
-        direction='minimize',
-        max_fits=6,
-        validation_fraction=0.25,
-        gap=0,
-        score_tolerance=0.0,
-        protected_features=(),
-    ),
-    tuning=TuningConfig(
-        metric='mean_tweedie_deviance',
-        direction='minimize',
-        n_trials=50,
-        timeout_seconds=None,
-        seed=42,
-    ),
-    final_fit=FinalFitConfig(
-        iteration_policy='cv_median',
-    ),
-    diagnostics=RegressionDiagnosticsConfig(
-        task='severity',
-        folds='last',
-        psi=PSIOptions(
-            n_bins=10,
-            epsilon=1e-06,
-            features=None,
-        ),
-        plots=RegressionPlotsConfig(
-            common=CommonPlotsConfig(
-                figure=FigureConfig(
-                    figsize=None,
-                    dpi=150,
-                    format='png',
-                ),
-                psi_scores=True,
-                psi_distribution_features=None,
-                numerical_distributions=NumericalFeatureDistributionConfig(
-                    features=None,
-                    quantile_bands=((0.05, 0.95), (0.25, 0.75)),
-                    show_mean=True,
-                    show_median=True,
-                ),
-                shap=ShapConfig(
-                    max_samples=10000,
-                    seed=42,
-                    max_display=10,
-                    dependence_features=(),
-                ),
-            ),
-            gains=True,
-            lift=True,
-            monthly_observed_fitted=True,
-        ),
-    ),
-    tracking=TrackingConfig(
-        log_trial_models=False,
-        log_fold_models=False,
-        log_final_model=True,
-        input_example_rows=5,
-        model_name='model',
-        registered_model_name=None,
-        conda_env=None,
-    ),
-    post_fit=PostFitEvaluationConfig(
-        stages=('cv', 'final'),
-        splits=('train', 'val'),
-        write_artifacts=True,
-    ),
-)
-```
-
-## Ordinary regression
+## Regression
 
 ```python
 regression_config = TrainingConfig(
-    cv=CrossValidationConfig(
+    validation=TimeSeriesCVConfig(
         n_splits=5,
-        skip_splits=0,
+        val_size=None,
         gap=0,
-        test_size=None,
         max_train_size=None,
+        skip_splits=0,
     ),
+    test_size=0.2,
     feature_selection=RFEFeatureSelectionConfig(
         min_features=10,
-        metric_name='mae',
+        metric='mae',
         direction='minimize',
         max_fits=6,
-        validation_fraction=0.25,
-        gap=0,
         score_tolerance=0.0,
         protected_features=(),
     ),
@@ -408,98 +168,292 @@ regression_config = TrainingConfig(
         timeout_seconds=None,
         seed=42,
     ),
-    final_fit=FinalFitConfig(
-        iteration_policy='cv_median',
-    ),
-    diagnostics=RegressionDiagnosticsConfig(
-        task='regression',
-        folds='last',
-        psi=PSIOptions(
-            n_bins=10,
-            epsilon=1e-06,
-            features=None,
-        ),
-        plots=RegressionPlotsConfig(
-            common=CommonPlotsConfig(
-                figure=FigureConfig(
-                    figsize=None,
-                    dpi=150,
-                    format='png',
-                ),
-                psi_scores=True,
-                psi_distribution_features=None,
-                numerical_distributions=NumericalFeatureDistributionConfig(
-                    features=None,
-                    quantile_bands=((0.05, 0.95), (0.25, 0.75)),
-                    show_mean=True,
-                    show_median=True,
-                ),
-                shap=ShapConfig(
-                    max_samples=10000,
-                    seed=42,
-                    max_display=10,
-                    dependence_features=(),
-                ),
+    reporting=ReportingConfig(
+        diagnostics=RegressionDiagnosticsConfig(
+            task='regression',
+            psi=PSIOptions(
+                n_bins=10,
+                epsilon=1e-06,
+                features=None,
             ),
-            gains=False,
-            lift=False,
-            monthly_observed_fitted=True,
+            plots=RegressionPlotsConfig(
+                common=CommonPlotsConfig(
+                    figure=FigureConfig(
+                        figsize=None,
+                        dpi=150,
+                        format='png',
+                    ),
+                    psi_scores=True,
+                    psi_distribution_features=None,
+                    numerical_distributions=NumericalFeatureDistributionConfig(
+                        features=None,
+                        quantile_bands=((0.05, 0.95), (0.25, 0.75)),
+                        show_mean=True,
+                        show_median=True,
+                    ),
+                    shap=None,
+                ),
+                gains=False,
+                lift=False,
+                monthly_observed_fitted=True,
+            ),
+        ),
+        validation_splits='last',
+        post_fit=PostFitEvaluationConfig(
+            stages=('validation', 'final'),
+            splits=('train', 'val', 'test'),
+            write_artifacts=True,
         ),
     ),
     tracking=TrackingConfig(
         log_trial_models=False,
-        log_fold_models=False,
+        log_validation_models=False,
         log_final_model=True,
         input_example_rows=5,
         model_name='model',
         registered_model_name=None,
         conda_env=None,
     ),
-    post_fit=PostFitEvaluationConfig(
-        stages=('cv', 'final'),
-        splits=('train', 'val'),
-        write_artifacts=True,
+)
+```
+
+## Frequency
+
+```python
+frequency_config = TrainingConfig(
+    validation=TimeSeriesCVConfig(
+        n_splits=5,
+        val_size=None,
+        gap=0,
+        max_train_size=None,
+        skip_splits=0,
+    ),
+    test_size=0.2,
+    feature_selection=RFEFeatureSelectionConfig(
+        min_features=10,
+        metric='mean_poisson_deviance',
+        direction='minimize',
+        max_fits=6,
+        score_tolerance=0.0,
+        protected_features=(),
+    ),
+    tuning=TuningConfig(
+        metric='mean_poisson_deviance',
+        direction='minimize',
+        n_trials=50,
+        timeout_seconds=None,
+        seed=42,
+    ),
+    reporting=ReportingConfig(
+        diagnostics=RegressionDiagnosticsConfig(
+            task='frequency',
+            psi=PSIOptions(
+                n_bins=10,
+                epsilon=1e-06,
+                features=None,
+            ),
+            plots=RegressionPlotsConfig(
+                common=CommonPlotsConfig(
+                    figure=FigureConfig(
+                        figsize=None,
+                        dpi=150,
+                        format='png',
+                    ),
+                    psi_scores=True,
+                    psi_distribution_features=None,
+                    numerical_distributions=NumericalFeatureDistributionConfig(
+                        features=None,
+                        quantile_bands=((0.05, 0.95), (0.25, 0.75)),
+                        show_mean=True,
+                        show_median=True,
+                    ),
+                    shap=None,
+                ),
+                gains=True,
+                lift=True,
+                monthly_observed_fitted=True,
+            ),
+        ),
+        validation_splits='last',
+        post_fit=PostFitEvaluationConfig(
+            stages=('validation', 'final'),
+            splits=('train', 'val', 'test'),
+            write_artifacts=True,
+        ),
+    ),
+    tracking=TrackingConfig(
+        log_trial_models=False,
+        log_validation_models=False,
+        log_final_model=True,
+        input_example_rows=5,
+        model_name='model',
+        registered_model_name=None,
+        conda_env=None,
     ),
 )
 ```
 
-## Use a configuration
-
-Data, native parameters, model factories, metric callables, feature rankers,
-parameter search functions and evaluators are separate dependencies:
+## Severity
 
 ```python
-from ml_toolkit.training import importance_ranker, train_model
-
-result = train_model(
-    data=data,
-    params=model_params,
-    model_factory=model_factory,
-    metric=metric,
-    param_space=param_space,
-    feature_ranker=importance_ranker,
-    post_fit_evaluator=evaluator,  # Optional; omit when unused.
-    run_name="severity",
-    config=severity_config,
+severity_config = TrainingConfig(
+    validation=TimeSeriesCVConfig(
+        n_splits=5,
+        val_size=None,
+        gap=0,
+        max_train_size=None,
+        skip_splits=0,
+    ),
+    test_size=0.2,
+    feature_selection=RFEFeatureSelectionConfig(
+        min_features=10,
+        metric='mean_tweedie_deviance',
+        direction='minimize',
+        max_fits=6,
+        score_tolerance=0.0,
+        protected_features=(),
+    ),
+    tuning=TuningConfig(
+        metric='mean_tweedie_deviance',
+        direction='minimize',
+        n_trials=50,
+        timeout_seconds=None,
+        seed=42,
+    ),
+    reporting=ReportingConfig(
+        diagnostics=RegressionDiagnosticsConfig(
+            task='severity',
+            psi=PSIOptions(
+                n_bins=10,
+                epsilon=1e-06,
+                features=None,
+            ),
+            plots=RegressionPlotsConfig(
+                common=CommonPlotsConfig(
+                    figure=FigureConfig(
+                        figsize=None,
+                        dpi=150,
+                        format='png',
+                    ),
+                    psi_scores=True,
+                    psi_distribution_features=None,
+                    numerical_distributions=NumericalFeatureDistributionConfig(
+                        features=None,
+                        quantile_bands=((0.05, 0.95), (0.25, 0.75)),
+                        show_mean=True,
+                        show_median=True,
+                    ),
+                    shap=None,
+                ),
+                gains=True,
+                lift=True,
+                monthly_observed_fitted=True,
+            ),
+        ),
+        validation_splits='last',
+        post_fit=PostFitEvaluationConfig(
+            stages=('validation', 'final'),
+            splits=('train', 'val', 'test'),
+            write_artifacts=True,
+        ),
+    ),
+    tracking=TrackingConfig(
+        log_trial_models=False,
+        log_validation_models=False,
+        log_final_model=True,
+        input_example_rows=5,
+        model_name='model',
+        registered_model_name=None,
+        conda_env=None,
+    ),
 )
 ```
 
-For PU, use matching model `loss`/`pu_prior` and `PUMetric(prior, loss=...)`.
-For severity, bind the Tweedie `power` in the metric, for example with
-`functools.partial(metrics_severity, power=2)` for positive Gamma targets.
-For ordinary regression, the supplied metric must return `mae`. Choose an adapter
-suitable for your target: `CatBoostRegressionModel` keeps native initialization
-and prediction semantics and accepts signed targets with losses such as RMSE.
-For Poisson/Tweedie with a manual log-mean baseline use
-`CatBoostLogLinkRegressionModel`. Binary classification uses
-`CatBoostClassificationModel`; PU uses `CatBoostPUClassificationModel`.
-Both regressors can be composed inside `InflationAdjustedModel`.
+## Positive–unlabeled classification
 
-Standalone `cross_validate` accepts `config=CrossValidationConfig(...)`,
-`tune_optuna` accepts `config=TuningConfig(...)` plus `cv=CrossValidationConfig(...)`,
-and feature selection uses
-`TrainingConfig(feature_selection=RFEFeatureSelectionConfig(...))` plus a supplied
-`feature_ranker`. The standalone `ml_toolkit.training.select_features` API returns
-the same history without MLflow logging, tuning, diagnostics or final fitting.
-Plotting functions accept the same family config and optional `FigureConfig`;
-`calculate_shap_values` accepts `config=ShapConfig(...)`.
+```python
+pu_classification_config = TrainingConfig(
+    validation=TimeSeriesCVConfig(
+        n_splits=5,
+        val_size=None,
+        gap=0,
+        max_train_size=None,
+        skip_splits=0,
+    ),
+    test_size=0.2,
+    feature_selection=RFEFeatureSelectionConfig(
+        min_features=10,
+        metric='pu_risk',
+        direction='minimize',
+        max_fits=6,
+        score_tolerance=0.0,
+        protected_features=(),
+    ),
+    tuning=TuningConfig(
+        metric='pu_risk',
+        direction='minimize',
+        n_trials=50,
+        timeout_seconds=None,
+        seed=42,
+    ),
+    reporting=ReportingConfig(
+        diagnostics=PUDiagnosticsConfig(
+            psi=PSIOptions(
+                n_bins=10,
+                epsilon=1e-06,
+                features=None,
+            ),
+            plots=PUPlotsConfig(
+                common=CommonPlotsConfig(
+                    figure=FigureConfig(
+                        figsize=None,
+                        dpi=150,
+                        format='png',
+                    ),
+                    psi_scores=True,
+                    psi_distribution_features=None,
+                    numerical_distributions=NumericalFeatureDistributionConfig(
+                        features=None,
+                        quantile_bands=((0.05, 0.95), (0.25, 0.75)),
+                        show_mean=True,
+                        show_median=True,
+                    ),
+                    shap=None,
+                ),
+                score_distribution=True,
+                positive_capture=True,
+                histogram_bins=30,
+            ),
+        ),
+        validation_splits='last',
+        post_fit=PostFitEvaluationConfig(
+            stages=('validation', 'final'),
+            splits=('train', 'val', 'test'),
+            write_artifacts=True,
+        ),
+    ),
+    tracking=TrackingConfig(
+        log_trial_models=False,
+        log_validation_models=False,
+        log_final_model=True,
+        input_example_rows=5,
+        model_name='model',
+        registered_model_name=None,
+        conda_env=None,
+    ),
+)
+```
+
+## Switching validation strategies
+
+```python
+from dataclasses import replace
+holdout_config = replace(regression_config, validation=HoldoutConfig(val_size=0.2))
+no_test_config = replace(holdout_config, test_size=None)
+```
+
+The training and Optuna calls remain identical. The final model fits every retained
+training row, including former validation and gap rows. `result.validation` holds
+split metadata and average val metrics; `result.test_metrics` is `None` when test
+is disabled. `result.params` and `result.features` come from the last split's
+post-tuning fit, rather than a median or a feature union.

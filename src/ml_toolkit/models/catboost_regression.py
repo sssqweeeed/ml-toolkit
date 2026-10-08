@@ -1,16 +1,28 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, Self
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Self, cast
 
 import catboost
 import mlflow
 import numpy as np
 import pandas as pd
 import polars as pl
+from mlflow.models.model import ModelInfo
+from mlflow.pyfunc.model import PythonModel
 
-from ._catboost import native_fit, normalize_loss, prepare_frame, read_state
-from ..tracking._model_state import audit_value, log_catboost
+from ..tracking._model_state import log_catboost
+from ..tracking.state import RegressionState
+from ..types import FloatArray, ModelParams
+from ._catboost import (
+    feature_importances,
+    native_fit,
+    normalize_loss,
+    prepare_frame,
+    read_state,
+    refit_parameters,
+)
 
 if TYPE_CHECKING:
     from ..config import TrackingConfig
@@ -19,7 +31,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class CatBoostRegressionModel(mlflow.pyfunc.PythonModel):
+class CatBoostRegressionModel(PythonModel):
     """Train and serve a CatBoost regressor with native initialization.
 
     Parameters
@@ -35,11 +47,12 @@ class CatBoostRegressionModel(mlflow.pyfunc.PythonModel):
     baseline : float or None
         Manual initial raw score, or None with native initialization.
     """
-    _baseline_mode = "native_initialization"
+
+    baseline_mode = "native_initialization"
 
     def __init__(
         self,
-        params: dict[str, Any] | None = None,
+        params: ModelParams | None = None,
         prediction_type: str | None = None,
     ) -> None:
         self.params = {} if params is None else params.copy()
@@ -72,6 +85,40 @@ class CatBoostRegressionModel(mlflow.pyfunc.PythonModel):
         if value is None or value < 0:
             return None
         return int(value)
+
+    def feature_importances(self, data: TrainingData) -> dict[str, float]:
+        """Rank the current fitted feature columns.
+
+        Parameters
+        ----------
+        data : TrainingData
+            Rows with the fitted feature names in order.
+
+        Returns
+        -------
+        dict[str, float]
+            Native prediction-change importance per feature.
+        """
+        return feature_importances(self.native_model, data.X.columns)
+
+    def get_refit_params(self) -> ModelParams:
+        """Return copied constructor parameters for final fitting.
+
+        Returns
+        -------
+        ModelParams
+            The outer-validation best iteration plus one, when available;
+            otherwise the original iteration budget. Early stopping is removed
+            and use_best_model is disabled. Learned baselines are recalculated.
+
+        Raises
+        ------
+        RuntimeError
+            The adapter has not been fitted.
+        """
+        self.native_model
+        params = refit_parameters(self.params, self.best_iteration)
+        return params
 
     @property
     def feature_names(self) -> list[str]:
@@ -113,7 +160,8 @@ class CatBoostRegressionModel(mlflow.pyfunc.PythonModel):
         """
         logger.debug(
             "Fitting CatBoost regressor: %s training rows, validation=%s",
-            len(train), validation is not None,
+            len(train),
+            validation is not None,
         )
         params = normalize_loss(self.params)
         self._validate_params(params)
@@ -121,7 +169,8 @@ class CatBoostRegressionModel(mlflow.pyfunc.PythonModel):
         if baseline is not None:
             params["boost_from_average"] = False
         model = native_fit(
-            catboost.CatBoostRegressor, params,
+            catboost.CatBoostRegressor,
+            params,
             train.to_catboost(baseline=baseline),
             None if validation is None else validation.to_catboost(baseline=baseline),
         )
@@ -132,13 +181,13 @@ class CatBoostRegressionModel(mlflow.pyfunc.PythonModel):
         logger.debug("Fitted CatBoost regressor with baseline %s", baseline)
         return self
 
-    def _validate_params(self, params):
+    def _validate_params(self, params: ModelParams) -> None:
         pass
 
-    def _calculate_baseline(self, train):
+    def _calculate_baseline(self, train: TrainingData) -> float | None:
         return None
 
-    def predict_frame(self, data: pl.DataFrame | pd.DataFrame) -> np.ndarray:
+    def predict_frame(self, data: pl.DataFrame | pd.DataFrame) -> FloatArray:
         """Predict with native output semantics and preserve output dimensions.
 
         Parameters
@@ -155,12 +204,13 @@ class CatBoostRegressionModel(mlflow.pyfunc.PythonModel):
         logger.debug("Predicting with CatBoost regressor: %s rows", len(data))
         frame = prepare_frame(data, self.feature_names, self.cat_features)
         options = (
-            {} if self.prediction_type is None
+            {}
+            if self.prediction_type is None
             else {"prediction_type": self.prediction_type}
         )
         return np.asarray(self.native_model.predict(frame, **options), dtype=float)
 
-    def predict_pool(self, data: TrainingData) -> np.ndarray:
+    def predict_pool(self, data: TrainingData) -> FloatArray:
         """Predict native regression outputs for project data.
 
         Parameters
@@ -180,7 +230,9 @@ class CatBoostRegressionModel(mlflow.pyfunc.PythonModel):
         """
         return self.predict_frame(data.to_model_input())
 
-    def predict(self, context, model_input: pd.DataFrame, params=None) -> np.ndarray:
+    def predict(
+        self, context: Any, model_input: pd.DataFrame, params: ModelParams | None = None
+    ) -> FloatArray:
         """Predict through the MLflow PythonModel interface.
 
         Parameters
@@ -208,7 +260,7 @@ class CatBoostRegressionModel(mlflow.pyfunc.PythonModel):
         sample: TrainingData,
         *,
         config: TrackingConfig | None = None,
-    ) -> Any:
+    ) -> ModelInfo:
         """Package and log the fitted model with a serving input example.
 
         Parameters
@@ -257,9 +309,15 @@ class CatBoostRegressionModel(mlflow.pyfunc.PythonModel):
         return model_info
 
     def log_artifacts(
-        self, sample_frame, sample_prediction, *, name,
-        registered_model_name=None, conda_env=None, metadata=None,
-    ) -> Any:
+        self,
+        sample_frame: pd.DataFrame,
+        sample_prediction: FloatArray,
+        *,
+        name: str,
+        registered_model_name: str | None = None,
+        conda_env: Path | None = None,
+        metadata: dict[str, object] | None = None,
+    ) -> ModelInfo:
         """Package the full model class, native state and serving example.
 
         Parameters
@@ -283,29 +341,38 @@ class CatBoostRegressionModel(mlflow.pyfunc.PythonModel):
             Logged model information.
         """
         return log_catboost(
-            self, sample_frame, sample_prediction, name=name,
+            self,
+            sample_frame,
+            sample_prediction,
+            name=name,
             registered_model_name=registered_model_name,
-            conda_env=conda_env, metadata=metadata,
+            conda_env=conda_env,
+            metadata=metadata,
         )
 
-    def _export_state(self):
+    def export_state(self) -> RegressionState:
         return {
-            "version": 1, "model_type": type(self).__name__,
-            "prediction_type": self.prediction_type, "baseline": self.baseline,
-            "baseline_mode": self._baseline_mode,
-            "training_params": audit_value(self.params),
+            "version": 1,
+            "model_type": type(self).__name__,
+            "prediction_type": self.prediction_type,
+            "baseline": self.baseline,
+            "baseline_mode": self.baseline_mode,
+            "training_params": self.params.copy(),
         }
 
-    def _restore_state(self, state, model_path):
+    def restore_state(self, state: RegressionState, model_path: str) -> None:
         self._model = catboost.CatBoostRegressor()
         self._model.load_model(model_path)
         self.params = state["training_params"]
         self.prediction_type = state["prediction_type"]
         self._baseline = state["baseline"]
 
-    def load_context(self, context):
-        state = read_state(context, type(self).__name__, self._baseline_mode)
-        self._restore_state(state, context.artifacts["model"])
+    def load_context(self, context: Any) -> None:
+        state = cast(
+            RegressionState,
+            read_state(context, type(self).__name__, self.baseline_mode),
+        )
+        self.restore_state(state, context.artifacts["model"])
         logger.debug("Loaded CatBoost regressor: %s", type(self).__name__)
 
 
@@ -324,19 +391,22 @@ class CatBoostLogLinkRegressionModel(CatBoostRegressionModel):
     The weighted target mean must be finite and positive. The same baseline
     is supplied to training and validation and folded into native bias once.
     """
-    _baseline_mode = "native_bias"
 
-    def _validate_params(self, params):
+    baseline_mode = "native_bias"
+
+    def _validate_params(self, params: ModelParams) -> None:
         loss = params.setdefault("loss_function", "Poisson")
-        if not isinstance(loss, str) or loss.split(":", 1)[0] not in ("Poisson", "Tweedie"):
+        if not isinstance(loss, str) or loss.split(":", 1)[0] not in (
+            "Poisson",
+            "Tweedie",
+        ):
             raise ValueError("Log-link regression requires Poisson or Tweedie loss")
 
-    @staticmethod
-    def _calculate_baseline(data: TrainingData) -> float:
+    def _calculate_baseline(self, train: TrainingData) -> float:
         mean = float(
             np.average(
-                data.y.to_numpy(),
-                weights=data.weight.to_numpy(),
+                train.y.to_numpy(),
+                weights=train.weight.to_numpy(),
             )
         )
         if not np.isfinite(mean) or mean <= 0:

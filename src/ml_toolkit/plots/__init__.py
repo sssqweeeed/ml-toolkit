@@ -2,4 +2,12 @@
 
 from . import classification, explainability, monitoring, psi, pu, ranking, regression
 
-__all__ = ["classification", "explainability", "monitoring", "psi", "pu", "ranking", "regression"]
+__all__ = [
+    "classification",
+    "explainability",
+    "monitoring",
+    "psi",
+    "pu",
+    "ranking",
+    "regression",
+]

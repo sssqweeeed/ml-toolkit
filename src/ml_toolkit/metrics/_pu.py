@@ -2,8 +2,16 @@
 
 import numpy as np
 
+from ..types import FloatArray
 
-def risk_components(positive_loss, negative_loss, labels, weights, prior):
+
+def risk_components(
+    positive_loss: FloatArray,
+    negative_loss: FloatArray,
+    labels: FloatArray,
+    weights: FloatArray,
+    prior: float,
+) -> tuple[float, float]:
     positive = labels == 1
     unlabeled = ~positive
     positive_risk = prior * np.average(

@@ -1,12 +1,16 @@
 """Input checks and figure handling shared by the plot families."""
 
 import logging
+from collections.abc import Sized
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.figure import Figure
+from numpy.typing import ArrayLike
 
 from ..config import FigureConfig
+from ..types import FloatArray
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +19,9 @@ class PlotError(ValueError):
     """Invalid data for a diagnostic plot."""
 
 
-def numeric_vector(values, name: str, *, probability: bool = False) -> np.ndarray:
+def numeric_vector(
+    values: ArrayLike, name: str, *, probability: bool = False
+) -> FloatArray:
     result = np.asarray(values, dtype=float)
     if result.ndim != 1 or not len(result) or not np.isfinite(result).all():
         raise PlotError(f"{name} must be a nonempty, finite one-dimensional array")
@@ -24,19 +30,21 @@ def numeric_vector(values, name: str, *, probability: bool = False) -> np.ndarra
     return result
 
 
-def same_length(**vectors) -> None:
+def same_length(**vectors: Sized) -> None:
     if len({len(value) for value in vectors.values()}) != 1:
         raise PlotError(f"{', '.join(vectors)} must have the same length")
 
 
-def weights(values, length: int) -> np.ndarray:
+def weights(values: ArrayLike | None, length: int) -> FloatArray:
     result = np.ones(length) if values is None else numeric_vector(values, "weight")
     if len(result) != length or (result < 0).any() or not (result > 0).any():
         raise PlotError("weight must match the data and have positive total exposure")
     return result
 
 
-def save_figure(fig, path: str | Path, *, config: FigureConfig | None = None) -> Path:
+def save_figure(
+    fig: Figure, path: str | Path, *, config: FigureConfig | None = None
+) -> Path:
     """Create parent directories, save a plot, and close its figure.
 
     Parameters
@@ -62,10 +70,10 @@ def save_figure(fig, path: str | Path, *, config: FigureConfig | None = None) ->
         if config is not None and config.figsize is not None:
             fig.set_size_inches(*config.figsize)
             fig.tight_layout()
-        settings = (
-            {} if config is None else {"dpi": config.dpi, "format": config.format}
-        )
-        fig.savefig(path, bbox_inches="tight", **settings)
+        if config is None:
+            fig.savefig(path, bbox_inches="tight")
+        else:
+            fig.savefig(path, bbox_inches="tight", dpi=config.dpi, format=config.format)
     finally:
         plt.close(fig)
     logger.debug("Saved figure to %s", path)

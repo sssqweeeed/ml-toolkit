@@ -1,17 +1,30 @@
 """Evaluation of positive–unlabeled scores without treating U as negative."""
 
 from dataclasses import dataclass
+from typing import cast
 
 import numpy as np
+from numpy.typing import ArrayLike
+
+from ..types import FloatArray
 from ._pu import risk_components
+from .base import MetricScores
 
 
-def _inputs(labels, probabilities, weights):
-    y = np.asarray(labels).reshape(-1)
+def pu_arrays(
+    labels: ArrayLike, probabilities: ArrayLike, weights: ArrayLike | None
+) -> tuple[FloatArray, FloatArray, FloatArray]:
+    y = np.asarray(labels, dtype=float).reshape(-1)
     p = np.asarray(probabilities, dtype=float).reshape(-1)
-    w = np.ones(len(y)) if weights is None else np.asarray(weights, dtype=float).reshape(-1)
+    w = (
+        np.ones(len(y))
+        if weights is None
+        else np.asarray(weights, dtype=float).reshape(-1)
+    )
     if not len(y) or not (y.shape == p.shape == w.shape):
-        raise ValueError("PU labels, scores, and weights need matching nonempty lengths")
+        raise ValueError(
+            "PU labels, scores, and weights need matching nonempty lengths"
+        )
     if not np.isin(y, [0, 1]).all():
         raise ValueError("PU labels must be 1 (known positive) or 0 (unlabeled)")
     if not np.isfinite(p).all() or ((p < 0) | (p > 1)).any():
@@ -23,7 +36,9 @@ def _inputs(labels, probabilities, weights):
     return y, p, w
 
 
-def positive_capture_curve(labels, probabilities, weights=None):
+def positive_capture_curve(
+    labels: ArrayLike, probabilities: ArrayLike, weights: ArrayLike | None = None
+) -> tuple[FloatArray, FloatArray]:
     """Calculate known-positive capture at unlabeled review capacities.
 
     Parameters
@@ -62,7 +77,7 @@ def positive_capture_curve(labels, probabilities, weights=None):
     >>> capacity.tolist(), capture.tolist()
     ([0.0, 0.0, 0.5, 0.5, 1.0], [0.0, 0.5, 0.5, 1.0, 1.0])
     """
-    y, p, w = _inputs(labels, probabilities, weights)
+    y, p, w = pu_arrays(labels, probabilities, weights)
     order = np.argsort(-p, kind="stable")
     y, p, w = y[order], p[order], w[order]
     ends = np.r_[np.flatnonzero(np.diff(p) != 0), len(p) - 1]
@@ -96,20 +111,25 @@ class PUMetric:
     --------
     >>> from ml_toolkit.metrics import PUMetric
     >>> scores = PUMetric(prior=0.1)([1, 0, 1, 0], [0.9, 0.8, 0.4, 0.2])
-    >>> scores["known_positive_capture_at_10pct"]
+    >>> scores.to_dict()["known_positive_capture_at_10pct"]
     0.5
     """
 
     prior: float
     loss: str = "nnPU"
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if not np.isfinite(self.prior) or not 0 < self.prior < 1:
             raise ValueError("PU prior must be strictly between 0 and 1")
         if self.loss not in ("uPU", "nnPU"):
             raise ValueError("PU loss must be 'uPU' or 'nnPU'")
 
-    def __call__(self, labels, probabilities, weights=None) -> dict[str, float]:
+    def __call__(
+        self,
+        labels: ArrayLike,
+        probabilities: ArrayLike,
+        weights: ArrayLike | None = None,
+    ) -> MetricScores:
         """Return PU risk and capture at 1%, 5%, and 10% unlabeled capacity.
 
         Parameters
@@ -125,7 +145,7 @@ class PUMetric:
 
         Returns
         -------
-        dict[str, float]
+        MetricScores
             positive_risk, estimated_negative_risk, and pu_risk, plus
             known_positive_capture_at_{percent}pct and
             unlabeled_flagged_at_{percent}pct for percent in (1, 5, 10). Capacity
@@ -137,15 +157,20 @@ class PUMetric:
             Inputs are empty, invalid, misaligned, or lack positive weight in
             either group.
         """
-        y, p, w = _inputs(labels, probabilities, weights)
+        y, p, w = pu_arrays(labels, probabilities, weights)
         positive = y == 1
         unlabeled = ~positive
         clipped = np.clip(p, np.finfo(float).eps, 1 - np.finfo(float).eps)
-        positive_risk, negative_risk = risk_components(-np.log(clipped), -np.log1p(-clipped), y, w, self.prior)
+        positive_risk, negative_risk = risk_components(
+            -np.log(clipped), -np.log1p(-clipped), y, w, self.prior
+        )
         result = {
             "positive_risk": float(positive_risk),
             "estimated_negative_risk": float(negative_risk),
-            "pu_risk": float(positive_risk + (max(0.0, negative_risk) if self.loss == "nnPU" else negative_risk)),
+            "pu_risk": float(
+                positive_risk
+                + (max(0.0, negative_risk) if self.loss == "nnPU" else negative_risk)
+            ),
         }
         order = np.argsort(-p[unlabeled], kind="stable")
         ranked_scores = p[unlabeled][order]
@@ -153,9 +178,14 @@ class PUMetric:
         cumulative_weight = np.cumsum(ranked_weights)
         for percent in (1, 5, 10):
             # The first score that reaches capacity sets the threshold.
-            cutoff_index = int(np.searchsorted(
-                cumulative_weight, cumulative_weight[-1] * percent / 100, side="left"
-            ))
+            cutoff_index = int(
+                cast(
+                    np.intp,
+                    cumulative_weight.searchsorted(
+                        cumulative_weight[-1] * percent / 100, side="left"
+                    ),
+                )
+            )
             cutoff = ranked_scores[cutoff_index]
             result[f"known_positive_capture_at_{percent}pct"] = float(
                 w[positive & (p >= cutoff)].sum() / w[positive].sum()
@@ -163,4 +193,4 @@ class PUMetric:
             result[f"unlabeled_flagged_at_{percent}pct"] = float(
                 w[unlabeled & (p >= cutoff)].sum() / w[unlabeled].sum()
             )
-        return result
+        return MetricScores(result)

@@ -3,8 +3,10 @@ from dataclasses import dataclass
 import numpy as np
 from sklearn.metrics import d2_tweedie_score, mean_absolute_error, mean_tweedie_deviance
 
-from .ranking import _ranking_metrics
-from .frequency import _root_mean_squared_error
+from ..types import FloatArray
+from .frequency import root_mean_squared_error
+from .ranking import ranking_metrics
+
 
 @dataclass(frozen=True)
 class MetricsSeverity:
@@ -42,10 +44,30 @@ class MetricsSeverity:
     gain_at_10: float
     normalized_gini: float
 
+    def to_dict(self) -> dict[str, float]:
+        """Return named scalar scores.
+
+        Returns
+        -------
+        dict[str, float]
+            All scores in this result.
+        """
+        return {
+            "mean_tweedie_deviance": self.mean_tweedie_deviance,
+            "d2_tweedie_score": self.d2_tweedie_score,
+            "mean_absolute_error": self.mean_absolute_error,
+            "root_mean_squared_error": self.root_mean_squared_error,
+            "prediction_over_observed": self.prediction_over_observed,
+            "lift_at_10": self.lift_at_10,
+            "gain_at_10": self.gain_at_10,
+            "normalized_gini": self.normalized_gini,
+        }
+
+
 def metrics_severity(
-    y_target: np.ndarray,
-    y_pred: np.ndarray,
-    exposure: np.ndarray,
+    y_target: FloatArray,
+    y_pred: FloatArray,
+    exposure: FloatArray,
     power: float,
 ) -> MetricsSeverity:
     """Calculate exposure-weighted Tweedie and ranking metrics.
@@ -82,7 +104,7 @@ def metrics_severity(
     observed = np.sum(y_target * exposure)
     predicted = np.sum(y_pred * exposure)
 
-    ranking_metrics = _ranking_metrics(
+    ranking = ranking_metrics(
         y_target=y_target, y_pred=y_pred, exposure=exposure, selected_percents=(10.0,)
     )
     return MetricsSeverity(
@@ -110,7 +132,7 @@ def metrics_severity(
             )
         ),
         root_mean_squared_error=float(
-            _root_mean_squared_error(
+            root_mean_squared_error(
                 y_target,
                 y_pred,
                 weight=exposure,
@@ -119,7 +141,7 @@ def metrics_severity(
         prediction_over_observed=float(
             predicted / observed if observed != 0 else np.nan
         ),
-        lift_at_10=ranking_metrics.selected_points[0].lift,
-        gain_at_10=ranking_metrics.selected_points[0].gain,
-        normalized_gini=ranking_metrics.normalized_gini,
+        lift_at_10=ranking.selected_points[0].lift,
+        gain_at_10=ranking.selected_points[0].gain,
+        normalized_gini=ranking.normalized_gini,
     )

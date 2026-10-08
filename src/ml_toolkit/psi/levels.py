@@ -51,8 +51,6 @@ class LevelTransformer:
         names = [feature.name for feature in self.features]
         if len(names) != len(set(names)):
             raise ValueError("Feature names must be unique")
-        if isinstance(self.n_bins, bool) or not isinstance(self.n_bins, int):
-            raise TypeError("n_bins must be an integer")
         if self.n_bins < 1:
             raise ValueError("n_bins must be a positive integer")
 
@@ -77,14 +75,12 @@ class LevelTransformer:
             Reference data is empty, features are missing, regular numerical values
             are non-finite, or categories use reserved level names.
         """
-        if not isinstance(reference, pl.DataFrame) or reference.is_empty():
-            raise ValueError("reference must be a non-empty polars DataFrame")
         names = [feature.name for feature in self.features]
         missing = sorted(set(names) - set(reference.columns))
         if missing:
             raise ValueError(f"Features are missing from reference: {missing}")
 
-        configs = []
+        configs: list[FeatureLevelConfig] = []
         for feature in self.features:
             column = reference.get_column(feature.name)
             valid = column.is_not_null()
@@ -148,7 +144,7 @@ class LevelTransformer:
                     np.inf if feature.upper_bound is None else feature.upper_bound
                 )
                 interval_edges = (lower_edge, *boundaries, upper_edge)
-                interval_levels = []
+                interval_levels: list[str] = []
                 for left, right in pairwise(interval_edges):
                     left_label = "-inf" if left == -np.inf else f"{left:g}"
                     right_label = "inf" if right == np.inf else f"{right:g}"
@@ -209,15 +205,13 @@ class LevelTransformer:
         """
         if self.config is None:
             raise RuntimeError("LevelTransformer must be fitted before transform")
-        if not isinstance(data, pl.DataFrame) or data.is_empty():
-            raise ValueError("data must be a non-empty polars DataFrame")
         missing = sorted(
             {feature.name for feature in self.config.features} - set(data.columns)
         )
         if missing:
             raise ValueError(f"Features are missing from data: {missing}")
 
-        expressions = []
+        expressions: list[pl.Expr] = []
         for feature in self.config.features:
             column = pl.col(feature.name)
             nulls = column.is_null()

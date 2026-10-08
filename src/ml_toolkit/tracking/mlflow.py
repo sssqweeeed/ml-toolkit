@@ -24,4 +24,6 @@ def log_polars_table(table: pl.DataFrame, artifact_file: str) -> None:
     active run, or MLflow's implicit run if no run is active.
     """
     mlflow.log_dict({"rows": table.to_dicts()}, artifact_file)
-    logger.debug("Logged table %s: %s rows, %s columns", artifact_file, table.height, table.width)
+    logger.debug(
+        "Logged table %s: %s rows, %s columns", artifact_file, table.height, table.width
+    )

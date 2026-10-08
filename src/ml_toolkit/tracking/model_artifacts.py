@@ -1,13 +1,17 @@
 """Common MLflow models-from-code packaging for native model artifacts."""
 
 import logging
+import shutil
 from importlib.metadata import version
 from pathlib import Path
-import shutil
 from tempfile import TemporaryDirectory
 
 import mlflow
+import pandas as pd
 from mlflow.models import infer_signature
+from mlflow.models.model import ModelInfo
+
+from ..types import FloatArray, ModelParams
 
 PACKAGES = ("catboost", "polars", "pyarrow", "matplotlib", "scikit-learn", "optuna")
 
@@ -16,18 +20,18 @@ logger = logging.getLogger(__name__)
 
 def log_model_from_code(
     *,
-    source,
-    sample_frame,
-    sample_prediction,
-    artifacts,
-    metadata,
-    params,
-    name,
-    registered_model_name=None,
-    conda_env=None,
-    code_paths=None,
-    packages=(),
-):
+    source: str | Path,
+    sample_frame: pd.DataFrame,
+    sample_prediction: FloatArray,
+    artifacts: dict[str, str],
+    metadata: dict[str, object] | None,
+    params: ModelParams,
+    name: str,
+    registered_model_name: str | None = None,
+    conda_env: Path | None = None,
+    code_paths: list[str] | None = None,
+    packages: tuple[str, ...] = (),
+) -> ModelInfo:
     """Package native artifacts and serving source as an MLflow Python model.
 
     Parameters
@@ -78,18 +82,20 @@ def log_model_from_code(
     if sample_frame.empty:
         raise ValueError("The logging sample must contain at least one row.")
 
+    environment_path: str | None = None
+    requirements: list[str] | None = None
     if conda_env is not None:
         conda_env = Path(conda_env).resolve()
         if not conda_env.is_file():
             raise FileNotFoundError(f"Environment file not found: {conda_env}")
-        environment = {"conda_env": str(conda_env)}
+        environment_path = str(conda_env)
     else:
-        environment = {
-            "pip_requirements": [
-                f"{package}=={version(package)}"
-                for package in dict.fromkeys(("mlflow", "numpy", "pandas", *PACKAGES, *packages))
-            ]
-        }
+        requirements = [
+            f"{package}=={version(package)}"
+            for package in dict.fromkeys(
+                ("mlflow", "numpy", "pandas", *PACKAGES, *packages)
+            )
+        ]
 
     logger.debug(
         "Logging model artifact %s: %s sample rows, registered=%s",
@@ -103,8 +109,16 @@ def log_model_from_code(
             Path(__file__).resolve().parents[1],
             package,
             ignore=shutil.ignore_patterns(
-                "__pycache__", "*.py[co]", ".pytest_cache", ".mypy_cache",
-                ".ruff_cache", ".cache", ".codex", ".codegraph", ".agents", "AGENTS.md",
+                "__pycache__",
+                "*.py[co]",
+                ".pytest_cache",
+                ".mypy_cache",
+                ".ruff_cache",
+                ".cache",
+                ".codex",
+                ".codegraph",
+                ".agents",
+                "AGENTS.md",
             ),
         )
         model_info = mlflow.pyfunc.log_model(
@@ -117,7 +131,8 @@ def log_model_from_code(
             artifacts=artifacts,
             metadata=metadata,
             code_paths=[str(package), *(code_paths or [])],
-            **environment,
+            conda_env=environment_path,
+            pip_requirements=requirements,
         )
     logger.debug("Logged model artifact %s", name)
     return model_info

@@ -50,13 +50,9 @@ def psi(
     >>> psi(reference, current)
     0.0
     """
-    if not isinstance(reference, pl.Series) or reference.dtype != pl.Categorical:
-        raise TypeError("reference must be a pl.Categorical Series")
-    if not isinstance(current, pl.Series) or current.dtype != pl.Categorical:
-        raise TypeError("current must be a pl.Categorical Series")
     if reference.is_empty() or current.is_empty():
         raise ValueError("PSI input series must not be empty")
-    if not np.isscalar(epsilon) or not 0 < float(epsilon) < 1:
+    if not 0 < epsilon < 1:
         raise ValueError("epsilon must be between 0 and 1")
 
     reference_counts = Counter(reference.cast(pl.String).to_list())

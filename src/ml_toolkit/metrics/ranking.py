@@ -2,10 +2,14 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from ..types import FloatArray
+
+
 @dataclass(frozen=True)
 class CumulativeCurve:
-    cumulative_exposure: np.ndarray
-    cumulative_observed: np.ndarray
+    cumulative_exposure: FloatArray
+    cumulative_observed: FloatArray
+
 
 @dataclass(frozen=True)
 class SelectedRankingPoint:
@@ -24,6 +28,7 @@ class SelectedRankingPoint:
     percent: float
     gain: float
     lift: float
+
 
 @dataclass(frozen=True)
 class RankingMetrics:
@@ -56,16 +61,17 @@ class RankingMetrics:
     gini_area: float
     perfect_gini: float
 
-    cumulative_exposure: np.ndarray
-    cumulative_observed: np.ndarray
-    cumulative_lift: np.ndarray
+    cumulative_exposure: FloatArray
+    cumulative_observed: FloatArray
+    cumulative_lift: FloatArray
 
     selected_points: tuple[SelectedRankingPoint, ...]
 
+
 def _cumulative_curve(
-    y_target: np.ndarray,
-    y_score: np.ndarray,
-    exposure: np.ndarray,
+    y_target: FloatArray,
+    y_score: FloatArray,
+    exposure: FloatArray,
 ) -> CumulativeCurve:
     y_target = np.asarray(y_target, dtype=float)
     y_score = np.asarray(y_score, dtype=float)
@@ -133,6 +139,7 @@ def _cumulative_curve(
         cumulative_observed=cumulative_observed,
     )
 
+
 def _gini_from_curve(
     curve: CumulativeCurve,
 ) -> tuple[float, float]:
@@ -147,9 +154,10 @@ def _gini_from_curve(
 
     return gini, area
 
+
 def _lift_from_curve(
     curve: CumulativeCurve,
-) -> np.ndarray:
+) -> FloatArray:
     return np.divide(
         curve.cumulative_observed,
         curve.cumulative_exposure,
@@ -161,11 +169,12 @@ def _lift_from_curve(
         where=curve.cumulative_exposure > 0,
     )
 
+
 def _selected_ranking_points(
     curve: CumulativeCurve,
     selected_percents: tuple[float, ...],
 ) -> tuple[SelectedRankingPoint, ...]:
-    result = []
+    result: list[SelectedRankingPoint] = []
 
     for percent in selected_percents:
         if not 0 < percent <= 100:
@@ -193,10 +202,11 @@ def _selected_ranking_points(
 
     return tuple(result)
 
-def _ranking_metrics(
-    y_target: np.ndarray,
-    y_pred: np.ndarray,
-    exposure: np.ndarray,
+
+def ranking_metrics(
+    y_target: FloatArray,
+    y_pred: FloatArray,
+    exposure: FloatArray,
     selected_percents: tuple[float, ...] = (10.0,),
 ) -> RankingMetrics:
     """Calculate gains, lift, and Gini after ranking by descending prediction.
@@ -283,4 +293,5 @@ def _ranking_metrics(
         selected_points=selected_points,
     )
 
-ranking_metrics = _ranking_metrics
+
+ranking_metrics = ranking_metrics

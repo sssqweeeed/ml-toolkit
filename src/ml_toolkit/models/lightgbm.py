@@ -4,14 +4,19 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Sequence
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from typing import TYPE_CHECKING, Any
 
 import lightgbm
-import mlflow
 import numpy as np
 import pandas as pd
-from typing import TYPE_CHECKING
+from mlflow.models.model import ModelInfo
+from mlflow.pyfunc.model import PythonModel
+
+from ..training.contracts import TrainingData
+from ..types import FloatArray, ModelParams
 
 if TYPE_CHECKING:
     from ..config import TrackingConfig
@@ -19,7 +24,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger("ml_toolkit.models.lightgbm")
 
 
-class LightGBMWrapper(mlflow.pyfunc.PythonModel):
+class LightGBMWrapper(PythonModel):
     """Log and serve a LightGBM regressor without pickling the model.
 
     Parameters
@@ -38,7 +43,12 @@ class LightGBMWrapper(mlflow.pyfunc.PythonModel):
     and categorical names must partition native model features when logging.
     """
 
-    def __init__(self, model=None, numerical_features=None, cat_features=None):
+    def __init__(
+        self,
+        model: lightgbm.Booster | lightgbm.LGBMModel | None = None,
+        numerical_features: Sequence[str] | None = None,
+        cat_features: Sequence[str] | None = None,
+    ) -> None:
         self.model = model
         self.numerical_features = (
             list(numerical_features) if numerical_features is not None else []
@@ -51,7 +61,7 @@ class LightGBMWrapper(mlflow.pyfunc.PythonModel):
         return "regression"
 
     @property
-    def native_model(self):
+    def native_model(self) -> lightgbm.Booster:
         """Return the native Booster; raise RuntimeError if no model is loaded."""
         if self.model is None:
             raise RuntimeError("The LightGBM model has not been loaded.")
@@ -62,11 +72,11 @@ class LightGBMWrapper(mlflow.pyfunc.PythonModel):
         )
 
     @property
-    def feature_names(self):
+    def feature_names(self) -> list[str]:
         """Return native LightGBM feature names in prediction order."""
         return self.native_model.feature_name()
 
-    def load_context(self, context):
+    def load_context(self, context: Any) -> None:
         self.model = lightgbm.Booster(model_file=context.artifacts["booster"])
         with open(context.artifacts["features"], encoding="utf-8") as f:
             features = json.load(f)
@@ -74,7 +84,9 @@ class LightGBMWrapper(mlflow.pyfunc.PythonModel):
         self.cat_features = features["cat_features"]
         logger.debug("Loaded LightGBM serving model")
 
-    def predict(self, context, model_input: pd.DataFrame, params=None) -> np.ndarray:
+    def predict(
+        self, context: Any, model_input: pd.DataFrame, params: ModelParams | None = None
+    ) -> FloatArray:
         """Predict with native feature order and pandas categorical conversion.
 
         Parameters
@@ -107,10 +119,10 @@ class LightGBMWrapper(mlflow.pyfunc.PythonModel):
 
     def log(
         self,
-        sample,
+        sample: TrainingData,
         *,
         config: TrackingConfig | None = None,
-    ):
+    ) -> ModelInfo:
         """Log native LightGBM artifacts and a serving signature to MLflow.
 
         Parameters
@@ -156,7 +168,9 @@ class LightGBMWrapper(mlflow.pyfunc.PythonModel):
 
         wrapper_path = (
             Path(__file__).resolve().parents[1]
-            / "tracking" / "entrypoints" / "LightGBMWrapper.py"
+            / "tracking"
+            / "entrypoints"
+            / "LightGBMWrapper.py"
         )
         sample_frame = sample.to_model_input(n_rows=config.input_example_rows).loc[
             :, self.feature_names
@@ -165,7 +179,7 @@ class LightGBMWrapper(mlflow.pyfunc.PythonModel):
             raise ValueError("The logging sample must contain at least one row.")
         sample_prediction = self.predict(None, sample_frame)
         booster = self.native_model
-        metadata = {
+        metadata: dict[str, object] = {
             "numerical_features": self.numerical_features,
             "cat_features": self.cat_features,
         }

@@ -1,15 +1,13 @@
-"""Logging remains application-controlled and independent of experiment tracking."""
-
-from datetime import date
-from importlib import import_module
 import io
 import json
 import logging
 import os
-from pathlib import Path
 import runpy
 import subprocess
 import sys
+from datetime import date
+from importlib import import_module
+from pathlib import Path
 from types import SimpleNamespace
 
 import matplotlib.pyplot as plt
@@ -19,26 +17,29 @@ import optuna
 import pandas as pd
 import polars as pl
 import pytest
+from test_training import MeanModel, mae, make_data, setup_mlflow
 
 from ml_toolkit.config import (
-    RFEFeatureSelectionConfig,
-    CrossValidationConfig,
-    TuningConfig,
-    ShapConfig,
+    HoldoutConfig,
     PostFitEvaluationConfig,
+    RFEFeatureSelectionConfig,
+    ShapConfig,
+    TimeSeriesCVConfig,
     TrainingConfig,
+    TuningConfig,
 )
-
 from ml_toolkit.explainability import calculate_shap_values
 from ml_toolkit.inflation import ConstantRateInflation
+from ml_toolkit.metrics import MetricScores
 from ml_toolkit.models import CatBoostClassificationModel, CatBoostRegressionModel
 from ml_toolkit.plots.utils import save_figure
 from ml_toolkit.psi import PSIAnalysis, PSIConfig, PSIFeature
 from ml_toolkit.tracking.mlflow import log_polars_table
 from ml_toolkit.tracking.model_artifacts import log_model_from_code
-from ml_toolkit.training import importance_ranker, train_model
+from ml_toolkit.training import importance_ranker, split_holdout, train_model
 from ml_toolkit.training.feature_selection import select_features
-from test_training import MeanModel, mae, make_data, setup_mlflow
+
+"""Logging remains application-controlled and independent of experiment tracking."""
 
 
 def toolkit_records(caplog):
@@ -75,7 +76,7 @@ assert all(handler in package.handlers for handler in package_state[2])
 added = [handler for handler in package.handlers if handler not in package_state[2]]
 assert len(added) == 1 and type(added[0]) is logging.NullHandler
 assert all(logging.getLogger(name).level == logging.NOTSET for name in (
-    "ml_toolkit.training.train", "ml_toolkit.training.cross_validation",
+    "ml_toolkit.training.workflow", "ml_toolkit.training.fit",
     "ml_toolkit.models.catboost_classification",
 ))
 assert ml_toolkit.__all__ == ["Pool", "TrainingResult", "train_model"]
@@ -103,18 +104,20 @@ def test_workflow_levels_and_results(tmp_path, caplog, level):
         data=make_data(),
         params={"private_parameter": "do-not-log"},
         model_factory=MeanModel,
-        metric=lambda y, p, w: {"mae": float(np.mean(abs(y - p)))},
+        metric=lambda y, p, w: MetricScores({"mae": float(np.mean(abs(y - p)))}),
         run_name="logging",
         param_space=lambda trial: {"choice": trial.suggest_int("choice", 1, 2)},
         config=TrainingConfig(
-            cv=CrossValidationConfig(n_splits=2, skip_splits=1),
-            feature_selection=RFEFeatureSelectionConfig(min_features=1, metric_name="mae", direction="minimize"),
+            validation=TimeSeriesCVConfig(n_splits=2, skip_splits=1),
+            feature_selection=RFEFeatureSelectionConfig(
+                min_features=1, metric="mae", direction="minimize"
+            ),
             tuning=TuningConfig(metric="mae", direction="minimize", n_trials=2),
         ),
     )
     assert result.features == ("x",)
     assert optuna.logging.get_verbosity() == optuna_verbosity
-    assert len(result.cross_validation.fold_metrics) == 1
+    assert len(result.validation.splits) == 1
     assert result.model.predict_pool(make_data()).shape == (24,)
     records = toolkit_records(caplog)
     messages = [record.getMessage() for record in records]
@@ -127,9 +130,9 @@ def test_workflow_levels_and_results(tmp_path, caplog, level):
         "Completed feature selection: 1 features selected",
         "Starting Optuna tuning:",
         "Completed Optuna tuning:",
-        "Starting fold 2",
-        "Completed fold 2",
-        "Completed cross-validation",
+        "Starting validation split 2",
+        "Completed validation split 2",
+        "Completed validation",
         "Starting final fit",
         "Completed final fit",
         "Completed training run logging",
@@ -142,11 +145,11 @@ def test_workflow_levels_and_results(tmp_path, caplog, level):
         for detail in (
             "Training data:",
             "Selected features:",
-            "Skipping fold 1",
+            "Split 2:",
             "Starting tuning trial 1",
             "Completed tuning trial 2",
-            "Evaluation fold_2 val metrics:",
-            "Cross-validation mean metrics:",
+            "Evaluation validation/split_2 val metrics:",
+            "Validation mean metrics:",
         ):
             assert any(message.startswith(detail) for message in messages)
 
@@ -159,12 +162,17 @@ def test_module_override_propagates_once(caplog):
     handler = logging.StreamHandler(stream)
     package.addHandler(handler)
     try:
+        partition = split_holdout(make_data(), HoldoutConfig(val_size=0.25))
         selected = select_features(
-            metric=mae, ranker=importance_ranker,
-            data=make_data(),
+            metric=mae,
+            ranker=importance_ranker,
+            train=partition.train,
+            validation=partition.val,
             params={},
             model_factory=MeanModel,
-            config=RFEFeatureSelectionConfig(min_features=1, metric_name="mae", direction="minimize"),
+            config=RFEFeatureSelectionConfig(
+                min_features=1, metric="mae", direction="minimize"
+            ),
         )
     finally:
         package.removeHandler(handler)
@@ -173,7 +181,10 @@ def test_module_override_propagates_once(caplog):
     messages = [record.getMessage() for record in toolkit_records(caplog)]
     assert "Selected features: ('x',)" in messages
     assert stream.getvalue().splitlines() == messages
-    assert messages.count("Completed feature selection: 1 features selected at step 2") == 1
+    assert (
+        messages.count("Completed feature selection: 1 features selected at step 2")
+        == 1
+    )
 
 
 def test_helper_debug_logs_preserve_outputs(tmp_path, caplog, monkeypatch):
@@ -260,28 +271,43 @@ def test_model_and_shap_debug_logs_preserve_verbosity(caplog):
 
 
 @pytest.mark.parametrize("classifier", [False, True])
-def test_serving_logs_keep_namespace_under_dynamic_loading(tmp_path, caplog, monkeypatch, classifier):
+def test_serving_logs_keep_namespace_under_dynamic_loading(
+    tmp_path, caplog, monkeypatch, classifier
+):
     caplog.set_level(logging.DEBUG, logger="ml_toolkit")
     data = make_data()
     if classifier:
         data = data.with_target(pl.Series("target", [0, 1] * 12))
     factory = CatBoostClassificationModel if classifier else CatBoostRegressionModel
-    model = factory({"iterations": 3, "depth": 2, "verbose": False, "allow_writing_files": False}).fit(data)
+    model = factory(
+        {"iterations": 3, "depth": 2, "verbose": False, "allow_writing_files": False}
+    ).fit(data)
     path = tmp_path / "model.cbm"
     model.native_model.save_model(str(path))
     config_path = tmp_path / "config.json"
-    config_path.write_text(json.dumps(model._export_state()))
+    config_path.write_text(json.dumps(model.export_state()))
     registered = []
     monkeypatch.setattr(mlflow.models, "set_model", registered.append)
-    source = Path(__file__).resolve().parents[1] / "src/ml_toolkit/tracking/entrypoints" / f"{factory.__name__}.py"
+    source = (
+        Path(__file__).resolve().parents[1]
+        / "src/ml_toolkit/tracking/entrypoints"
+        / f"{factory.__name__}.py"
+    )
     runpy.run_path(str(source), run_name="generated_mlflow_module")
     assert len(registered) == 1 and type(registered[0]) is factory
     wrapper = registered[0]
-    wrapper.load_context(SimpleNamespace(artifacts={"model": str(path), "config": str(config_path)}))
-    np.testing.assert_allclose(wrapper.predict(None, data.to_model_input()), model.predict_pool(data))
+    wrapper.load_context(
+        SimpleNamespace(artifacts={"model": str(path), "config": str(config_path)})
+    )
+    np.testing.assert_allclose(
+        wrapper.predict(None, data.to_model_input()), model.predict_pool(data)
+    )
     module = "catboost_classification" if classifier else "catboost_regression"
-    assert any(record.name == f"ml_toolkit.models.{module}" and record.getMessage().startswith("Predicting with CatBoost") for record in toolkit_records(caplog))
-
+    assert any(
+        record.name == f"ml_toolkit.models.{module}"
+        and record.getMessage().startswith("Predicting with CatBoost")
+        for record in toolkit_records(caplog)
+    )
 
 
 def test_lightgbm_serving_namespace(tmp_path, caplog, monkeypatch):
@@ -301,7 +327,9 @@ def test_lightgbm_serving_namespace(tmp_path, caplog, monkeypatch):
     monkeypatch.setitem(sys.modules, "lightgbm", SimpleNamespace(Booster=Booster))
     monkeypatch.setattr(mlflow.models, "set_model", lambda model: None)
     source = Path(__file__).resolve().parents[1] / "src/ml_toolkit/models/lightgbm.py"
-    loaded = runpy.run_path(str(source), run_name="generated_lightgbm_module")
+    loaded = runpy.run_path(
+        str(source), run_name="ml_toolkit.models.generated_lightgbm_module"
+    )
     assert loaded["logger"].name == "ml_toolkit.models.lightgbm"
     config = tmp_path / "features.json"
     config.write_text(json.dumps({"numerical_features": ["x"], "cat_features": []}))
@@ -327,16 +355,28 @@ def test_feature_selection_keeps_catboost_verbosity(caplog, classifier, level):
         data = data.with_target(pl.Series("target", [0, 1] * 12))
     fitted = []
     factory = CatBoostClassificationModel if classifier else CatBoostRegressionModel
+
     def record(params):
         model = factory(params)
         fitted.append(model)
         return model
+
     params = {"iterations": 3, "verbose": False, "allow_writing_files": False}
-    result = select_features(metric=mae, ranker=importance_ranker, data=data, params=params, model_factory=record, config=RFEFeatureSelectionConfig(min_features=1, metric_name="mae", direction="minimize"))
+    partition = split_holdout(data, HoldoutConfig(val_size=0.25))
+    result = select_features(
+        metric=mae,
+        ranker=importance_ranker,
+        train=partition.train,
+        validation=partition.val,
+        params=params,
+        model_factory=record,
+        config=RFEFeatureSelectionConfig(
+            min_features=1, metric="mae", direction="minimize"
+        ),
+    )
     assert [len(step.features) for step in result.steps] == [2, 1]
     assert fitted[0].native_model.get_params()["verbose"] is False
     assert params == fitted[0].params
-
 
 
 def test_exceptions_propagate_without_error_records(tmp_path, caplog):
@@ -353,9 +393,9 @@ def test_exceptions_propagate_without_error_records(tmp_path, caplog):
             data=make_data(),
             params={},
             model_factory=FailingModel,
-            metric=lambda y, p, w: {},
+            metric=lambda y, p, w: MetricScores({}),
             run_name="failure",
-            config=TrainingConfig(cv=CrossValidationConfig(n_splits=2)),
+            config=TrainingConfig(validation=TimeSeriesCVConfig(n_splits=2)),
         )
     assert caught.value is error
     assert not any(

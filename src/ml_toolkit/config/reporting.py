@@ -1,0 +1,460 @@
+"""Task-specific diagnostics and custom post-fit reporting policies."""
+
+from dataclasses import dataclass, field
+from math import isfinite
+from typing import Literal
+
+from ..psi.config import PSIFeature
+
+
+@dataclass(frozen=True, kw_only=True, slots=True)
+class PSIOptions:
+    """Configure diagnostic PSI with optional explicit feature definitions.
+
+    Parameters
+    ----------
+    n_bins : int, default 10
+        Positive requested reference quantile-bin count. Ties may reduce it.
+    epsilon : float, default 1e-6
+        Share floor strictly between zero and one for logarithmic PSI scoring.
+    features : tuple[PSIFeature, ...] or None, default None
+        None infers every input feature from categorical declarations and dtype.
+        An explicit nonempty tuple selects features and supplies their bounds
+        and sentinel rules. Numerical boundaries are fitted on training only.
+    """
+
+    n_bins: int = 10
+    epsilon: float = 1e-6
+    features: tuple[PSIFeature, ...] | None = None
+
+    def __post_init__(self) -> None:
+        if self.n_bins < 1:
+            raise ValueError("n_bins must be positive")
+        if not 0 < self.epsilon < 1:
+            raise ValueError("epsilon must be between 0 and 1")
+        if self.features == ():
+            raise ValueError(
+                "PSI features must not be empty; use psi=None to disable PSI"
+            )
+
+        if self.features is not None:
+            names = tuple(feature.name for feature in self.features)
+            if any(not name.strip() for name in names) or len(set(names)) != len(names):
+                raise ValueError("features must contain unique nonempty names")
+
+
+@dataclass(frozen=True, kw_only=True, slots=True)
+class FigureConfig:
+    """Configure figure dimensions and file output.
+
+    Parameters
+    ----------
+    figsize : tuple[float, float] or None, default None
+        Positive finite width and height in inches. None preserves each plot's
+        native or adaptive dimensions.
+    dpi : int, default 150
+        Positive export resolution in dots per inch.
+    format : {'png', 'svg', 'pdf'}, default 'png'
+        Output format. Explicit figure settings replace the output path suffix
+        to match this format. All figures are closed after saving.
+    """
+
+    figsize: tuple[float, float] | None = None
+    dpi: int = 150
+    format: Literal["png", "svg", "pdf"] = "png"
+
+    def __post_init__(self) -> None:
+        if self.dpi < 1:
+            raise ValueError("dpi must be positive")
+        if self.figsize is not None and any(
+            not isfinite(value) or value <= 0 for value in self.figsize
+        ):
+            raise ValueError("figsize dimensions must be positive")
+
+
+@dataclass(frozen=True, kw_only=True, slots=True)
+class NumericalFeatureDistributionConfig:
+    """Choose monthly numerical-feature distributions and summary curves.
+
+    Parameters
+    ----------
+    features : tuple[str, ...] or None, default None
+        None selects all numerical features; an empty tuple selects none.
+        Explicit names must exist and be numerical in both splits.
+    quantile_bands : tuple[tuple[float, float], ...]
+        Ordered unique pairs with 0 <= lower < upper <= 1. Defaults to 5-95%
+        and 25-75%. An empty tuple disables shaded bands.
+    show_mean : bool, default True
+        Display the unweighted monthly mean.
+    show_median : bool, default True
+        Display the unweighted monthly median.
+
+    Notes
+    -----
+    Null and non-finite values are omitted. Calendar-month summaries and curves
+    do not use exposure weights.
+    """
+
+    features: tuple[str, ...] | None = None
+    quantile_bands: tuple[tuple[float, float], ...] = ((0.05, 0.95), (0.25, 0.75))
+    show_mean: bool = True
+    show_median: bool = True
+
+    def __post_init__(self) -> None:
+        if any(not 0 <= lo < hi <= 1 for lo, hi in self.quantile_bands):
+            raise ValueError("quantile_bands require 0 <= lower < upper <= 1")
+        if len(set(self.quantile_bands)) != len(self.quantile_bands):
+            raise ValueError("quantile_bands must be unique")
+
+        if self.features is not None:
+            names = self.features
+            if any(not name.strip() for name in names) or len(set(names)) != len(names):
+                raise ValueError("features must contain unique nonempty names")
+
+
+@dataclass(frozen=True, kw_only=True, slots=True)
+class ShapConfig:
+    """Configure SHAP sampling and displayed feature contributions.
+
+    Parameters
+    ----------
+    max_samples : int, default 10000
+        Positive maximum row count sampled without replacement from validation or test.
+    seed : int, default 0
+        Nonnegative sampling seed, independent of model and tuning seeds.
+    max_display : int, default 10
+        Positive feature limit for importance and beeswarm plots.
+    dependence_features : tuple[str, ...], default ()
+        Unique feature names for dependence plots. Empty disables them.
+
+    Notes
+    -----
+    Requires the shap extra and a supported single-output native tree model.
+    Explanations use the native raw-output scale.
+    """
+
+    max_samples: int = 10_000
+    seed: int = 0
+    max_display: int = 10
+    dependence_features: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        if self.max_samples < 1:
+            raise ValueError("max_samples must be positive")
+        if self.max_display < 1:
+            raise ValueError("max_display must be positive")
+        if self.seed < 0:
+            raise ValueError("seed must be nonnegative")
+        names = self.dependence_features
+        if any(not name.strip() for name in names) or len(set(names)) != len(names):
+            raise ValueError("dependence_features must contain unique nonempty names")
+
+
+@dataclass(frozen=True, kw_only=True, slots=True)
+class CommonPlotsConfig:
+    """Configure figures applicable to all supported diagnostic tasks.
+
+    Parameters
+    ----------
+    figure : FigureConfig
+        Shared export settings; defaults to a fresh FigureConfig.
+    psi_scores : bool, default True
+        Draw feature PSI bars when PSI calculation is enabled.
+    psi_distribution_features : tuple[str, ...] or None, default None
+        None draws monthly levels for every PSI feature; empty draws none.
+        Explicit names must be included in the PSI feature configuration.
+    numerical_distributions : NumericalFeatureDistributionConfig or None
+        Defaults to all numerical features. None disables these plots.
+    shap : ShapConfig or None, default None
+        Optional SHAP diagnostics; None disables SHAP calculation and plots.
+    """
+
+    figure: FigureConfig = field(default_factory=FigureConfig)
+    psi_scores: bool = True
+    psi_distribution_features: tuple[str, ...] | None = None
+    numerical_distributions: NumericalFeatureDistributionConfig | None = field(
+        default_factory=NumericalFeatureDistributionConfig
+    )
+    shap: ShapConfig | None = None
+
+    def __post_init__(self) -> None:
+        if self.psi_distribution_features is not None:
+            names = self.psi_distribution_features
+            if any(not name.strip() for name in names) or len(set(names)) != len(names):
+                raise ValueError(
+                    "psi_distribution_features must contain unique nonempty names"
+                )
+
+
+@dataclass(frozen=True, kw_only=True, slots=True)
+class ClassificationPlotsConfig:
+    """Choose supervised binary-classification figures.
+
+    Parameters
+    ----------
+    common : CommonPlotsConfig
+        Shared figures and export settings; defaults to CommonPlotsConfig.
+    precision_recall : bool, default True
+        Display the unweighted precision-recall curve.
+    f1_threshold : bool, default True
+        Display unweighted F1 across distinct score thresholds.
+    calibration : bool, default True
+        Display unweighted observed rates against predicted probabilities.
+    gains : bool, default True
+        Display exposure-weighted cumulative gains for nonnegative outcomes.
+    lift : bool, default True
+        Display exposure-weighted cumulative lift.
+    monthly_observed_fitted : bool, default True
+        Display monthly exposure-weighted observed and fitted means.
+    max_curve_points : int, default 1000
+        Positive rendering limit for PR and F1; calculations retain all points.
+    calibration_bins : int, default 10
+        Positive requested number of probability-quantile calibration bins.
+    histogram_bins : int, default 30
+        Positive histogram-bin count in the calibration figure.
+    """
+
+    common: CommonPlotsConfig = field(default_factory=CommonPlotsConfig)
+    precision_recall: bool = True
+    f1_threshold: bool = True
+    calibration: bool = True
+    gains: bool = True
+    lift: bool = True
+    monthly_observed_fitted: bool = True
+    max_curve_points: int = 1_000
+    calibration_bins: int = 10
+    histogram_bins: int = 30
+
+    def __post_init__(self) -> None:
+        if self.max_curve_points < 1:
+            raise ValueError("max_curve_points must be positive")
+        if self.calibration_bins < 1:
+            raise ValueError("calibration_bins must be positive")
+        if self.histogram_bins < 1:
+            raise ValueError("histogram_bins must be positive")
+
+
+@dataclass(frozen=True, kw_only=True, slots=True)
+class RegressionPlotsConfig:
+    """Choose regression, frequency, or severity figures.
+
+    Parameters
+    ----------
+    common : CommonPlotsConfig
+        Shared figures and export settings; defaults to CommonPlotsConfig.
+    gains : bool, default False
+        Enable exposure-weighted gains. Requires nonnegative validation targets
+        with positive weighted total; invalid inputs raise rather than skip.
+    lift : bool, default False
+        Enable cumulative lift with the same target constraints as gains.
+    monthly_observed_fitted : bool, default True
+        Display monthly exposure-weighted observed and fitted means.
+
+    Notes
+    -----
+    Ranking plots default off so ordinary signed regression targets are valid.
+    Frequency and severity recipes can enable them explicitly.
+    """
+
+    common: CommonPlotsConfig = field(default_factory=CommonPlotsConfig)
+    gains: bool = False
+    lift: bool = False
+    monthly_observed_fitted: bool = True
+
+
+@dataclass(frozen=True, kw_only=True, slots=True)
+class PUPlotsConfig:
+    """Choose positive-unlabeled figures without supervised assumptions.
+
+    Parameters
+    ----------
+    common : CommonPlotsConfig
+        Shared figures and export settings; defaults to CommonPlotsConfig.
+    score_distribution : bool, default True
+        Display separately normalized weighted positive and unlabeled scores.
+    positive_capture : bool, default True
+        Display known-positive capture versus unlabeled review capacity.
+    histogram_bins : int, default 30
+        Positive number of equal-width score bins in [0, 1].
+
+    Notes
+    -----
+    No supervised gains, lift, calibration, or F1 fields are accepted.
+    """
+
+    common: CommonPlotsConfig = field(default_factory=CommonPlotsConfig)
+    score_distribution: bool = True
+    positive_capture: bool = True
+    histogram_bins: int = 30
+
+    def __post_init__(self) -> None:
+        if self.histogram_bins < 1:
+            raise ValueError("histogram_bins must be positive")
+
+
+@dataclass(frozen=True, kw_only=True, slots=True)
+class ClassificationDiagnosticsConfig:
+    """Configure supervised binary-classification diagnostics.
+
+    Parameters
+    ----------
+    psi : PSIOptions or None
+        PSI tables and fitted reference levels; defaults to PSIOptions.
+        None disables PSI calculation and related plots.
+    plots : ClassificationPlotsConfig or None
+        Defaults to ClassificationPlotsConfig. None disables every figure
+        while leaving PSI tables enabled.
+    """
+
+    psi: PSIOptions | None = field(default_factory=PSIOptions)
+    plots: ClassificationPlotsConfig | None = field(
+        default_factory=ClassificationPlotsConfig
+    )
+
+    def __post_init__(self) -> None:
+        if (
+            self.plots is not None
+            and self.psi is None
+            and self.plots.common.psi_distribution_features
+        ):
+            raise ValueError(
+                "Explicit PSI distribution features require PSI calculation"
+            )
+
+    @property
+    def task(self) -> Literal["classification"]:
+        """Return the fixed supervised classification task identifier."""
+        return "classification"
+
+
+@dataclass(frozen=True, kw_only=True, slots=True)
+class RegressionDiagnosticsConfig:
+    """Configure regression-family diagnostics.
+
+    Parameters
+    ----------
+    task : {'regression', 'frequency', 'severity'}, default 'regression'
+        Regression task label for validation and diagnostic metadata.
+    psi : PSIOptions or None
+        Defaults to PSIOptions; None disables PSI calculation and its figures.
+    plots : RegressionPlotsConfig or None
+        Defaults to RegressionPlotsConfig; None disables all figures.
+    """
+
+    task: Literal["regression", "frequency", "severity"] = "regression"
+    psi: PSIOptions | None = field(default_factory=PSIOptions)
+    plots: RegressionPlotsConfig | None = field(default_factory=RegressionPlotsConfig)
+
+    def __post_init__(self) -> None:
+        if (
+            self.plots is not None
+            and self.psi is None
+            and self.plots.common.psi_distribution_features
+        ):
+            raise ValueError(
+                "Explicit PSI distribution features require PSI calculation"
+            )
+
+
+@dataclass(frozen=True, kw_only=True, slots=True)
+class PUDiagnosticsConfig:
+    """Configure positive-unlabeled diagnostics.
+
+    Parameters
+    ----------
+    psi : PSIOptions or None
+        Defaults to PSIOptions; None disables PSI calculation and its figures.
+    plots : PUPlotsConfig or None
+        Defaults to PUPlotsConfig; None disables all figures. Supervised plot
+        configurations are rejected during construction.
+    """
+
+    psi: PSIOptions | None = field(default_factory=PSIOptions)
+    plots: PUPlotsConfig | None = field(default_factory=PUPlotsConfig)
+
+    def __post_init__(self) -> None:
+        if (
+            self.plots is not None
+            and self.psi is None
+            and self.plots.common.psi_distribution_features
+        ):
+            raise ValueError(
+                "Explicit PSI distribution features require PSI calculation"
+            )
+
+    @property
+    def task(self) -> Literal["pu_classification"]:
+        """Return the fixed positive-unlabeled classification identifier."""
+        return "pu_classification"
+
+
+DiagnosticsConfig = (
+    ClassificationDiagnosticsConfig | RegressionDiagnosticsConfig | PUDiagnosticsConfig
+)
+
+
+@dataclass(frozen=True, kw_only=True, slots=True)
+class PostFitEvaluationConfig:
+    """Control calls to a separately supplied custom post-fit evaluator.
+
+    Parameters
+    ----------
+    stages : tuple[{'tuning', 'validation', 'final'}, ...], default ('validation', 'final')
+        Unique enabled stages. An empty tuple disables all calls.
+    splits : tuple[{'train', 'val', 'test'}, ...], default ('train', 'val', 'test')
+        Enabled splits. Final fitting evaluates train and optional test. Empty
+        disables all calls; unavailable splits are skipped.
+    write_artifacts : bool, default True
+        Call the evaluator's optional image writer after scalar evaluation.
+        False disables images while retaining enabled scalar metrics.
+
+    Notes
+    -----
+    The evaluator is not copied or reset. Custom scores are logged separately
+    and do not become validation averages or optimization objectives.
+    """
+
+    stages: tuple[Literal["tuning", "validation", "final"], ...] = (
+        "validation",
+        "final",
+    )
+    splits: tuple[Literal["train", "val", "test"], ...] = ("train", "val", "test")
+    write_artifacts: bool = True
+
+    def __post_init__(self) -> None:
+        if len(set(self.stages)) != len(self.stages) or len(set(self.splits)) != len(
+            self.splits
+        ):
+            raise ValueError("post-fit stages and splits must be unique")
+
+
+@dataclass(frozen=True, kw_only=True, slots=True)
+class ReportingConfig:
+    """Choose validation/test diagnostics and custom evaluation.
+
+    Parameters
+    ----------
+    diagnostics : DiagnosticsConfig or None, default None
+        Optional task-specific PSI and figures. The same reports apply to test.
+    validation_splits : {'all', 'last'} or tuple[int, ...], default 'last'
+        Validation splits to diagnose. Explicit indices are positive, unique,
+        one-based original indices before skipping. Does not restrict test or
+        custom evaluation. Built-in diagnostics do not run during tuning.
+    post_fit : PostFitEvaluationConfig
+        Custom evaluator stage, split and image policy; defaults to evaluation
+        on validation and final stages, including test when available.
+    """
+
+    diagnostics: DiagnosticsConfig | None = None
+    validation_splits: Literal["all", "last"] | tuple[int, ...] = "last"
+    post_fit: PostFitEvaluationConfig = field(default_factory=PostFitEvaluationConfig)
+
+    def __post_init__(self) -> None:
+        if isinstance(self.validation_splits, tuple) and (
+            not self.validation_splits
+            or any(index < 1 for index in self.validation_splits)
+            or len(set(self.validation_splits)) != len(self.validation_splits)
+        ):
+            raise ValueError(
+                "validation_splits must contain unique positive one-based indices"
+            )

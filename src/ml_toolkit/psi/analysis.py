@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 import logging
+from dataclasses import dataclass, field
 
 import polars as pl
 
@@ -25,8 +25,6 @@ def _resolve_time(data: pl.DataFrame, time: pl.Series | str | None) -> pl.Series
         return None
     if isinstance(time, str):
         time = data.get_column(time)
-    if not isinstance(time, pl.Series) or len(time) != len(data):
-        raise ValueError("time must be a Polars Series with one value per row")
     if time.null_count():
         raise ValueError("time must not contain null values")
     if time.dtype != pl.Date and time.dtype.base_type() != pl.Datetime:
@@ -70,7 +68,9 @@ class PSIAnalysis:
     reference_time: pl.Series | None = field(init=False, default=None)
 
     def __post_init__(self) -> None:
-        self.transformer = LevelTransformer(self.config.features, n_bins=self.config.n_bins)
+        self.transformer = LevelTransformer(
+            self.config.features, n_bins=self.config.n_bins
+        )
 
     def fit(
         self,
@@ -101,8 +101,6 @@ class PSIAnalysis:
         TypeError
             Supplied timestamps are not Date or Datetime.
         """
-        if not isinstance(reference, pl.DataFrame) or reference.is_empty():
-            raise ValueError("reference must be a non-empty Polars DataFrame")
         reference_time = _resolve_time(reference, time)
         logger.debug(
             "Fitting PSI reference: %s rows, %s features",
@@ -147,8 +145,6 @@ class PSIAnalysis:
         """
         if self.reference_levels is None or self.transformer.config is None:
             raise RuntimeError("PSIAnalysis must be fitted before compare")
-        if not isinstance(current, pl.DataFrame) or current.is_empty():
-            raise ValueError("current must be a non-empty Polars DataFrame")
         current_time = _resolve_time(current, time)
         if (self.reference_time is None) != (current_time is None):
             raise ValueError("Both samples must provide time for monthly distributions")

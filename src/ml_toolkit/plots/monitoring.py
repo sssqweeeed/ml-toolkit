@@ -68,7 +68,7 @@ def monthly_feature_distribution(
     columns += [_quantile_name(q) for q in quantiles if q <= 0.5]
     columns += ["mean"]
     columns += [_quantile_name(q) for q in quantiles if q > 0.5]
-    frames = []
+    frames: list[pl.DataFrame] = []
     for split, data in (("reference", reference), ("current", current)):
         if feature not in data.columns or timestamp not in data.columns:
             raise ValueError(f"{split} data needs {feature!r} and {timestamp!r}")

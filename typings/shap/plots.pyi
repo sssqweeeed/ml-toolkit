@@ -1,0 +1,9 @@
+from typing import Any
+
+from matplotlib.axes import Axes
+
+from . import Explanation
+
+def bar(values: Explanation, **kwargs: Any) -> Axes: ...
+def beeswarm(values: Explanation, **kwargs: Any) -> Axes: ...
+def scatter(values: Explanation, **kwargs: Any) -> Axes: ...

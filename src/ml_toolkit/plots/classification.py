@@ -2,16 +2,16 @@
 
 from pathlib import Path
 
-from ..config import ClassificationPlotsConfig, FigureConfig
-
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from numpy.typing import ArrayLike
 
+from ..config import ClassificationPlotsConfig, FigureConfig
 from .utils import PlotError, numeric_vector, same_length, save_figure
 
 
-def binary_curves(observed, probabilities) -> pd.DataFrame:
+def binary_curves(observed: ArrayLike, probabilities: ArrayLike) -> pd.DataFrame:
     """Compute unweighted binary scores at each distinct probability threshold.
 
     Parameters
@@ -73,8 +73,8 @@ def binary_curves(observed, probabilities) -> pd.DataFrame:
 
 
 def precision_recall(
-    observed,
-    probabilities,
+    observed: ArrayLike,
+    probabilities: ArrayLike,
     save_fig: str | Path,
     *,
     config: ClassificationPlotsConfig | None = None,
@@ -116,8 +116,12 @@ def precision_recall(
     """
     config = ClassificationPlotsConfig() if config is None else config
     curve = binary_curves(observed, probabilities)
-    prevalence = float(np.mean(observed))
-    ap = float(np.sum(np.diff(np.r_[0.0, curve.recall]) * curve.precision))
+    prevalence = float(np.mean(np.asarray(observed, dtype=float)))
+    ap = float(
+        (
+            np.diff(np.r_[0.0, curve.recall.to_numpy()]) * curve.precision.to_numpy()
+        ).sum()
+    )
     shown = curve.iloc[
         np.linspace(
             0, len(curve) - 1, min(len(curve), config.max_curve_points), dtype=int
@@ -131,7 +135,7 @@ def precision_recall(
     )
     ax.axhline(prevalence, color="gray", linestyle="--", label="Positive prevalence")
     if prevalence > 0:
-        best = curve.loc[curve.f1.idxmax()]
+        best = curve.iloc[int(np.argmax(curve.f1.to_numpy()))]
         ax.scatter(best.recall, best.precision, color="tab:red", zorder=3)
         ax.annotate(
             f"Best F1={best.f1:.3f}\nthreshold={best.threshold:.3g}",
@@ -149,8 +153,8 @@ def precision_recall(
 
 
 def f1_threshold(
-    observed,
-    probabilities,
+    observed: ArrayLike,
+    probabilities: ArrayLike,
     save_fig: str | Path,
     *,
     config: ClassificationPlotsConfig | None = None,
@@ -200,7 +204,7 @@ def f1_threshold(
     fig, ax = plt.subplots(figsize=(9, 6))
     ax.plot(shown.threshold, shown.f1)
     if np.any(np.asarray(observed) == 1):
-        best = curve.loc[curve.f1.idxmax()]
+        best = curve.iloc[int(np.argmax(curve.f1.to_numpy()))]
         ax.scatter(best.threshold, best.f1, color="tab:red", zorder=3)
         ax.axvline(best.threshold, color="tab:red", linestyle="--", alpha=0.7)
         ax.set_title(f"F1 by threshold — best={best.f1:.3f} at {best.threshold:.3g}")
@@ -214,8 +218,8 @@ def f1_threshold(
 
 
 def calibration(
-    observed,
-    probabilities,
+    observed: ArrayLike,
+    probabilities: ArrayLike,
     save_fig: str | Path,
     *,
     config: ClassificationPlotsConfig | None = None,

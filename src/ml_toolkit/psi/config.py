@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Literal
+from datetime import date, datetime
+from typing import Literal
 
 import numpy as np
+
+PSIScalar = str | int | float | bool | date | datetime
+
 
 FeatureType = Literal["categorical", "numerical"]
 
@@ -24,10 +28,10 @@ class PSIFeature:
         Nonempty feature column name.
     ftype : {'categorical', 'numerical'}
         Choose category levels or reference quantile intervals.
-    error_level : Any or None, default None
+    error_level : PSIScalar or None, default None
         Optional sentinel mapped to __ERROR__; must differ from null_level and
         must not be NaN.
-    null_level : Any or None, default None
+    null_level : PSIScalar or None, default None
         Optional sentinel treated as missing alongside actual nulls and
         floating NaNs.
     lower_bound : float or None, default None
@@ -52,8 +56,8 @@ class PSIFeature:
 
     name: str
     ftype: FeatureType
-    error_level: Any | None = None
-    null_level: Any | None = None
+    error_level: PSIScalar | None = None
+    null_level: PSIScalar | None = None
     lower_bound: float | None = None
     upper_bound: float | None = None
 
@@ -62,7 +66,7 @@ class PSIFeature:
             raise ValueError("Feature name must not be empty")
         if self.ftype not in ("categorical", "numerical"):
             raise ValueError(f"Unknown feature type: {self.ftype!r}")
-        if isinstance(self.error_level, (float, np.floating)) and np.isnan(self.error_level):
+        if isinstance(self.error_level, float) and np.isnan(self.error_level):
             raise ValueError("error_level must not be NaN")
         if self.error_level is not None and self.null_level is not None:
             if self.error_level == self.null_level:
@@ -114,11 +118,9 @@ class PSIConfig:
         names = [feature.name for feature in self.features]
         if len(names) != len(set(names)):
             raise ValueError("Feature names must be unique")
-        if isinstance(self.n_bins, bool) or not isinstance(self.n_bins, int):
-            raise TypeError("n_bins must be an integer")
         if self.n_bins < 1:
             raise ValueError("n_bins must be a positive integer")
-        if not np.isscalar(self.epsilon) or not 0 < float(self.epsilon) < 1:
+        if not 0 < self.epsilon < 1:
             raise ValueError("epsilon must be between 0 and 1")
 
 
@@ -138,12 +140,12 @@ class FeatureLevelConfig:
     boundaries : tuple[float, ...]
         Internal numerical cut points; empty for categorical or single-interval
         features.
-    categories : tuple[Any, ...]
+    categories : tuple[PSIScalar, ...]
         Reference categories in first-occurrence order; empty for numerical
         features.
-    error_level : Any or None
+    error_level : PSIScalar or None
         Configured error sentinel.
-    null_level : Any or None
+    null_level : PSIScalar or None
         Configured missing-value sentinel.
     lower_bound : float or None
         Inclusive numerical lower bound.
@@ -155,9 +157,9 @@ class FeatureLevelConfig:
     ftype: FeatureType
     levels: tuple[str, ...]
     boundaries: tuple[float, ...] = ()
-    categories: tuple[Any, ...] = ()
-    error_level: Any | None = None
-    null_level: Any | None = None
+    categories: tuple[PSIScalar, ...] = ()
+    error_level: PSIScalar | None = None
+    null_level: PSIScalar | None = None
     lower_bound: float | None = None
     upper_bound: float | None = None
 

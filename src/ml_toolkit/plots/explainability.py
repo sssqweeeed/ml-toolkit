@@ -1,19 +1,24 @@
 """Model-agnostic feature importance and optional SHAP visualizations."""
 
-from pathlib import Path
+from __future__ import annotations
 
-from ..config import FigureConfig, ShapConfig
+from pathlib import Path
+from typing import TYPE_CHECKING
 
 import matplotlib.pyplot as plt
 import pandas as pd
+from numpy.typing import ArrayLike
 
-from ..explainability import top_shap_features
+from ..config import FigureConfig, ShapConfig
 from .utils import numeric_vector, same_length, save_figure
+
+if TYPE_CHECKING:
+    import shap
 
 
 def feature_importance(
-    feature_names,
-    importance,
+    feature_names: list[str],
+    importance: ArrayLike,
     save_fig: str | Path,
     *,
     max_features_display: int = 10,
@@ -72,16 +77,8 @@ def feature_importance(
     return ordered.reset_index(drop=True)
 
 
-def _shap():
-    try:
-        import shap
-    except ImportError as error:
-        raise ImportError("Install ml-toolkit[shap] to use SHAP plots") from error
-    return shap
-
-
 def shap_importance(
-    values,
+    values: shap.Explanation,
     save_fig: str | Path,
     *,
     config: ShapConfig | None = None,
@@ -114,13 +111,14 @@ def shap_importance(
     Requires ml-toolkit[shap].
     """
     config = ShapConfig() if config is None else config
-    shap = _shap()
+    import shap
+
     ax = shap.plots.bar(values, max_display=config.max_display, show=False)
     save_figure(ax.figure, save_fig, config=figure)
 
 
 def shap_beeswarm(
-    values,
+    values: shap.Explanation,
     save_fig: str | Path,
     *,
     config: ShapConfig | None = None,
@@ -153,13 +151,18 @@ def shap_beeswarm(
     Requires ml-toolkit[shap].
     """
     config = ShapConfig() if config is None else config
-    shap = _shap()
+    import shap
+
     ax = shap.plots.beeswarm(values, max_display=config.max_display, show=False)
     save_figure(ax.figure, save_fig, config=figure)
 
 
 def shap_dependence(
-    values, feature: str, save_fig: str | Path, *, figure: FigureConfig | None = None
+    values: shap.Explanation,
+    feature: str,
+    save_fig: str | Path,
+    *,
+    figure: FigureConfig | None = None,
 ) -> None:
     """Save SHAP contribution against one feature, colored by interactions.
 
@@ -190,6 +193,7 @@ def shap_dependence(
     """
     if not values.feature_names or feature not in values.feature_names:
         raise ValueError(f"Feature {feature!r} is not in SHAP feature names")
-    shap = _shap()
+    import shap
+
     ax = shap.plots.scatter(values[:, feature], color=values, show=False)
     save_figure(ax.figure, save_fig, config=figure)

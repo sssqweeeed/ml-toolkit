@@ -3,88 +3,39 @@
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-import catboost
 import numpy as np
 
 from ..config import ShapConfig
-from ..explainability import _shap_contributions
+from ..explainability import shap_contributions
 
 if TYPE_CHECKING:
     from ..models.base import Model
     from .contracts import TrainingData
 
 
-def _constant_tree_outputs(native):
-    counts = native.get_tree_leaf_counts()
-    values = native.get_leaf_values()
-    total = int(np.sum(counts))
-    if not total or values.size % total or not np.isfinite(values).all():
-        return False
-    leaves = values.reshape(total, -1)
-    offset = 0
-    for count in counts:
-        tree = leaves[offset : offset + count]
-        if not (tree == tree[0]).all():
-            return False
-        offset += count
-    return True
-
-
 def importance_ranker(model: "Model", data: "TrainingData") -> dict[str, float]:
-    """Rank an adapter's inputs by fitted native importances or coefficients.
+    """Obtain importance values from the adapter's explicit ranking method.
 
     Parameters
     ----------
     model : Model
-        Fitted adapter exposing native_model. CatBoost uses PredictionValuesChange;
-        LightGBM Boosters use gain; other estimators expose feature_importances_
-        or coef_. This function never invokes a native feature selector.
+        Fitted adapter implementing feature_importances(data).
     data : TrainingData
-        Current input columns. Names must match the fitted native feature names.
+        Current input columns in fitted order.
 
     Returns
     -------
     dict[str, float]
-        Importance per input name. Coefficients use absolute values, averaged
-        across outputs when two-dimensional. Constant CatBoost tree outputs
-        have zero importance, including when native normalization returns NaN.
+        Importance per input feature, using the adapter's backend policy.
+        Constant CatBoost trees return zero even when native normalization
+        produces NaN.
 
-    Raises
-    ------
-    ValueError
-        Native feature names or importance dimensions do not match the inputs.
-        Importance values are nonfinite.
-        The estimator exposes no supported importance or coefficient API.
+    Notes
+    -----
+    The adapter owns importance calculation and feature-order validation.
+    This ranker does not discover backend methods or invoke feature selection.
     """
-    native = model.native_model
-    if isinstance(native, catboost.CatBoost):
-        names = list(native.feature_names_)
-        values = np.asarray(
-            native.get_feature_importance(type="PredictionValuesChange"), dtype=float
-        )
-        if not np.isfinite(values).all() and _constant_tree_outputs(native):
-            values = np.zeros(len(names))
-    elif hasattr(native, "feature_name") and hasattr(native, "feature_importance"):
-        names = list(native.feature_name())
-        values = native.feature_importance(importance_type="gain")
-    else:
-        names = list(getattr(native, "feature_names_in_", data.X.columns))
-        if hasattr(native, "feature_importances_"):
-            values = native.feature_importances_
-        elif hasattr(native, "coef_"):
-            values = np.abs(np.asarray(native.coef_, dtype=float))
-            if values.ndim == 2:
-                values = values.mean(axis=0)
-        else:
-            raise ValueError("Native model exposes no feature importances or coefficients")
-    values = np.asarray(values, dtype=float)
-    if len(names) != len(data.X.columns) or set(names) != set(data.X.columns):
-        raise ValueError("Native feature names must match the current input columns")
-    if values.shape != (len(names),):
-        raise ValueError("Native importance dimensions must match the input columns")
-    if not np.isfinite(values).all():
-        raise ValueError("Native importances must be finite")
-    return dict(zip(names, values.tolist(), strict=True))
+    return model.feature_importances(data)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -112,7 +63,7 @@ class ShapRanker:
     max_samples: int = 1000
     seed: int = 0
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         ShapConfig(max_samples=self.max_samples, seed=self.seed)
 
     def __call__(self, model: "Model", data: "TrainingData") -> dict[str, float]:
@@ -141,23 +92,33 @@ class ShapRanker:
         """
         weights = np.asarray(data.weight.to_numpy(), dtype=float)
         if (
-            weights.shape != (len(data),) or not np.isfinite(weights).all()
-            or (weights < 0).any() or not (weights > 0).any()
+            weights.shape != (len(data),)
+            or not np.isfinite(weights).all()
+            or (weights < 0).any()
+            or not (weights > 0).any()
         ):
             raise ValueError("SHAP ranking requires valid weights with positive total")
         eligible = np.flatnonzero(weights > 0)
         if len(eligible) > self.max_samples:
-            eligible = np.sort(np.random.default_rng(self.seed).choice(
-                eligible, self.max_samples, replace=False,
-            ))
+            eligible = np.sort(
+                np.random.default_rng(self.seed).choice(
+                    eligible,
+                    self.max_samples,
+                    replace=False,
+                )
+            )
         sampled = data.take(eligible)
-        names, _, contributions = _shap_contributions(
-            model.native_model, sampled.X, sampled.cat_features,
+        names, _, contributions = shap_contributions(
+            model.native_model,
+            sampled.X,
+            sampled.cat_features,
         )
         if len(names) != len(data.X.columns) or set(names) != set(data.X.columns):
             raise ValueError("SHAP feature names must match the current input columns")
         values = np.average(
-            np.abs(contributions[:, :-1]), axis=0, weights=weights[eligible],
+            np.abs(contributions[:, :-1]),
+            axis=0,
+            weights=weights[eligible],
         )
         if not np.isfinite(values).all():
             raise ValueError("SHAP importances must be finite")

@@ -2,13 +2,12 @@
 
 from pathlib import Path
 
-from ..config import FigureConfig
-from .utils import save_figure
-
 import matplotlib.pyplot as plt
 import numpy as np
 
+from ..config import FigureConfig
 from ..metrics.ranking import RankingMetrics
+from .utils import save_figure
 
 
 def gains_curve(

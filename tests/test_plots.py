@@ -8,9 +8,7 @@ import pytest
 from ml_toolkit.config import (
     ClassificationPlotsConfig,
 )
-
-matplotlib.use("Agg")
-
+from ml_toolkit.metrics.ranking import ranking_metrics as ranking_curve
 from ml_toolkit.plots.classification import (
     binary_curves,
     calibration,
@@ -20,9 +18,10 @@ from ml_toolkit.plots.classification import (
 from ml_toolkit.plots.explainability import feature_importance
 from ml_toolkit.plots.monitoring import monthly_feature_distribution
 from ml_toolkit.plots.ranking import gains_curve, lift_curve
-from ml_toolkit.metrics.ranking import ranking_metrics as ranking_curve
 from ml_toolkit.plots.regression import monthly_observed_fitted, observed_fitted
 from ml_toolkit.plots.utils import PlotError
+
+matplotlib.use("Agg")
 
 
 def test_binary_curves_and_plots(tmp_path):

@@ -1,16 +1,32 @@
 """Prepare SHAP explanations from supported native model backends."""
 
-import logging
+from __future__ import annotations
 
+import logging
+from collections.abc import Sequence
+from typing import TYPE_CHECKING
+
+import catboost
 import numpy as np
+import pandas as pd
 import polars as pl
 
 from .config import ShapConfig
+from .types import FloatArray
+
+if TYPE_CHECKING:
+    import lightgbm
+    import shap
+
 
 logger = logging.getLogger(__name__)
 
 
-def _shap_contributions(model, data, cat_features=()):
+def shap_contributions(
+    model: catboost.CatBoost | lightgbm.Booster,
+    data: pl.DataFrame,
+    cat_features: Sequence[str] = (),
+) -> tuple[list[str], pd.DataFrame, FloatArray]:
     import catboost
 
     if isinstance(model, catboost.CatBoost):
@@ -33,19 +49,13 @@ def _shap_contributions(model, data, cat_features=()):
             )
         )
     else:
-        try:
-            import lightgbm
-        except (ImportError, OSError) as error:
-            raise ImportError(
-                "LightGBM SHAP requires a working LightGBM installation"
-            ) from error
-        if not isinstance(model, lightgbm.Booster):
-            raise TypeError(f"Unsupported model for SHAP: {type(model).__name__}")
         names = model.feature_name()
         features = data.select(names).to_pandas()
         for name in features.columns:
             if name in cat_features or features[name].dtype.name in (
-                "object", "string", "category"
+                "object",
+                "string",
+                "category",
             ):
                 features[name] = features[name].astype("category")
         contributions = np.asarray(model.predict(features, pred_contrib=True))
@@ -55,8 +65,11 @@ def _shap_contributions(model, data, cat_features=()):
 
 
 def calculate_shap_values(
-    model, data: pl.DataFrame, *, config: ShapConfig | None = None
-):
+    model: catboost.CatBoost | lightgbm.Booster,
+    data: pl.DataFrame,
+    *,
+    config: ShapConfig | None = None,
+) -> shap.Explanation:
     """Calculate a single-output SHAP explanation from a native tree model.
 
     Parameters
@@ -98,7 +111,7 @@ def calculate_shap_values(
     logger.debug(
         "Calculating SHAP for %s: %s sampled rows", type(model).__name__, len(sampled)
     )
-    names, features, contributions = _shap_contributions(model, sampled)
+    names, features, contributions = shap_contributions(model, sampled)
     logger.debug("Calculated SHAP: %s rows, %s features", len(sampled), len(names))
     return shap.Explanation(
         values=contributions[:, :-1],
@@ -108,7 +121,7 @@ def calculate_shap_values(
     )
 
 
-def top_shap_features(values, top_n: int) -> list[str]:
+def top_shap_features(values: shap.Explanation, top_n: int) -> list[str]:
     """Rank feature names by descending mean absolute SHAP contribution.
 
     Parameters

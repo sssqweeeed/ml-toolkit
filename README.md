@@ -14,152 +14,126 @@ scikit-learn, and MLflow are installed by default.
 
 ## Training from a project
 
-Projects own their data preparation, model settings, experiment names, and
-MLflow tracking URI. Use the shared frozen `Pool` to pass prepared Polars data
-to the toolkit. Existing custom containers remain supported through the
-`TrainingData` protocol in `ml_toolkit.training.contracts`.
+Projects prepare features and targets, order observations by ascending time, and
+configure the MLflow URI and experiment. Pass prepared Polars data in `Pool` or a
+custom object implementing `TrainingData`.
 
 ```python
-from ml_toolkit.data import Pool  # Also available as: from ml_toolkit import Pool
+from ml_toolkit import Pool
 
 data = Pool(
     X=prepared.select(["age", "region"]),
     y=prepared["target"],
-    time=prepared["date"],  # Polars Date or Datetime
+    time=prepared["date"],
     weight=prepared["weight"],
-    business_type=prepared["business_type"],  # Optional; defaults to None.
     cat_features=("region",),
     numerical_features=("age",),
-    object_id=prepared["customer_id"],  # Optional; required for post-fit evaluation.
+    business_type=prepared["business_type"],  # Optional monthly reporting group.
+    object_id=prepared["customer_id"],  # Optional; required for custom evaluation.
 )
 ```
 
-`Pool` checks that rows are nonempty and aligned, timestamps have a Date or
-Datetime dtype, and declared feature names exist without duplicates or overlap.
-Feature lists may cover only a subset of columns. Training separately checks
-ascending, non-null timestamps, finite targets, and valid weights.
-`take`, `select_features`, and `with_target` return new pools and preserve aligned
-metadata. A frozen dataclass prevents field reassignment; its contained Polars
-objects are not deeply immutable.
-
-`to_model_input(n_rows=None)` returns all rows as pandas data; a limit returns the
-first rows and is capped at the pool size. Both this conversion and `to_catboost`
-cast categorical columns to strings and fill null categories with `"unknown"`
-without changing the source frame. `to_catboost` accepts an optional scalar or
-per-row baseline and includes millisecond timestamps and row weights.
+`take`, `select_features`, and `with_target` return new pools with aligned metadata.
+Feature declarations may cover a subset of columns. IDs and business groups are
+not automatically added to model inputs. `to_model_input` returns a pandas frame;
+`to_catboost` includes labels, weights and timestamps. Both conversions cast
+categories to strings and replace null categories with `"unknown"` without
+changing the original frame.
 
 ```python
 import mlflow
-
+from ml_toolkit.config import (
+    TrainingConfig, TimeSeriesCVConfig, HoldoutConfig, ReportingConfig,
+    RegressionDiagnosticsConfig, RFEFeatureSelectionConfig, TuningConfig,
+)
 from ml_toolkit.models import CatBoostLogLinkRegressionModel
 from ml_toolkit.metrics import metrics_frequency
-from ml_toolkit.config import (
-    CrossValidationConfig, PUDiagnosticsConfig, RegressionDiagnosticsConfig,
-    TrainingConfig,
-)
-from ml_toolkit.training import train_model
-from my_project.data import prepare_frequency_data
+from ml_toolkit.training import train_model, importance_ranker
 
 mlflow.set_experiment("Frequency")
-data = prepare_frequency_data(raw_data)  # Your project prepares and returns a Pool.
-result = train_model(
-    data=data,
-    params={"iterations": 200, "loss_function": "Poisson", "verbose": False},
-    model_factory=CatBoostLogLinkRegressionModel,
-    metric=metrics_frequency,
-    run_name="frequency",
-    config=TrainingConfig(
-        cv=CrossValidationConfig(n_splits=4),
+config = TrainingConfig(
+    validation=TimeSeriesCVConfig(n_splits=4),
+    test_size=0.2,
+    feature_selection=RFEFeatureSelectionConfig(
+        min_features=1, metric="mean_poisson_deviance", direction="minimize",
+    ),
+    reporting=ReportingConfig(
         diagnostics=RegressionDiagnosticsConfig(task="frequency"),
     ),
 )
-print(result.cross_validation.mean_metrics)
-```
-
-`train_model` starts an MLflow run, performs time-series cross-validation,
-optionally selects features and tunes parameters, fits a final model, logs it,
-and returns the fitted model and metrics. Each fold logs metrics and, when
-requested, PSI tables and figures. `diagnostics=None` disables diagnostics.
-Task-specific diagnostics default to the last evaluated fold, with SHAP disabled.
-Models are packaged only at final fit by default. See
-[configuration by task](docs/configuration.md) for one fully expanded example
-per supported task. Every configuration field has NumPy-style documentation
-in `ml_toolkit.config`; these classes are also exported by `ml_toolkit.training`.
-When feature selection is enabled, it uses only the training rows of the first
-evaluated fold. The selected features are then reused for all folds, tuning
-trials, and the final model.
-
-The project data object needs `X` (Polars DataFrame), `y`, `time`, and
-`weight` (Polars Series), `cat_features`, `__len__`, `take(indices)`, and
-`select_features(names)`. Bundled CatBoost models additionally need
-`to_catboost(...)` and `to_model_input(...)`; inflation-adjusted fitting needs
-`with_target(...)`. `business_type` is optional for grouped monthly plots.
-The shared `Pool` implements all these operations. A custom model factory can
-use a different project data representation if it satisfies the training
-operations it invokes.
-
-For classification, supply `CatBoostClassificationModel`,
-`metrics_classification`, and `ClassificationDiagnosticsConfig()`.
-The same `train_model` function performs the workflow. Optuna tuning is enabled
-with `TrainingConfig(tuning=TuningConfig(...), ...)` and a separately supplied
-`param_space`. Set the metric name, direction, trial/time budget, and seed in
-`TuningConfig`. Feature selection uses `RFEFeatureSelectionConfig`
-inside `train_model`: batch RFE fits fresh adapters on shrinking feature subsets
-using a fixed internal chronological train/validation split and optional row gap.
-Pass `feature_ranker=importance_ranker` or `feature_ranker=ShapRanker(...)` from
-`ml_toolkit.training`. Custom rankers accept a fitted adapter and validation data,
-returning a finite importance for every current column. The algorithm never
-invokes a backend's feature selector.
-
-`metric_name` selects one value from the existing metric callable; `direction`
-and absolute `score_tolerance` choose the smallest visited subset close enough
-to the best score. `min_features` is a search floor, and `max_fits` limits all
-selection fits, including the full set. Protected columns remain in every subset.
-The full set can win. The selected columns retain input order and are reused for
-CV, tuning and final fitting. Internal scores are selection results, not an
-independent estimate of performance.
-
-`result.feature_selection` contains the selected step and each subset's metrics,
-importances, removed columns, timings and best iteration. Training logs this
-history to `selection/history.json` and scalar selection summaries. Standalone
-`ml_toolkit.training.select_features` returns the same result without starting
-MLflow runs or invoking diagnostics, model packaging or post-fit evaluators.
-
-`importance_ranker` uses CatBoost prediction-change importance, LightGBM gain,
-or another estimator's importances/coefficients. `ShapRanker` uses weighted mean
-absolute native raw-output SHAP on a fixed validation sample, handles null
-categories, and requires no `shap` extra. This ranking explains the inner model;
-subset quality always uses the complete adapter's predictions and row weights.
-
-Custom adapters implement `fit`, `native_model`,
-`predict_pool`, `best_iteration` and `log(sample, config=TrackingConfig)`. Final iteration budgets follow
-`FinalFitConfig(iteration_policy="cv_median")`; use `"provided"` to retain yours.
-
-```python
-from ml_toolkit.config import RFEFeatureSelectionConfig
-from ml_toolkit.training import ShapRanker
-
-config = TrainingConfig(
-    cv=CrossValidationConfig(n_splits=4),
-    feature_selection=RFEFeatureSelectionConfig(
-        min_features=10,
-        metric_name="mean_poisson_deviance",
-        direction="minimize",
-        max_fits=6,
-    ),
-)
-# Use prepared frequency data with at least ten features and the imports above.
 result = train_model(
     data=data,
     params={"iterations": 200, "loss_function": "Poisson", "verbose": False},
     model_factory=CatBoostLogLinkRegressionModel,
     metric=metrics_frequency,
-    feature_ranker=ShapRanker(max_samples=1000, seed=42),
-    run_name="frequency-rfe",
+    feature_ranker=importance_ranker,
+    run_name="frequency",
     config=config,
 )
-print(result.feature_selection.selected_step, result.features)
+print(result.validation.mean_metrics)
+print(result.test_metrics)
 ```
+
+`train_model` reserves an optional future test tail and prepares validation
+splits. Each split independently selects features, tunes parameters, and fits the
+winning settings once for reporting. Final fitting uses the last split's settings
+on all non-test rows, then evaluates test. Replace `validation` with
+`HoldoutConfig(val_size=0.2)` to execute the same process on one split.
+
+Integers specify row counts; floats specify fractions in (0, 1), rounded up.
+`test_size=None` disables test. `TimeSeriesCVConfig.val_size=None` uses the standard
+`TimeSeriesSplit` block size. `gap` and `max_train_size` are rows, not durations.
+
+RFE runs once per split with the base model parameters. Candidates fit on that
+split's train and use its val for scoring, early stopping and ranking. There is
+no internal holdout. `min_features` is a search floor, `max_fits` is a fit budget,
+and `score_tolerance` chooses the smallest visited subset close enough to the
+best objective. Protected columns always remain. Selected features stay fixed
+through that split's tuning and post-tuning fit.
+
+Enable tuning with `TuningConfig` and an explicit `param_space` callback. Each
+split starts its own Optuna study; trial and time budgets apply separately to
+each study. Optuna consumes a scalar score callback and knows nothing about
+holdout or TSCV. Each trial scores only the current split's val. TSCV's unweighted
+mean of the post-tuning val metrics is a report, not an Optuna objective. Split
+searches start from the same base parameters and do not inherit prior winners.
+
+Final fitting takes the last split's selected features, winning parameters,
+best iteration plus one and optional classification threshold. These settings
+come from its post-tuning fit; without a best iteration, the original iteration
+budget is retained. The final model includes former validation and gap rows,
+performs no further RFE, and receives no validation or test during fitting.
+
+`result.validation.splits` contains each split's train/val scores, selected
+columns, refit settings, optional RFE history and optional `tuning` result,
+without retaining fitted fold models. `result.feature_selection` and
+`result.tuning` refer to the last split; `result.params` contains its final
+constructor settings. `result.test_metrics` is absent when test is disabled.
+
+Reports use the same functions for validation and test. `reporting.diagnostics=None`
+disables built-in reports. `reporting.validation_splits` chooses `"last"`, `"all"`
+or original one-based split indices; it does not restrict test reports or custom
+evaluation. Built-in trial reports are disabled. SHAP defaults off.
+
+Model packaging defaults to final fit only; enable validation and trial models
+through `TrackingConfig`. Metrics and configuration artifacts are always logged.
+Run names and metric prefixes use `validation`, with `train/*`, `val/*` and
+`test/*` describing actual datasets. See [configuration by task](docs/configuration.md)
+for fully expanded recipes.
+
+Standalone `select_features(train=..., validation=..., ...)` performs the same
+RFE on explicit datasets without logging or post-fit callbacks.
+`importance_ranker`, `ShapRanker` and project-owned rankers remain available. `ShapRanker` uses weighted mean absolute raw-output contributions on a
+fixed sample from the supplied validation rows and requires no `shap` extra. Diagnostic SHAP
+explanations use the optional extra.
+
+Custom adapters implement `fit`, `predict_pool`, `native_model`, `best_iteration`,
+`feature_importances`, `get_refit_params` and `log`. `importance_ranker` delegates
+to the adapter's explicit `feature_importances(data)` method.
+`get_refit_params` returns copied constructor settings
+for a fresh no-validation fit, incorporating selected iterations and thresholds
+and disabling early stopping. Factories recreate nested models and strategies;
+learned baselines and inflation state are fitted again on the final training rows.
 
 ### Model policies and serving
 
@@ -195,16 +169,37 @@ Code exports contain a small entry point, package sources, pinned dependencies,
 a native model file and version-1 JSON state. Loading restores the exact model
 class, baseline policy, threshold, PU settings and nested inflation regressor.
 Ordinary imports perform no MLflow registration. Custom objective objects are
-passed unchanged during training; JSON records their type for audit and native
+passed unchanged during training; JSON uses their standard string representation for audit and native
 artifacts supply inference. Inflation logging emits both native and adjusted
 models; only the adjusted artifact uses the configured registry name.
+
+### Metric contracts and type checking
+
+Training metrics return an object with `to_dict() -> dict[str, float]`. Built-in
+metric dataclasses implement this method. Wrap dictionary metrics explicitly:
+
+```python
+from ml_toolkit.metrics import MetricScores
+from ml_toolkit.types import FloatArray
+
+
+def mae(y: FloatArray, prediction: FloatArray, weight: FloatArray) -> MetricScores:
+    error = abs(y - prediction)
+    return MetricScores({"mae": float((error * weight).sum() / weight.sum())})
+```
+
+Pyright checks all of `src/ml_toolkit` in strict mode. Install the test extra and
+run `python -m pyright` and `python -m pytest`. The checked-in `typings/` files
+describe the third-party APIs used by the package; toolkit contracts use concrete
+types and small protocols. Runtime checks cover data alignment, finite values,
+weights, dates, feature names, mathematical ranges, and artifact paths.
 
 ### Custom post-fit evaluation
 
 Use the separate `post_fit_evaluator` argument for business metrics that need
-object IDs or externally prepared reference data. Define an object with an
-`evaluate` method; its constructor, internal data, and helper methods are
-project-owned. Explicit inheritance from `PostFitEvaluator` is unnecessary.
+object IDs or externally prepared reference data. Subclass `PostFitEvaluator` and implement its `evaluate` method. Its constructor,
+internal data, and helper methods are project-owned. The inherited
+`write_artifacts` method returns an empty list.
 The contracts live in `ml_toolkit.training.contracts` and are also exported by
 `ml_toolkit.training`.
 
@@ -214,19 +209,20 @@ import polars as pl
 
 from ml_toolkit.metrics import metrics_classification
 from ml_toolkit.models import CatBoostClassificationModel
-from ml_toolkit.config import CrossValidationConfig, TrainingConfig
+from ml_toolkit.config import TimeSeriesCVConfig, TrainingConfig
 from ml_toolkit.training import train_model
 from ml_toolkit.training.contracts import DatasetSplit, PostFitEvaluator
+from ml_toolkit.types import FloatArray
 
 
-class CampaignEvaluator:
+class CampaignEvaluator(PostFitEvaluator):
     def __init__(self, purchase_value_by_id: dict[int, float], contact_cost: float):
         self.purchase_value_by_id = purchase_value_by_id
         self.contact_cost = contact_cost
 
     def evaluate(
-        self, *, object_id: pl.Series, y_pred: np.ndarray,
-        y_true: np.ndarray, split: DatasetSplit,
+        self, *, object_id: pl.Series, y_pred: FloatArray,
+        y_true: FloatArray, split: DatasetSplit,
     ) -> dict[str, float]:
         value = np.array([self.purchase_value_by_id[i] for i in object_id.to_list()])
         selected = y_pred >= 0.7
@@ -250,7 +246,7 @@ result = train_model(
     metric=metrics_classification,
     post_fit_evaluator=evaluator,
     run_name="campaign",
-    config=TrainingConfig(cv=CrossValidationConfig(n_splits=3)),
+    config=TrainingConfig(validation=TimeSeriesCVConfig(n_splits=3)),
 )
 ```
 
@@ -258,8 +254,8 @@ Each call receives one complete split, with aligned IDs, predictions, and
 targets in row order. Predictions follow `predict_pool`: positive-class
 probabilities for binary classification, target predictions for regression.
 `DatasetSplit` has exactly `TRAIN` ("train"), `VAL` ("val"), and `TEST` ("test").
-The current training workflow has no independent test input, so it invokes only
-train and val. To skip a split, return `{}`; for example, return `{}` whenever
+`test_size` enables test evaluation after final fitting. To skip a split, return
+`{}`; for example, return `{}` whenever
 `split != DatasetSplit.VAL` for validation-only evaluation.
 
 The result must be a dictionary with nonempty string names and finite Python
@@ -267,14 +263,17 @@ or NumPy floating scalars. Integers, booleans, arrays, NaN, and infinities are
 rejected. Names may contain word characters, spaces, periods, dashes, and
 slashes, but no empty or relative path segments. The toolkit adds the prefix:
 `train/custom/expected_profit`, `val/custom/expected_profit`, and so on. Results
-are logged to each fold's MLflow run; they are not merged into `fold_metrics`,
-averaged into `cv/*`, or made available to the tuning objective.
+are logged to each split's MLflow run; they are not merged into validation split
+metrics,
+averaged into `validation/*`, or made available to the tuning objective.
 
 The same evaluator instance is reused without copying or resetting.
-`PostFitEvaluationConfig` enables CV and final fit by default; trials are excluded.
+`PostFitEvaluationConfig` enables validation and final stages by default; trials
+are excluded.
 Use its `stages`, `splits`, and `write_artifacts` fields to control calls.
-After tuning, custom CV evaluation uses a dedicated pass on the winning settings. The final fit evaluates train only and adds one prediction pass when the
-evaluator is enabled. Intermediate feature-selection fits do not invoke it.
+After its own tuning, each split evaluates the winning settings once. The final
+stage evaluates train and optional test using the same predictions as ordinary
+metrics. Intermediate feature-selection fits do not invoke it.
 Stored reference data and caches are supported; metrics should describe the
 current inputs rather than accumulate unrelated folds or trials. Do not mutate
 the input series or arrays. Evaluator errors propagate with stage and split
@@ -284,15 +283,15 @@ context attached to the traceback.
 non-null strings or integers; repeated IDs are allowed. Their original values
 and dtype are preserved by row/feature/target operations, and IDs are not added
 to model inputs. Enabled evaluation without IDs fails before fitting.
-Existing custom containers need no changes unless using this feature; for it,
-implement `IdentifiedTrainingData`, including ID-preserving `take`,
-`select_features`, and `with_target` operations.
+Custom containers implement `TrainingData`, including optional `object_id`,
+`business_type`, and `numerical_features` metadata. Their `take`,
+`select_features`, and `with_target` operations preserve this metadata.
 
 ### Custom post-fit images
 
-Optionally add `write_artifacts` to the same evaluator object. It receives the
+Optionally override `write_artifacts` in the same evaluator class. It receives the
 same `object_id`, `y_pred`, `y_true`, and `split`, plus a fresh temporary
-`artifact_dir: Path`. Return `None` or `[]` to skip upload, or return a list of
+`artifact_dir: Path`. Return `[]` to skip upload, or return a list of
 existing `Path` objects selecting images saved inside that directory. Absolute
 paths and paths relative to `artifact_dir` are supported. Unlisted files are
 ignored; tables and other non-image files are rejected if returned.
@@ -305,11 +304,11 @@ import matplotlib.pyplot as plt
 from ml_toolkit.plots.utils import save_figure
 
 def write_artifacts(
-    self, *, object_id: pl.Series, y_pred: np.ndarray,
-    y_true: np.ndarray, split: DatasetSplit, artifact_dir: Path,
-) -> list[Path] | None:
+    self, *, object_id: pl.Series, y_pred: FloatArray,
+    y_true: FloatArray, split: DatasetSplit, artifact_dir: Path,
+) -> list[Path]:
     if split != DatasetSplit.VAL:
-        return None
+        return []
     fig, ax = plt.subplots(figsize=(10, 6))
     ax.hist(y_pred, bins=20)
     ax.set(title="Validation scores", xlabel="Score", ylabel="Count")
@@ -321,17 +320,16 @@ def write_artifacts(
 No extra `train_model` option is needed. The method is called immediately after
 each enabled scalar evaluation, even when `evaluate` returns `{}`.
 Set `PostFitEvaluationConfig(write_artifacts=False)` to suppress image calls.
-Existing evaluators without this method keep their behavior. Each method can
+Evaluators that inherit the default writer skip image generation. Each method can
 prepare its data independently; no cache is required. Custom image generation
 is independent of built-in diagnostics. The post-fit stage/split policy and
-writer decide when to render. After tuning, enabled custom CV evaluation runs
-in a dedicated validation pass for the winning parameters.
+writer decide when to render. Each split evaluates its winning parameters
+once after tuning, without repeating RFE.
 
 Only selected images are uploaded to `custom/<split>/`, preserving nested
 directories; for example, `custom/val/figures/scores.png`. PNG, JPEG, SVG, WebP,
 GIF, TIFF, and BMP extensions are supported. Temporary directories are removed
-after upload or on errors. Use the exported `PostFitArtifactWriter` protocol
-for the optional method's type contract; explicit inheritance is unnecessary.
+after upload or on errors. `PostFitEvaluator` declares both method contracts.
 
 For positive–unlabeled learning, label `1` means confirmed positive and `0`
 means unlabeled. Use a PU loss, a prevalence estimate, `PUMetric`, and PU
@@ -340,21 +338,23 @@ diagnostics together:
 ```python
 from ml_toolkit.metrics import PUMetric
 from ml_toolkit.config import (
-    CrossValidationConfig, PUDiagnosticsConfig, RegressionDiagnosticsConfig,
-    TrainingConfig,
+    TimeSeriesCVConfig, PUDiagnosticsConfig, ReportingConfig, TrainingConfig,
 )
 from ml_toolkit.training import train_model
 from ml_toolkit.models import CatBoostPUClassificationModel
 
 prior = 0.08  # Estimate from the target population, not the labeled fraction.
 result = train_model(
-    data=pu_data, model_factory=CatBoostPUClassificationModel,
-    params={"loss": "nnPU", "pu_prior": prior, "iterations": 200,
-            "depth": 5, "learning_rate": 0.05, "task_type": "CPU"},
+    data=pu_data,
+    model_factory=CatBoostPUClassificationModel,
+    params={
+        "loss": "nnPU", "pu_prior": prior, "iterations": 200,
+        "depth": 5, "learning_rate": 0.05, "task_type": "CPU",
+    },
     metric=PUMetric(prior, loss="nnPU"),
     config=TrainingConfig(
-        cv=CrossValidationConfig(n_splits=3),
-        diagnostics=PUDiagnosticsConfig(),
+        validation=TimeSeriesCVConfig(n_splits=3),
+        reporting=ReportingConfig(diagnostics=PUDiagnosticsConfig()),
     ),
     run_name="pu",
 )
@@ -431,14 +431,16 @@ functions, so manual and automatic figures have one implementation.
 
 | Path | Purpose |
 | --- | --- |
-| `config.py` | Immutable, validated settings for workflow and task-specific plots. |
+| `config/` | Immutable, validated settings for workflow and task-specific plots. |
 | `data.py` | Shared Pool container, aligned row operations, and model conversions. |
-| `training/train.py` | Select, tune, validate, fit, and log one experiment. |
-| `training/cross_validation.py` | Time-based folds, evaluation, and nested MLflow runs. |
+| `training/workflow.py` | Prepare splits, run independent searches, average scores, and fit/evaluate final. |
+| `training/splits.py` | Ready `TrainValSplit` datasets for holdout and temporal folds. |
+| `training/fit.py` | RFE, independent Optuna, post-tuning evaluation for one split; final refit. |
 | `training/feature_selection.py` | Adapter-driven batch RFE and full selection history. |
-| `training/tuning.py` | Optuna search through the same validation path. |
-| `training/evaluation.py` | Metrics, PSI, plot generation, and MLflow artifacts. |
-| `training/contracts.py` | Training data and post-fit evaluator protocols; dataset split enum. |
+| `training/tuning.py` | Optuna parameter search using a scalar scoring callback. |
+| `training/evaluation.py` | Shared train, validation, and test predictions and metrics. |
+| `training/reporting.py` | PSI, plots, custom evaluation, and report artifacts. |
+| `training/contracts.py` | Typed data/ranker contracts, evaluator base class, and dataset split enum. |
 | `training/results.py` | Result dataclasses. |
 | `models/` | CatBoost classification/regression, PU learning, LightGBM serving, and inflation-adjusted models. |
 | `metrics/` | Classification, frequency, severity, and ranking calculations. |
@@ -446,7 +448,7 @@ functions, so manual and automatic figures have one implementation.
 | `plots/` | Every chart, including PSI charts. |
 | `inflation.py` | Constant-rate and manually indexed inflation strategies. |
 | `explainability.py` | SHAP extraction from supported native models. |
-| `tracking/` | MLflow table and model artifact helpers. |
+| `tracking/` | MLflow runs, configurations, tables, and model artifacts. |
 | `tests/` | Behavioral and workflow integration tests. |
 
 ## Project boundaries

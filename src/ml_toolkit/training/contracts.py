@@ -2,16 +2,17 @@
 
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
 from enum import StrEnum
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Protocol, Self
+from typing import TYPE_CHECKING, Literal, Protocol, Self
 
-import numpy as np
+import catboost
 import pandas as pd
 import polars as pl
 
-from .._validation import _validate_object_id
+from ..types import FloatArray, IntArray
 
 if TYPE_CHECKING:
     from ..models.base import Model
@@ -35,7 +36,7 @@ class FeatureRanker(Protocol):
         model : Model
             Fitted adapter for the current feature subset.
         data : TrainingData
-            Internal validation rows with aligned features and weights.
+            Supplied validation rows with aligned features and weights.
 
         Returns
         -------
@@ -57,7 +58,7 @@ class DatasetSplit(StrEnum):
         Validation rows; serialized as "val".
     TEST : DatasetSplit
         Independent test rows; serialized as "test". The training workflow
-        currently evaluates train and val only.
+        evaluates test only after final fitting when test_size is configured.
     """
 
     TRAIN = "train"
@@ -65,28 +66,28 @@ class DatasetSplit(StrEnum):
     TEST = "test"
 
 
-class PostFitEvaluator(Protocol):
+class PostFitEvaluator(ABC):
     """Describe a user-owned evaluator called after each evaluated model fit.
 
     Notes
     -----
-    Initialization and helper methods are unrestricted; explicit inheritance is
-    unnecessary. The same instance is reused for folds, tuning trials, repeated
-    validation, and final fitting, without copying or resetting its state.
+    Initialization and helper methods are unrestricted; the default image writer does
+    nothing. The same instance is reused for splits, tuning trials, post-tuning
+    evaluation, and final fitting, without copying or resetting its state.
     Reference data and caches may be stored internally, but returned metrics
     should describe the supplied rows rather than accumulate unrelated fits.
     Intermediate feature-selection fits do not invoke this evaluator.
-    Implement PostFitArtifactWriter.write_artifacts on the same object to
-    optionally save additional images after each evaluation. No training flag
-    is required; returning None from that method skips image logging.
+    Subclass this evaluator and implement evaluate. Override write_artifacts
+    to save images; its default implementation returns an empty list.
     """
 
+    @abstractmethod
     def evaluate(
         self,
         *,
         object_id: pl.Series,
-        y_pred: np.ndarray,
-        y_true: np.ndarray,
+        y_pred: FloatArray,
+        y_true: FloatArray,
         split: DatasetSplit,
     ) -> dict[str, float]:
         """Calculate additional scalar metrics for one complete dataset split.
@@ -115,27 +116,15 @@ class PostFitEvaluator(Protocol):
         """
         ...
 
-
-class PostFitArtifactWriter(Protocol):
-    """Describe optional image generation on a post-fit evaluator.
-
-    Notes
-    -----
-    A user-owned evaluator may implement both evaluate and write_artifacts
-    without inheriting either protocol. Image generation receives the same
-    inputs immediately after scalar evaluation, even when metrics are empty.
-    Each method can independently prepare its data; no caching is required.
-    """
-
     def write_artifacts(
         self,
         *,
         object_id: pl.Series,
-        y_pred: np.ndarray,
-        y_true: np.ndarray,
+        y_pred: FloatArray,
+        y_true: FloatArray,
         split: DatasetSplit,
         artifact_dir: Path,
-    ) -> list[Path] | None:
+    ) -> list[Path]:
         """Save and select images to log for the current split.
 
         Parameters
@@ -154,10 +143,9 @@ class PostFitArtifactWriter(Protocol):
 
         Returns
         -------
-        list[pathlib.Path] or None
+        list[pathlib.Path]
             Existing image files to upload under custom/<split>/ in the current
-            MLflow run. Paths may be absolute or relative to artifact_dir. None
-            or an empty list skips upload. Only returned files are logged; PNG,
+            MLflow run. Paths may be absolute or relative to artifact_dir. An empty list skips upload. Only returned files are logged; PNG,
             JPEG, SVG, WebP, GIF, TIFF, and BMP extensions are accepted. Tables
             are not accepted. The directory is removed after the call and
             uploads, including on errors; returned paths must not be retained.
@@ -165,11 +153,11 @@ class PostFitArtifactWriter(Protocol):
         Notes
         -----
         Invoked wherever scalar evaluation runs, including Optuna trials and
-        final fitting, regardless of DiagnosticsOptions. Choose whether to
+        final fitting, subject to PostFitEvaluationConfig. Choose whether to
         render inside this method. Inputs must not be mutated. Errors propagate
         with evaluation stage and split context.
         """
-        ...
+        return []
 
 
 class TrainingData(Protocol):
@@ -187,6 +175,12 @@ class TrainingData(Protocol):
         Finite, nonnegative row weights with positive total.
     cat_features : tuple[str, ...]
         Names of categorical columns in X.
+    numerical_features : tuple[str, ...]
+        Declared numerical columns; may describe a subset of X.
+    object_id : polars.Series or None
+        Optional aligned IDs for custom evaluation.
+    business_type : polars.Series or None
+        Optional aligned groups for monthly diagnostics.
 
     Notes
     -----
@@ -223,11 +217,26 @@ class TrainingData(Protocol):
         """Return categorical feature names."""
         ...
 
+    @property
+    def numerical_features(self) -> tuple[str, ...]:
+        """Return declared numerical feature names."""
+        ...
+
+    @property
+    def object_id(self) -> pl.Series | None:
+        """Return aligned IDs, or None when custom evaluation is unavailable."""
+        ...
+
+    @property
+    def business_type(self) -> pl.Series | None:
+        """Return aligned diagnostic groups, or None."""
+        ...
+
     def __len__(self) -> int:
         """Return the number of aligned observations."""
         ...
 
-    def take(self, indices: Sequence[int] | np.ndarray) -> Self:
+    def take(self, indices: Sequence[int] | IntArray) -> Self:
         """Return aligned rows at positional indices.
 
         Parameters
@@ -258,7 +267,7 @@ class TrainingData(Protocol):
         """
         ...
 
-    def with_target(self, target: pl.Series | np.ndarray) -> Self:
+    def with_target(self, target: pl.Series | FloatArray) -> Self:
         """Return data with a replacement target and unchanged feature rows.
 
         Parameters
@@ -273,7 +282,7 @@ class TrainingData(Protocol):
         """
         ...
 
-    def to_catboost(self, baseline: float | np.ndarray | None = None) -> Any:
+    def to_catboost(self, baseline: float | FloatArray | None = None) -> catboost.Pool:
         """Convert data to a CatBoost Pool for the bundled model adapters.
 
         Parameters
@@ -308,52 +317,4 @@ class TrainingData(Protocol):
         ...
 
 
-class IdentifiedTrainingData(TrainingData, Protocol):
-    """Extend training data with optional aligned object identifiers.
-
-    Attributes
-    ----------
-    object_id : polars.Series or None
-        Non-null string or integer IDs with one value per row. IDs are required
-        when a post-fit evaluator is supplied; repeated IDs are allowed. take
-        must slice them in row order; select_features and with_target preserve
-        them. IDs are metadata and are not automatically included in X.
-    """
-
-    @property
-    def object_id(self) -> pl.Series | None:
-        """Return aligned IDs, or None when identifiers were not supplied."""
-        ...
-
-
-def _validate_post_fit_evaluator(
-    data: TrainingData, evaluator: PostFitEvaluator | None,
-) -> None:
-    if evaluator is None:
-        return
-    if not callable(getattr(evaluator, "evaluate", None)):
-        raise TypeError("post_fit_evaluator must provide an evaluate method")
-    writer = getattr(evaluator, "write_artifacts", None)
-    if writer is not None and not callable(writer):
-        raise TypeError("post_fit_evaluator.write_artifacts must be callable")
-    object_id = getattr(data, "object_id", None)
-    if object_id is None:
-        raise ValueError("object_id is required when post_fit_evaluator is supplied")
-    _validate_object_id(object_id, len(data))
-
-
-def validate_training_data(data: TrainingData) -> None:
-    """Check only invariants needed by chronological model training."""
-    size = len(data)
-    if size == 0 or len(data.X) != size or any(
-        len(series) != size for series in (data.y, data.time, data.weight)
-    ):
-        raise ValueError("Features, target, time, and weight need equal nonzero lengths")
-    if data.time.null_count() or not data.time.is_sorted():
-        raise ValueError("Training data must have non-null, ascending timestamps")
-    target = np.asarray(data.y.to_numpy(), dtype=float)
-    weight = np.asarray(data.weight.to_numpy(), dtype=float)
-    if not np.isfinite(target).all():
-        raise ValueError("Target values must be finite")
-    if not np.isfinite(weight).all() or (weight < 0).any() or weight.sum() <= 0:
-        raise ValueError("Weights must be finite, nonnegative, and have positive total")
+TrainingStage = Literal["tuning", "validation", "final"]

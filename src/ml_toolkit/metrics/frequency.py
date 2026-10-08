@@ -3,14 +3,17 @@ from dataclasses import dataclass
 import numpy as np
 from sklearn.metrics import d2_tweedie_score, mean_absolute_error, mean_poisson_deviance
 
-from .ranking import _ranking_metrics
+from ..types import FloatArray
+from .ranking import ranking_metrics
 
-def _root_mean_squared_error(
-    y_target: np.ndarray,
-    y_pred: np.ndarray,
-    weight: np.ndarray,
+
+def root_mean_squared_error(
+    y_target: FloatArray,
+    y_pred: FloatArray,
+    weight: FloatArray,
 ) -> float:
     return float(np.sqrt(np.average(np.square(y_target - y_pred), weights=weight)))
+
 
 @dataclass(frozen=True)
 class MetricsFrequncy:
@@ -53,8 +56,28 @@ class MetricsFrequncy:
     gain_at_10: float
     normalized_gini: float
 
+    def to_dict(self) -> dict[str, float]:
+        """Return named scalar scores.
+
+        Returns
+        -------
+        dict[str, float]
+            All scores in this result.
+        """
+        return {
+            "mean_poisson_deviance": self.mean_poisson_deviance,
+            "d2_poisson_score": self.d2_poisson_score,
+            "mean_absolute_error": self.mean_absolute_error,
+            "root_mean_squared_error": self.root_mean_squared_error,
+            "prediction_over_observed": self.prediction_over_observed,
+            "lift_at_10": self.lift_at_10,
+            "gain_at_10": self.gain_at_10,
+            "normalized_gini": self.normalized_gini,
+        }
+
+
 def metrics_frequncy(
-    y_target: np.ndarray, y_pred: np.ndarray, exposure: np.ndarray
+    y_target: FloatArray, y_pred: FloatArray, exposure: FloatArray
 ) -> MetricsFrequncy:
     """Calculate exposure-weighted Poisson and ranking metrics.
 
@@ -97,7 +120,7 @@ def metrics_frequncy(
     >>> round(scores.prediction_over_observed, 2)
     1.0
     """
-    ranking_metrics = _ranking_metrics(
+    ranking = ranking_metrics(
         y_target=y_target, y_pred=y_pred, exposure=exposure, selected_percents=(10.0,)
     )
     return MetricsFrequncy(
@@ -110,14 +133,15 @@ def metrics_frequncy(
         mean_absolute_error=float(
             mean_absolute_error(y_target, y_pred, sample_weight=exposure)
         ),
-        root_mean_squared_error=_root_mean_squared_error(y_target, y_pred, exposure),
+        root_mean_squared_error=root_mean_squared_error(y_target, y_pred, exposure),
         prediction_over_observed=float(
             (y_pred * exposure).sum() / (y_target * exposure).sum()
         ),
-        lift_at_10=ranking_metrics.selected_points[0].lift,
-        gain_at_10=ranking_metrics.selected_points[0].gain,
-        normalized_gini=ranking_metrics.normalized_gini,
+        lift_at_10=ranking.selected_points[0].lift,
+        gain_at_10=ranking.selected_points[0].gain,
+        normalized_gini=ranking.normalized_gini,
     )
+
 
 MetricsFrequency = MetricsFrequncy
 metrics_frequency = metrics_frequncy

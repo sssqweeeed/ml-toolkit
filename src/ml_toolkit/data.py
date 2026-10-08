@@ -4,13 +4,17 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
+from typing import TYPE_CHECKING
 
 import catboost
 import numpy as np
 import pandas as pd
 import polars as pl
 
-from ._validation import _validate_object_id
+from .types import FloatArray, IntArray
+
+if TYPE_CHECKING:
+    from .training.contracts import TrainingData
 
 
 @dataclass(frozen=True)
@@ -67,7 +71,7 @@ class Pool:
         if len(lengths) != 1:
             raise ValueError("Pool fields must have equal lengths")
         if self.object_id is not None:
-            _validate_object_id(self.object_id, len(self.X))
+            validate_object_ids(self.object_id, len(self.X))
 
         if self.time.dtype != pl.Date and self.time.dtype.base_type() != pl.Datetime:
             raise TypeError("Pool time must have Date or Datetime dtype")
@@ -89,7 +93,7 @@ class Pool:
         """Return the number of aligned observations."""
         return len(self.X)
 
-    def take(self, indices: Sequence[int] | np.ndarray) -> Pool:
+    def take(self, indices: Sequence[int] | IntArray) -> Pool:
         """Return aligned rows at positional indices, in the requested order."""
         index = np.asarray(indices, dtype=np.int64)
         return replace(
@@ -116,10 +120,12 @@ class Pool:
             self,
             X=self.X.select(names),
             cat_features=tuple(name for name in self.cat_features if name in names),
-            numerical_features=tuple(name for name in self.numerical_features if name in names),
+            numerical_features=tuple(
+                name for name in self.numerical_features if name in names
+            ),
         )
 
-    def with_target(self, target: pl.Series | np.ndarray) -> Pool:
+    def with_target(self, target: pl.Series | FloatArray) -> Pool:
         """Replace the target; NumPy values retain the existing target name."""
         if isinstance(target, pl.Series):
             y = target
@@ -141,19 +147,19 @@ class Pool:
         """
         if n_rows is not None and n_rows < 0:
             raise ValueError("n_rows must be nonnegative")
-        X = self.X if n_rows is None else self.X.head(n_rows)
+        frame = self.X if n_rows is None else self.X.head(n_rows)
         if self.cat_features:
-            X = X.with_columns(
+            frame = frame.with_columns(
                 pl.col(name).cast(pl.String).fill_null("unknown")
                 for name in self.cat_features
             )
-        return X.to_pandas()
+        return frame.to_pandas()
 
-    def to_catboost(self, baseline: float | np.ndarray | None = None) -> catboost.Pool:
+    def to_catboost(self, baseline: float | FloatArray | None = None) -> catboost.Pool:
         """Convert aligned data with an optional scalar or per-row baseline."""
         baseline_values = None
         if baseline is not None:
-            if np.isscalar(baseline):
+            if isinstance(baseline, float):
                 baseline_values = np.full(len(self), float(baseline), dtype=float)
             else:
                 baseline_values = np.asarray(baseline, dtype=float).reshape(-1)
@@ -171,3 +177,60 @@ class Pool:
             weight=self.weight.to_numpy().reshape(-1),
             baseline=baseline_values,
         )
+
+
+def validate_object_ids(object_id: pl.Series, n_rows: int) -> None:
+    """Check ID alignment, dtype and null values.
+
+    Parameters
+    ----------
+    object_id : polars.Series
+        String or integer IDs; repeated values are allowed.
+    n_rows : int
+        Required number of IDs.
+    """
+    if len(object_id) != n_rows:
+        raise ValueError("object_id must have equal lengths with data rows")
+    if object_id.dtype != pl.String and not object_id.dtype.is_integer():
+        raise ValueError("object_id must have string or integer dtype")
+    if object_id.null_count():
+        raise ValueError("object_id must not contain null values")
+
+
+def validate_training_data(data: TrainingData) -> None:
+    """Check the data invariants required by chronological training.
+
+    Parameters
+    ----------
+    data : TrainingData
+        Aligned, nonempty observations in ascending time order.
+
+    Raises
+    ------
+    ValueError
+        Rows, dates, targets, weights or optional metadata are invalid.
+    """
+    size = len(data)
+    series = [data.y, data.time, data.weight]
+    if data.business_type is not None:
+        series.append(data.business_type)
+    if (
+        size == 0
+        or len(data.X) != size
+        or any(len(column) != size for column in series)
+    ):
+        raise ValueError(
+            "Features, target, time, and weight need equal nonzero lengths"
+        )
+    if data.time.dtype != pl.Date and data.time.dtype.base_type() != pl.Datetime:
+        raise ValueError("Training time must have Date or Datetime dtype")
+    if data.time.null_count() or not data.time.is_sorted():
+        raise ValueError("Training data must have non-null, ascending timestamps")
+    target = data.y.to_numpy().astype(float)
+    weight = data.weight.to_numpy().astype(float)
+    if not np.isfinite(target).all():
+        raise ValueError("Target values must be finite")
+    if not np.isfinite(weight).all() or (weight < 0).any() or weight.sum() <= 0:
+        raise ValueError("Weights must be finite, nonnegative, and have positive total")
+    if data.object_id is not None:
+        validate_object_ids(data.object_id, size)
