@@ -1,3 +1,4 @@
+from datetime import date
 from pathlib import Path
 from typing import assert_type
 
@@ -82,6 +83,11 @@ def contracts(data: Pool) -> None:
         dict[str, float],
     )
     TrainingConfig(validation=HoldoutConfig())
+    TrainingConfig(validation=HoldoutConfig(), test_size=4)
+    TrainingConfig(validation=HoldoutConfig(), test_size=0.2)
+    TrainingConfig(validation=HoldoutConfig(), test_size="2025-01-01")
+    TrainingConfig(validation=HoldoutConfig(), test_size=date(2025, 1, 1))
+    TrainingConfig(validation=HoldoutConfig(), test_size=None)
 
 
 from ml_toolkit.config import RFEFeatureSelectionConfig

@@ -1,7 +1,7 @@
 import inspect
 import re
 from dataclasses import FrozenInstanceError, fields, is_dataclass, replace
-from datetime import date
+from datetime import date, datetime
 from importlib import import_module
 from pathlib import Path
 from types import SimpleNamespace
@@ -98,6 +98,42 @@ def test_configs_are_immutable_keyword_only_and_replaceable():
     assert "gains" not in {f.name for f in fields(PUPlotsConfig)}
     assert PUDiagnosticsConfig().task == "pu_classification"
     assert ClassificationDiagnosticsConfig().task == "classification"
+
+
+@pytest.mark.parametrize("cutoff", ["2024-02-29", date(2024, 2, 29)])
+def test_test_start_date_is_normalized_and_replaceable(cutoff):
+    config = TrainingConfig(validation=HoldoutConfig(), test_size=cutoff)
+    assert config.test_size == date(2024, 2, 29)
+    assert replace(config, test_size="2025-01-01").test_size == date(2025, 1, 1)
+    assert config.test_size == date(2024, 2, 29)
+    with pytest.raises(FrozenInstanceError):
+        config.test_size = date(2025, 1, 1)
+
+
+@pytest.mark.parametrize(
+    "cutoff",
+    [
+        "",
+        "invalid",
+        "2025-02-29",
+        "2025-13-01",
+        "2025-01-00",
+        "20250101",
+        "2025-W01-1",
+        "2025-1-1",
+        " 2025-01-01",
+        "2025-01-01 ",
+        "2025-01-01T12:00:00",
+    ],
+)
+def test_invalid_test_start_date_fails_at_configuration(cutoff):
+    with pytest.raises(ValueError, match="test_size date must use YYYY-MM-DD"):
+        TrainingConfig(validation=HoldoutConfig(), test_size=cutoff)
+
+
+def test_exact_test_start_time_is_rejected():
+    with pytest.raises(ValueError, match="calendar date without a time"):
+        TrainingConfig(validation=HoldoutConfig(), test_size=datetime(2025, 1, 1))
 
 
 def test_config_docstrings_describe_every_public_field():

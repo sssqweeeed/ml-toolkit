@@ -1,11 +1,14 @@
+import json
 from dataclasses import replace
-from datetime import date
+from datetime import date, datetime
+from pathlib import Path
 from types import SimpleNamespace
 
 import mlflow
 import numpy as np
 import polars as pl
 import pytest
+from polars.testing import assert_frame_equal, assert_series_equal
 from evaluators import CallbackEvaluator
 from test_training import MeanModel, list_all_artifacts, mae, make_data, setup_mlflow
 
@@ -109,8 +112,9 @@ def test_empty_train_is_rejected(config):
     "validation", [HoldoutConfig(val_size=0.25), TimeSeriesCVConfig(n_splits=2)]
 )
 @pytest.mark.parametrize("tuning", [False, True])
+@pytest.mark.parametrize("test_size", [4, "2025-08-23", date(2025, 8, 23)])
 def test_each_split_selects_once_before_tuning_and_excludes_test(
-    tmp_path, validation, tuning
+    tmp_path, validation, tuning, test_size
 ):
     setup_mlflow(tmp_path)
     data = identified_data()
@@ -161,7 +165,7 @@ def test_each_split_selects_once_before_tuning_and_excludes_test(
     params = {"iterations": 100, "early_stopping_rounds": 2, "use_best_model": True}
     config = TrainingConfig(
         validation=validation,
-        test_size=4,
+        test_size=test_size,
         feature_selection=RFEFeatureSelectionConfig(
             min_features=1, metric="mae", direction="minimize"
         ),
@@ -209,6 +213,126 @@ def test_each_split_selects_once_before_tuning_and_excludes_test(
         assert result.validation.last_split.features == ("unused",)
     if tuning:
         assert result.tuning.best_params["fixed"] == result.params["fixed"] == 42
+
+
+@pytest.mark.parametrize(
+    "dtype",
+    [
+        pl.Date,
+        pl.Datetime("ms"),
+        pl.Datetime("us"),
+        pl.Datetime("ns"),
+        pl.Datetime("us", "Europe/Moscow"),
+    ],
+)
+@pytest.mark.parametrize(
+    "cutoff, test_ids",
+    [
+        ("2025-01-02", [3, 4, 5]),
+        (date(2025, 1, 2), [3, 4, 5]),
+        ("2025-01-03", [5]),
+    ],
+)
+def test_calendar_test_preserves_rows_and_logs_date(tmp_path, dtype, cutoff, test_ids):
+    setup_mlflow(tmp_path)
+    timestamps = pl.Series(
+        "time",
+        [
+            datetime(2025, 1, 1, 0, 15),
+            datetime(2025, 1, 1, 12),
+            datetime(2025, 1, 1, 23, 59),
+            datetime(2025, 1, 2, 0, 15),
+            datetime(2025, 1, 2, 23, 59),
+            datetime(2025, 1, 4, 0, 15),
+        ],
+    )
+    if dtype == pl.Date:
+        timestamps = timestamps.cast(dtype)
+    else:
+        timestamps = timestamps.dt.replace_time_zone(dtype.time_zone).cast(dtype)
+    data = replace(
+        identified_data().take(range(6)),
+        time=timestamps,
+        weight=pl.Series("weight", [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]),
+        cat_features=("unused",),
+        numerical_features=("x",),
+    )
+    fit_rows, test_predictions = [], []
+    train_ids = list(range(test_ids[0]))
+
+    class Model(MeanModel):
+        def fit(self, train, validation=None):
+            assert set(train.object_id.to_list()) <= set(train_ids)
+            if validation is not None:
+                assert set(validation.object_id.to_list()) <= set(train_ids)
+            fit_rows.append(train.object_id.to_list())
+            return super().fit(train, validation)
+
+        def predict_pool(self, rows):
+            ids = rows.object_id.to_list()
+            assert_frame_equal(rows.X, data.X[ids])
+            assert_series_equal(rows.object_id, data.object_id.gather(ids))
+            assert_series_equal(rows.time, data.time.gather(ids))
+            assert_series_equal(rows.y, data.y.gather(ids))
+            assert_series_equal(rows.weight, data.weight.gather(ids))
+            assert_series_equal(rows.business_type, data.business_type.gather(ids))
+            assert rows.cat_features == data.cat_features
+            assert rows.numerical_features == data.numerical_features
+            if ids[0] in test_ids:
+                assert fit_rows[-1] == train_ids
+                test_predictions.append(ids)
+            return super().predict_pool(rows)
+
+    result = train_model(
+        data=data,
+        params={},
+        model_factory=Model,
+        metric=mae,
+        run_name="calendar-test",
+        config=TrainingConfig(
+            validation=HoldoutConfig(val_size=1),
+            test_size=cutoff,
+            tracking=TrackingConfig(log_final_model=False),
+        ),
+    )
+    assert fit_rows[-1] == train_ids
+    assert test_predictions == [test_ids]
+    assert result.test_metrics is not None
+    expected_mean = np.average(
+        data.y.gather(train_ids).to_numpy(),
+        weights=data.weight.gather(train_ids).to_numpy(),
+    )
+    expected_mae = mae(
+        data.y.gather(test_ids).to_numpy(),
+        np.full(len(test_ids), expected_mean),
+        data.weight.gather(test_ids).to_numpy(),
+    ).to_dict()["mae"]
+    assert result.test_metrics["mae"] == pytest.approx(expected_mae)
+    parent = next(
+        run
+        for run in mlflow.search_runs(output_format="list")
+        if run.data.tags["mlflow.runName"] == "calendar-test"
+    )
+    artifact = mlflow.MlflowClient().download_artifacts(
+        parent.info.run_id, "configuration/requested.json"
+    )
+    assert json.loads(Path(artifact).read_text())["test_size"] == str(cutoff)
+
+
+@pytest.mark.parametrize("cutoff", ["2023-12-31", date(2024, 1, 1), "2026-01-01"])
+def test_calendar_cutoff_rejects_empty_train_or_test_before_fitting(cutoff):
+    def unexpected_fit(params):
+        pytest.fail("Invalid date cutoff must fail before constructing a model")
+
+    with pytest.raises(ValueError, match="nonempty training and test"):
+        train_model(
+            data=identified_data(),
+            params={},
+            model_factory=unexpected_fit,
+            metric=mae,
+            run_name="invalid-calendar-test",
+            config=TrainingConfig(validation=HoldoutConfig(), test_size=cutoff),
+        )
 
 
 def test_latest_split_with_no_best_iteration_keeps_original_budget(tmp_path):

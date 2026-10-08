@@ -1,6 +1,7 @@
 """Selection, optimization and high-level workflow settings."""
 
 from dataclasses import dataclass, field
+from datetime import date, datetime
 from math import isfinite
 from typing import Literal
 
@@ -102,8 +103,12 @@ class TrainingConfig:
     ----------
     validation : HoldoutConfig or TimeSeriesCVConfig
         Required strategy defining independent selection and tuning runs.
-    test_size : int, float, or None, default None
+    test_size : int, float, str, datetime.date, or None, default None
         Trailing test row count or fraction of the original data, rounded up.
+        A date or ``YYYY-MM-DD`` string starts test on that calendar day,
+        inclusive, in the timezone of the data's timestamps. Strings are
+        normalized to dates during construction; datetimes are not accepted.
+        Both training and test must retain at least one row.
         None uses all rows for training and performs no test evaluation.
     feature_selection : RFEFeatureSelectionConfig or None, default None
         Selection once per train/validation split; None keeps all columns.
@@ -125,17 +130,30 @@ class TrainingConfig:
     >>> config = TrainingConfig(validation=HoldoutConfig(), test_size=0.2)
     >>> config.feature_selection is None
     True
+    >>> config = TrainingConfig(validation=HoldoutConfig(), test_size="2025-01-01")
+    >>> config.test_size
+    datetime.date(2025, 1, 1)
     """
 
     validation: HoldoutConfig | TimeSeriesCVConfig
-    test_size: int | float | None = None
+    test_size: int | float | str | date | None = None
     feature_selection: RFEFeatureSelectionConfig | None = None
     tuning: TuningConfig | None = None
     reporting: ReportingConfig = field(default_factory=ReportingConfig)
     tracking: TrackingConfig = field(default_factory=TrackingConfig)
 
     def __post_init__(self) -> None:
-        if self.test_size is not None:
+        if isinstance(self.test_size, str):
+            try:
+                start_date = date.fromisoformat(self.test_size)
+            except ValueError as error:
+                raise ValueError("test_size date must use YYYY-MM-DD format") from error
+            if start_date.isoformat() != self.test_size:
+                raise ValueError("test_size date must use YYYY-MM-DD format")
+            object.__setattr__(self, "test_size", start_date)
+        elif isinstance(self.test_size, datetime):
+            raise ValueError("test_size must be a calendar date without a time")
+        elif isinstance(self.test_size, (int, float)):
             HoldoutConfig(val_size=self.test_size)
         selected = self.reporting.validation_splits
         if isinstance(selected, tuple):

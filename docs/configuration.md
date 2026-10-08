@@ -37,6 +37,11 @@ from ml_toolkit.config import (
   test and retained non-test rows for validation. RFE uses the external train/val.
 - `test_size=None` disables test evaluation. Otherwise the last rows are reserved
   before any training or optimization, and evaluated only after final fitting.
+  Set `test_size="2025-01-01"` or pass a `datetime.date` to start test on that
+  calendar day, inclusive, in the timezone of `data.time`. Strings must use
+  `YYYY-MM-DD` format and are normalized to dates during configuration creation.
+  Missing days use the next available observation; both partitions must be
+  nonempty. Exact datetimes are not accepted.
 - Rows must be ordered by ascending `time`; there is no shuffle. `gap` and
   `max_train_size` are row counts. Explicit diagnostic indices use original
   one-based split numbers before `skip_splits`.

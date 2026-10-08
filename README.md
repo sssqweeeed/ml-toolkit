@@ -84,6 +84,14 @@ Integers specify row counts; floats specify fractions in (0, 1), rounded up.
 `test_size=None` disables test. `TimeSeriesCVConfig.val_size=None` uses the standard
 `TimeSeriesSplit` block size. `gap` and `max_train_size` are rows, not durations.
 
+To start test on a calendar date, use
+`TrainingConfig(validation=HoldoutConfig(), test_size="2025-01-01")` or pass
+`datetime.date(2025, 1, 1)`. Date strings must use `YYYY-MM-DD` format and are
+normalized to dates when the configuration is created. Test includes every row
+on that day and later, using the timezone of `data.time` for Datetime columns.
+If that day has no observations, test starts on the next available day. The
+cutoff must leave both training and test nonempty; exact datetimes are not accepted.
+
 RFE runs once per split with the base model parameters. Candidates fit on that
 split's train and use its val for scoring, early stopping and ranking. There is
 no internal holdout. `min_features` is a search floor, `max_fits` is a fit budget,

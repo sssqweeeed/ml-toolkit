@@ -3,6 +3,7 @@
 import logging
 from collections.abc import Callable
 from dataclasses import asdict
+from datetime import date
 
 from optuna import Trial
 
@@ -55,7 +56,9 @@ def train_model(
     run_name : str
         Enclosing MLflow experiment run name.
     config : TrainingConfig
-        Holdout/TSCV, test size, selection, tuning, reporting and packaging.
+        Holdout/TSCV, test row count, fraction or calendar start date, selection,
+        tuning, reporting and packaging. A test start date includes the entire
+        day in the timezone of data.time.
     feature_ranker : FeatureRanker or None, default None
         Required for selection on each split's validation rows.
     param_space : Callable or None, default None
@@ -88,8 +91,14 @@ def train_model(
     """
     validate_training_data(data)
     train, test = data, None
-    if config.test_size is not None:
-        partition = split_holdout(data, HoldoutConfig(val_size=config.test_size))
+    test_size = config.test_size
+    if isinstance(test_size, date):
+        train_rows = int((data.time.dt.date() < test_size).sum())
+        if train_rows == 0 or train_rows == len(data):
+            raise ValueError("test_size date must leave nonempty training and test data")
+        test_size = len(data) - train_rows
+    if isinstance(test_size, (int, float)):
+        partition = split_holdout(data, HoldoutConfig(val_size=test_size))
         train, test = partition.train, partition.val
     splits = make_validation_splits(train, config.validation)
     if config.feature_selection is not None and feature_ranker is None:
