@@ -557,7 +557,9 @@ def test_both_classifiers_validate_explicit_threshold(data, threshold):
         ({}, "requires pu_prior"),
         ({"pu_prior": 0.0}, "strictly between"),
         ({"pu_prior": float("nan")}, "strictly between"),
-        ({"pu_prior": 0.2, "task_type": "GPU"}, "CPU"),
+        ({"pu_prior": 0.2, "loss": "nnPU", "task_type": "GPU"}, "CPU"),
+        ({"pu_prior": 0.2, "task_type": "TPU"}, "task_type"),
+        ({"pu_prior": 0.2, "task_type": "GPU", "devices": "0:1"}, "one device"),
         ({"pu_prior": 0.2, "class_weights": [1, 2]}, "incompatible"),
     ],
 )

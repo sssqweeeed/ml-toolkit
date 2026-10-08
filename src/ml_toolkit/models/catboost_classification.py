@@ -27,6 +27,7 @@ from ._catboost import (
     read_state,
     refit_parameters,
 )
+from ._catboost_upu import UPUObjective, upu_risk
 
 if TYPE_CHECKING:
     from ..config import TrackingConfig
@@ -97,8 +98,26 @@ class _PURiskMetric:
 
 
 class UPUMetric(_PURiskMetric):
+    no_jit = True
+
     def __init__(self, prior: float) -> None:
         super().__init__(prior, non_negative=False)
+
+    def evaluate(
+        self,
+        approxes: Sequence[Sequence[float]],
+        target: Sequence[float],
+        weight: Sequence[float] | None,
+    ) -> tuple[float, float]:
+        if len(approxes) != 1:
+            raise ValueError("PU risk requires one-dimensional raw predictions")
+        risk = upu_risk(
+            np.asarray(approxes[0], dtype=np.float64),
+            np.asarray(target),
+            None if weight is None else np.asarray(weight),
+            self.prior,
+        )
+        return risk, 1.0
 
 
 class NNPUMetric(_PURiskMetric):
@@ -671,15 +690,27 @@ class CatBoostPUClassificationModel(CatBoostClassificationModel):
     ----------
     params : dict or None, default None
         Copied parameters: ``loss`` is uPU (default) or nnPU; ``pu_prior`` must
-        be finite and strictly between zero and one. Training requires CPU,
-        both label groups with positive weight, and no class-weight options.
+        be finite and strictly between zero and one. uPU supports CPU and a
+        single CUDA GPU; nnPU requires CPU. Both label groups need positive
+        total weight, and class-weight options are not supported.
         Labels mean known positive (1) and unlabeled (0). Hard-label prediction
         requires an explicit ``decision_threshold``; F1 is never tuned.
 
     Notes
     -----
+    uPU uses Numba-compiled derivatives and risk on CPU. With task_type='GPU',
+    derivatives run in a CUDA kernel; risk evaluation remains on CPU and
+    transfers predictions from the GPU. CUDA training requires a compatible
+    CUDA toolkit and Numba CUDA support. The first fit compiles the kernels.
     nnPU evaluates the complete training risk before each tree, reversing the
     negative-risk gradient when needed (beta=0, gamma=1).
+
+    Examples
+    --------
+    >>> model = CatBoostPUClassificationModel(
+    ...     {"loss": "uPU", "pu_prior": 0.1, "task_type": "CPU"})
+    >>> gpu_model = CatBoostPUClassificationModel(
+    ...     {"loss": "uPU", "pu_prior": 0.1, "task_type": "GPU", "devices": "0"})
     """
 
     @property
@@ -710,8 +741,20 @@ class CatBoostPUClassificationModel(CatBoostClassificationModel):
         prior = float(cast(float, params.pop("pu_prior")))
         if not np.isfinite(prior) or not 0 < prior < 1:
             raise ValueError("pu_prior must be finite and strictly between 0 and 1")
-        if str(params.get("task_type", "CPU")).upper() != "CPU":
-            raise ValueError("Python PU objectives require task_type='CPU'")
+        task_type = str(params.get("task_type", "CPU")).upper()
+        if task_type not in ("CPU", "GPU"):
+            raise ValueError("PU task_type must be 'CPU' or 'GPU'")
+        if loss == "nnPU" and task_type != "CPU":
+            raise ValueError("nnPU requires task_type='CPU'")
+        params["task_type"] = task_type
+        if task_type == "GPU":
+            # PU normalizations describe one complete pool, not GPU shards.
+            device = str(params.setdefault("devices", "0"))
+            if not device.isdecimal():
+                raise ValueError(
+                    "uPU GPU training requires one device, e.g. devices='0'"
+                )
+            params["devices"] = device
         for name in ("class_weights", "auto_class_weights", "scale_pos_weight"):
             if name in params:
                 raise ValueError(f"{name} is incompatible with PU loss")
@@ -739,11 +782,8 @@ class CatBoostPUClassificationModel(CatBoostClassificationModel):
         positive_weight = weights[labels == 1].sum()
         unlabeled_weight = weights[labels == 0].sum()
         total = positive_weight + unlabeled_weight
-        objective = _PULogisticObjective(
-            self._pu_prior,
-            self._pu_prior * total / positive_weight,
-            total / unlabeled_weight,
-        )
+        positive_scale = float(self._pu_prior * total / positive_weight)
+        unlabeled_scale = float(total / unlabeled_weight)
         params.update(
             leaf_estimation_method="Gradient",
             leaf_estimation_iterations=1,
@@ -761,6 +801,9 @@ class CatBoostPUClassificationModel(CatBoostClassificationModel):
                 self._pu_prior,
             )
         if self._pu_loss == "nnPU":
+            objective = _PULogisticObjective(
+                self._pu_prior, positive_scale, unlabeled_scale
+            )
             model, self._best_iteration = self._fit_nnpu(
                 train=train,
                 validation=validation,
@@ -771,7 +814,14 @@ class CatBoostPUClassificationModel(CatBoostClassificationModel):
                 params=params,
             )
             return model
-        params["loss_function"] = objective
+        if params["task_type"] == "GPU":
+            from ._catboost_upu_cuda import make_upu_gpu_objective
+
+            params["loss_function"] = make_upu_gpu_objective(
+                positive_scale, unlabeled_scale
+            )
+        else:
+            params["loss_function"] = UPUObjective(positive_scale, unlabeled_scale)
         if validation is not None:
             params.setdefault("use_best_model", True)
         return super()._fit_backend(train, validation, baseline, params)

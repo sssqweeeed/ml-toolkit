@@ -13,7 +13,15 @@ from mlflow.models.model import ModelInfo
 
 from ..types import FloatArray, ModelParams
 
-PACKAGES = ("catboost", "polars", "pyarrow", "matplotlib", "scikit-learn", "optuna")
+PACKAGES = (
+    "catboost",
+    "numba",
+    "polars",
+    "pyarrow",
+    "matplotlib",
+    "scikit-learn",
+    "optuna",
+)
 
 logger = logging.getLogger(__name__)
 

@@ -10,7 +10,9 @@ The import name is `ml_toolkit`.
 From this repository, install the package with `python -m pip install -e .`.
 SHAP and LightGBM are optional: install `.[shap]`, `.[lightgbm]`, or `.[all]`
 when those integrations are needed. CatBoost, Polars, Matplotlib, Optuna,
-scikit-learn, and MLflow are installed by default.
+scikit-learn, Numba, and MLflow are installed by default. CUDA uPU training
+additionally needs a compatible NVIDIA GPU, CUDA toolkit, and Numba CUDA
+support (`python -m pip install -e '.[cuda]'`). CPU training needs no CUDA.
 
 ## Training from a project
 
@@ -164,7 +166,7 @@ clipped weighted prevalence log-odds. It selects an unweighted F1 threshold on
 validation (highest cutoff on ties), or 0.5 without validation. Set
 `decision_threshold` to disable tuning. `CatBoostPUClassificationModel` inherits
 the shared fit and prediction operations and uses population-prior log-odds,
-CPU uPU/nnPU training and an explicit threshold policy. Both classification
+CPU uPU/nnPU training, single-GPU uPU training, and an explicit threshold policy. Both classification
 classes add their baseline once to raw scores before the sigmoid.
 
 `InflationAdjustedModel` composes either regressor with an inflation strategy.
@@ -399,6 +401,26 @@ represent all positives. Confirmed precision and calibration require an
 independently labeled audit sample. PU models do not select a decision threshold
 from F1; pass `decision_threshold` in the model parameters if hard labels are
 needed, and choose it from an audited set or an operational review capacity.
+
+uPU uses compiled CPU derivatives and risk evaluation automatically. The first
+fit includes Numba compilation; CPU kernels are cached for subsequent runs.
+To use one CUDA GPU, select uPU in both the model and reporting metric:
+
+```python
+params = {
+    "loss": "uPU", "pu_prior": prior, "iterations": 200,
+    "depth": 5, "learning_rate": 0.05, "task_type": "GPU", "devices": "0",
+}
+metric = PUMetric(prior, loss="uPU")
+model = CatBoostPUClassificationModel(params).fit(train, validation)
+```
+
+GPU uPU computes derivatives with a CUDA kernel. Its training/evaluation PU
+metric runs on compiled CPU code and transfers raw predictions from GPU;
+metric evaluation can therefore limit GPU speed. CPU and GPU tree builders
+can produce different models. Use a single GPU (`devices` defaults to `"0"`);
+multiple GPUs are not supported for this objective. nnPU retains its CPU-only
+training policy.
 
 ## Logging
 

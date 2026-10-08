@@ -10,13 +10,14 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "numpy>=2.0", "pandas>=2.2", "polars>=1.0", "pyarrow>=15",
-    "matplotlib>=3.7", "scikit-learn>=1.4", "catboost>=1.2",
+    "matplotlib>=3.7", "scikit-learn>=1.4", "catboost>=1.2.10", "numba>=0.61",
     "mlflow>=3.0", "optuna>=3.0",
 ]
 
 [project.optional-dependencies]
 shap = ["shap>=0.46"]
 lightgbm = ["lightgbm>=4.0"]
+cuda = ["numba-cuda>=0.4"]
 all = ["shap>=0.46", "lightgbm>=4.0"]
 test = ["pytest>=8", "pyright>=1.1", "pandas-stubs>=2.2"]
 

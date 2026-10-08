@@ -15,7 +15,7 @@ from ml_toolkit.metrics import (
     metrics_frequency,
     metrics_severity,
 )
-from ml_toolkit.models import CatBoostRegressionModel
+from ml_toolkit.models import CatBoostPUClassificationModel, CatBoostRegressionModel
 from ml_toolkit.models.base import Model
 from ml_toolkit.training import DatasetSplit, PostFitEvaluator, TrainingData
 from ml_toolkit.training.splits import TrainValSplit, make_validation_splits
@@ -60,6 +60,11 @@ def severity_metric(
 def contracts(data: Pool) -> None:
     protocol: TrainingData = data
     model: Model = CatBoostRegressionModel({"iterations": 10})
+    pu = CatBoostPUClassificationModel(
+        {"loss": "uPU", "pu_prior": 0.1, "task_type": "GPU", "devices": "0"}
+    )
+    assert_type(pu.fit(data), CatBoostPUClassificationModel)
+    assert_type(pu.predict_pool(data), FloatArray)
     metrics: tuple[Metric, ...] = (
         dictionary_metric,
         metrics_classification,
