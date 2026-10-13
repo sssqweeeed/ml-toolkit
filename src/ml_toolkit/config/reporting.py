@@ -4,43 +4,7 @@ from dataclasses import dataclass, field
 from math import isfinite
 from typing import Literal
 
-from ..psi.config import PSIFeature
-
-
-@dataclass(frozen=True, kw_only=True, slots=True)
-class PSIOptions:
-    """Configure diagnostic PSI with optional explicit feature definitions.
-
-    Parameters
-    ----------
-    n_bins : int, default 10
-        Positive requested reference quantile-bin count. Ties may reduce it.
-    epsilon : float, default 1e-6
-        Share floor strictly between zero and one for logarithmic PSI scoring.
-    features : tuple[PSIFeature, ...] or None, default None
-        None infers every input feature from categorical declarations and dtype.
-        An explicit nonempty tuple selects features and supplies their bounds
-        and sentinel rules. Numerical boundaries are fitted on training only.
-    """
-
-    n_bins: int = 10
-    epsilon: float = 1e-6
-    features: tuple[PSIFeature, ...] | None = None
-
-    def __post_init__(self) -> None:
-        if self.n_bins < 1:
-            raise ValueError("n_bins must be positive")
-        if not 0 < self.epsilon < 1:
-            raise ValueError("epsilon must be between 0 and 1")
-        if self.features == ():
-            raise ValueError(
-                "PSI features must not be empty; use psi=None to disable PSI"
-            )
-
-        if self.features is not None:
-            names = tuple(feature.name for feature in self.features)
-            if any(not name.strip() for name in names) or len(set(names)) != len(names):
-                raise ValueError("features must contain unique nonempty names")
+from ..feature_levels import FeatureLevelSpec
 
 
 @dataclass(frozen=True, kw_only=True, slots=True)
@@ -152,38 +116,70 @@ class ShapConfig:
 
 @dataclass(frozen=True, kw_only=True, slots=True)
 class CommonPlotsConfig:
-    """Configure figures applicable to all supported diagnostic tasks.
+    """Configure shared feature diagnostics and figure exports for any task.
 
     Parameters
     ----------
+    features : tuple[FeatureLevelSpec, ...] or None, default None
+        Shared feature definitions for PSI and observed/fitted. None selects all
+        input features using categorical declarations and dtype; an empty tuple
+        disables both feature diagnostics. Explicit names must exist after
+        feature selection. Order is preserved.
+    psi : bool, default True
+        Calculate PSI tables and plot scores and monthly level distributions.
+    observed_fitted : bool, default True
+        Plot weighted observed/fitted means for train and validation/test on the
+        same reference-fitted levels. Available for every task; the caller is
+        responsible for the interpretation of targets, including PU labels.
+    n_bins : int, default 10
+        Positive requested number of reference quantile bins for both diagnostics.
+    epsilon : float, default 1e-6
+        PSI share floor strictly between zero and one.
     figure : FigureConfig
         Shared export settings; defaults to a fresh FigureConfig.
-    psi_scores : bool, default True
-        Draw feature PSI bars when PSI calculation is enabled.
-    psi_distribution_features : tuple[str, ...] or None, default None
-        None draws monthly levels for every PSI feature; empty draws none.
-        Explicit names must be included in the PSI feature configuration.
     numerical_distributions : NumericalFeatureDistributionConfig or None
-        Defaults to all numerical features. None disables these plots.
+        Independently configured raw numerical distributions; defaults to all
+        numerical features. None disables these plots.
     shap : ShapConfig or None, default None
         Optional SHAP diagnostics; None disables SHAP calculation and plots.
+
+    Notes
+    -----
+    Levels are fitted once on training rows and reused by both diagnostics.
+    Turning off PSI does not disable observed/fitted or vice versa. Setting the
+    enclosing diagnostics' plots to None disables all plots and PSI tables.
+
+    Examples
+    --------
+    >>> common = CommonPlotsConfig(
+    ...     features=(FeatureLevelSpec("age", "numerical", lower_bound=0),),
+    ...     psi=False,
+    ...     observed_fitted=True,
+    ... )
+    >>> common.n_bins
+    10
     """
 
+    features: tuple[FeatureLevelSpec, ...] | None = None
+    psi: bool = True
+    observed_fitted: bool = True
+    n_bins: int = 10
+    epsilon: float = 1e-6
     figure: FigureConfig = field(default_factory=FigureConfig)
-    psi_scores: bool = True
-    psi_distribution_features: tuple[str, ...] | None = None
     numerical_distributions: NumericalFeatureDistributionConfig | None = field(
         default_factory=NumericalFeatureDistributionConfig
     )
     shap: ShapConfig | None = None
 
     def __post_init__(self) -> None:
-        if self.psi_distribution_features is not None:
-            names = self.psi_distribution_features
-            if any(not name.strip() for name in names) or len(set(names)) != len(names):
-                raise ValueError(
-                    "psi_distribution_features must contain unique nonempty names"
-                )
+        if self.n_bins < 1:
+            raise ValueError("n_bins must be positive")
+        if not 0 < self.epsilon < 1:
+            raise ValueError("epsilon must be between 0 and 1")
+        if self.features is not None:
+            names = tuple(feature.name for feature in self.features)
+            if len(set(names)) != len(names):
+                raise ValueError("features must contain unique names")
 
 
 @dataclass(frozen=True, kw_only=True, slots=True)
@@ -294,32 +290,19 @@ class PUPlotsConfig:
 
 @dataclass(frozen=True, kw_only=True, slots=True)
 class ClassificationDiagnosticsConfig:
-    """Configure supervised binary-classification diagnostics.
+    """Configure binary-classification diagnostics.
 
     Parameters
     ----------
-    psi : PSIOptions or None
-        PSI tables and fitted reference levels; defaults to PSIOptions.
-        None disables PSI calculation and related plots.
     plots : ClassificationPlotsConfig or None
-        Defaults to ClassificationPlotsConfig. None disables every figure
-        while leaving PSI tables enabled.
+        Defaults to ClassificationPlotsConfig. Shared features, PSI and
+        observed/fitted are configured in plots.common. None disables every
+        figure and PSI table.
     """
 
-    psi: PSIOptions | None = field(default_factory=PSIOptions)
     plots: ClassificationPlotsConfig | None = field(
         default_factory=ClassificationPlotsConfig
     )
-
-    def __post_init__(self) -> None:
-        if (
-            self.plots is not None
-            and self.psi is None
-            and self.plots.common.psi_distribution_features
-        ):
-            raise ValueError(
-                "Explicit PSI distribution features require PSI calculation"
-            )
 
     @property
     def task(self) -> Literal["classification"]:
@@ -334,26 +317,15 @@ class RegressionDiagnosticsConfig:
     Parameters
     ----------
     task : {'regression', 'frequency', 'severity'}, default 'regression'
-        Regression task label for validation and diagnostic metadata.
-    psi : PSIOptions or None
-        Defaults to PSIOptions; None disables PSI calculation and its figures.
+        Task label for diagnostic metadata.
     plots : RegressionPlotsConfig or None
-        Defaults to RegressionPlotsConfig; None disables all figures.
+        Defaults to RegressionPlotsConfig. Shared features, PSI and
+        observed/fitted are configured in plots.common. None disables every
+        figure and PSI table.
     """
 
     task: Literal["regression", "frequency", "severity"] = "regression"
-    psi: PSIOptions | None = field(default_factory=PSIOptions)
     plots: RegressionPlotsConfig | None = field(default_factory=RegressionPlotsConfig)
-
-    def __post_init__(self) -> None:
-        if (
-            self.plots is not None
-            and self.psi is None
-            and self.plots.common.psi_distribution_features
-        ):
-            raise ValueError(
-                "Explicit PSI distribution features require PSI calculation"
-            )
 
 
 @dataclass(frozen=True, kw_only=True, slots=True)
@@ -362,25 +334,14 @@ class PUDiagnosticsConfig:
 
     Parameters
     ----------
-    psi : PSIOptions or None
-        Defaults to PSIOptions; None disables PSI calculation and its figures.
     plots : PUPlotsConfig or None
-        Defaults to PUPlotsConfig; None disables all figures. Supervised plot
-        configurations are rejected during construction.
+        Defaults to PUPlotsConfig. Shared features, PSI and observed/fitted are
+        configured in plots.common, without task-specific restrictions. The
+        caller decides whether comparing PU labels to predictions is meaningful.
+        None disables every figure and PSI table.
     """
 
-    psi: PSIOptions | None = field(default_factory=PSIOptions)
     plots: PUPlotsConfig | None = field(default_factory=PUPlotsConfig)
-
-    def __post_init__(self) -> None:
-        if (
-            self.plots is not None
-            and self.psi is None
-            and self.plots.common.psi_distribution_features
-        ):
-            raise ValueError(
-                "Explicit PSI distribution features require PSI calculation"
-            )
 
     @property
     def task(self) -> Literal["pu_classification"]:

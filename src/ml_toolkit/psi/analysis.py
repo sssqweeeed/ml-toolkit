@@ -13,7 +13,7 @@ from .distributions import (
     level_distributions,
     monthly_level_distributions,
 )
-from .levels import LevelTransformer
+from ..feature_levels import LevelConfig, LevelTransformer
 from .results import PSIResult
 from .score import psi
 
@@ -25,6 +25,8 @@ def _resolve_time(data: pl.DataFrame, time: pl.Series | str | None) -> pl.Series
         return None
     if isinstance(time, str):
         time = data.get_column(time)
+    if len(time) != len(data):
+        raise ValueError("time must align with data rows")
     if time.null_count():
         raise ValueError("time must not contain null values")
     if time.dtype != pl.Date and time.dtype.base_type() != pl.Datetime:
@@ -53,10 +55,11 @@ class PSIAnalysis:
     Examples
     --------
     >>> import polars as pl
-    >>> from ml_toolkit.psi import PSIAnalysis, PSIConfig, PSIFeature
+    >>> from ml_toolkit.feature_levels import FeatureLevelSpec
+    >>> from ml_toolkit.psi import PSIAnalysis, PSIConfig
     >>> reference = pl.DataFrame({"segment": ["a", "a", "b", "b"]})
     >>> current = pl.DataFrame({"segment": ["a", "b", "a", "b"]})
-    >>> analysis = PSIAnalysis(PSIConfig((PSIFeature("segment", "categorical"),)))
+    >>> analysis = PSIAnalysis(PSIConfig((FeatureLevelSpec("segment", "categorical"),)))
     >>> result = analysis.fit(reference).compare(current)
     >>> result.psi.get_column("psi").to_list()
     [0.0]
@@ -155,38 +158,110 @@ class PSIAnalysis:
             len(self.config.features),
         )
         current_levels = self.transformer.transform(current)
-        level_config = self.transformer.config
-        feature_scores = pl.DataFrame(
-            {
-                "feature": [feature.name for feature in level_config.features],
-                "psi": [
-                    psi(
-                        self.reference_levels.get_column(feature.name),
-                        current_levels.get_column(feature.name),
-                        epsilon=self.config.epsilon,
-                    )
-                    for feature in level_config.features
-                ],
-            },
-            schema={"feature": pl.String, "psi": pl.Float64},
+        return compare_psi(
+            self.reference_levels,
+            current_levels,
+            self.transformer.config,
+            epsilon=self.config.epsilon,
+            reference_time=self.reference_time,
+            current_time=current_time,
         )
-        level_distribution = level_distributions(
-            self.reference_levels, current_levels, level_config
+
+
+def compare_psi(
+    reference_levels: pl.DataFrame,
+    current_levels: pl.DataFrame,
+    level_config: LevelConfig,
+    *,
+    epsilon: float = 1e-6,
+    reference_time: pl.Series | None = None,
+    current_time: pl.Series | None = None,
+) -> PSIResult:
+    """Compare populations already transformed using shared reference levels.
+
+    Parameters
+    ----------
+    reference_levels, current_levels : polars.DataFrame
+        Nonempty frames with the configured columns transformed by the same
+        LevelTransformer. Extra columns are ignored.
+    level_config : LevelConfig
+        Fitted definitions, including the order of features and levels.
+    epsilon : float, default 1e-6
+        Share floor strictly between zero and one for PSI logarithms.
+    reference_time, current_time : polars.Series or None, default None
+        Aligned, non-null Date/Datetime values. Supply both to include monthly
+        distributions, or neither.
+
+    Returns
+    -------
+    PSIResult
+        Per-feature scores, level distributions, optional monthly distributions,
+        and the supplied fitted definitions. No levels are fitted here.
+
+    Raises
+    ------
+    ValueError
+        Frames or feature definitions are empty, configured columns or levels
+        are missing or invalid, timestamps are misaligned, or epsilon is invalid.
+    TypeError
+        Feature columns are not Categorical or timestamps have an invalid dtype.
+    """
+    if not level_config.features:
+        raise ValueError("Feature definitions must not be empty")
+    if not 0 < epsilon < 1:
+        raise ValueError("epsilon must be between 0 and 1")
+    for frame in (reference_levels, current_levels):
+        if frame.is_empty():
+            raise ValueError("PSI frames must not be empty")
+        missing = sorted(
+            {feature.name for feature in level_config.features} - set(frame.columns)
         )
-        monthly_distribution = pl.DataFrame(schema=MONTHLY_SCHEMA)
-        if self.reference_time is not None and current_time is not None:
-            monthly_distribution = monthly_level_distributions(
-                self.reference_levels,
-                self.reference_time,
-                current_levels,
-                current_time,
-                level_config,
-            )
-        result = PSIResult(
-            psi=feature_scores,
-            level_distribution=level_distribution,
-            monthly_distribution=monthly_distribution,
-            level_config=level_config,
+        if missing:
+            raise ValueError(f"Features are missing from levels: {missing}")
+        for feature in level_config.features:
+            values = frame.get_column(feature.name)
+            if values.dtype != pl.Categorical:
+                raise TypeError("PSI level columns must be Categorical")
+            if (
+                values.null_count()
+                or not values.cast(pl.String).is_in(feature.levels).all()
+            ):
+                raise ValueError(f"Feature {feature.name!r} contains undefined levels")
+    reference_time = _resolve_time(reference_levels, reference_time)
+    current_time = _resolve_time(current_levels, current_time)
+    if (reference_time is None) != (current_time is None):
+        raise ValueError("Both samples must provide time for monthly distributions")
+    feature_scores = pl.DataFrame(
+        {
+            "feature": [feature.name for feature in level_config.features],
+            "psi": [
+                psi(
+                    reference_levels.get_column(feature.name),
+                    current_levels.get_column(feature.name),
+                    epsilon=epsilon,
+                )
+                for feature in level_config.features
+            ],
+        },
+        schema={"feature": pl.String, "psi": pl.Float64},
+    )
+    level_distribution = level_distributions(
+        reference_levels, current_levels, level_config
+    )
+    monthly_distribution = pl.DataFrame(schema=MONTHLY_SCHEMA)
+    if reference_time is not None and current_time is not None:
+        monthly_distribution = monthly_level_distributions(
+            reference_levels,
+            reference_time,
+            current_levels,
+            current_time,
+            level_config,
         )
-        logger.debug("Completed PSI comparison: %s feature scores", len(feature_scores))
-        return result
+    result = PSIResult(
+        psi=feature_scores,
+        level_distribution=level_distribution,
+        monthly_distribution=monthly_distribution,
+        level_config=level_config,
+    )
+    logger.debug("Completed PSI comparison: %s feature scores", len(feature_scores))
+    return result

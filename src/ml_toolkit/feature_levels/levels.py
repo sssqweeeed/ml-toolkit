@@ -13,17 +13,17 @@ from .config import (
     UNSEEN_LEVEL,
     FeatureLevelConfig,
     LevelConfig,
-    PSIFeature,
+    FeatureLevelSpec,
 )
 
 
 @dataclass
 class LevelTransformer:
-    """Learn reference categories and quantile boundaries for PSI.
+    """Learn reference categories and quantile boundaries for diagnostics.
 
     Parameters
     ----------
-    features : tuple[PSIFeature, ...]
+    features : tuple[FeatureLevelSpec, ...]
         Feature definitions with unique names.
     n_bins : int, default 10
         Positive requested number of numerical intervals.
@@ -42,7 +42,7 @@ class LevelTransformer:
     Transformation retains unconfigured columns.
     """
 
-    features: Sequence[PSIFeature]
+    features: Sequence[FeatureLevelSpec]
     n_bins: int = 10
     config: LevelConfig | None = field(init=False, default=None)
 
@@ -99,7 +99,7 @@ class LevelTransformer:
                 reserved = {NULL_LEVEL, ERROR_LEVEL, UNSEEN_LEVEL}
                 if reserved.intersection(labels):
                     raise ValueError(
-                        f"Feature {feature.name!r} contains a reserved PSI level"
+                        f"Feature {feature.name!r} contains a reserved feature level"
                     )
 
                 levels = (*labels, NULL_LEVEL, UNSEEN_LEVEL)

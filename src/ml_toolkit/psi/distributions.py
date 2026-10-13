@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import polars as pl
 
-from .config import LevelConfig
+from ..feature_levels import LevelConfig
 
 LEVEL_SCHEMA = {
     "feature": pl.String,

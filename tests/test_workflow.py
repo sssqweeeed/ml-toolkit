@@ -15,7 +15,8 @@ from test_training import MeanModel, list_all_artifacts, mae, make_data, setup_m
 from ml_toolkit import Pool
 from ml_toolkit.config import (
     HoldoutConfig,
-    PSIOptions,
+    CommonPlotsConfig,
+    RegressionPlotsConfig,
     RegressionDiagnosticsConfig,
     ReportingConfig,
     RFEFeatureSelectionConfig,
@@ -383,7 +384,12 @@ def test_test_reuses_reports_and_evaluator_independently_of_split_selection(tmp_
             test_size=4,
             reporting=ReportingConfig(
                 diagnostics=RegressionDiagnosticsConfig(
-                    psi=PSIOptions(n_bins=3), plots=None
+                    plots=RegressionPlotsConfig(
+                        common=CommonPlotsConfig(
+                            n_bins=3, numerical_distributions=None
+                        ),
+                        monthly_observed_fitted=False,
+                    )
                 ),
                 validation_splits=(1,),
             ),
@@ -405,6 +411,7 @@ def test_test_reuses_reports_and_evaluator_independently_of_split_selection(tmp_
             assert not artifacts
         elif name == "final_fit":
             assert "test/psi/scores.json" in artifacts
+            assert "test/figures/observed_fitted_000_x.png" in artifacts
             assert "test/custom/rows" in run.data.metrics
             assert "test/mae" in run.data.metrics
             assert "val/mae" not in run.data.metrics

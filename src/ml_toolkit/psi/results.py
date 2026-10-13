@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 import polars as pl
 
-from .config import LevelConfig
+from ..feature_levels import LevelConfig
 
 
 @dataclass(frozen=True)

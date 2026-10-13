@@ -114,3 +114,44 @@ def explicit_selection(data: Pool) -> None:
         ),
         FeatureSelectionResult,
     )
+
+
+from ml_toolkit.config import CommonPlotsConfig, FeatureLevelSpec, PUPlotsConfig
+from ml_toolkit.feature_levels import LevelTransformer
+from ml_toolkit.plots.regression import observed_fitted_by_level
+from ml_toolkit.psi import PSIResult, compare_psi
+import pandas as pd
+
+
+def feature_diagnostics(
+    reference: pl.DataFrame, current: pl.DataFrame, y: FloatArray, output: Path
+) -> None:
+    common = CommonPlotsConfig(
+        features=(FeatureLevelSpec("age", "numerical", lower_bound=0),),
+        psi=False,
+        observed_fitted=True,
+    )
+    assert_type(common.features, tuple[FeatureLevelSpec, ...] | None)
+    assert_type(PUPlotsConfig(common=common), PUPlotsConfig)
+    transformer = LevelTransformer((FeatureLevelSpec("age", "numerical"),)).fit(
+        reference
+    )
+    reference_levels = transformer.transform(reference)
+    current_levels = transformer.transform(current)
+    assert transformer.config is not None
+    assert_type(
+        compare_psi(reference_levels, current_levels, transformer.config), PSIResult
+    )
+    assert_type(
+        observed_fitted_by_level(
+            reference_levels["age"],
+            y,
+            y,
+            current_levels["age"],
+            y,
+            y,
+            output,
+            level_order=transformer.config.features[0].levels,
+        ),
+        pd.DataFrame,
+    )

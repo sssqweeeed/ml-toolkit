@@ -202,6 +202,27 @@ describe the third-party APIs used by the package; toolkit contracts use concret
 types and small protocols. Runtime checks cover data alignment, finite values,
 weights, dates, feature names, mathematical ranges, and artifact paths.
 
+### Shared feature diagnostics
+
+Use the existing `CommonPlotsConfig` for PSI and observed/fitted by feature:
+
+```python
+from ml_toolkit.config import CommonPlotsConfig, FeatureLevelSpec
+
+common = CommonPlotsConfig(
+    features=(FeatureLevelSpec("age", "numerical", lower_bound=0),),
+    psi=True,
+    observed_fitted=True,
+)
+```
+
+Pass `common` to your existing plots configuration, for example
+`RegressionPlotsConfig(common=common)`. Omit `features` to use all available
+features. Both reports use the same levels learned on train, with independent
+on/off switches. The configuration applies to every task, including PU; target
+interpretation is the caller's responsibility. See the
+[configuration examples](docs/configuration.md#shared-psi-and-observedfitted-diagnostics).
+
 ### Custom post-fit evaluation
 
 Use the separate `post_fit_evaluator` argument for business metrics that need
@@ -421,10 +442,11 @@ without a dependency on project data or a CatBoost Pool.
 
 ```python
 from pathlib import Path
-from ml_toolkit.psi import PSIAnalysis, PSIConfig, PSIFeature
+from ml_toolkit.feature_levels import FeatureLevelSpec
+from ml_toolkit.psi import PSIAnalysis, PSIConfig
 from ml_toolkit.plots.psi import feature_psi_plot
 
-config = PSIConfig((PSIFeature("age", "numerical"),), n_bins=10)
+config = PSIConfig((FeatureLevelSpec("age", "numerical"),), n_bins=10)
 result = PSIAnalysis(config).fit(reference, time="date").compare(
     current, time="date"
 )
@@ -452,7 +474,8 @@ functions, so manual and automatic figures have one implementation.
 | `training/results.py` | Result dataclasses. |
 | `models/` | CatBoost classification/regression, PU learning, LightGBM serving, and inflation-adjusted models. |
 | `metrics/` | Classification, frequency, severity, and ranking calculations. |
-| `psi/` | Fitted levels, PSI scoring, distributions, and results. |
+| `feature_levels/` | Shared feature definitions and reference-fitted levels. |
+| `psi/` | PSI scoring, distributions, and results. |
 | `plots/` | Every chart, including PSI charts. |
 | `inflation.py` | Constant-rate and manually indexed inflation strategies. |
 | `explainability.py` | SHAP extraction from supported native models. |

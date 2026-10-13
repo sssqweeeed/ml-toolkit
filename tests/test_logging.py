@@ -33,7 +33,8 @@ from ml_toolkit.inflation import ConstantRateInflation
 from ml_toolkit.metrics import MetricScores
 from ml_toolkit.models import CatBoostClassificationModel, CatBoostRegressionModel
 from ml_toolkit.plots.utils import save_figure
-from ml_toolkit.psi import PSIAnalysis, PSIConfig, PSIFeature
+from ml_toolkit.feature_levels import FeatureLevelSpec
+from ml_toolkit.psi import PSIAnalysis, PSIConfig
 from ml_toolkit.tracking.mlflow import log_polars_table
 from ml_toolkit.tracking.model_artifacts import log_model_from_code
 from ml_toolkit.training import importance_ranker, split_holdout, train_model
@@ -190,7 +191,7 @@ def test_module_override_propagates_once(caplog):
 def test_helper_debug_logs_preserve_outputs(tmp_path, caplog, monkeypatch):
     caplog.set_level(logging.DEBUG, logger="ml_toolkit")
     data = make_data()
-    psi = PSIAnalysis(PSIConfig((PSIFeature("x", "numerical"),), n_bins=3))
+    psi = PSIAnalysis(PSIConfig((FeatureLevelSpec("x", "numerical"),), n_bins=3))
     comparison = psi.fit(data.X).compare(data.X)
     assert comparison.psi["psi"].to_list() == [0.0]
 

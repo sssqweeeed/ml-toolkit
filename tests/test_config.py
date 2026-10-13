@@ -24,7 +24,6 @@ from ml_toolkit.config import (
     HoldoutConfig,
     NumericalFeatureDistributionConfig,
     PostFitEvaluationConfig,
-    PSIOptions,
     PUDiagnosticsConfig,
     PUPlotsConfig,
     RegressionDiagnosticsConfig,
@@ -43,7 +42,7 @@ from ml_toolkit.models import CatBoostRegressionModel, InflationAdjustedModel
 from ml_toolkit.plots.classification import calibration, precision_recall
 from ml_toolkit.plots.monitoring import monthly_feature_distribution
 from ml_toolkit.plots.utils import save_figure
-from ml_toolkit.psi import PSIFeature
+from ml_toolkit.feature_levels import FeatureLevelSpec
 from ml_toolkit.training import importance_ranker, split_holdout, train_model
 from ml_toolkit.training.splits import make_validation_splits
 
@@ -67,8 +66,8 @@ from ml_toolkit.training.splits import make_validation_splits
         ),
         lambda: TuningConfig(metric="", direction="minimize"),
         lambda: TuningConfig(metric="mae", direction="minimize", timeout_seconds=0),
-        lambda: PSIOptions(epsilon=0),
-        lambda: PSIOptions(features=()),
+        lambda: CommonPlotsConfig(epsilon=0),
+        lambda: CommonPlotsConfig(n_bins=0),
         lambda: FigureConfig(figsize=(0, 5)),
         lambda: ShapConfig(dependence_features=("x", "x")),
         lambda: ReportingConfig(validation_splits=()),
@@ -412,7 +411,7 @@ def test_each_split_fits_winning_settings_after_tuning(tmp_path):
             validation=TimeSeriesCVConfig(n_splits=2),
             tuning=TuningConfig(metric="mae", direction="minimize", n_trials=1, seed=7),
             reporting=ReportingConfig(
-                diagnostics=RegressionDiagnosticsConfig(psi=None, plots=None)
+                diagnostics=RegressionDiagnosticsConfig(plots=None)
             ),
         ),
     )
@@ -509,7 +508,9 @@ def test_psi_definition_and_svg_output_reach_diagnostics(tmp_path):
     plots = RegressionPlotsConfig(
         common=CommonPlotsConfig(
             figure=FigureConfig(format="svg", figsize=(6, 4), dpi=90),
-            psi_distribution_features=("x",),
+            n_bins=2,
+            epsilon=0.01,
+            features=(FeatureLevelSpec("x", "numerical", lower_bound=0),),
             numerical_distributions=None,
         ),
         monthly_observed_fitted=False,
@@ -524,11 +525,6 @@ def test_psi_definition_and_svg_output_reach_diagnostics(tmp_path):
             validation=TimeSeriesCVConfig(n_splits=2),
             reporting=ReportingConfig(
                 diagnostics=RegressionDiagnosticsConfig(
-                    psi=PSIOptions(
-                        n_bins=2,
-                        epsilon=0.01,
-                        features=(PSIFeature("x", "numerical", lower_bound=0),),
-                    ),
                     plots=plots,
                 ),
             ),
@@ -541,6 +537,7 @@ def test_psi_definition_and_svg_output_reach_diagnostics(tmp_path):
             assert set(artifacts) == {
                 "val/figures/psi_scores.svg",
                 "val/figures/psi_000_x.svg",
+                "val/figures/observed_fitted_000_x.svg",
                 "val/psi/scores.json",
                 "val/psi/level_distribution.json",
                 "val/psi/monthly_distribution.json",

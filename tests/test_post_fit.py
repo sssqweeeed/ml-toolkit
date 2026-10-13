@@ -154,7 +154,7 @@ def test_post_fit_lifecycle_alignment_and_mlflow(
             ),
             reporting=ReportingConfig(
                 diagnostics=(
-                    RegressionDiagnosticsConfig(task="regression", psi=None, plots=None)
+                    RegressionDiagnosticsConfig(task="regression", plots=None)
                     if repeat_cv
                     else None
                 ),

@@ -14,7 +14,7 @@ from ml_toolkit.config import (
     TuningConfig,
     TrainingConfig,
     TrackingConfig,
-    PSIOptions,
+    FeatureLevelSpec,
     FigureConfig,
     NumericalFeatureDistributionConfig,
     ShapConfig,
@@ -94,11 +94,6 @@ classification_config = TrainingConfig(
     ),
     reporting=ReportingConfig(
         diagnostics=ClassificationDiagnosticsConfig(
-            psi=PSIOptions(
-                n_bins=10,
-                epsilon=1e-06,
-                features=None,
-            ),
             plots=ClassificationPlotsConfig(
                 common=CommonPlotsConfig(
                     figure=FigureConfig(
@@ -106,8 +101,11 @@ classification_config = TrainingConfig(
                         dpi=150,
                         format='png',
                     ),
-                    psi_scores=True,
-                    psi_distribution_features=None,
+                    features=None,
+                    psi=True,
+                    observed_fitted=True,
+                    n_bins=10,
+                    epsilon=1e-6,
                     numerical_distributions=NumericalFeatureDistributionConfig(
                         features=None,
                         quantile_bands=((0.05, 0.95), (0.25, 0.75)),
@@ -176,11 +174,6 @@ regression_config = TrainingConfig(
     reporting=ReportingConfig(
         diagnostics=RegressionDiagnosticsConfig(
             task='regression',
-            psi=PSIOptions(
-                n_bins=10,
-                epsilon=1e-06,
-                features=None,
-            ),
             plots=RegressionPlotsConfig(
                 common=CommonPlotsConfig(
                     figure=FigureConfig(
@@ -188,8 +181,11 @@ regression_config = TrainingConfig(
                         dpi=150,
                         format='png',
                     ),
-                    psi_scores=True,
-                    psi_distribution_features=None,
+                    features=None,
+                    psi=True,
+                    observed_fitted=True,
+                    n_bins=10,
+                    epsilon=1e-6,
                     numerical_distributions=NumericalFeatureDistributionConfig(
                         features=None,
                         quantile_bands=((0.05, 0.95), (0.25, 0.75)),
@@ -252,11 +248,6 @@ frequency_config = TrainingConfig(
     reporting=ReportingConfig(
         diagnostics=RegressionDiagnosticsConfig(
             task='frequency',
-            psi=PSIOptions(
-                n_bins=10,
-                epsilon=1e-06,
-                features=None,
-            ),
             plots=RegressionPlotsConfig(
                 common=CommonPlotsConfig(
                     figure=FigureConfig(
@@ -264,8 +255,11 @@ frequency_config = TrainingConfig(
                         dpi=150,
                         format='png',
                     ),
-                    psi_scores=True,
-                    psi_distribution_features=None,
+                    features=None,
+                    psi=True,
+                    observed_fitted=True,
+                    n_bins=10,
+                    epsilon=1e-6,
                     numerical_distributions=NumericalFeatureDistributionConfig(
                         features=None,
                         quantile_bands=((0.05, 0.95), (0.25, 0.75)),
@@ -328,11 +322,6 @@ severity_config = TrainingConfig(
     reporting=ReportingConfig(
         diagnostics=RegressionDiagnosticsConfig(
             task='severity',
-            psi=PSIOptions(
-                n_bins=10,
-                epsilon=1e-06,
-                features=None,
-            ),
             plots=RegressionPlotsConfig(
                 common=CommonPlotsConfig(
                     figure=FigureConfig(
@@ -340,8 +329,11 @@ severity_config = TrainingConfig(
                         dpi=150,
                         format='png',
                     ),
-                    psi_scores=True,
-                    psi_distribution_features=None,
+                    features=None,
+                    psi=True,
+                    observed_fitted=True,
+                    n_bins=10,
+                    epsilon=1e-6,
                     numerical_distributions=NumericalFeatureDistributionConfig(
                         features=None,
                         quantile_bands=((0.05, 0.95), (0.25, 0.75)),
@@ -403,11 +395,6 @@ pu_classification_config = TrainingConfig(
     ),
     reporting=ReportingConfig(
         diagnostics=PUDiagnosticsConfig(
-            psi=PSIOptions(
-                n_bins=10,
-                epsilon=1e-06,
-                features=None,
-            ),
             plots=PUPlotsConfig(
                 common=CommonPlotsConfig(
                     figure=FigureConfig(
@@ -415,8 +402,11 @@ pu_classification_config = TrainingConfig(
                         dpi=150,
                         format='png',
                     ),
-                    psi_scores=True,
-                    psi_distribution_features=None,
+                    features=None,
+                    psi=True,
+                    observed_fitted=True,
+                    n_bins=10,
+                    epsilon=1e-6,
                     numerical_distributions=NumericalFeatureDistributionConfig(
                         features=None,
                         quantile_bands=((0.05, 0.95), (0.25, 0.75)),
@@ -462,3 +452,50 @@ training row, including former validation and gap rows. `result.validation` hold
 split metadata and average val metrics; `result.test_metrics` is `None` when test
 is disabled. `result.params` and `result.features` come from the last split's
 post-tuning fit, rather than a median or a feature union.
+
+## Shared PSI and observed/fitted diagnostics
+
+Configure both diagnostics in the existing `plots.common` block. They share one
+feature list and levels fitted on the training sample. Numeric quantile bins,
+categories, missing/error sentinels, and valid bounds are identical in both
+reports. `features=None` selects every available model feature; `features=()`
+disables both. Explicit definitions must name columns that remain after feature
+selection.
+
+```python
+common = CommonPlotsConfig(
+    features=(
+        FeatureLevelSpec("age", "numerical", lower_bound=0, upper_bound=120),
+        FeatureLevelSpec("region", "categorical", null_level="unknown"),
+    ),
+    psi=True,
+    observed_fitted=True,
+    n_bins=8,
+)
+reporting = ReportingConfig(
+    diagnostics=RegressionDiagnosticsConfig(
+        plots=RegressionPlotsConfig(common=common),
+    ),
+)
+```
+
+For all features and default levels, simply use `CommonPlotsConfig()`. To keep
+observed/fitted while disabling PSI, use
+`CommonPlotsConfig(psi=False, observed_fitted=True)`. The inverse enables only
+PSI. Both flags default to True. `n_bins=10` is the default requested number of
+quantile bins and `epsilon=1e-6` is the PSI share floor.
+
+`psi=True` writes score and distribution tables, a PSI score figure, and monthly
+level distributions. `observed_fitted=True` writes one figure per feature with
+four exposure-weighted curves for train and validation/test, plus volume bars.
+A missing or zero-weight group has no mean and breaks the curve. Each validation
+split fits its own levels on its training rows. Test uses the final training
+sample as its reference. The two diagnostics reuse predictions and a single
+transformation of each sample.
+
+These shared flags apply to classification, regression, frequency, severity, and
+PU. The developer is responsible for interpreting PU labels when enabling
+observed/fitted. Other plots keep their own existing settings. In particular,
+`monthly_observed_fitted` controls the separate monthly target/prediction chart,
+not the per-feature charts. Setting the enclosing `plots=None` disables all
+figures and PSI tables. No task-specific PSI configuration is needed.

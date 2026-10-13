@@ -67,3 +67,11 @@ from ml_toolkit.config import HoldoutConfig, RFEFeatureSelectionConfig
 TrainingConfig(validation=HoldoutConfig(), test_size=["2025-01-01"])  # expected-type-error
 TrainingConfig(validation=HoldoutConfig(), test_size={"start_date": "2025-01-01"})  # expected-type-error
 RFEFeatureSelectionConfig(min_features=1, metric="mae", direction="minimize", holdout=HoldoutConfig())  # expected-type-error
+
+from ml_toolkit.config import CommonPlotsConfig, FeatureLevelSpec
+
+CommonPlotsConfig(features=("age",))  # expected-type-error
+CommonPlotsConfig(psi="on")  # expected-type-error
+CommonPlotsConfig(observed_fitted=None)  # expected-type-error
+FeatureLevelSpec("age", "continuous")  # expected-type-error
+RegressionDiagnosticsConfig(psi=None)  # expected-type-error

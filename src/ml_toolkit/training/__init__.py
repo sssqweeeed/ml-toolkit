@@ -10,7 +10,7 @@ from ..config import (
     NumericalFeatureDistributionConfig as NumericalFeatureDistributionConfig,
 )
 from ..config import PostFitEvaluationConfig as PostFitEvaluationConfig
-from ..config import PSIOptions as PSIOptions
+from ..config import FeatureLevelSpec as FeatureLevelSpec
 from ..config import PUDiagnosticsConfig as PUDiagnosticsConfig
 from ..config import PUPlotsConfig as PUPlotsConfig
 from ..config import RegressionDiagnosticsConfig as RegressionDiagnosticsConfig
@@ -67,7 +67,7 @@ __all__ = [
     "TuningConfig",
     "TrainingConfig",
     "TrackingConfig",
-    "PSIOptions",
+    "FeatureLevelSpec",
     "FigureConfig",
     "NumericalFeatureDistributionConfig",
     "ShapConfig",

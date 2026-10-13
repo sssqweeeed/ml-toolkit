@@ -1,5 +1,6 @@
 """Validated, immutable workflow configurations."""
 
+from ..feature_levels import FeatureLevelSpec
 from .reporting import (
     ClassificationDiagnosticsConfig,
     ClassificationPlotsConfig,
@@ -8,7 +9,6 @@ from .reporting import (
     FigureConfig,
     NumericalFeatureDistributionConfig,
     PostFitEvaluationConfig,
-    PSIOptions,
     PUDiagnosticsConfig,
     PUPlotsConfig,
     RegressionDiagnosticsConfig,
@@ -36,7 +36,7 @@ __all__ = [
     "TuningConfig",
     "TrainingConfig",
     "TrackingConfig",
-    "PSIOptions",
+    "FeatureLevelSpec",
     "FigureConfig",
     "NumericalFeatureDistributionConfig",
     "ShapConfig",

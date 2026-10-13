@@ -15,7 +15,6 @@ from ml_toolkit.config import (
     CommonPlotsConfig,
     NumericalFeatureDistributionConfig,
     PostFitEvaluationConfig,
-    PSIOptions,
     PUDiagnosticsConfig,
     PUPlotsConfig,
     RegressionDiagnosticsConfig,
@@ -392,9 +391,9 @@ def test_training_logs_psi_and_plots(tmp_path, caplog):
             reporting=ReportingConfig(
                 diagnostics=RegressionDiagnosticsConfig(
                     task="regression",
-                    psi=PSIOptions(n_bins=3),
                     plots=RegressionPlotsConfig(
                         common=CommonPlotsConfig(
+                            n_bins=3,
                             numerical_distributions=NumericalFeatureDistributionConfig(
                                 features=("x",)
                             ),
@@ -425,6 +424,8 @@ def test_training_logs_psi_and_plots(tmp_path, caplog):
             "val/figures/psi_000_x.png",
             "val/figures/psi_001_unused.png",
             "val/figures/monthly_observed_fitted.png",
+            "val/figures/observed_fitted_000_x.png",
+            "val/figures/observed_fitted_001_unused.png",
             "val/figures/feature_000_x.png",
         }
     messages = [
@@ -489,9 +490,9 @@ def test_bundled_classifier_and_classification_diagnostics(tmp_path):
             validation=TimeSeriesCVConfig(n_splits=2),
             reporting=ReportingConfig(
                 diagnostics=ClassificationDiagnosticsConfig(
-                    psi=PSIOptions(n_bins=3),
                     plots=ClassificationPlotsConfig(
                         common=CommonPlotsConfig(
+                            n_bins=3,
                             numerical_distributions=NumericalFeatureDistributionConfig(
                                 features=()
                             ),
@@ -624,9 +625,11 @@ def test_pu_training_logs_only_pu_diagnostics(tmp_path):
             validation=TimeSeriesCVConfig(n_splits=2),
             reporting=ReportingConfig(
                 diagnostics=PUDiagnosticsConfig(
-                    psi=None,
                     plots=PUPlotsConfig(
                         common=CommonPlotsConfig(
+                            n_bins=3,
+                            psi=False,
+                            observed_fitted=False,
                             numerical_distributions=NumericalFeatureDistributionConfig(
                                 features=()
                             ),

@@ -9,16 +9,14 @@ from pathlib import Path
 import numpy as np
 import polars as pl
 
-from ml_toolkit.psi import (
+from ml_toolkit.feature_levels import (
     ERROR_LEVEL,
     NULL_LEVEL,
     UNSEEN_LEVEL,
     LevelTransformer,
-    PSIAnalysis,
-    PSIConfig,
-    PSIFeature,
-    psi,
+    FeatureLevelSpec,
 )
+from ml_toolkit.psi import PSIAnalysis, PSIConfig, psi
 
 os.environ.setdefault("MPLBACKEND", "Agg")
 
@@ -32,8 +30,8 @@ class PSITests(unittest.TestCase):
 
     def test_numeric_and_categorical_level_rules(self):
         features = (
-            PSIFeature("value", "numerical", lower_bound=0),
-            PSIFeature("group", "categorical"),
+            FeatureLevelSpec("value", "numerical", lower_bound=0),
+            FeatureLevelSpec("group", "categorical"),
         )
         transformer = LevelTransformer(features, n_bins=2).fit(
             pl.DataFrame(
@@ -59,8 +57,8 @@ class PSITests(unittest.TestCase):
     def test_analysis_preserves_feature_and_monthly_distributions(self):
         config = PSIConfig(
             (
-                PSIFeature("value", "numerical"),
-                PSIFeature("group", "categorical"),
+                FeatureLevelSpec("value", "numerical"),
+                FeatureLevelSpec("group", "categorical"),
             ),
             n_bins=2,
         )
@@ -109,7 +107,7 @@ class PSITests(unittest.TestCase):
         self.assertAlmostEqual(unseen_share, 2 / 3)
 
     def test_optional_time_and_validation(self):
-        config = PSIConfig((PSIFeature("x", "numerical"),))
+        config = PSIConfig((FeatureLevelSpec("x", "numerical"),))
         reference = pl.DataFrame({"x": [1.0, 2.0]})
         current = pl.DataFrame({"x": [3.0, 4.0]})
         result = PSIAnalysis(config).fit(reference).compare(current)
@@ -131,7 +129,7 @@ class PSITests(unittest.TestCase):
             )
         except ImportError:
             self.skipTest("Matplotlib plotting extra is not installed")
-        config = PSIConfig((PSIFeature("x", "numerical"),))
+        config = PSIConfig((FeatureLevelSpec("x", "numerical"),))
         reference = pl.DataFrame({"x": [1.0, 2.0], "date": [date(2025, 1, 1)] * 2})
         current = pl.DataFrame({"x": [2.0, 3.0], "date": [date(2025, 2, 1)] * 2})
         result = (

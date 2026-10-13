@@ -18,6 +18,7 @@ from ..config import (
     PUPlotsConfig,
     RegressionPlotsConfig,
 )
+from ..feature_levels import FeatureLevelSpec, LevelTransformer
 from ..metrics.ranking import ranking_metrics
 from ..models.base import Model
 from ..plots import (
@@ -27,7 +28,7 @@ from ..plots import (
 from ..plots import psi as psi_plots
 from ..plots import pu as pu_plots
 from ..plots import ranking, regression
-from ..psi import PSIAnalysis, PSIConfig, PSIFeature
+from ..psi import compare_psi
 from ..tracking import runs as tracking
 from ..tracking.mlflow import log_polars_table
 from ..types import FloatArray
@@ -147,13 +148,16 @@ def report_diagnostics(
     if tuple(train.X.columns) != tuple(validation.X.columns):
         raise ValueError("Train and validation features must match for diagnostics")
     logger.debug(
-        "Generating diagnostics for %s: task=%s, PSI=%s, plots=%s",
+        "Generating diagnostics for %s: task=%s, plots=%s",
         name,
         options.task,
-        options.psi,
         options.plots,
     )
     plots = options.plots
+    if plots is None:
+        logger.debug("Plot diagnostics disabled for %s", name)
+        return
+    common = plots.common
     with TemporaryDirectory(prefix="ml-toolkit-diagnostics-") as directory:
         root = Path(directory)
 
@@ -167,13 +171,14 @@ def report_diagnostics(
             tracking.log_artifact(path, artifact_path=f"{split.value}/figures")
             logger.debug("Logged diagnostic figure %s for %s", path.name, name)
 
-        psi_result = None
-        if options.psi is not None and train.X.columns:
-            categorical = set(train.cat_features)
-            features = options.psi.features
+        train_y, val_y = train.y.to_numpy(), validation.y.to_numpy()
+        train_weight, val_weight = train.weight.to_numpy(), validation.weight.to_numpy()
+        if common.psi or common.observed_fitted:
+            features = common.features
             if features is None:
+                categorical = set(train.cat_features)
                 features = tuple(
-                    PSIFeature(
+                    FeatureLevelSpec(
                         feature,
                         (
                             "categorical"
@@ -184,54 +189,62 @@ def report_diagnostics(
                     )
                     for feature in train.X.columns
                 )
-            psi_result = (
-                PSIAnalysis(
-                    PSIConfig(
-                        features,
-                        n_bins=options.psi.n_bins,
-                        epsilon=options.psi.epsilon,
+            if features:
+                transformer = LevelTransformer(features, n_bins=common.n_bins).fit(
+                    train.X
+                )
+                reference_levels = transformer.transform(train.X)
+                current_levels = transformer.transform(validation.X)
+                level_config = transformer.config
+                assert level_config is not None
+                if common.psi:
+                    psi_result = compare_psi(
+                        reference_levels,
+                        current_levels,
+                        level_config,
+                        epsilon=common.epsilon,
+                        reference_time=train.time,
+                        current_time=validation.time,
                     )
-                )
-                .fit(train.X, time=train.time)
-                .compare(validation.X, time=validation.time)
-            )
-            log_polars_table(psi_result.psi, f"{split.value}/psi/scores.json")
-            log_polars_table(
-                psi_result.level_distribution,
-                f"{split.value}/psi/level_distribution.json",
-            )
-            if not psi_result.monthly_distribution.is_empty():
-                log_polars_table(
-                    psi_result.monthly_distribution,
-                    f"{split.value}/psi/monthly_distribution.json",
-                )
-        if plots is None:
-            logger.debug("Plot diagnostics disabled for %s", name)
-            return
-        common = plots.common
-        if psi_result is not None:
-            if common.psi_scores:
-                emit("psi_scores.png", psi_plots.feature_psi_plot, psi_result.psi)
-            psi_names = (
-                tuple(psi_result.psi["feature"].to_list())
-                if common.psi_distribution_features is None
-                else common.psi_distribution_features
-            )
-            if not set(psi_names) <= set(psi_result.psi["feature"].to_list()):
-                raise ValueError(
-                    "PSI distribution features must belong to the PSI configuration"
-                )
-            if not psi_result.monthly_distribution.is_empty():
-                for index, feature in enumerate(psi_names):
-                    emit(
-                        _feature_filename("psi", index, feature),
-                        psi_plots.monthly_psi_level_distribution,
-                        psi_result.monthly_distribution,
-                        feature,
+                    log_polars_table(psi_result.psi, f"{split.value}/psi/scores.json")
+                    log_polars_table(
+                        psi_result.level_distribution,
+                        f"{split.value}/psi/level_distribution.json",
                     )
+                    if not psi_result.monthly_distribution.is_empty():
+                        log_polars_table(
+                            psi_result.monthly_distribution,
+                            f"{split.value}/psi/monthly_distribution.json",
+                        )
+                    emit("psi_scores.png", psi_plots.feature_psi_plot, psi_result.psi)
+                    if not psi_result.monthly_distribution.is_empty():
+                        for index, feature in enumerate(level_config.features):
+                            emit(
+                                _feature_filename("psi", index, feature.name),
+                                psi_plots.monthly_psi_level_distribution,
+                                psi_result.monthly_distribution,
+                                feature.name,
+                            )
+                if common.observed_fitted:
+                    for index, feature in enumerate(level_config.features):
+                        emit(
+                            _feature_filename("observed_fitted", index, feature.name),
+                            regression.observed_fitted_by_level,
+                            reference_levels.get_column(feature.name),
+                            train_y,
+                            train_prediction,
+                            current_levels.get_column(feature.name),
+                            val_y,
+                            validation_prediction,
+                            level_order=feature.levels,
+                            reference_weight=train_weight,
+                            current_weight=val_weight,
+                            feature_name=feature.name,
+                            current_label=(
+                                "Test" if split == DatasetSplit.TEST else "Validation"
+                            ),
+                        )
 
-        train_y, val_y = train.y.to_numpy(), validation.y.to_numpy()
-        train_weight, val_weight = train.weight.to_numpy(), validation.weight.to_numpy()
         if isinstance(plots, (ClassificationPlotsConfig, RegressionPlotsConfig)):
             if plots.monthly_observed_fitted:
                 emit(
