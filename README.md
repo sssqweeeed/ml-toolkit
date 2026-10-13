@@ -10,9 +10,10 @@ The import name is `ml_toolkit`.
 From this repository, install the package with `python -m pip install -e .`.
 SHAP and LightGBM are optional: install `.[shap]`, `.[lightgbm]`, or `.[all]`
 when those integrations are needed. CatBoost, Polars, Matplotlib, Optuna,
-scikit-learn, Numba, and MLflow are installed by default. CUDA uPU training
-additionally needs a compatible NVIDIA GPU, CUDA toolkit, and Numba CUDA
-support (`python -m pip install -e '.[cuda]'`). CPU training needs no CUDA.
+scikit-learn, Numba, and MLflow are installed by default. For CUDA uPU training,
+install `python -m pip install -e '.[cuda]'`, which includes Numba CUDA and
+CUDA 12 libraries. A compatible NVIDIA GPU and driver are required.
+CPU training needs no CUDA, and `.[all]` does not include CUDA.
 
 ## Training from a project
 

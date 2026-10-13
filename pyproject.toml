@@ -17,7 +17,7 @@ dependencies = [
 [project.optional-dependencies]
 shap = ["shap>=0.46"]
 lightgbm = ["lightgbm>=4.0"]
-cuda = ["numba-cuda>=0.4"]
+cuda = ["numba-cuda[cu12]>=0.19"]
 all = ["shap>=0.46", "lightgbm>=4.0"]
 test = ["pytest>=8", "pyright>=1.1", "pandas-stubs>=2.2"]
 

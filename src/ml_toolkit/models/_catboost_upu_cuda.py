@@ -1,5 +1,6 @@
 """CUDA uPU objective, imported only when GPU training is requested."""
 
+import logging
 import math
 from typing import Protocol, cast
 
@@ -43,6 +44,10 @@ class GPUObjective(Protocol):
 def make_upu_gpu_objective(
     positive_scale: float, unlabeled_scale: float
 ) -> GPUObjective:
+    driver_logger = logging.getLogger("numba.cuda.cudadrv.driver")
+    if driver_logger.level == logging.NOTSET:
+        driver_logger.setLevel(logging.WARNING)
+
     # CatBoost compiles this method with cuda.jit. Capture immutable scales
     # rather than accessing Python instance state inside the CUDA kernel.
     class GPUUPUObjective:
