@@ -7,6 +7,8 @@ import json
 import os
 import subprocess
 import sys
+import sysconfig
+import venv
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -31,6 +33,7 @@ from ml_toolkit.models import (
 from ml_toolkit.training import ShapRanker, importance_ranker
 from ml_toolkit.training.evaluation import calculate_metrics
 from ml_toolkit.training.feature_selection import select_features
+from ml_toolkit.types import FloatArray
 
 PARAMS = dict(
     iterations=5,
@@ -40,6 +43,72 @@ PARAMS = dict(
     verbose=False,
     allow_writing_files=False,
 )
+
+
+@pytest.fixture(scope="session")
+def inference_python(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    environment = tmp_path_factory.mktemp("inference-environment")
+    builder = venv.EnvBuilder(with_pip=False)
+    builder.create(environment)
+    python = Path(builder.ensure_directories(environment).env_exe)
+    library = Path(
+        subprocess.check_output(
+            [
+                str(python),
+                "-I",
+                "-c",
+                "import sysconfig; print(sysconfig.get_path('purelib'))",
+            ],
+            text=True,
+        ).strip()
+    )
+    # Reuse installed runtime libraries without installing the toolkit or training
+    # dependencies. Exclude .pth files so editable installs cannot expose source.
+    for entry in Path(sysconfig.get_path("purelib")).iterdir():
+        if entry.suffix == ".pth" or entry.name.startswith(
+            ("optuna", "numba", "llvmlite", "ml_toolkit", "__editable__")
+        ):
+            continue
+        (library / entry.name).symlink_to(entry, target_is_directory=entry.is_dir())
+    return python
+
+
+def check_bundled_inference(
+    python: Path,
+    tmp_path: Path,
+    directory: Path,
+    frame: pd.DataFrame,
+    expected: FloatArray,
+    kind: str,
+    nested: str = "",
+) -> None:
+    requirements = (directory / "requirements.txt").read_text().lower()
+    assert not any(
+        line.startswith(("optuna", "numba", "ml-toolkit", "ml_toolkit"))
+        for line in requirements.splitlines()
+    )
+    frame.to_pickle(tmp_path / "frame.pkl")
+    np.save(tmp_path / "prediction.npy", expected)
+    env = os.environ.copy()
+    env.pop("PYTHONPATH", None)
+    result = subprocess.run(
+        [
+            str(python),
+            "-I",
+            str(Path(__file__).with_name("check_model_inference.py")),
+            str(tmp_path),
+            mlflow.get_tracking_uri(),
+            str(directory),
+            kind,
+            nested,
+        ],
+        cwd=tmp_path,
+        env=env,
+        text=True,
+        capture_output=True,
+        timeout=90,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 @pytest.fixture
@@ -352,7 +421,9 @@ def test_rfe_selection_preserves_adapter_policies_and_original_order(
         "inflation_log_link",
     ],
 )
-def test_models_from_code_roundtrip_outside_repository(data, tmp_path, kind):
+def test_models_from_code_roundtrip_outside_repository(
+    data, tmp_path, kind, inference_python
+):
     setup_mlflow(tmp_path)
     if kind in ("classification", "uPU", "nnPU"):
         data = data.with_target(pl.Series("target", [1, 0, 0] * 16))
@@ -411,58 +482,18 @@ def test_models_from_code_roundtrip_outside_repository(data, tmp_path, kind):
     )
     state = model.export_state()
     assert state["version"] == 1 and state["model_type"] == type(model).__name__
-    # Store test inputs without importing the project's classes in the child process.
-    frame.to_pickle(tmp_path / "frame.pkl")
-    np.save(tmp_path / "prediction.npy", expected)
-    child = """
-import sys
-from pathlib import Path
-import mlflow
-import numpy as np
-import pandas as pd
-root = Path(sys.argv[1])
-mlflow.set_tracking_uri(sys.argv[2])
-mlflow.set_experiment("toolkit-test")
-loaded = mlflow.pyfunc.load_model(sys.argv[3])
-model = loaded.unwrap_python_model()
-assert type(model).__name__ == sys.argv[4]
-if sys.argv[5]:
-    assert type(model.model).__name__ == sys.argv[5]
-frame = pd.read_pickle(root / "frame.pkl")
-expected = np.load(root / "prediction.npy")
-np.testing.assert_allclose(loaded.predict(frame), expected)
-np.testing.assert_allclose(model.predict_frame(frame), expected)
-from ml_toolkit.tracking._model_state import log_catboost
-with mlflow.start_run():
-    info = log_catboost(model, frame.head(5), expected[:5], name="relogged")
-again = mlflow.pyfunc.load_model(info.model_uri)
-np.testing.assert_allclose(again.predict(frame), expected)
-assert type(again.unwrap_python_model()) is type(model)
-"""
-    env = os.environ.copy()
-    env.pop("PYTHONPATH", None)
-    env["MLFLOW_DISABLE_AGENT_HINT"] = "1"
     nested = (
         type(model.model).__name__ if isinstance(model, InflationAdjustedModel) else ""
     )
-    result = subprocess.run(
-        [
-            sys.executable,
-            "-c",
-            child,
-            str(tmp_path),
-            mlflow.get_tracking_uri(),
-            str(directory),
-            type(model).__name__,
-            nested,
-        ],
-        cwd=tmp_path,
-        env=env,
-        text=True,
-        capture_output=True,
-        timeout=90,
+    check_bundled_inference(
+        inference_python,
+        tmp_path,
+        directory,
+        frame,
+        expected,
+        type(model).__name__,
+        nested,
     )
-    assert result.returncode == 0, result.stdout + result.stderr
 
 
 def test_importing_model_modules_does_not_register_models():
@@ -611,7 +642,7 @@ def test_loading_rejects_wrong_state_version_or_policy(data, tmp_path):
             )
 
 
-def test_optional_lightgbm_models_from_code(data, tmp_path):
+def test_optional_lightgbm_models_from_code(data, tmp_path, inference_python):
     lightgbm = pytest.importorskip("lightgbm")
     from ml_toolkit.models.lightgbm import LightGBMWrapper
 
@@ -626,3 +657,12 @@ def test_optional_lightgbm_models_from_code(data, tmp_path):
     loaded = mlflow.pyfunc.load_model(info.model_uri)
     assert type(loaded.unwrap_python_model()).__name__ == "LightGBMWrapper"
     np.testing.assert_allclose(loaded.predict(frame), model.predict(None, frame))
+    directory = Path(mlflow.artifacts.download_artifacts(info.model_uri))
+    check_bundled_inference(
+        inference_python,
+        tmp_path,
+        directory,
+        frame,
+        model.predict(None, frame),
+        "LightGBMWrapper",
+    )

@@ -13,7 +13,6 @@ from mlflow.models.model import ModelInfo
 from mlflow.pyfunc.model import PythonModel
 
 from ..inflation import InflationAdjuster, inflation_from_config
-from ..tracking._model_state import log_catboost
 from ..tracking.state import InflationState
 from ..types import FloatArray, ModelParams
 from ._catboost import read_state
@@ -297,6 +296,7 @@ class InflationAdjustedModel(PythonModel):
         inflation metadata to configured MLflow tracking.
         """
         from ..config import TrackingConfig
+        from ..tracking._model_state import log_catboost
 
         config = TrackingConfig() if config is None else config
         name = config.model_name

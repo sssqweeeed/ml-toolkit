@@ -15,8 +15,6 @@ from mlflow.models.model import ModelInfo
 from mlflow.pyfunc.model import PythonModel
 from mlflow.pyfunc.utils import pyfunc
 
-from ..metrics._pu import risk_components
-from ..tracking._model_state import log_catboost
 from ..tracking.state import ClassificationState
 from ..types import FloatArray, IntArray, ModelParams
 from ._catboost import (
@@ -27,7 +25,6 @@ from ._catboost import (
     read_state,
     refit_parameters,
 )
-from ._catboost_upu import UPUObjective, upu_risk
 
 if TYPE_CHECKING:
     from ..config import TrackingConfig
@@ -43,6 +40,8 @@ def _pu_risks(
     prior: float,
 ) -> tuple[float, float]:
     """Return the positive and estimated negative logistic PU risks."""
+    from ..metrics._pu import risk_components
+
     logits = np.asarray(logits, dtype=float).reshape(-1)
     labels = np.asarray(labels).reshape(-1)
     weights = np.asarray(weights, dtype=float).reshape(-1)
@@ -109,6 +108,8 @@ class UPUMetric(_PURiskMetric):
         target: Sequence[float],
         weight: Sequence[float] | None,
     ) -> tuple[float, float]:
+        from ._catboost_upu import upu_risk
+
         if len(approxes) != 1:
             raise ValueError("PU risk requires one-dimensional raw predictions")
         risk = upu_risk(
@@ -643,6 +644,8 @@ class CatBoostClassificationModel(PythonModel):
         registered_model_name: str | None,
         conda_env: Path | None,
     ) -> ModelInfo:
+        from ..tracking._model_state import log_catboost
+
         return log_catboost(
             self,
             sample_frame,
@@ -821,6 +824,8 @@ class CatBoostPUClassificationModel(CatBoostClassificationModel):
                 positive_scale, unlabeled_scale
             )
         else:
+            from ._catboost_upu import UPUObjective
+
             params["loss_function"] = UPUObjective(positive_scale, unlabeled_scale)
         if validation is not None:
             params.setdefault("use_best_model", True)

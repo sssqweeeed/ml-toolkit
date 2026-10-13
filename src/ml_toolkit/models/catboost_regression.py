@@ -12,7 +12,6 @@ import polars as pl
 from mlflow.models.model import ModelInfo
 from mlflow.pyfunc.model import PythonModel
 
-from ..tracking._model_state import log_catboost
 from ..tracking.state import RegressionState
 from ..types import FloatArray, ModelParams
 from ._catboost import (
@@ -340,6 +339,8 @@ class CatBoostRegressionModel(PythonModel):
         mlflow.models.ModelInfo
             Logged model information.
         """
+        from ..tracking._model_state import log_catboost
+
         return log_catboost(
             self,
             sample_frame,

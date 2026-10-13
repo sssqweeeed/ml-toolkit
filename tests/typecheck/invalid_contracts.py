@@ -3,6 +3,7 @@ from typing import Callable
 
 import polars as pl
 
+from ml_toolkit import TrainingResult
 from ml_toolkit.config import (
     PUPlotsConfig,
     RegressionDiagnosticsConfig,
@@ -17,6 +18,7 @@ TrainingConfig(validation={"n_splits": 3})  # expected-type-error
 TuningConfig(metric="mae", direction="invalid")  # expected-type-error
 RegressionDiagnosticsConfig(plots=PUPlotsConfig())  # expected-type-error
 MetricScores({"mae": "1"})  # expected-type-error
+result: TrainingResult = {}  # expected-type-error
 
 
 def dictionary_metric(

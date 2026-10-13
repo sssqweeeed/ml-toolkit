@@ -81,6 +81,13 @@ assert all(logging.getLogger(name).level == logging.NOTSET for name in (
     "ml_toolkit.models.catboost_classification",
 ))
 assert ml_toolkit.__all__ == ["Pool", "TrainingResult", "train_model"]
+assert not any(name.startswith("ml_toolkit.training") for name in sys.modules)
+from ml_toolkit import Pool, TrainingResult, train_model
+from ml_toolkit.data import Pool as DirectPool
+from ml_toolkit.training import TrainingResult as DirectResult, train_model as direct_train
+assert Pool is DirectPool
+assert TrainingResult is DirectResult
+assert train_model is direct_train
 """
     env = os.environ.copy()
     env["PYTHONPATH"] = str(Path(__file__).resolve().parents[1] / "src")

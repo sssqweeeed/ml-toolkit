@@ -15,12 +15,10 @@ from ..types import FloatArray, ModelParams
 
 PACKAGES = (
     "catboost",
-    "numba",
     "polars",
     "pyarrow",
     "matplotlib",
     "scikit-learn",
-    "optuna",
 )
 
 logger = logging.getLogger(__name__)
@@ -63,11 +61,11 @@ def log_model_from_code(
         Optional registry name.
     conda_env : str, pathlib.Path, or None, default None
         Existing Conda environment file. None generates pinned pip
-        requirements.
+        requirements for the bundled inference code.
     code_paths : list[str] or None, default None
         Additional source paths, bundled alongside the full toolkit package.
     packages : tuple[str, ...], default ()
-        Additional installed packages to pin alongside the toolkit dependencies
+        Additional installed packages to pin alongside the inference dependencies
         when conda_env is omitted.
 
     Returns
@@ -86,6 +84,7 @@ def log_model_from_code(
     -----
     Infers the signature from the supplied input/output sample and uploads
     source and artifacts to configured MLflow tracking.
+    Default requirements omit training dependencies such as Optuna and Numba.
     """
     if sample_frame.empty:
         raise ValueError("The logging sample must contain at least one row.")

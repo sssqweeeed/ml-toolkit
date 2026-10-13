@@ -4,8 +4,8 @@ from typing import assert_type
 
 import polars as pl
 
+from ml_toolkit import Pool, TrainingResult, train_model
 from ml_toolkit.config import HoldoutConfig, TimeSeriesCVConfig, TrainingConfig
-from ml_toolkit.data import Pool
 from ml_toolkit.metrics import (
     Metric,
     MetricScores,
@@ -58,6 +58,17 @@ def severity_metric(
 
 
 def contracts(data: Pool) -> None:
+    assert_type(
+        train_model(
+            data=data,
+            params={},
+            model_factory=CatBoostRegressionModel,
+            metric=dictionary_metric,
+            run_name="typing",
+            config=TrainingConfig(validation=HoldoutConfig()),
+        ),
+        TrainingResult,
+    )
     protocol: TrainingData = data
     model: Model = CatBoostRegressionModel({"iterations": 10})
     pu = CatBoostPUClassificationModel(

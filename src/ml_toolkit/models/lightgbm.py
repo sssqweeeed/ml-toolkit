@@ -15,11 +15,11 @@ import pandas as pd
 from mlflow.models.model import ModelInfo
 from mlflow.pyfunc.model import PythonModel
 
-from ..training.contracts import TrainingData
 from ..types import FloatArray, ModelParams
 
 if TYPE_CHECKING:
     from ..config import TrackingConfig
+    from ..training.contracts import TrainingData
 
 logger = logging.getLogger("ml_toolkit.models.lightgbm")
 

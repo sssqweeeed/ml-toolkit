@@ -176,9 +176,13 @@ The strategy is fitted on training rows only; serving dates come from
 
 Full classes implement training and MLflow inference. `predict_frame` is the
 common prediction path; `predict` and `predict_pool` delegate to it. Models From
-Code exports contain a small entry point, package sources, pinned dependencies,
-a native model file and version-1 JSON state. Loading restores the exact model
-class, baseline policy, threshold, PU settings and nested inflation regressor.
+Code exports contain a small entry point, package sources, pinned inference
+dependencies, a native model file and version-1 JSON state. Loading restores
+the exact model class, baseline policy, threshold, PU settings and nested
+inflation regressor.
+Loading and prediction require neither Optuna nor Numba, and the bundled
+sources remove the need to install `ml-toolkit` separately. A custom Conda
+environment is used as supplied.
 Ordinary imports perform no MLflow registration. Custom objective objects are
 passed unchanged during training; JSON uses their standard string representation for audit and native
 artifacts supply inference. Inflation logging emits both native and adjusted
