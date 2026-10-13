@@ -49,9 +49,9 @@ class EvaluationInputs(TypedDict):
 logger = logging.getLogger(__name__)
 
 
-def _feature_filename(prefix: str, index: int, feature: str) -> str:
+def _feature_filename(index: int, feature: str) -> str:
     safe = re.sub(r"[^A-Za-z0-9_.-]+", "_", feature).strip("._")[:60] or "feature"
-    return f"{prefix}_{index:03d}_{safe}.png"
+    return f"{index:03d}_{safe}.png"
 
 
 def report_custom_evaluation(
@@ -128,7 +128,7 @@ def report_custom_artifacts(
         for image in images:
             relative = image.relative_to(root)
             parent = relative.parent.as_posix()
-            artifact_path = f"custom/{inputs['split'].value}"
+            artifact_path = f"figures/custom/{inputs['split'].value}"
             if parent != ".":
                 artifact_path += f"/{parent}"
             tracking.log_artifact(image, artifact_path=artifact_path)
@@ -162,14 +162,15 @@ def report_diagnostics(
         root = Path(directory)
 
         def emit(
-            filename: str, draw: Callable[..., object], *args: object, **kwargs: object
+            artifact_file: str, draw: Callable[..., object], *args: object, **kwargs: object
         ) -> None:
             assert plots is not None
             figure = plots.common.figure
-            path = (root / filename).with_suffix(f".{figure.format}")
+            relative = Path(artifact_file).with_suffix(f".{figure.format}")
+            path = root / relative
             draw(*args, save_fig=path, figure=figure, **kwargs)
-            tracking.log_artifact(path, artifact_path=f"{split.value}/figures")
-            logger.debug("Logged diagnostic figure %s for %s", path.name, name)
+            tracking.log_artifact(path, artifact_path=relative.parent.as_posix())
+            logger.debug("Logged diagnostic figure %s for %s", relative.as_posix(), name)
 
         train_y, val_y = train.y.to_numpy(), validation.y.to_numpy()
         train_weight, val_weight = train.weight.to_numpy(), validation.weight.to_numpy()
@@ -206,21 +207,26 @@ def report_diagnostics(
                         reference_time=train.time,
                         current_time=validation.time,
                     )
-                    log_polars_table(psi_result.psi, f"{split.value}/psi/scores.json")
+                    log_polars_table(psi_result.psi, f"tables/psi/{split.value}/scores.json")
                     log_polars_table(
                         psi_result.level_distribution,
-                        f"{split.value}/psi/level_distribution.json",
+                        f"tables/psi/{split.value}/level_distribution.json",
                     )
                     if not psi_result.monthly_distribution.is_empty():
                         log_polars_table(
                             psi_result.monthly_distribution,
-                            f"{split.value}/psi/monthly_distribution.json",
+                            f"tables/psi/{split.value}/monthly_distribution.json",
                         )
-                    emit("psi_scores.png", psi_plots.feature_psi_plot, psi_result.psi)
+                    emit(
+                        f"figures/psi/{split.value}/scores.png",
+                        psi_plots.feature_psi_plot,
+                        psi_result.psi,
+                    )
                     if not psi_result.monthly_distribution.is_empty():
                         for index, feature in enumerate(level_config.features):
                             emit(
-                                _feature_filename("psi", index, feature.name),
+                                f"figures/psi/{split.value}/monthly_by_feature/"
+                                f"{_feature_filename(index, feature.name)}",
                                 psi_plots.monthly_psi_level_distribution,
                                 psi_result.monthly_distribution,
                                 feature.name,
@@ -228,7 +234,8 @@ def report_diagnostics(
                 if common.observed_fitted:
                     for index, feature in enumerate(level_config.features):
                         emit(
-                            _feature_filename("observed_fitted", index, feature.name),
+                            f"figures/observed_fitted/{split.value}/by_feature/"
+                            f"{_feature_filename(index, feature.name)}",
                             regression.observed_fitted_by_level,
                             reference_levels.get_column(feature.name),
                             train_y,
@@ -248,7 +255,7 @@ def report_diagnostics(
         if isinstance(plots, (ClassificationPlotsConfig, RegressionPlotsConfig)):
             if plots.monthly_observed_fitted:
                 emit(
-                    "monthly_observed_fitted.png",
+                    f"figures/observed_fitted/{split.value}/monthly.png",
                     regression.monthly_observed_fitted,
                     train.time.to_list(),
                     train_y,
@@ -268,9 +275,17 @@ def report_diagnostics(
                     )
                 curve = ranking_metrics(val_y, validation_prediction, val_weight)
                 if plots.gains:
-                    emit("gains.png", ranking.gains_curve, curve)
+                    emit(
+                        f"figures/performance/{split.value}/gains.png",
+                        ranking.gains_curve,
+                        curve,
+                    )
                 if plots.lift:
-                    emit("lift.png", ranking.lift_curve, curve)
+                    emit(
+                        f"figures/performance/{split.value}/lift.png",
+                        ranking.lift_curve,
+                        curve,
+                    )
         if isinstance(plots, ClassificationPlotsConfig):
             for enabled, filename, draw in (
                 (
@@ -282,11 +297,17 @@ def report_diagnostics(
                 (plots.calibration, "calibration.png", classification.calibration),
             ):
                 if enabled:
-                    emit(filename, draw, val_y, validation_prediction, config=plots)
+                    emit(
+                        f"figures/performance/{split.value}/{filename}",
+                        draw,
+                        val_y,
+                        validation_prediction,
+                        config=plots,
+                    )
         elif isinstance(plots, PUPlotsConfig):
             if plots.score_distribution:
                 emit(
-                    "pu_score_distribution.png",
+                    f"figures/performance/{split.value}/score_distribution.png",
                     pu_plots.score_distribution,
                     val_y,
                     validation_prediction,
@@ -295,7 +316,7 @@ def report_diagnostics(
                 )
             if plots.positive_capture:
                 emit(
-                    "pu_positive_capture.png",
+                    f"figures/performance/{split.value}/positive_capture.png",
                     pu_plots.positive_capture,
                     val_y,
                     validation_prediction,
@@ -323,7 +344,8 @@ def report_diagnostics(
                 ):
                     raise ValueError(f"Feature {feature!r} is missing or not numerical")
                 emit(
-                    _feature_filename("feature", index, feature),
+                    f"figures/feature_distributions/{split.value}/monthly_by_feature/"
+                    f"{_feature_filename(index, feature)}",
                     monitoring.monthly_feature_distribution,
                     reference,
                     current,
@@ -342,20 +364,21 @@ def report_diagnostics(
                 model.native_model, validation.X, config=shap
             )
             emit(
-                "shap_importance.png",
+                f"figures/shap/{split.value}/importance.png",
                 shap_plots.shap_importance,
                 explanation,
                 config=shap,
             )
             emit(
-                "shap_beeswarm.png",
+                f"figures/shap/{split.value}/beeswarm.png",
                 shap_plots.shap_beeswarm,
                 explanation,
                 config=shap,
             )
             for index, feature in enumerate(shap.dependence_features):
                 emit(
-                    _feature_filename("shap", index, feature),
+                    f"figures/shap/{split.value}/dependence/"
+                    f"{_feature_filename(index, feature)}",
                     shap_plots.shap_dependence,
                     explanation,
                     feature,

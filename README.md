@@ -226,6 +226,11 @@ on/off switches. The configuration applies to every task, including PU; target
 interpretation is the caller's responsibility. See the
 [configuration examples](docs/configuration.md#shared-psi-and-observedfitted-diagnostics).
 
+MLflow figures are grouped under `figures/<purpose>/<split>/`, with per-feature
+series in separate subdirectories and PSI tables under `tables/psi/<split>/`.
+For comparison figures, `val` or `test` identifies the evaluation split shown
+alongside train.
+
 ### Custom post-fit evaluation
 
 Use the separate `post_fit_evaluator` argument for business metrics that need
@@ -346,7 +351,7 @@ def write_artifacts(
     ax.set(title="Validation scores", xlabel="Score", ylabel="Count")
     ax.grid(alpha=0.25)
     fig.tight_layout()
-    return [save_figure(fig, artifact_dir / "figures/scores.png")]
+    return [save_figure(fig, artifact_dir / "scores.png")]
 ```
 
 No extra `train_model` option is needed. The method is called immediately after
@@ -358,8 +363,8 @@ is independent of built-in diagnostics. The post-fit stage/split policy and
 writer decide when to render. Each split evaluates its winning parameters
 once after tuning, without repeating RFE.
 
-Only selected images are uploaded to `custom/<split>/`, preserving nested
-directories; for example, `custom/val/figures/scores.png`. PNG, JPEG, SVG, WebP,
+Only selected images are uploaded to `figures/custom/<split>/`, preserving nested
+directories; for example, `figures/custom/val/scores.png`. PNG, JPEG, SVG, WebP,
 GIF, TIFF, and BMP extensions are supported. Temporary directories are removed
 after upload or on errors. `PostFitEvaluator` declares both method contracts.
 

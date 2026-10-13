@@ -178,14 +178,14 @@ def test_post_fit_lifecycle_alignment_and_mlflow(
         run = runs[run_id]
         assert run.data.metrics[f"{split.value}/custom/rows"] == len(ids)
         client = mlflow.MlflowClient()
-        artifacts = client.list_artifacts(run_id, f"custom/{split.value}/figures")
+        artifacts = client.list_artifacts(run_id, f"figures/custom/{split.value}/figures")
         assert [item.path for item in artifacts] == [
-            f"custom/{split.value}/figures/summary.svg"
+            f"figures/custom/{split.value}/figures/summary.svg"
         ]
         assert [
-            item.path for item in client.list_artifacts(run_id, f"custom/{split.value}")
+            item.path for item in client.list_artifacts(run_id, f"figures/custom/{split.value}")
         ] == [
-            f"custom/{split.value}/figures",
+            f"figures/custom/{split.value}/figures",
         ]
         if run.data.tags["mlflow.runName"] == "final_fit":
             assert "val/custom/rows" not in run.data.metrics
@@ -345,8 +345,11 @@ def test_disabled_evaluator_needs_no_ids_but_final_metrics_predict(tmp_path):
     assert predictions == [8, 8, 16, 8, 24]
 
 
+@pytest.mark.parametrize("split", list(DatasetSplit))
+@pytest.mark.parametrize("relative_path", ["plot.PNG", "nested/plot.PNG", "figures/plot.PNG"])
+@pytest.mark.parametrize("absolute", [False, True])
 def test_artifacts_work_with_empty_metrics_and_preserve_selected_paths(
-    identified_data, monkeypatch
+    identified_data, monkeypatch, split, relative_path, absolute
 ):
     uploaded = []
     roots = []
@@ -354,13 +357,14 @@ def test_artifacts_work_with_empty_metrics_and_preserve_selected_paths(
     def writer(**kwargs):
         root = kwargs["artifact_dir"]
         roots.append(root)
-        (root / "nested").mkdir()
-        (root / "nested" / "plot.PNG").write_bytes(b"image")
+        image = root / relative_path
+        image.parent.mkdir(parents=True, exist_ok=True)
+        image.write_bytes(b"image")
         (root / "ignored.parquet").write_bytes(b"table")
-        return [Path("nested/plot.PNG")]
+        return [image if absolute else Path(relative_path)]
 
     def upload(path, artifact_path):
-        assert Path(path).is_file()
+        assert Path(path).read_bytes() == b"image"
         uploaded.append((Path(path).name, artifact_path))
 
     monkeypatch.setattr(
@@ -373,10 +377,14 @@ def test_artifacts_work_with_empty_metrics_and_preserve_selected_paths(
         ),
         data=identified_data,
         prediction=np.ones(24),
-        split=DatasetSplit.TEST,
+        split=split,
         name="manual",
     )
-    assert uploaded == [("plot.PNG", "custom/test/nested")]
+    parent = Path(relative_path).parent
+    destination = f"figures/custom/{split.value}"
+    if parent != Path("."):
+        destination += f"/{parent.as_posix()}"
+    assert uploaded == [("plot.PNG", destination)]
     assert all(not root.exists() for root in roots)
 
 

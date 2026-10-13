@@ -417,16 +417,16 @@ def test_training_logs_psi_and_plots(tmp_path, caplog):
     for fold in folds:
         artifacts = list_all_artifacts(mlflow.MlflowClient(), fold.info.run_id)
         assert set(artifacts) == {
-            "val/psi/scores.json",
-            "val/psi/level_distribution.json",
-            "val/psi/monthly_distribution.json",
-            "val/figures/psi_scores.png",
-            "val/figures/psi_000_x.png",
-            "val/figures/psi_001_unused.png",
-            "val/figures/monthly_observed_fitted.png",
-            "val/figures/observed_fitted_000_x.png",
-            "val/figures/observed_fitted_001_unused.png",
-            "val/figures/feature_000_x.png",
+            "tables/psi/val/scores.json",
+            "tables/psi/val/level_distribution.json",
+            "tables/psi/val/monthly_distribution.json",
+            "figures/psi/val/scores.png",
+            "figures/psi/val/monthly_by_feature/000_x.png",
+            "figures/psi/val/monthly_by_feature/001_unused.png",
+            "figures/observed_fitted/val/monthly.png",
+            "figures/observed_fitted/val/by_feature/000_x.png",
+            "figures/observed_fitted/val/by_feature/001_unused.png",
+            "figures/feature_distributions/val/monthly_by_feature/000_x.png",
         }
     messages = [
         record.getMessage()
@@ -437,7 +437,7 @@ def test_training_logs_psi_and_plots(tmp_path, caplog):
         message.startswith("Generating diagnostics for validation/split_1")
         for message in messages
     )
-    assert "Logged diagnostic figure psi_scores.png for validation/split_1" in messages
+    assert "Logged diagnostic figure figures/psi/val/scores.png for validation/split_1" in messages
 
 
 def test_bundled_catboost_model_runs_through_training(tmp_path):
@@ -511,9 +511,9 @@ def test_bundled_classifier_and_classification_diagnostics(tmp_path):
         if run.data.tags.get("mlflow.runName") == "validation/split_1"
     )
     artifacts = list_all_artifacts(mlflow.MlflowClient(), fold.info.run_id)
-    assert "val/figures/precision_recall.png" in artifacts
-    assert "val/figures/calibration.png" in artifacts
-    assert all(len(path.split("/")) == 3 for path in artifacts)
+    assert "figures/performance/val/precision_recall.png" in artifacts
+    assert "figures/performance/val/calibration.png" in artifacts
+    assert all(path.split("/")[2] == "val" for path in artifacts)
     final = next(
         run for run in runs if run.data.tags.get("mlflow.runName") == "final_fit"
     )
@@ -648,9 +648,9 @@ def test_pu_training_logs_only_pu_diagnostics(tmp_path):
         if run.data.tags.get("mlflow.runName") == "validation/split_1"
     )
     artifacts = list_all_artifacts(mlflow.MlflowClient(), fold.info.run_id)
-    assert "val/figures/pu_score_distribution.png" in artifacts
-    assert "val/figures/pu_positive_capture.png" in artifacts
-    assert all(len(path.split("/")) == 3 for path in artifacts)
+    assert "figures/performance/val/score_distribution.png" in artifacts
+    assert "figures/performance/val/positive_capture.png" in artifacts
+    assert all(path.split("/")[2] == "val" for path in artifacts)
     assert not any(
         path.endswith(("precision_recall.png", "calibration.png", "gains.png"))
         for path in artifacts

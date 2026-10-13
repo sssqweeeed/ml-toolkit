@@ -144,8 +144,9 @@ class PostFitEvaluator(ABC):
         Returns
         -------
         list[pathlib.Path]
-            Existing image files to upload under custom/<split>/ in the current
-            MLflow run. Paths may be absolute or relative to artifact_dir. An empty list skips upload. Only returned files are logged; PNG,
+            Existing image files to upload under figures/custom/<split>/ in the
+            current MLflow run. Paths may be absolute or relative to artifact_dir.
+            An empty list skips upload. Only returned files are logged; PNG,
             JPEG, SVG, WebP, GIF, TIFF, and BMP extensions are accepted. Tables
             are not accepted. The directory is removed after the call and
             uploads, including on errors; returned paths must not be retained.

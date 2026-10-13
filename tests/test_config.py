@@ -535,16 +535,16 @@ def test_psi_definition_and_svg_output_reach_diagnostics(tmp_path):
         artifacts = list_all_artifacts(mlflow.MlflowClient(), run.info.run_id)
         if run.data.tags["mlflow.runName"] == "validation/split_2":
             assert set(artifacts) == {
-                "val/figures/psi_scores.svg",
-                "val/figures/psi_000_x.svg",
-                "val/figures/observed_fitted_000_x.svg",
-                "val/psi/scores.json",
-                "val/psi/level_distribution.json",
-                "val/psi/monthly_distribution.json",
+                "figures/psi/val/scores.svg",
+                "figures/psi/val/monthly_by_feature/000_x.svg",
+                "figures/observed_fitted/val/by_feature/000_x.svg",
+                "tables/psi/val/scores.json",
+                "tables/psi/val/level_distribution.json",
+                "tables/psi/val/monthly_distribution.json",
             }
             table = Path(
                 mlflow.artifacts.download_artifacts(
-                    run_id=run.info.run_id, artifact_path="val/psi/scores.json"
+                    run_id=run.info.run_id, artifact_path="tables/psi/val/scores.json"
                 )
             )
             import json
@@ -553,7 +553,7 @@ def test_psi_definition_and_svg_output_reach_diagnostics(tmp_path):
                 row["feature"] for row in json.loads(table.read_text())["rows"]
             ] == ["x"]
         else:
-            assert not any(path.startswith("val/psi/") for path in artifacts)
+            assert not any(path.startswith("tables/psi/val/") for path in artifacts)
 
 
 def test_custom_quantile_bands_and_hidden_curves(tmp_path):
@@ -711,5 +711,5 @@ def test_ordinary_regression_defaults_accept_signed_targets(tmp_path):
         run for run in runs if run.data.tags["mlflow.runName"] == "validation/split_2"
     )
     paths = list_all_artifacts(mlflow.MlflowClient(), fold.info.run_id)
-    assert any(path.endswith("monthly_observed_fitted.png") for path in paths)
+    assert "figures/observed_fitted/val/monthly.png" in paths
     assert not any(path.endswith(("gains.png", "lift.png")) for path in paths)
