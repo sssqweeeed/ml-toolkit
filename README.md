@@ -1,8 +1,8 @@
 # ml-toolkit
 
-One installable package for the shared parts of the current modeling projects:
-model training, time-series validation, feature selection, Optuna tuning,
-metrics, PSI, diagnostic plots, inflation strategies, and MLflow logging.
+A Python toolkit for model training, time-series validation, feature selection,
+Optuna tuning, metrics, PSI, diagnostic plots, inflation strategies, and MLflow
+logging.
 The import name is `ml_toolkit`.
 
 ## Installation
@@ -134,9 +134,10 @@ for fully expanded recipes.
 
 Standalone `select_features(train=..., validation=..., ...)` performs the same
 RFE on explicit datasets without logging or post-fit callbacks.
-`importance_ranker`, `ShapRanker` and project-owned rankers remain available. `ShapRanker` uses weighted mean absolute raw-output contributions on a
-fixed sample from the supplied validation rows and requires no `shap` extra. Diagnostic SHAP
-explanations use the optional extra.
+Use `importance_ranker`, `ShapRanker` or a custom ranker for feature selection.
+`ShapRanker` uses weighted mean absolute raw-output contributions on a fixed
+sample from the supplied validation rows and requires no `shap` extra.
+Diagnostic SHAP explanations use the optional extra.
 
 Custom adapters implement `fit`, `predict_pool`, `native_model`, `best_iteration`,
 `feature_importances`, `get_refit_params` and `log`. `importance_ranker` delegates
@@ -174,7 +175,7 @@ classes add their baseline once to raw scores before the sigmoid.
 The strategy is fitted on training rows only; serving dates come from
 `data.time` for pool inputs or `prediction_date_column` for frame inputs.
 
-Full classes implement training and MLflow inference. `predict_frame` is the
+Model adapters implement training and MLflow inference. `predict_frame` is the
 common prediction path; `predict` and `predict_pool` delegate to it. Models From
 Code exports contain a small entry point, package sources, pinned inference
 dependencies, a native model file and version-1 JSON state. Loading restores
@@ -211,7 +212,7 @@ weights, dates, feature names, mathematical ranges, and artifact paths.
 
 ### Shared feature diagnostics
 
-Use the existing `CommonPlotsConfig` for PSI and observed/fitted by feature:
+Use `CommonPlotsConfig` for PSI and observed/fitted by feature:
 
 ```python
 from ml_toolkit.config import CommonPlotsConfig, FeatureLevelSpec
@@ -223,7 +224,7 @@ common = CommonPlotsConfig(
 )
 ```
 
-Pass `common` to your existing plots configuration, for example
+Pass `common` to the task's plots configuration, for example
 `RegressionPlotsConfig(common=common)`. Omit `features` to use all available
 features. Both reports use the same levels learned on train, with independent
 on/off switches. The configuration applies to every task, including PU; target
@@ -468,9 +469,8 @@ recording.
 
 ## PSI and plots
 
-All plots are under `ml_toolkit.plots`, including PSI plots. PSI calculation is
-under `ml_toolkit.psi`. These are the existing `ml-psi` algorithms, relocated
-without a dependency on project data or a CatBoost Pool.
+Plotting functions are under `ml_toolkit.plots`, including PSI plots. PSI
+analysis is under `ml_toolkit.psi` and accepts Polars feature tables.
 
 ```python
 from pathlib import Path

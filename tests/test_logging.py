@@ -40,7 +40,7 @@ from ml_toolkit.tracking.model_artifacts import log_model_from_code
 from ml_toolkit.training import importance_ranker, split_holdout, train_model
 from ml_toolkit.training.feature_selection import select_features
 
-"""Logging remains application-controlled and independent of experiment tracking."""
+"""Application-controlled logging and independent experiment tracking."""
 
 
 def toolkit_records(caplog):

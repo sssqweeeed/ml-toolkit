@@ -1,4 +1,4 @@
-"""Behavioral tests for the standalone Polars PSI package."""
+"""Behavioral tests for Polars PSI analysis."""
 
 import os
 import tempfile
@@ -128,7 +128,7 @@ class PSITests(unittest.TestCase):
                 monthly_psi_level_distribution,
             )
         except ImportError:
-            self.skipTest("Matplotlib plotting extra is not installed")
+            self.skipTest("Matplotlib is not available")
         config = PSIConfig((FeatureLevelSpec("x", "numerical"),))
         reference = pl.DataFrame({"x": [1.0, 2.0], "date": [date(2025, 1, 1)] * 2})
         current = pl.DataFrame({"x": [2.0, 3.0], "date": [date(2025, 2, 1)] * 2})

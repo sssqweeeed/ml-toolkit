@@ -1,4 +1,4 @@
-"""Structured PSI outputs; tables remain Polars DataFrames."""
+"""PSI scores and distribution tables as Polars DataFrames."""
 
 from dataclasses import dataclass
 

@@ -337,7 +337,7 @@ def monthly_observed_fitted(
     -----
     Creates parent directories for save_fig and closes the figure after saving.
     Both samples accept datetime-like values, normalized to UTC before monthly
-    grouping. Groups replace project-specific business-type assumptions.
+    grouping. Supplied group labels select separate observed/fitted curves.
     """
     splits: list[pd.DataFrame] = []
     for name, timestamps, observed, fitted, weight, group in (

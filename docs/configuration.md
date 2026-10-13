@@ -1,10 +1,9 @@
 # Configuration by task
 
-Configurations are immutable, keyword-only dataclasses. Public contracts are
-checked statically with strict Pyright; each configuration checks its own value
-ranges without reflection or runtime type discovery. Use `dataclasses.replace`
-for changes; data, model factories, metrics, rankers and Optuna spaces are explicit
-function arguments. The examples below expand every constructor field.
+Configurations are immutable, keyword-only dataclasses with validated value
+ranges. Use `dataclasses.replace` for changes; data, model factories, metrics,
+rankers and Optuna spaces are explicit function arguments. The examples below
+expand every constructor field.
 
 ```python
 from ml_toolkit.config import (
@@ -455,7 +454,7 @@ post-tuning fit, rather than a median or a feature union.
 
 ## Shared PSI and observed/fitted diagnostics
 
-Configure both diagnostics in the existing `plots.common` block. They share one
+Configure both diagnostics in the `plots.common` block. They share one
 feature list and levels fitted on the training sample. Numeric quantile bins,
 categories, missing/error sentinels, and valid bounds are identical in both
 reports. `features=None` selects every available model feature; `features=()`
@@ -495,7 +494,7 @@ transformation of each sample.
 
 These shared flags apply to classification, regression, frequency, severity, and
 PU. The developer is responsible for interpreting PU labels when enabling
-observed/fitted. Other plots keep their own existing settings. In particular,
+observed/fitted. Other plots have separate settings. In particular,
 `monthly_observed_fitted` controls the separate monthly target/prediction chart,
 not the per-feature charts. Setting the enclosing `plots=None` disables all
 figures and PSI tables. No task-specific PSI configuration is needed.

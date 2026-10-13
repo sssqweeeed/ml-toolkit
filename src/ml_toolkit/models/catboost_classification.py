@@ -277,7 +277,7 @@ class CatBoostClassificationModel(PythonModel):
         Returns
         -------
         ModelParams
-            The outer-validation best iteration plus one, when available;
+            The best iteration selected on validation plus one, when available;
             otherwise the original iteration budget. Early stopping is removed
             and use_best_model is disabled. Learned baselines are recalculated.
             Includes the selected decision threshold when one exists.

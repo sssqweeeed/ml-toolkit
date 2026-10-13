@@ -1,4 +1,4 @@
-"""Full training and serving model adapters."""
+"""Model adapters for training and MLflow inference."""
 
 from .base import Model
 from .catboost_classification import (

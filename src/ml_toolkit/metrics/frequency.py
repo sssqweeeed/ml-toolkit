@@ -43,8 +43,7 @@ class MetricsFrequncy:
 
     Notes
     -----
-    MetricsFrequency is an alias of this class; the legacy spelling is
-    retained.
+    MetricsFrequency is the preferred public alias of this class.
     """
 
     mean_poisson_deviance: float

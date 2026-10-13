@@ -1,4 +1,4 @@
-"""Static contracts reject misuse without adding runtime introspection."""
+"""Static checks for valid and invalid public API usage."""
 
 import json
 import os

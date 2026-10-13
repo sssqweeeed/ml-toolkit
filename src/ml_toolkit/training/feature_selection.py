@@ -65,7 +65,7 @@ def select_features(
     model_factory : Callable[[ModelParams], Model]
         Creates a fresh adapter, including fresh nested models and strategies.
     metric : Callable
-        Existing target/prediction/weight metric returning a result with to_dict().
+        Target/prediction/weight metric returning a result with to_dict().
         config.metric must select a finite scalar in every step.
     ranker : FeatureRanker
         Called with the fitted adapter and supplied validation subset. Returns

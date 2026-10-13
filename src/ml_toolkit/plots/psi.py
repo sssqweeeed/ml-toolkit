@@ -1,4 +1,4 @@
-"""PSI-specific figures; Matplotlib is an optional dependency."""
+"""PSI score and monthly level-distribution figures."""
 
 from pathlib import Path
 

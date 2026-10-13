@@ -1,4 +1,4 @@
-"""Log and load the legacy LightGBM regressor without pickling it."""
+"""Log and load native LightGBM regressors with MLflow."""
 
 from __future__ import annotations
 
