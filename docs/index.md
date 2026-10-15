@@ -12,10 +12,13 @@ then run the same training workflow across tasks.
   on a complete, reproducible example.
 - [Configuration by task](configuration.md): expanded recipes for classification,
   regression, frequency, severity, and positive-unlabeled learning.
-- [Training API](api/training.md): validation, feature selection, tuning, and
-  result objects.
-- [Model API](api/models.md): CatBoost adapters, inflation adjustment, and the
-  optional LightGBM integration.
+- [Data](api/data.md): prepare a pool and slice features without losing row
+  alignment.
+- [Training](api/training.md): run a holdout experiment and understand the result.
+- [Models](api/models.md): choose an adapter, fit it, and predict new rows.
+
+Each usage page starts with a short example and explains its result. The API
+reference below it lists signatures, parameters, and constraints.
 
 ## A chronological training workflow
 

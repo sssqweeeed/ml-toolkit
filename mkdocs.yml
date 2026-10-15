@@ -17,7 +17,7 @@ nav:
   - Home: index.md
   - Getting started: getting-started.md
   - Configuration by task: configuration.md
-  - API reference:
+  - Usage and API:
       - Data: api/data.md
       - Training: api/training.md
       - Configuration: api/configuration.md
@@ -39,6 +39,7 @@ plugins:
             docstring_style: numpy
             show_source: false
             show_root_heading: true
+            heading_level: 3
             show_signature_annotations: true
             separate_signature: true
             members_order: source

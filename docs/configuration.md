@@ -2,8 +2,29 @@
 
 Configurations are immutable, keyword-only dataclasses with validated value
 ranges. Use `dataclasses.replace` for changes; data, model factories, metrics,
-rankers and Optuna spaces are explicit function arguments. The examples below
-expand every constructor field.
+rankers and Optuna spaces are explicit function arguments.
+
+Start with the [small configuration example](api/configuration.md#start-with-a-small-configuration)
+if you only need validation and a test tail. The recipes below expand every
+constructor field so you can adapt a complete setup.
+
+## Choose a recipe
+
+| Task | Start here |
+| --- | --- |
+| Confirmed binary labels | [Binary classification](#binary-classification) |
+| General numeric targets, including signed values | [Regression](#regression) |
+| Nonnegative frequency with Poisson predictions | [Frequency](#frequency) |
+| Severity with Tweedie predictions | [Severity](#severity) |
+| Known positives mixed with unlabeled observations | [Positive-unlabeled classification](#positiveunlabeled-classification) |
+
+Run the imports below, then copy the recipe for your task. Each recipe defines
+a `TrainingConfig` to pass as `config=` to `train_model`. To enable feature
+selection, also pass a ranker such as `importance_ranker`; for tuning, provide
+your Optuna `param_space` callback. The [training guide](api/training.md) shows
+how the configuration fits into a run.
+
+## Imports and shared behavior
 
 ```python
 from ml_toolkit.config import (
