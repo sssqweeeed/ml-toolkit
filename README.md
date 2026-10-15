@@ -5,6 +5,8 @@ Optuna tuning, metrics, PSI, diagnostic plots, inflation strategies, and MLflow
 logging.
 The import name is `ml_toolkit`.
 
+[Documentation](https://sssqweeeed.github.io/ml-toolkit/)
+
 ## Installation
 
 From this repository, install the package with `python -m pip install -e .`.

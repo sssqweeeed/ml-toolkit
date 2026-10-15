@@ -1,0 +1,61 @@
+site_name: ml-toolkit
+site_description: Training, validation, metrics, diagnostics, and MLflow for Python ML projects.
+site_url: https://sssqweeeed.github.io/ml-toolkit/
+repo_url: https://github.com/sssqweeeed/ml-toolkit
+repo_name: sssqweeeed/ml-toolkit
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  features:
+    - content.code.copy
+    - navigation.sections
+    - navigation.top
+    - search.highlight
+
+nav:
+  - Home: index.md
+  - Getting started: getting-started.md
+  - Configuration by task: configuration.md
+  - API reference:
+      - Data: api/data.md
+      - Training: api/training.md
+      - Configuration: api/configuration.md
+      - Models: api/models.md
+      - Metrics: api/metrics.md
+      - PSI and feature levels: api/psi.md
+      - Plots: api/plots.md
+      - Inflation: api/inflation.md
+      - Explainability and tracking: api/tracking.md
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            allow_inspection: false
+            docstring_style: numpy
+            show_source: false
+            show_root_heading: true
+            show_signature_annotations: true
+            separate_signature: true
+            members_order: source
+            filters:
+              - '!^_'
+              - '!^load_context$'
+
+markdown_extensions:
+  - admonition
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - toc:
+      permalink: true
+
+validation:
+  nav:
+    omitted_files: warn
+  links:
+    not_found: warn
+    anchors: warn
