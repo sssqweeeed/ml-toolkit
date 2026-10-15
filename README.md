@@ -17,3 +17,57 @@ python -m pip install -e .
 ```
 
 The Python import is `ml_toolkit`.
+
+## Quickstart
+
+Train a frequency model on synthetic data with chronological validation and a
+future test split:
+
+```python
+from datetime import date
+
+import mlflow
+import polars as pl
+
+from ml_toolkit import Pool, train_model
+from ml_toolkit.config import HoldoutConfig, TrackingConfig, TrainingConfig
+from ml_toolkit.metrics import metrics_frequency
+from ml_toolkit.models import CatBoostLogLinkRegressionModel
+
+frame = pl.DataFrame({
+    "feature": [i % 10 for i in range(40)],
+    "target": [float(i % 3) for i in range(40)],
+    "date": pl.date_range(date(2025, 1, 1), date(2025, 2, 9), eager=True),
+})
+data = Pool(
+    X=frame.select("feature"),
+    y=frame["target"],
+    time=frame["date"],
+    weight=pl.Series([1.0] * len(frame)),
+    numerical_features=("feature",),
+)
+mlflow.set_tracking_uri("sqlite:///mlflow.db")
+mlflow.set_experiment("ml-toolkit-quickstart")
+
+result = train_model(
+    data=data,
+    params={
+        "iterations": 20, "depth": 2, "loss_function": "Poisson",
+        "thread_count": 2, "verbose": False, "allow_writing_files": False,
+    },
+    model_factory=CatBoostLogLinkRegressionModel,
+    metric=metrics_frequency,
+    run_name="frequency",
+    config=TrainingConfig(
+        validation=HoldoutConfig(val_size=0.2),
+        test_size=0.2,
+        tracking=TrackingConfig(log_final_model=False),
+    ),
+)
+print(result.validation.mean_metrics)
+print(result.test_metrics)
+```
+
+The example logs metrics and configuration to a local MLflow store using
+`mlflow.db`. See the [documentation](https://sssqweeeed.github.io/ml-toolkit/)
+for model packaging, tuning, reports, and other tasks.
