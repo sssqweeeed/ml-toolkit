@@ -31,11 +31,11 @@ FIGURE_NAMES = (
     "pu-capture.png",
     "psi-scores.png",
     "psi-monthly.png",
-    "monthly-age.png",
+    "monthly-humidity.png",
     "feature-importance.png",
     "shap-importance.png",
     "shap-beeswarm.png",
-    "shap-age.png",
+    "shap-temperature.png",
 )
 EXAMPLE = re.compile(
     r"(?P<example><!-- example: (?P<name>[\w-]+) -->\n"
@@ -65,7 +65,7 @@ def _execute_examples(
         if example["name"] == "plots-setup":
             namespace["output"] = figure_directory
         replacement = example["example"]
-        stdout = captured.getvalue().rstrip("\n")
+        stdout = "\n".join(line.rstrip() for line in captured.getvalue().splitlines()).rstrip("\n")
         if stdout:
             replacement += (
                 f"\n\n<!-- output: {example['name']} -->\n```text\n"
@@ -82,36 +82,111 @@ def _validate_plot_results(namespace: dict[str, object]) -> None:
     import numpy as np
     import pandas as pd
     import polars as pl
-
-    from ml_toolkit.metrics import RankingMetrics
-
-    curve = cast(pd.DataFrame, namespace["curve"])
-    assert curve.equals(cast(pd.DataFrame, namespace["precision_recall_table"]))
-    assert curve.equals(cast(pd.DataFrame, namespace["f1_table"]))
-    np.testing.assert_allclose(curve["threshold"], [0.9, 0.7, 0.6, 0.1])
-    np.testing.assert_allclose(curve["precision"], [1.0, 1.0, 2 / 3, 0.5])
-    assert cast(pd.DataFrame, namespace["calibration_table"])["count"].sum() == 4
-    by_feature = cast(pd.DataFrame, namespace["by_feature"])
-    np.testing.assert_allclose(by_feature["observed"], [1.5, 3.5])
-    np.testing.assert_allclose(by_feature["volume"], [2.0, 2.0])
-    by_level = cast(pd.DataFrame, namespace["by_level"])
-    unseen = by_level.loc[(by_level["sample"] == "current") & (by_level["level"] == "__UNSEEN__")]
-    np.testing.assert_allclose(unseen["observed"], [4.5])
-    assert by_level["volume"].sum() == 8
-    assert cast(pd.DataFrame, namespace["monthly"])["volume"].sum() == 8
-    monthly = cast(pl.DataFrame, namespace["monthly_distribution"])
-    np.testing.assert_allclose(monthly["mean"].to_numpy(), [25.0, 45.0, 50.0, 70.0])
-    assert cast(pd.DataFrame, namespace["importance_table"])["feature"].tolist() == ["age", "region"]
-    ranked = cast(RankingMetrics, namespace["ranked"])
-    assert [(point.percent, point.gain, point.lift) for point in ranked.selected_points] == [
-        (25.0, 0.5, 2.0)
-    ]
     import shap
 
+    from examples.gallery_data import BikeGallery, DigitsGallery
+    from examples.citation_data import CitationGallery
+    from ml_toolkit.metrics import RankingMetrics
+    from ml_toolkit.psi import PSIResult
+    digits = cast(DigitsGallery, namespace["digits"])
+    bikes = cast(BikeGallery, namespace["bikes"])
+    assert len(digits.train_indices) + len(digits.test_indices) == 1797
+    assert len(digits.observed) == 719
+    assert np.intersect1d(digits.train_indices, digits.test_indices).size == 0
+    assert np.unique(digits.probabilities).size >= 500
+    assert len(bikes.train_indices) + len(bikes.test_indices) == 17379
+    assert np.intersect1d(bikes.train_indices, bikes.test_indices).size == 0
+    assert len(bikes.reference.observed) >= 4000
+    assert len(bikes.current.observed) >= 8000
+    assert bikes.reference.time.dt.year().unique().to_list() == [2011]
+    assert bikes.current.time.dt.year().unique().to_list() == [2012]
+
+    curve = cast(pd.DataFrame, namespace["curve"])
+    assert len(curve) >= 500
+    assert curve.equals(cast(pd.DataFrame, namespace["precision_recall_table"]))
+    assert curve.equals(cast(pd.DataFrame, namespace["f1_table"]))
+    assert curve["threshold"].is_monotonic_decreasing
+    for index in np.linspace(0, len(curve) - 1, 6, dtype=int):
+        threshold = float(curve["threshold"].iloc[int(index)])
+        selected = digits.probabilities >= threshold
+        positives = digits.observed[selected].sum()
+        np.testing.assert_allclose(float(curve["precision"].iloc[int(index)]), positives / selected.sum())
+        np.testing.assert_allclose(float(curve["recall"].iloc[int(index)]), positives / digits.observed.sum())
+    calibration = cast(pd.DataFrame, namespace["calibration_table"])
+    assert len(calibration) == 10
+    assert calibration["count"].sum() == len(digits.observed)
+    assert calibration["count"].between(60, 85).all()
+
+    by_feature = cast(pd.DataFrame, namespace["by_feature"])
+    assert 8 <= len(by_feature) <= 10
+    assert by_feature["volume"].min() >= 200
+    assert by_feature["volume"].sum() == len(bikes.reference.observed)
+    np.testing.assert_allclose(
+        np.average(by_feature["observed"], weights=by_feature["volume"]),
+        bikes.reference.observed.mean(),
+    )
+    by_level = cast(pd.DataFrame, namespace["by_level"])
+    for sample, expected_count in (
+        ("reference", len(bikes.reference.observed)),
+        ("current", len(bikes.current.observed)),
+    ):
+        part = by_level.loc[by_level["sample"] == sample]
+        assert part["volume"].sum() == expected_count
+        assert (part["volume"] > 0).sum() >= 8
+    monthly = cast(pd.DataFrame, namespace["monthly"])
+    assert len(monthly) == 18
+    assert monthly.groupby("split").size().to_dict() == {"current": 12, "reference": 6}
+    assert monthly["volume"].min() >= 500
+    assert monthly["volume"].sum() == len(bikes.observed)
+    assert str(monthly["month"].min().date()) == "2011-07-01"
+    assert str(monthly["month"].max().date()) == "2012-12-01"
+    np.testing.assert_allclose(
+        np.average(monthly["observed"], weights=monthly["volume"]),
+        bikes.observed.mean(),
+    )
+    distribution = cast(pl.DataFrame, namespace["monthly_distribution"])
+    assert distribution.height == 18
+    assert (distribution["p05"] <= distribution["p25"]).all()
+    assert (distribution["p25"] <= distribution["p50"]).all()
+    assert (distribution["p50"] <= distribution["p75"]).all()
+    assert (distribution["p75"] <= distribution["p95"]).all()
+    comparison = cast(PSIResult, namespace["comparison"])
+    assert comparison.psi.height == bikes.features.width == 11
+    assert set(comparison.psi["feature"]) == set(bikes.features.columns)
+    assert np.isfinite(comparison.psi["psi"].to_numpy()).all()
+    temperature = comparison.monthly_distribution.filter(pl.col("feature") == "temperature")
+    shares = temperature.group_by("sample", "month").agg(pl.col("share").sum())
+    assert shares.height == 18
+    np.testing.assert_allclose(shares["share"].to_numpy(), 1.0)
+    importance = cast(pd.DataFrame, namespace["importance_table"])
+    assert len(importance) == bikes.features.width
+    assert set(importance["feature"]) == set(bikes.importance)
+    assert importance["importance"].is_monotonic_decreasing
+    assert importance["importance"].std() > 0.1
+
+    ranked = cast(RankingMetrics, namespace["ranked"])
+    assert len(ranked.cumulative_exposure) == len(bikes.observed) + 1
+    assert [point.percent for point in ranked.selected_points] == [10.0, 20.0]
+    assert all(point.lift > 1.0 for point in ranked.selected_points)
+    np.testing.assert_allclose(ranked.cumulative_observed[[0, -1]], [0.0, 1.0])
     explanation = cast(shap.Explanation, namespace["explanation"])
     contributions = np.asarray(explanation.values, dtype=float)
-    assert contributions.shape == (24, 2)
-    assert np.abs(contributions).max() > 1.0, "SHAP examples must show fitted effects"
+    assert contributions.shape == (600, bikes.features.width)
+    assert (contributions.std(axis=0) > 0.01).sum() >= 5
+    assert contributions.std() > 1.0
+    base_values = np.asarray(explanation.base_values, dtype=float)
+    prediction = bikes.native_model.predict(explanation.data)
+    np.testing.assert_allclose(contributions.sum(axis=1) + base_values, prediction, atol=1e-6)
+    citations = cast(CitationGallery, namespace["citations"])
+    assert citations.paper_count == 2708 and citations.feature_count == 1433
+    assert citations.known_citation_count == 5429
+    assert citations.unlabeled_pair_count == 20000
+    assert len(citations.labels) == 25429
+    assert len(set(citations.pairs)) == len(citations.labels)
+    assert citations.labels.sum() == citations.known_citation_count
+    assert np.unique(citations.scores).size >= 500
+    assert np.std(citations.scores) > 0.01
+    assert citations.scores[citations.labels == 1].mean() > citations.scores[citations.labels == 0].mean()
     assert not plt.get_fignums(), "A documented plot left a figure open"
 
 

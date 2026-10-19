@@ -3,7 +3,7 @@
 Use plotting functions with existing predictions, or enable figures through
 `reporting.diagnostics` in the [training configuration](../configuration.md).
 Each saving function creates parent directories, writes the figure, and closes
-it. `binary_curves` only calculates a table and does not save a figure.
+it. `binary_curves` only calculates a table.
 
 ## Choose a plot
 
@@ -11,51 +11,74 @@ it. `binary_curves` only calculates a table and does not save a figure.
 | --- | --- |
 | How do precision, recall, F1, and calibration behave? | `classification.precision_recall`, `f1_threshold`, `calibration` |
 | Where do predictions differ from observations? | `regression.observed_fitted`, `observed_fitted_by_level`, `monthly_observed_fitted` |
-| How much outcome is captured at a given exposure share? | `ranking.gains_curve`, `lift_curve` |
+| How much outcome is captured at a given capacity? | `ranking.gains_curve`, `lift_curve` |
 | How are known positives ranked among unlabeled rows? | `pu.score_distribution`, `positive_capture` |
 | Which feature distributions have shifted? | `psi.feature_psi_plot`, `monthly_psi_level_distribution` |
 | How does a numerical feature change over time? | `monitoring.monthly_feature_distribution` |
 | Which features contribute most to predictions? | `explainability.feature_importance`, `shap_importance`, `shap_beeswarm`, `shap_dependence` |
 
-## Prepare example inputs
+## Prepare real example data
 
-The following recipes share these small arrays and Polars frames. Numerical
-vectors are one-dimensional and aligned within each sample. Plot APIs accepting
-`array-like` also accept numerical Python lists; categorical feature values may
-be strings. Use `Path` objects throughout, including for the PSI and ranking
-functions whose signatures require them.
+These examples use measured observations and fitted models. Classification uses
+scikit-learn's [handwritten digits dataset](https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_digits.html):
+1,797 images, with digits 0–4 as class 0 and 5–9 as class 1. A fixed stratified
+split reserves 719 images for evaluation; the model fits only the other 1,078.
+The precision, recall, F1, and calibration figures use its held-out probabilities.
+
+Regression uses the [UCI Bike Sharing dataset](https://archive.ics.uci.edu/dataset/275/bike+sharing+dataset),
+17,379 hourly observations with genuine dates, weather, calendar covariates, and
+rental counts. Data attribution: Hadi Fanaee-T, UCI Machine Learning Repository,
+CC BY 4.0. A CatBoost regressor fits January–June 2011. July–December 2011
+is the reference period and all of 2012 is the current period. Both plotted
+periods are held out from fitting. Dates come from the recorded date and hour;
+the monthly figures show actual calendar periods. The target is hourly `cnt`;
+`casual` and `registered`, whose sum reveals the target, are excluded from
+features. Temperature and humidity retain the source dataset's normalized scales.
+
+From a source checkout, load the shared data and fitted models once. The first
+run downloads UCI's archive into `.cache/uci-bike-sharing`; subsequent runs
+reuse it. The canonical loader below contains the exact splits and model settings.
 
 <!-- example: plots-setup -->
 ```python
-from datetime import date
 from pathlib import Path
 
 import numpy as np
 import polars as pl
 
+from examples.gallery_data import load_gallery_data
 from ml_toolkit.config import FigureConfig
 
+digits, bikes = load_gallery_data()
+observed, probabilities = digits.observed, digits.probabilities
+reference, current = bikes.reference.features, bikes.current.features
+reference_y, current_y = bikes.reference.observed, bikes.current.observed
+reference_prediction = bikes.reference.prediction
+current_prediction = bikes.current.prediction
+reference_time = bikes.reference.time.to_list()
+current_time = bikes.current.time.to_list()
 output = Path("figures")
 figure = FigureConfig(dpi=150)
-observed = np.array([0.0, 0.0, 1.0, 1.0])
-probabilities = np.array([0.1, 0.6, 0.7, 0.9])
-reference = pl.DataFrame(
-    {"age": [20, 30, 40, 50], "region": ["north", "north", "south", "south"]}
-)
-current = pl.DataFrame(
-    {"age": [45, 55, 65, 75], "region": ["north", "south", "west", "west"]}
-)
-reference_time = [date(2025, 1, 1), date(2025, 1, 15), date(2025, 2, 1), date(2025, 2, 15)]
-current_time = [date(2025, 3, 1), date(2025, 3, 15), date(2025, 4, 1), date(2025, 4, 15)]
-reference_y = np.array([1.0, 2.0, 3.0, 4.0])
-reference_prediction = np.array([1.2, 1.8, 3.2, 3.8])
-current_y = np.array([2.0, 3.0, 4.0, 5.0])
-current_prediction = np.array([2.2, 2.8, 4.2, 4.8])
+print(f"Digits: {len(digits.train_indices)} training / {len(observed)} held-out images")
+print(f"Bikes: {len(bikes.train_indices)} training / {len(reference)} reference / {len(current)} current hours")
 ```
 
+<!-- output: plots-setup -->
+```text
+Digits: 1078 training / 719 held-out images
+Bikes: 4250 training / 4395 reference / 8734 current hours
+```
+<!-- /output -->
+
+??? example "Inspect data preparation and model fitting"
+
+    ```python
+    --8<-- "examples/gallery_data.py"
+    ```
+
 `FigureConfig` controls dimensions, DPI, and format. For example,
-`FigureConfig(format="svg")` replaces the requested filename suffix with
-`.svg`. The numerical tables returned by a plot are unaffected by export settings.
+`FigureConfig(format="svg")` replaces the filename suffix with `.svg`.
+Use `Path` objects throughout, including for PSI and ranking functions.
 
 ## Classification curves and calibration
 
@@ -64,22 +87,27 @@ current_prediction = np.array([2.2, 2.8, 4.2, 4.8])
 from ml_toolkit.plots import classification
 
 curve = classification.binary_curves(observed, probabilities)
-print(curve.round(3).to_string(index=False))
+shown = curve.iloc[np.linspace(0, len(curve) - 1, 6, dtype=int)]
+print(shown.round(3).to_string(index=False))
+print(f"Held-out observations: {len(observed)}; distinct thresholds: {len(curve)}")
 ```
 
 <!-- output: plots-binary-curves -->
 ```text
  threshold  precision  recall    f1
-       0.9      1.000     0.5 0.667
-       0.7      1.000     1.0 1.000
-       0.6      0.667     1.0 0.800
-       0.1      0.500     1.0 0.667
+     0.999      1.000   0.003 0.006
+     0.990      1.000   0.402 0.574
+     0.944      1.000   0.804 0.892
+     0.057      0.831   1.000 0.907
+     0.008      0.623   1.000 0.767
+     0.000      0.498   1.000 0.665
+Held-out observations: 719; distinct thresholds: 719
 ```
 <!-- /output -->
 
-The table contains every distinct threshold, in descending order. At `0.6`,
-three rows are selected: precision is `2 / 3` and recall is `1.0`. All tied
-scores enter together, using a probability at or above the threshold.
+The complete pandas table contains one row per distinct threshold; the output
+above samples six rows. Predictions at or above a threshold are positive and
+all tied scores enter together.
 
 ### Precision and recall
 
@@ -90,7 +118,7 @@ precision_recall_table = classification.precision_recall(
 )
 ```
 
-![Precision-recall curve with best F1 at threshold 0.7.](../assets/plots/precision-recall.png)
+![Precision and recall across held-out handwritten digit probability thresholds.](../assets/plots/precision-recall.png)
 
 ### F1 by threshold
 
@@ -101,10 +129,10 @@ f1_table = classification.f1_threshold(
 )
 ```
 
-![F1 by probability threshold, maximized at 0.7.](../assets/plots/f1-threshold.png)
+![F1 across the held-out digit model's probability thresholds.](../assets/plots/f1-threshold.png)
 
-Both functions return the full pandas threshold table, even when the rendered
-curve uses a configured point limit.
+Both functions return the full threshold table even when a rendering point
+limit reduces the displayed curve.
 
 ### Calibration
 
@@ -116,7 +144,7 @@ calibration_table = classification.calibration(
     observed,
     probabilities,
     output / "calibration.png",
-    config=ClassificationPlotsConfig(calibration_bins=2),
+    config=ClassificationPlotsConfig(calibration_bins=10),
     figure=figure,
 )
 print(calibration_table.round(3).to_string(index=False))
@@ -125,95 +153,117 @@ print(calibration_table.round(3).to_string(index=False))
 <!-- output: plots-calibration -->
 ```text
  bin  observed_rate  predicted_rate  count
-   0            0.0            0.35      2
-   1            1.0            0.80      2
+   0          0.000           0.002     72
+   1          0.000           0.005     72
+   2          0.000           0.012     72
+   3          0.000           0.032     72
+   4          0.097           0.157     72
+   5          0.887           0.815     71
+   6          1.000           0.967     72
+   7          1.000           0.986     72
+   8          1.000           0.993     72
+   9          1.000           0.997     72
 ```
 <!-- /output -->
 
-![Calibration by probability quantile, with a score histogram.](../assets/plots/calibration.png)
+![Calibration in ten populated probability quantiles, with held-out digit score distribution.](../assets/plots/calibration.png)
 
-Calibration returns populated bins with unweighted observed/predicted rates and
-row counts. All classification plots are unweighted and require confirmed
-binary ground truth. PU labels need the separate PU functions below.
+Each bin contains roughly 72 held-out images. The table compares mean predicted
+probability with observed positive rate and reports the supporting count.
+These classification plots are unweighted and require confirmed ground truth.
 
 ## Observed versus fitted
 
-For a quick plot, let `observed_fitted` group a categorical feature or bin a
-numerical feature into quantiles. Its pandas result contains `feature`,
-`observed`, `fitted`, and `volume`; volume is total weight or row count.
+Compare actual hourly bike rentals with the model's predictions. First group
+the reference period into ten temperature quantiles. The returned pandas table
+contains mean `observed`, mean `fitted`, and `volume` for every feature bin;
+without explicit weights, volume is its number of recorded hours.
 
 <!-- example: plots-observed-fitted -->
 ```python
 from ml_toolkit.plots import regression
 
 by_feature = regression.observed_fitted(
-    reference["age"].to_numpy(),
+    reference["temperature"].to_numpy(),
     reference_y,
     reference_prediction,
     output / "observed-fitted.png",
-    feature_name="Age",
-    n_bins=2,
+    feature_name="Normalized temperature",
+    n_bins=10,
     figure=figure,
 )
-print(by_feature.round(3).to_string(index=False))
+print(by_feature.round(2).to_string(index=False))
 ```
 
 <!-- output: plots-observed-fitted -->
 ```text
-       feature  observed  fitted  volume
-(19.999, 35.0]       1.5     1.5     2.0
-  (35.0, 50.0]       3.5     3.5     2.0
+     feature  observed  fitted  volume
+(0.139, 0.3]     84.05   76.85   497.0
+ (0.3, 0.36]    122.88  109.56   456.0
+(0.36, 0.42]    143.49  131.78   392.0
+ (0.42, 0.5]    148.08  147.52   515.0
+ (0.5, 0.56]    170.36  172.74   431.0
+(0.56, 0.62]    147.20  148.69   451.0
+(0.62, 0.66]    157.61  166.41   391.0
+(0.66, 0.72]    192.97  200.96   514.0
+(0.72, 0.78]    242.87  248.28   367.0
+(0.78, 0.96]    258.20  278.82   381.0
 ```
 <!-- /output -->
 
-![Observed and fitted means in reference age bins.](../assets/plots/observed-fitted.png)
+![Observed and predicted hourly bike rentals across ten reference-temperature bins.](../assets/plots/observed-fitted.png)
 
-For comparable train/current groups, fit levels once on the reference and reuse
-them. This keeps numerical boundaries and special levels consistent across
-samples; an unseen category uses the fitted unseen level.
+For comparable reference/current groups, fit levels once on the reference and
+reuse the same boundaries in the current period. Each level aggregates
+hundreds of recorded hours rather than isolated examples.
 
 <!-- example: plots-observed-fitted-levels -->
 ```python
 from ml_toolkit.config import FeatureLevelSpec
 from ml_toolkit.feature_levels import LevelTransformer
 
-levels = LevelTransformer((FeatureLevelSpec("region", "categorical"),)).fit(reference)
+levels = LevelTransformer(
+    (FeatureLevelSpec("temperature", "numerical"),), n_bins=10
+).fit(reference)
 reference_levels = levels.transform(reference)
 current_levels = levels.transform(current)
 assert levels.config is not None
 by_level = regression.observed_fitted_by_level(
-    reference_levels["region"],
+    reference_levels["temperature"],
     reference_y,
     reference_prediction,
-    current_levels["region"],
+    current_levels["temperature"],
     current_y,
     current_prediction,
     output / "observed-fitted-levels.png",
     level_order=levels.config.features[0].levels,
-    reference_label="Train",
-    current_label="Test",
+    feature_name="Normalized temperature",
+    reference_label="Jul–Dec 2011",
+    current_label="2012",
     figure=figure,
 )
-print(by_level.round(3).to_string(index=False))
+print(by_level.groupby("sample")[["volume"]].sum().to_string())
+print(by_level.head(4).round(2).to_string(index=False))
 ```
 
 <!-- output: plots-observed-fitted-levels -->
 ```text
-   sample      level  observed  fitted  volume
-reference      north       1.5     1.5     2.0
-reference      south       3.5     3.5     2.0
-reference __UNSEEN__       NaN     NaN     0.0
-  current      north       2.0     2.2     1.0
-  current      south       3.0     2.8     1.0
-  current __UNSEEN__       4.5     4.5     2.0
+           volume
+sample
+current    8734.0
+reference  4395.0
+   sample        level  observed  fitted  volume
+reference  [-inf, 0.3)     77.76   71.07   369.0
+reference  [0.3, 0.36)    109.52  100.87   407.0
+reference [0.36, 0.42)    135.91  120.76   444.0
+reference  [0.42, 0.5)    145.87  140.84   515.0
 ```
 <!-- /output -->
 
-![Train and test means and volumes on shared region levels.](../assets/plots/observed-fitted-levels.png)
+![Reference and current hourly bike rentals and volumes on shared temperature levels.](../assets/plots/observed-fitted-levels.png)
 
-`by_level` is a pandas DataFrame in the supplied level order. Its `sample`
-values remain `reference` and `current`; legend labels affect only the figure.
-Groups absent from one sample have zero volume and NaN means there.
+`sample` remains `reference`/`current`; legend labels affect only the figure.
+Levels absent from one sample have zero volume and NaN means for that sample.
 
 <!-- example: plots-monthly-observed-fitted -->
 ```python
@@ -225,35 +275,44 @@ monthly = regression.monthly_observed_fitted(
     current_y,
     current_prediction,
     output / "monthly-observed-fitted.png",
-    reference_group=reference["region"],
-    current_group=current["region"],
     figure=figure,
 )
-print(monthly[["month", "group", "split", "observed", "fitted", "volume"]].round({"observed": 3, "fitted": 3, "volume": 3}).to_string(index=False))
+summary = monthly[["month", "split", "observed", "fitted", "volume"]]
+print(summary.head(6).round({"observed": 2, "fitted": 2}).to_string(index=False))
+print(f"Monthly summaries: {len(monthly)}; minimum hours per month: {int(monthly.volume.min())}")
 ```
 
 <!-- output: plots-monthly-observed-fitted -->
 ```text
-     month group     split  observed  fitted  volume
-2025-01-01 north reference       1.5     1.5     2.0
-2025-02-01 south reference       3.5     3.5     2.0
-2025-03-01 north   current       2.0     2.2     1.0
-2025-03-01 south   current       3.0     2.8     1.0
-2025-04-01  west   current       4.5     4.5     2.0
+     month     split  observed  fitted  volume
+2011-07-01 reference    189.97  200.42   744.0
+2011-08-01 reference    186.99  201.52   731.0
+2011-09-01 reference    177.71  178.78   717.0
+2011-10-01 reference    166.23  154.92   743.0
+2011-11-01 reference    142.10  137.59   719.0
+2011-12-01 reference    117.84  113.86   741.0
+Monthly summaries: 18; minimum hours per month: 692
 ```
 <!-- /output -->
 
-![Monthly observed and fitted means by region.](../assets/plots/monthly-observed-fitted.png)
+![Monthly actual and predicted bike rental means across recorded July 2011–December 2012 hours.](../assets/plots/monthly-observed-fitted.png)
 
-The monthly pandas table also includes `plot_date`, the mean observation time
-used for positioning. Dates are normalized to UTC. Omit the two group arguments
-for one curve per sample. All three regression functions accept optional
-nonnegative weights with positive total per sample. Quick feature and monthly
-plots omit zero-weight groups. The shared-level plot keeps a level when either
-sample has positive weight, showing NaN means for the other sample if its
-weight is zero.
+This uses the six actual reference months and twelve actual current months.
+Each point summarizes hundreds of hours. The model was fitted before both
+periods, so the gap includes genuine later-period prediction error. Changes
+in weather, calendar mix, and demand can all affect these comparisons;
+a figure alone does not establish a cause. The simple RMSE fit permits negative
+individual predictions; the gallery preserves its raw outputs.
+
+The monthly table also contains `plot_date`, the mean observation time used
+for positioning. Dates are normalized to UTC. Optional group Series add
+separate curves; optional weights change means and volumes.
 
 ## Gains and lift
+
+Rank the held-out bike hours by predicted demand and inspect the fraction of
+recorded rentals captured in the highest-scored hours. Unit exposure makes
+capacity a fraction of hours.
 
 <!-- example: plots-gains -->
 ```python
@@ -261,68 +320,98 @@ from ml_toolkit.metrics import ranking_metrics
 from ml_toolkit.plots import ranking
 
 ranked = ranking_metrics(
-    observed, probabilities, np.ones(4), selected_percents=(25.0,)
+    bikes.observed, bikes.prediction, bikes.weight, selected_percents=(10.0, 20.0)
 )
 ranking.gains_curve(ranked, output / "gains.png", figure=figure)
 ```
 
-![Cumulative gains with selected exposure capacities.](../assets/plots/gains.png)
+![Cumulative held-out bike rentals captured by ranking hours on predicted demand.](../assets/plots/gains.png)
 
 <!-- example: plots-lift -->
 ```python
 ranking.lift_curve(ranked, output / "lift.png", figure=figure)
-print([(point.percent, point.gain, point.lift) for point in ranked.selected_points])
+print([(point.percent, round(point.gain, 3), round(point.lift, 3)) for point in ranked.selected_points])
 ```
 
 <!-- output: plots-lift -->
 ```text
-[(25.0, 0.5, 2.0)]
+[(10.0, 0.268, 2.68), (20.0, 0.463, 2.315)]
 ```
 <!-- /output -->
 
-![Cumulative lift with selected exposure capacities.](../assets/plots/lift.png)
+![Cumulative demand lift across held-out bike hours, with 10% and 20% capacities.](../assets/plots/lift.png)
 
-Both plotting calls return `None`; calculate the reusable `RankingMetrics`
-first. Capacity is a share of total exposure, and gains measure the share of
-`observed * exposure` captured. Scores determine descending order. These plots
-are suitable for supervised outcomes, including rates with exposure weights.
+Both plotting calls return `None`; calculate reusable `RankingMetrics` first.
+Gain is the share of `observed * exposure` captured, and lift divides gain by
+the exposure fraction. These plots require supervised outcomes.
 
 ## Positive-unlabeled plots
 
+Use the [original LINQS Cora archive](https://linqs-data.soe.ucsc.edu/public/lbc/cora.tgz)
+for an observed-link retrieval example: 2,708 real papers, their 1,433 binary
+word indicators, and all 5,429 recorded directed citations. Recorded links are
+known positives. The loader selects 20,000 distinct unrecorded directed pairs
+as unverified candidates; their citation status is unknown. It never hides
+recorded links or generates replacement labels.
+
+Scores are cosine similarities between the source word vectors. They are
+retrieval scores in `[0, 1]`, without a probability interpretation or fitted PU
+classifier. Cora's published document classes are unused. This constructs an
+open-world citation retrieval example; the sampled candidate ratio does not
+estimate citation prevalence.
+
 <!-- example: plots-pu-distribution -->
 ```python
+from examples.citation_data import load_citation_gallery
 from ml_toolkit.config import PUPlotsConfig
 from ml_toolkit.plots import pu
 
-pu_labels = np.array([1.0, 0.0, 1.0, 0.0])
-pu_probabilities = np.array([0.9, 0.8, 0.4, 0.2])
+citations = load_citation_gallery()
+pu_labels, pu_scores = citations.labels, citations.scores
 pu.score_distribution(
     pu_labels,
-    pu_probabilities,
+    pu_scores,
     output / "pu-distribution.png",
-    config=PUPlotsConfig(histogram_bins=10),
+    config=PUPlotsConfig(histogram_bins=30),
     figure=figure,
 )
+print(f"Cora: {citations.paper_count} papers, {citations.known_citation_count} recorded citations, {citations.unlabeled_pair_count} unverified candidate pairs")
 ```
 
-![Separately normalized scores for positives and unlabeled rows.](../assets/plots/pu-distribution.png)
+<!-- output: plots-pu-distribution -->
+```text
+Cora: 2708 papers, 5429 recorded citations, 20000 unverified candidate pairs
+```
+<!-- /output -->
+
+![Word-similarity distributions for 5429 real recorded citations and 20000 unverified Cora candidate pairs.](../assets/plots/pu-distribution.png)
+
+??? example "Inspect Cora records, candidate selection, and similarity scoring"
+
+    ```python
+    --8<-- "examples/citation_data.py"
+    ```
 
 <!-- example: plots-pu-capture -->
 ```python
 pu.positive_capture(
-    pu_labels, pu_probabilities, output / "pu-capture.png", figure=figure
+    pu_labels, pu_scores, output / "pu-capture.png", figure=figure
 )
 ```
 
-![Known-positive capture against unlabeled review capacity.](../assets/plots/pu-capture.png)
+![Capture of recorded Cora citations against the share of unverified candidate pairs reviewed.](../assets/plots/pu-capture.png)
 
-Both calls return `None`. Labels are `1` for known positives and `0` for
-unlabeled rows. Both groups must have positive total weight; omit `weights` for
-equal weights. Score histograms normalize each group separately. Capture plots
-show known positives captured against the unlabeled fraction reviewed, with
-both axes in percent. Unlabeled rows are not confirmed negatives.
+Both calls return `None`. Histograms normalize the recorded-link and candidate
+sets separately. Capture plots show recorded citations recovered as the
+unverified review fraction increases. Missing records are not confirmed
+negative citations, and capture on this graph does not establish recall for
+all real citations. Both axes show percentages; tied scores enter together.
 
 ## PSI scores and monthly level shares
+
+Fit up to ten quantile bins for each of the eleven covariates on July–December
+2011, then compare their distributions with 2012. Calendar changes can be
+expected: for example, the reference period contains only six months.
 
 <!-- example: plots-psi-scores -->
 ```python
@@ -330,130 +419,150 @@ from ml_toolkit.psi import PSIAnalysis, PSIConfig
 from ml_toolkit.plots import psi
 
 analysis = PSIAnalysis(
-    PSIConfig(features=(FeatureLevelSpec("age", "numerical"),), n_bins=2)
-).fit(reference, time=pl.Series("date", reference_time))
-comparison = analysis.compare(current, time=pl.Series("date", current_time))
+    PSIConfig(
+        features=tuple(FeatureLevelSpec(name, "numerical") for name in reference.columns),
+        n_bins=10,
+    )
+).fit(reference, time=bikes.reference.time)
+comparison = analysis.compare(current, time=bikes.current.time)
 psi.feature_psi_plot(comparison.psi, output / "psi-scores.png", figure=figure)
+print(comparison.psi.sort("psi", descending=True).head(5).with_columns(pl.col("psi").round(3)).write_csv(), end="")
 ```
 
-![PSI scores for the fitted age feature.](../assets/plots/psi-scores.png)
+<!-- output: plots-psi-scores -->
+```text
+feature,psi
+season,1.224
+month,0.801
+humidity,0.125
+feels_like_temperature,0.081
+temperature,0.059
+```
+<!-- /output -->
+
+![Distribution shift for eleven real weather and calendar covariates between reference and current periods.](../assets/plots/psi-scores.png)
 
 <!-- example: plots-psi-monthly -->
 ```python
 psi.monthly_psi_level_distribution(
-    comparison.monthly_distribution, "age", output / "psi-monthly.png", figure=figure
+    comparison.monthly_distribution,
+    "temperature",
+    output / "psi-monthly.png",
+    figure=figure,
 )
 ```
 
-![Monthly reference and current shares in fitted age levels.](../assets/plots/psi-monthly.png)
+![Recorded monthly temperature shares across reference-fitted levels over eighteen actual calendar months.](../assets/plots/psi-monthly.png)
 
-Both calls return `None`. Reuse the tables from `PSIAnalysis` rather than
-constructing their schemas by hand. The first plot compares PSI scores across
-features. The second displays monthly shares on the reference-fitted levels and
-marks where current observations begin. Supply timestamps to both `fit` and
-`compare` to obtain monthly distributions. See the [PSI guide](psi.md) for
-reusing the same reference across subsequent batches.
+Both calls return `None`. The second plot shows how reference-fitted temperature
+levels vary by recorded month and marks the period boundary. Reuse the tables
+from `PSIAnalysis`; see the [PSI guide](psi.md) for their schemas and reuse.
 
 ## Monthly numerical distributions
 
-<!-- example: plots-monthly-age -->
+Inspect actual humidity distributions alongside the rental-prediction plots.
+This exposes the seasonal range of a measured covariate without inventing a
+time axis.
+
+<!-- example: plots-monthly-humidity -->
 ```python
 from ml_toolkit.plots import monitoring
 
 monthly_distribution = monitoring.monthly_feature_distribution(
-    reference.with_columns(pl.Series("date", reference_time)),
-    current.with_columns(pl.Series("date", current_time)),
-    "age",
-    "date",
-    output / "monthly-age.png",
+    reference.with_columns(bikes.reference.time.alias("timestamp")),
+    current.with_columns(bikes.current.time.alias("timestamp")),
+    "humidity",
+    "timestamp",
+    output / "monthly-humidity.png",
     figure=figure,
 )
-print(monthly_distribution.select("month", "split", "p50", "mean").write_csv(), end="")
+print(monthly_distribution.select("month", "split", "p50", "mean").head(6).with_columns(pl.col("mean").round(3)).write_csv(), end="")
 ```
 
-<!-- output: plots-monthly-age -->
+<!-- output: plots-monthly-humidity -->
 ```text
 month,split,p50,mean
-2025-01-01,reference,25.0,25.0
-2025-02-01,reference,45.0,45.0
-2025-03-01,current,50.0,50.0
-2025-04-01,current,70.0,70.0
+2011-07-01,reference,0.59,0.59
+2011-08-01,reference,0.65,0.626
+2011-09-01,reference,0.79,0.784
+2011-10-01,reference,0.73,0.707
+2011-11-01,reference,0.67,0.675
+2011-12-01,reference,0.63,0.65
 ```
 <!-- /output -->
 
-![Monthly age quantiles, mean, and median for both samples.](../assets/plots/monthly-age.png)
+![Actual monthly humidity quantiles, median, and mean in recorded bike-sharing observations.](../assets/plots/monthly-humidity.png)
 
-This returns a Polars DataFrame. By default the chart shows 5–95% and 25–75%
-bands, median, and mean. Pass `NumericalFeatureDistributionConfig` through
-`config` to choose quantile bands or hide curves. Summaries are unweighted;
-null/non-finite feature values are omitted. The timestamp column must have a
-Polars Date or Datetime dtype.
+The Polars result contains one row per recorded month and sample. By default
+the plot shows 5–95% and 25–75% bands, median, and mean. Pass
+`NumericalFeatureDistributionConfig` to choose bands or hide curves.
+Summaries are unweighted; null/non-finite feature values are omitted.
 
 ## Feature importance
+
+Use the fitted bike model's native feature importance values. These summarize
+the actual model and are not manually assigned scores.
 
 <!-- example: plots-feature-importance -->
 ```python
 from ml_toolkit.plots import explainability
 
 importance_table = explainability.feature_importance(
-    ["age", "region"],
-    np.array([0.7, 0.3]),
+    list(bikes.importance),
+    np.array(list(bikes.importance.values()), dtype=float),
     output / "feature-importance.png",
-    max_features_display=2,
+    max_features_display=11,
     figure=figure,
 )
-print(importance_table.to_string(index=False))
+print(importance_table.head(6).round(3).to_string(index=False))
 ```
 
 <!-- output: plots-feature-importance -->
 ```text
-feature  importance
-    age         0.7
- region         0.3
+               feature  importance
+                  hour      62.508
+           working_day      11.967
+feels_like_temperature      10.730
+           temperature       5.855
+                 month       3.029
+              humidity       1.545
 ```
 <!-- /output -->
 
-![Supplied feature importance values in descending order.](../assets/plots/feature-importance.png)
+![Actual fitted bike model importance across eleven measured weather and calendar covariates.](../assets/plots/feature-importance.png)
 
-Supply importance values from your model or calculation. The pandas result has
-`feature` and `importance` columns in descending order, limited to the displayed
-features. No fitted backend is required for this function.
+The pandas result has `feature` and `importance` columns, sorted and limited to
+the displayed features. The plotting function itself does not require a model;
+you supply its importance values.
 
 ## Plot SHAP explanations
 
-Install the optional `shap` extra. This complete example fits a small native
-CatBoost regressor to age and tenure effects, so its contributions are visible.
-For an existing toolkit adapter, pass `model.native_model` and your own Polars
-features instead. The shared `output` and `figure` above control the saved files.
+Install the optional `shap` extra. Explain 600 genuine held-out bike hours
+with the same model used for the regression plots; no synthetic targets or
+separately invented model are involved.
 
 <!-- example: plots-shap-importance -->
 ```python
-from catboost import CatBoostRegressor
-
 from ml_toolkit.config import ShapConfig
 from ml_toolkit.explainability import calculate_shap_values
-from ml_toolkit.plots import explainability
 
-shap_features = pl.DataFrame(
-    {"age": list(range(20, 44)), "tenure": [i % 6 for i in range(24)]}
+shap_config = ShapConfig(max_samples=600, max_display=11, seed=42)
+explanation = calculate_shap_values(
+    bikes.native_model, bikes.shap_features, config=shap_config
 )
-shap_target = 0.5 * shap_features["age"] + 2.0 * shap_features["tenure"]
-shap_model = CatBoostRegressor(
-    iterations=40,
-    depth=3,
-    random_seed=42,
-    thread_count=2,
-    verbose=False,
-    allow_writing_files=False,
-).fit(shap_features.to_pandas(), shap_target.to_numpy())
-shap_config = ShapConfig(max_samples=24, max_display=2, seed=42)
-explanation = calculate_shap_values(shap_model, shap_features, config=shap_config)
 explainability.shap_importance(
     explanation, output / "shap-importance.png", config=shap_config, figure=figure
 )
+print(explanation.values.shape)
 ```
 
-![Mean absolute SHAP contributions.](../assets/plots/shap-importance.png)
+<!-- output: plots-shap-importance -->
+```text
+(600, 11)
+```
+<!-- /output -->
+
+![Mean absolute SHAP contributions over six hundred real held-out bike hours.](../assets/plots/shap-importance.png)
 
 <!-- example: plots-shap-beeswarm -->
 ```python
@@ -462,24 +571,22 @@ explainability.shap_beeswarm(
 )
 ```
 
-![Per-row SHAP contributions by feature.](../assets/plots/shap-beeswarm.png)
+![Distribution of per-hour SHAP contributions for the fitted bike rental model.](../assets/plots/shap-beeswarm.png)
 
-<!-- example: plots-shap-age -->
+<!-- example: plots-shap-temperature -->
 ```python
 explainability.shap_dependence(
-    explanation, "age", output / "shap-age.png", figure=figure
+    explanation, "temperature", output / "shap-temperature.png", figure=figure
 )
 ```
 
-![Age contribution against age, colored by feature interactions.](../assets/plots/shap-age.png)
+![Temperature contributions against observed normalized temperature, colored by model interactions.](../assets/plots/shap-temperature.png)
 
-All three plotting functions return `None`. `calculate_shap_values` samples at
-most `max_samples` rows and returns a single-output `shap.Explanation`. Bar
-plots summarize mean absolute contributions; beeswarms show their spread;
-dependence plots show one feature's contribution against its value. The
-contributions explain the native raw score, which can differ from final
-probabilities or log-link predictions. Sampling happens during calculation;
-the plotting `config` controls only the maximum displayed feature count.
+All three plotting functions return `None`. SHAP bars summarize mean absolute
+contributions; beeswarms show their per-hour spread; dependence plots display
+one feature's effect and interactions. Contributions explain the native raw
+prediction scale. Sampling occurs during calculation; plotting `config`
+controls the feature display limit.
 
 ## Regenerate the gallery
 
@@ -489,12 +596,16 @@ From a source checkout with the `shap` extra installed, run:
 python -m examples.render_plots
 ```
 
-This executes the documented recipes, refreshes their captured output and the
-17 PNGs in `docs/assets/plots`, and checks the returned summaries and figure
-cleanup. Use `--check` to verify captured output and render temporary figures
-without changing the checked-in gallery. To refresh captured console output
-across all documentation pages and regenerate this gallery together, run
-`python -m examples.render_examples`; add `--check` to verify everything.
+The first run downloads and caches UCI Bike Sharing and the LINQS Cora archive;
+later runs reuse both caches.
+This command executes the documented recipes, refreshes their captured output
+and all 17 PNGs, and verifies sample sizes, populated bins, numerical summaries,
+and figure cleanup. `--check` verifies output and renders temporary figures
+without changing the checked-in gallery. The integration test skips when the
+public-data cache is absent, so running tests never downloads it implicitly.
+
+To refresh captured output across all documentation pages and this gallery
+together, run `python -m examples.render_examples`; add `--check` to verify.
 
 ## API reference
 
