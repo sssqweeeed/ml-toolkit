@@ -14,3 +14,8 @@ AGENTS.md
 .codex/
 .codegraph/
 .vscode/
+.agents/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
