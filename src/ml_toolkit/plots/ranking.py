@@ -26,6 +26,11 @@ def gains_curve(
         Optional export dimensions, DPI, and format. None preserves native
         dimensions and the requested path format.
 
+    Returns
+    -------
+    None
+        The figure is saved to disk; no table is returned.
+
     Notes
     -----
     Creates parent directories for save_fig and closes the figure after saving.
@@ -89,6 +94,11 @@ def lift_curve(
     figure : FigureConfig or None, default None
         Optional export dimensions, DPI, and format. None preserves native
         dimensions and the requested path format.
+
+    Returns
+    -------
+    None
+        The figure is saved to disk; no table is returned.
 
     Notes
     -----

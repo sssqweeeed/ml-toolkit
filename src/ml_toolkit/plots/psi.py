@@ -27,6 +27,11 @@ def feature_psi_plot(
         Optional export dimensions, DPI, and format. None preserves native
         dimensions and the requested path format.
 
+    Returns
+    -------
+    None
+        The figure is saved to disk; no table is returned.
+
     Raises
     ------
     ValueError
@@ -81,6 +86,11 @@ def monthly_psi_level_distribution(
     figure : FigureConfig or None, default None
         Optional export dimensions, DPI, and format. None preserves native
         dimensions and the requested path format.
+
+    Returns
+    -------
+    None
+        The figure is saved to disk; no table is returned.
 
     Raises
     ------

@@ -10,11 +10,12 @@ then run the same training workflow across tasks.
 
 - [Getting started](getting-started.md): install the package and train a model
   on a complete, reproducible example.
-- [Configuration by task](configuration.md): expanded recipes for classification,
+- [Configuration by task](configuration.md): shared settings and task recipes for classification,
   regression, frequency, severity, and positive-unlabeled learning.
 - [Data](api/data.md): prepare a pool and slice features without losing row
   alignment.
-- [Training](api/training.md): run a holdout experiment and understand the result.
+- [Training](api/training.md): run a holdout experiment, add selection and tuning,
+  and understand the result.
 - [Models](api/models.md): choose an adapter, fit it, and predict new rows.
 
 Each usage page starts with a short example and explains its result. The API
@@ -35,7 +36,8 @@ and configures the MLflow tracking URI and experiment.
 
 - [Metrics](api/metrics.md): classification, frequency, severity, PU, and ranking.
 - [PSI and feature levels](api/psi.md): reference-fitted bins and drift analysis.
-- [Plots](api/plots.md): observed/fitted, ranking, calibration, and monitoring.
+- [Plots](api/plots.md): runnable examples for every chart, including
+  observed/fitted, ranking, calibration, and monitoring.
 - [Inflation](api/inflation.md): constant-rate and monthly-index strategies.
 - [Explainability and tracking](api/tracking.md): SHAP helpers and table logging.
 

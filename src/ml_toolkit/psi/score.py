@@ -15,10 +15,11 @@ def psi(
     Parameters
     ----------
     reference : polars.Series
-        Nonempty Categorical Series representing the reference levels.
+        Nonempty Series of discrete reference levels, compared after casting
+        to String. Bin continuous numerical values before calling.
     current : polars.Series
-        Nonempty Categorical Series representing the current levels; sample
-        sizes may differ.
+        Nonempty Series of discrete current levels, compared after casting to
+        String; sample sizes may differ. Null is counted as a separate level.
     epsilon : float, default 1e-6
         Minimum share strictly between zero and one used to avoid logarithms of
         zero.
@@ -31,8 +32,6 @@ def psi(
 
     Raises
     ------
-    TypeError
-        Either input is not a Categorical Polars Series.
     ValueError
         Either sample is empty or epsilon is invalid.
 

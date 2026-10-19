@@ -94,7 +94,23 @@ class Pool:
         return len(self.X)
 
     def take(self, indices: Sequence[int] | IntArray) -> Pool:
-        """Return aligned rows at positional indices, in the requested order."""
+        """Return aligned rows at positional indices, in the requested order.
+
+        Parameters
+        ----------
+        indices : sequence of int or IntArray
+            Row positions. Repeated positions are preserved.
+
+        Returns
+        -------
+        Pool
+            New pool with every row field sliced together.
+
+        Raises
+        ------
+        ValueError
+            The requested selection is empty.
+        """
         index = np.asarray(indices, dtype=np.int64)
         return replace(
             self,
@@ -109,7 +125,23 @@ class Pool:
         )
 
     def select_features(self, feature_names: Sequence[str]) -> Pool:
-        """Return requested columns with both feature lists filtered to match."""
+        """Return requested columns with both feature lists filtered to match.
+
+        Parameters
+        ----------
+        feature_names : sequence of str
+            Nonempty selection of existing columns, in the desired order.
+
+        Returns
+        -------
+        Pool
+            New pool retaining all row metadata and matching feature lists.
+
+        Raises
+        ------
+        ValueError
+            The selection is empty or a requested feature is missing.
+        """
         names = list(feature_names)
         if not names:
             raise ValueError("At least one feature must be selected")
@@ -126,7 +158,24 @@ class Pool:
         )
 
     def with_target(self, target: pl.Series | FloatArray) -> Pool:
-        """Replace the target; NumPy values retain the existing target name."""
+        """Return a pool with a replacement target and unchanged row metadata.
+
+        Parameters
+        ----------
+        target : polars.Series or FloatArray of shape (n_rows,)
+            Replacement values aligned with the existing rows. NumPy values
+            retain the existing target name.
+
+        Returns
+        -------
+        Pool
+            New pool with the replacement target.
+
+        Raises
+        ------
+        ValueError
+            The target does not contain exactly one value per row.
+        """
         if isinstance(target, pl.Series):
             y = target
         else:
@@ -144,6 +193,21 @@ class Pool:
         Oversized limits return all rows. Null categorical values become
         ``"unknown"`` and categorical columns are cast to strings. Row order is
         preserved so serving examples stay aligned with timestamp metadata.
+
+        Parameters
+        ----------
+        n_rows : int or None, default None
+            Nonnegative row limit; None includes all rows.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Feature columns in their existing order, without row metadata.
+
+        Raises
+        ------
+        ValueError
+            n_rows is negative.
         """
         if n_rows is not None and n_rows < 0:
             raise ValueError("n_rows must be nonnegative")
@@ -156,7 +220,25 @@ class Pool:
         return frame.to_pandas()
 
     def to_catboost(self, baseline: float | FloatArray | None = None) -> catboost.Pool:
-        """Convert aligned data with an optional scalar or per-row baseline."""
+        """Convert aligned data with an optional scalar or per-row baseline.
+
+        Parameters
+        ----------
+        baseline : float, FloatArray of shape (n_rows,), or None, default None
+            Initial raw model score for each row. A scalar is broadcast; None
+            lets CatBoost choose its normal initialization.
+
+        Returns
+        -------
+        catboost.Pool
+            Native pool with features, targets, weights, categorical feature
+            names, millisecond timestamps, and the optional baseline.
+
+        Raises
+        ------
+        ValueError
+            A per-row baseline has the wrong number of values.
+        """
         baseline_values = None
         if baseline is not None:
             if isinstance(baseline, float):
@@ -180,15 +262,6 @@ class Pool:
 
 
 def validate_object_ids(object_id: pl.Series, n_rows: int) -> None:
-    """Check ID alignment, dtype and null values.
-
-    Parameters
-    ----------
-    object_id : polars.Series
-        String or integer IDs; repeated values are allowed.
-    n_rows : int
-        Required number of IDs.
-    """
     if len(object_id) != n_rows:
         raise ValueError("object_id must have equal lengths with data rows")
     if object_id.dtype != pl.String and not object_id.dtype.is_integer():
@@ -198,18 +271,6 @@ def validate_object_ids(object_id: pl.Series, n_rows: int) -> None:
 
 
 def validate_training_data(data: TrainingData) -> None:
-    """Check the data invariants required by chronological training.
-
-    Parameters
-    ----------
-    data : TrainingData
-        Aligned, nonempty observations in ascending time order.
-
-    Raises
-    ------
-    ValueError
-        Rows, dates, targets, weights or optional metadata are invalid.
-    """
     size = len(data)
     series = [data.y, data.time, data.weight]
     if data.business_type is not None:

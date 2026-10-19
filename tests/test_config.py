@@ -146,27 +146,54 @@ def test_config_docstrings_describe_every_public_field():
             assert re.search(rf"^{item.name} :", doc, re.MULTILINE), (name, item.name)
 
 
-def test_markdown_has_one_executable_fully_expanded_recipe_per_task():
-    document = Path(__file__).resolve().parents[1] / "docs/configuration.md"
-    blocks = re.findall(r"```python\n(.*?)\n```", document.read_text(), re.DOTALL)
+@pytest.mark.parametrize(
+    "task",
+    [
+        "Binary classification",
+        "Regression",
+        "Frequency",
+        "Severity",
+        "Positive–unlabeled classification",
+    ],
+)
+def test_documented_task_recipes_train_and_evaluate(task, tmp_path, monkeypatch):
+    docs = Path(__file__).resolve().parents[1] / "docs"
+    document = (docs / "configuration.md").read_text()
+    sections = dict(
+        re.findall(
+            r"^## ([^\n]+)\n(.*?)(?=^## |\Z)", document, re.MULTILINE | re.DOTALL
+        )
+    )
     namespace = {}
-    exec(blocks[0], namespace)
-    recipes = blocks[1:6]
-    assert len(recipes) == 5
-    import ast
+    data_block = re.findall(
+        r"```python\n(.*?)\n```", (docs / "api/data.md").read_text(), re.DOTALL
+    )[0]
+    exec(data_block, namespace)
+    if task in {"Binary classification", "Positive–unlabeled classification"}:
+        data = namespace["data"]
+        namespace["data"] = data.with_target((data.y > 0).cast(pl.Float64))
+    for section in ["Imports and shared behavior", task]:
+        for block in re.findall(r"```python\n(.*?)\n```", sections[section], re.DOTALL):
+            exec(block, namespace)
 
-    for block in recipes:
-        tree = ast.parse(block)
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Call):
-                cls = namespace[node.func.id]
-                assert {kw.arg for kw in node.keywords} == {
-                    f.name for f in fields(cls)
-                }, cls
-        exec(block, namespace)
-    assert namespace["pu_classification_config"].feature_selection.min_features == 10
-    assert namespace["severity_config"].reporting.diagnostics.plots.gains
-    assert not namespace["regression_config"].reporting.diagnostics.plots.gains
+    monkeypatch.chdir(tmp_path)
+    set_uri = mlflow.set_tracking_uri
+    monkeypatch.setattr(
+        mlflow, "set_tracking_uri", lambda uri: set_uri(f"sqlite:///{tmp_path}/mlflow.db")
+    )
+    run_block = re.findall(
+        r"```python\n(.*?)\n```", sections["Run the chosen recipe"], re.DOTALL
+    )[0]
+    exec(run_block, namespace)
+
+    result = namespace["result"]
+    assert len(result.validation.splits) == 3
+    assert result.validation.mean_metrics
+    assert result.test_metrics
+    assert all(np.isfinite(value) for value in result.test_metrics.values())
+    predictions = result.model.predict_pool(namespace["data"])
+    assert predictions.shape == (24,)
+    assert np.isfinite(predictions).all()
 
 
 def test_cv_honors_gap_and_row_window_sizes():

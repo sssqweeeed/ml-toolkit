@@ -1,8 +1,9 @@
 # Models
 
-Adapters give training code a common interface for fitting, prediction, feature
-importance, and MLflow packaging. You can fit an adapter directly, or pass its
-class as `model_factory` to `train_model`, which creates fresh instances.
+CatBoost adapters share fitting, prediction, feature importance, and MLflow
+packaging operations. Fit an adapter directly, or pass its class as
+`model_factory` to `train_model`, which creates fresh instances.
+The optional LightGBM wrapper packages an already fitted native regressor.
 
 ## Choose an adapter
 
@@ -52,16 +53,208 @@ operations such as [SHAP contributions](tracking.md#explain-a-fitted-model).
 For binary classification, `predict_pool` returns positive-class probabilities;
 use `predict_labels_pool` for labels at the adapter's decision threshold.
 
+```python
+from ml_toolkit.models import CatBoostClassificationModel
+
+binary = data.with_target((data.y > 0).cast(pl.Float64))
+binary_split = split_holdout(binary, HoldoutConfig(val_size=0.25))
+classifier = CatBoostClassificationModel(
+    {
+        "iterations": 20,
+        "depth": 2,
+        "loss_function": "Logloss",
+        "random_seed": 42,
+        "thread_count": 2,
+        "verbose": False,
+        "allow_writing_files": False,
+    }
+).fit(binary_split.train, binary_split.val)
+probabilities = classifier.predict_frame(future)
+labels = classifier.predict_labels(future)
+print(probabilities.shape, labels.shape)  # (2,) (2,)
+```
+
+Without an explicit `decision_threshold`, validation chooses the classifier's
+cutoff using unweighted F1. `classifier.threshold` exposes that fitted cutoff.
+Positive-unlabeled training uses `CatBoostPUClassificationModel` with an
+explicit population prior; see its constructor constraints below. For monetary
+targets across dates, follow the [inflation composition example](inflation.md).
+
+## Log and reload for serving
+
+Continue with the fitted regression `model`, `split`, and `future` above.
+Configure MLflow before logging and keep the returned model URI to load later.
+
+```python
+import mlflow
+import numpy as np
+
+mlflow.set_tracking_uri("sqlite:///mlflow.db")
+mlflow.set_experiment("ml-toolkit-model-examples")
+with mlflow.start_run(run_name="direct-regression"):
+    info = model.log(split.train)
+
+served = mlflow.pyfunc.load_model(info.model_uri)
+served_predictions = served.predict(future.to_pandas())
+np.testing.assert_allclose(served_predictions, model.predict_frame(future))
+```
+
+Logging writes native model artifacts, a serving example, and inference
+dependencies. The loaded model's `predict` accepts a pandas frame; call
+`predict_frame` or `predict_pool` on local adapters. `TrackingConfig` controls
+artifact naming, registration, and the example size.
+
+## Optional LightGBM integration
+
+Install the `lightgbm` extra. Fit LightGBM with its own training API, then wrap
+the fitted estimator for logging and inference. `LightGBMWrapper` is not a
+`train_model` factory. Continue with `data` from the data example:
+
+```python
+import lightgbm as lgb
+import mlflow
+import numpy as np
+
+from ml_toolkit.models.lightgbm import LightGBMWrapper
+
+native = lgb.LGBMRegressor(
+    n_estimators=10,
+    min_child_samples=2,
+    random_state=42,
+    n_jobs=2,
+    verbosity=-1,
+)
+features = data.to_model_input()
+features["region"] = features["region"].astype("category")
+native.fit(features, data.y.to_numpy(), sample_weight=data.weight.to_numpy())
+wrapper = LightGBMWrapper(
+    native,
+    numerical_features=data.numerical_features,
+    cat_features=data.cat_features,
+)
+predictions = wrapper.predict(None, features)
+
+mlflow.set_tracking_uri("sqlite:///mlflow.db")
+mlflow.set_experiment("ml-toolkit-model-examples")
+with mlflow.start_run(run_name="lightgbm-regression"):
+    lightgbm_info = wrapper.log(data)
+
+loaded = mlflow.pyfunc.load_model(lightgbm_info.model_uri)
+serving_input = data.to_model_input()
+np.testing.assert_allclose(loaded.predict(serving_input), predictions)
+```
+
+Numerical and categorical feature names must partition the native model's
+features exactly. The wrapper restores feature order and converts configured
+categorical columns to pandas categories before prediction.
+Pass ordinary string columns to the loaded MLflow model; its saved input
+signature validates them before the wrapper performs categorical conversion.
+
 ## API reference
 
 Import the CatBoost adapters, `InflationAdjustedModel`, and `Model` from
 `ml_toolkit.models`.
 
-::: ml_toolkit.models
+::: ml_toolkit.models.CatBoostRegressionModel
+    options:
+      members:
+        - fit
+        - predict_frame
+        - predict_pool
+        - predict
+        - log
+        - native_model
+        - best_iteration
+        - feature_names
+        - cat_features
+        - numerical_features
+        - baseline
+        - feature_importances
+        - get_refit_params
 
-### Optional LightGBM integration
+::: ml_toolkit.models.CatBoostLogLinkRegressionModel
+    options:
+      inherited_members: true
+      members:
+        - fit
+        - predict_frame
+        - predict_pool
+        - predict
+        - log
+        - baseline
 
-Install the `lightgbm` extra and import `LightGBMWrapper` from
-`ml_toolkit.models.lightgbm`.
+::: ml_toolkit.models.CatBoostClassificationModel
+    options:
+      members:
+        - fit
+        - predict_frame
+        - predict_pool
+        - predict_labels
+        - predict_labels_pool
+        - predict
+        - log
+        - threshold
+        - validation_f1
+        - native_model
+        - best_iteration
+        - feature_names
+        - cat_features
+        - numerical_features
+        - baseline
+        - feature_importances
+        - get_refit_params
+
+::: ml_toolkit.models.CatBoostPUClassificationModel
+    options:
+      inherited_members: true
+      members:
+        - fit
+        - predict_frame
+        - predict_pool
+        - predict_labels
+        - predict_labels_pool
+        - predict
+        - log
+        - threshold
+        - pu_loss
+        - pu_prior
+
+::: ml_toolkit.models.InflationAdjustedModel
+    options:
+      members:
+        - fit
+        - predict_frame
+        - predict_pool
+        - predict
+        - log
+        - native_model
+        - best_iteration
+        - feature_importances
+        - get_refit_params
 
 ::: ml_toolkit.models.lightgbm.LightGBMWrapper
+    options:
+      members:
+        - predict
+        - log
+        - native_model
+        - feature_names
+
+### Implement a model factory
+
+Custom factories accept a `ModelParams` dictionary and return a fresh adapter
+implementing `Model`. Keep learned state in that adapter; the workflow creates
+new instances for selection, tuning, validation, and final fitting. A factory
+for `InflationAdjustedModel` must also create a fresh wrapped model and
+inflation strategy using the composition in the [inflation guide](inflation.md).
+
+::: ml_toolkit.models.Model
+    options:
+      members:
+        - fit
+        - predict_pool
+        - native_model
+        - best_iteration
+        - feature_importances
+        - get_refit_params
+        - log

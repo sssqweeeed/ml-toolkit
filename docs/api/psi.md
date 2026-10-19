@@ -44,8 +44,25 @@ would change the reference. For monthly distributions, provide aligned
 ## Reuse feature levels
 
 `LevelTransformer` exposes the same fit/transform operations when you need
-consistent bins for another report. Training's shared PSI and observed/fitted
-diagnostics use these levels too; see the
+consistent bins for another report. Continue with `reference` and `current`
+above to transform both samples and compare their existing levels:
+
+```python
+from ml_toolkit.feature_levels import LevelTransformer
+from ml_toolkit.psi import compare_psi
+
+levels = LevelTransformer(analysis.config.features, n_bins=2).fit(reference)
+reference_levels = levels.transform(reference)
+current_levels = levels.transform(current)
+assert levels.config is not None
+level_comparison = compare_psi(reference_levels, current_levels, levels.config)
+print(current_levels["region"].cast(pl.String).to_list())
+# ['north', 'south', '__UNSEEN__', '__UNSEEN__']
+```
+
+Configured columns become Polars `Categorical` columns; other columns retain
+their values and order. Reuse the fitted transformer for subsequent samples.
+Training's shared PSI and observed/fitted diagnostics use these levels too; see the
 [shared diagnostic recipe](../configuration.md#shared-psi-and-observedfitted-diagnostics).
 
 ## API reference
@@ -53,6 +70,8 @@ diagnostics use these levels too; see the
 Import PSI analysis from `ml_toolkit.psi`.
 
 ::: ml_toolkit.psi
+    options:
+      members: [PSIAnalysis, PSIConfig, PSIResult, compare_psi, psi]
 
 ### Shared feature levels
 

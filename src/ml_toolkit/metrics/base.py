@@ -7,7 +7,11 @@ from ..types import FloatArray
 
 
 class MetricResult(Protocol):
-    """Describe a result with named scalar scores."""
+    """Describe a metric result exporting named scalar scores through to_dict.
+
+    Custom results may be dataclasses or other objects implementing to_dict;
+    inheriting from this protocol is optional.
+    """
 
     def to_dict(self) -> dict[str, float]:
         """Return named scores for reporting and objective selection.
@@ -21,7 +25,12 @@ class MetricResult(Protocol):
 
 
 class Metric(Protocol):
-    """Describe a callable evaluating aligned targets, predictions and weights."""
+    """Describe a training metric accepting targets, predictions, and weights.
+
+    Implement the three positional arguments and return a MetricResult. The
+    training data boundary validates alignment and nonnegative weights; a
+    custom metric is responsible for its own mathematical domain constraints.
+    """
 
     def __call__(
         self, y: FloatArray, prediction: FloatArray, weight: FloatArray, /

@@ -99,7 +99,21 @@ def metrics_severity(
     Notes
     -----
     Use functools.partial to fix power when passing this function as a training
-    metric.
+    metric. Ranking scores use the same exposure weights as the error scores.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from functools import partial
+    >>> from ml_toolkit.metrics import metrics_severity
+    >>> gamma_metric = partial(metrics_severity, power=2.0)
+    >>> scores = gamma_metric(
+    ...     np.array([100.0, 200.0, 300.0]),
+    ...     np.array([110.0, 190.0, 300.0]),
+    ...     np.ones(3),
+    ... )
+    >>> round(scores.prediction_over_observed, 2)
+    1.0
     """
     observed = np.sum(y_target * exposure)
     predicted = np.sum(y_pred * exposure)

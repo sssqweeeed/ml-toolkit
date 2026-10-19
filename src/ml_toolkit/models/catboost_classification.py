@@ -66,8 +66,6 @@ def _pu_risks(
 
 
 class _PURiskMetric:
-    """Evaluate PU risk over the complete CatBoost training or eval pool."""
-
     def __init__(self, prior: float, *, non_negative: bool) -> None:
         self.prior = prior
         self.non_negative = non_negative
@@ -127,8 +125,6 @@ class NNPUMetric(_PURiskMetric):
 
 
 class _PULogisticObjective:
-    """Per-row derivatives for the current uPU or nnPU gradient branch."""
-
     def __init__(
         self,
         prior: float,

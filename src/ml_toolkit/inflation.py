@@ -10,18 +10,6 @@ from .types import FloatArray, IntArray
 
 
 class InflationConfig(TypedDict):
-    """Describe persisted inflation strategy parameters.
-
-    Attributes
-    ----------
-    strategy : str
-        Strategy class name.
-    annual_rate : float, optional
-        Annual rate for ConstantRateInflation.
-    monthly_index : dict[str, float], optional
-        Month-to-index anchors for ManualInflation, keyed by YYYY-MM.
-    """
-
     strategy: str
     annual_rate: NotRequired[float]
     monthly_index: NotRequired[dict[str, float]]
@@ -167,14 +155,6 @@ class InflationAdjuster(ABC):
         return values * factor
 
     def to_config(self) -> InflationConfig:
-        """Return an audit-friendly representation for experiment artifacts.
-
-        Returns
-        -------
-        InflationConfig
-            Strategy name; subclasses can include parameters needed for
-            reconstruction.
-        """
         return {"strategy": type(self).__name__}
 
 
@@ -255,7 +235,6 @@ class ConstantRateInflation(InflationAdjuster):
         )
 
     def to_config(self) -> InflationConfig:
-        """Return the strategy name and annual_rate for reconstruction."""
         return {
             "strategy": type(self).__name__,
             "annual_rate": self.annual_rate,
@@ -273,8 +252,6 @@ class ManualInflation(InflationAdjuster):
 
     Raises
     ------
-    TypeError
-        An anchor key is not a datetime.date.
     ValueError
         Too few anchors are supplied, a month occurs twice, or an index value
         is nonpositive or non-finite.
@@ -377,7 +354,6 @@ class ManualInflation(InflationAdjuster):
         return to_index / from_index
 
     def to_config(self) -> InflationConfig:
-        """Return the strategy name and monthly anchors keyed by YYYY-MM."""
         return {
             "strategy": type(self).__name__,
             "monthly_index": {
@@ -449,26 +425,6 @@ class ManualInflation(InflationAdjuster):
 
 
 def inflation_from_config(config: InflationConfig) -> InflationAdjuster:
-    """Reconstruct a supported inflation strategy from its persisted state.
-
-    Parameters
-    ----------
-    config : InflationConfig
-        Configuration from to_config with strategy and either annual_rate or
-        monthly_index keyed by YYYY-MM.
-
-    Returns
-    -------
-    ConstantRateInflation or ManualInflation
-        Strategy reconstructed from the stored parameters.
-
-    Raises
-    ------
-    ValueError
-        The strategy is unsupported or its parameters are invalid.
-    KeyError
-        A required configuration key is missing.
-    """
     strategy = config["strategy"]
     if strategy == "ConstantRateInflation":
         if "annual_rate" not in config:

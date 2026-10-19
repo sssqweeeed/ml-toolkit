@@ -23,8 +23,8 @@ class LevelTransformer:
 
     Parameters
     ----------
-    features : tuple[FeatureLevelSpec, ...]
-        Feature definitions with unique names.
+    features : sequence of FeatureLevelSpec
+        Feature definitions with unique names; stored as a tuple.
     n_bins : int, default 10
         Positive requested number of numerical intervals.
 
@@ -60,7 +60,7 @@ class LevelTransformer:
         Parameters
         ----------
         reference : polars.DataFrame
-            Nonempty frame containing every configured feature. Regular numerical
+            Frame containing every configured feature. Regular numerical
             values must be finite and castable to Float64.
 
         Returns
@@ -72,8 +72,13 @@ class LevelTransformer:
         Raises
         ------
         ValueError
-            Reference data is empty, features are missing, regular numerical values
+            Features are missing, regular numerical values
             are non-finite, or categories use reserved level names.
+
+        Notes
+        -----
+        An empty frame must still supply typed feature columns. Features with
+        no regular reference values learn no categories or numerical cut points.
         """
         names = [feature.name for feature in self.features]
         missing = sorted(set(names) - set(reference.columns))
@@ -183,7 +188,7 @@ class LevelTransformer:
         Parameters
         ----------
         data : polars.DataFrame
-            Nonempty frame containing the configured features.
+            Frame containing the configured features; may have zero rows.
 
         Returns
         -------
@@ -196,7 +201,7 @@ class LevelTransformer:
         RuntimeError
             The transformer has not been fitted.
         ValueError
-            Data is empty or configured features are missing.
+            Configured features are missing.
 
         Notes
         -----

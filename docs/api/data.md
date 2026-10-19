@@ -57,10 +57,21 @@ IDs. `to_model_input()` produces a pandas feature frame for a backend or serving
 example, converting categorical columns to strings and filling missing
 categories with `"unknown"`.
 
+## Array types
+
+Numerical APIs use `FloatArray` for NumPy arrays with `float64` values and
+`IntArray` for arrays with `int64` values. Import either from `ml_toolkit.types`
+when annotating your own functions. Each API documents the expected shape;
+targets, predictions, and row weights normally contain one value per row.
+The shared `ModelParams` alias is a dictionary of backend parameter names to
+values, as shown in the [model example](models.md#fit-and-predict-directly).
+
 ## API reference
 
 Projects can also supply an object implementing the `TrainingData` protocol.
 
 ::: ml_toolkit.data.Pool
+    options:
+      members: [take, select_features, with_target, to_model_input, to_catboost]
 
 ::: ml_toolkit.training.TrainingData

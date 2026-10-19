@@ -45,22 +45,11 @@ def weights(values: ArrayLike | None, length: int) -> FloatArray:
 def save_figure(
     fig: Figure, path: str | Path, *, config: FigureConfig | None = None
 ) -> Path:
-    """Create parent directories, save a plot, and close its figure.
+    """Save and close a figure, returning the path after any format replacement.
 
-    Parameters
-    ----------
-    fig : matplotlib.figure.Figure
-        Figure to export; always closed, including when saving fails.
-    path : str or pathlib.Path
-        Output path. An explicit config replaces the suffix with its format.
-    config : FigureConfig or None, default None
-        Dimensions, DPI, and format. None preserves native dimensions and the
-        path's format, using Matplotlib's default resolution.
-
-    Returns
-    -------
-    pathlib.Path
-        Actual output path, including any configured suffix replacement.
+    Creates parent directories. An explicit config applies its size, DPI, and
+    format; None preserves native dimensions and uses the path's format.
+    The figure is closed even when saving fails.
     """
     path = Path(path)
     if config is not None:

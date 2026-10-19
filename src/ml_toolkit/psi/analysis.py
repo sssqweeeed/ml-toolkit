@@ -86,7 +86,8 @@ class PSIAnalysis:
         Parameters
         ----------
         reference : polars.DataFrame
-            Nonempty reference frame containing all configured features.
+            Reference frame containing all configured features. An empty typed
+            frame can be fitted, but comparison requires a nonempty reference.
         time : polars.Series, str, or None, default None
             Optional non-null Date/Datetime Series aligned with rows, or the name
             of a timestamp column. Provide time for both samples or neither.
@@ -99,7 +100,7 @@ class PSIAnalysis:
         Raises
         ------
         ValueError
-            Reference data is empty, features are missing, or supplied timestamps
+            Features are missing, or supplied timestamps
             are null or misaligned.
         TypeError
             Supplied timestamps are not Date or Datetime.

@@ -1,3 +1,5 @@
+"""Observed-versus-fitted diagnostics for continuous targets."""
+
 from __future__ import annotations
 
 from collections.abc import Sequence
@@ -13,8 +15,6 @@ from numpy.typing import ArrayLike
 from ..config import FigureConfig
 from ..types import FloatArray
 from .utils import PlotError, numeric_vector, same_length, save_figure, weights
-
-"""Observed-versus-fitted diagnostics for continuous targets."""
 
 
 def _aggregate(
@@ -291,14 +291,14 @@ def monthly_observed_fitted(
 
     Parameters
     ----------
-    reference_timestamp : array-like
-        Datetime-like values aligned with reference observations.
+    reference_timestamp : Sequence[date | datetime]
+        Dates or datetimes aligned with reference observations.
     reference_observed : array-like
         Nonempty finite reference targets.
     reference_fitted : array-like
         Finite reference predictions aligned with targets.
-    current_timestamp : array-like
-        Datetime-like values aligned with current observations.
+    current_timestamp : Sequence[date | datetime]
+        Dates or datetimes aligned with current observations.
     current_observed : array-like
         Nonempty finite current targets.
     current_fitted : array-like
@@ -311,9 +311,9 @@ def monthly_observed_fitted(
     current_weight : array-like or None, default None
         Finite, nonnegative current weights with positive total; None uses
         equal weights.
-    reference_group : array-like or None, default None
+    reference_group : polars.Series or None, default None
         Optional reference group labels; None groups all rows as all.
-    current_group : array-like or None, default None
+    current_group : polars.Series or None, default None
         Optional current group labels; None groups all rows as all.
 
     figure : FigureConfig or None, default None

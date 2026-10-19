@@ -1,489 +1,278 @@
 # Configuration by task
 
-Configurations are immutable, keyword-only dataclasses with validated value
-ranges. Use `dataclasses.replace` for changes; data, model factories, metrics,
-rankers and Optuna spaces are explicit function arguments.
-
-Start with the [small configuration example](api/configuration.md#start-with-a-small-configuration)
-if you only need validation and a test tail. The recipes below expand every
-constructor field so you can adapt a complete setup.
+Configurations are immutable, keyword-only dataclasses. Start with shared
+settings, then choose a model, metric, and diagnostic family for your target.
+Use `dataclasses.replace` to change settings without modifying the original.
+The [configuration reference](api/configuration.md) lists every field and default.
 
 ## Choose a recipe
 
-| Task | Start here |
-| --- | --- |
-| Confirmed binary labels | [Binary classification](#binary-classification) |
-| General numeric targets, including signed values | [Regression](#regression) |
-| Nonnegative frequency with Poisson predictions | [Frequency](#frequency) |
-| Severity with Tweedie predictions | [Severity](#severity) |
-| Known positives mixed with unlabeled observations | [Positive-unlabeled classification](#positiveunlabeled-classification) |
-
-Run the imports below, then copy the recipe for your task. Each recipe defines
-a `TrainingConfig` to pass as `config=` to `train_model`. To enable feature
-selection, also pass a ranker such as `importance_ranker`; for tuning, provide
-your Optuna `param_space` callback. The [training guide](api/training.md) shows
-how the configuration fits into a run.
+| Task | Model | Metric | Recipe |
+| --- | --- | --- | --- |
+| Confirmed binary labels | `CatBoostClassificationModel` | `metrics_classification` | [Binary classification](#binary-classification) |
+| General numeric targets, including signed values | `CatBoostRegressionModel` | Custom MAE | [Regression](#regression) |
+| Nonnegative frequency targets | `CatBoostLogLinkRegressionModel` | `metrics_frequency` | [Frequency](#frequency) |
+| Nonnegative severity targets | `CatBoostLogLinkRegressionModel` | Tweedie metric with fixed power | [Severity](#severity) |
+| Known positives mixed with unlabeled observations | `CatBoostPUClassificationModel` | `PUMetric` | [Positive-unlabeled classification](#positiveunlabeled-classification) |
 
 ## Imports and shared behavior
 
+Run this block first, then choose one task block below. Each task defines
+`config`, `model_factory`, `params`, and `metric` for the same training call.
+
 ```python
+from dataclasses import replace
+
 from ml_toolkit.config import (
-    HoldoutConfig,
-    TimeSeriesCVConfig,
-    RFEFeatureSelectionConfig,
-    TuningConfig,
-    TrainingConfig,
-    TrackingConfig,
-    FeatureLevelSpec,
-    FigureConfig,
-    NumericalFeatureDistributionConfig,
-    ShapConfig,
-    CommonPlotsConfig,
-    ClassificationPlotsConfig,
-    RegressionPlotsConfig,
-    PUPlotsConfig,
     ClassificationDiagnosticsConfig,
-    RegressionDiagnosticsConfig,
+    ClassificationPlotsConfig,
+    CommonPlotsConfig,
+    FeatureLevelSpec,
+    HoldoutConfig,
     PUDiagnosticsConfig,
-    PostFitEvaluationConfig,
+    PUPlotsConfig,
+    RegressionDiagnosticsConfig,
+    RegressionPlotsConfig,
     ReportingConfig,
+    TimeSeriesCVConfig,
+    TrackingConfig,
+    TrainingConfig,
 )
+from ml_toolkit.metrics import (
+    MetricScores,
+    MetricsSeverity,
+    PUMetric,
+    metrics_classification,
+    metrics_frequency,
+    metrics_severity,
+)
+from ml_toolkit.models import (
+    CatBoostClassificationModel,
+    CatBoostLogLinkRegressionModel,
+    CatBoostPUClassificationModel,
+    CatBoostRegressionModel,
+)
+from ml_toolkit.types import FloatArray
+
+base_config = TrainingConfig(
+    validation=TimeSeriesCVConfig(n_splits=3),
+    test_size=0.2,
+    tracking=TrackingConfig(log_final_model=False),
+)
+base_params = {
+    "iterations": 20,
+    "depth": 2,
+    "random_seed": 42,
+    "thread_count": 2,
+    "verbose": False,
+    "allow_writing_files": False,
+}
+common = CommonPlotsConfig()
 ```
 
-- `validation` is `HoldoutConfig` or `TimeSeriesCVConfig`. Both execute the same
-  complete train/validation operation, including optional feature selection.
-- Integers specify row counts; floats specify fractions strictly between 0 and 1,
-  rounded up. Fractions are relative to the data at that split: original rows for
-  test and retained non-test rows for validation. RFE uses the external train/val.
-- `test_size=None` disables test evaluation. Otherwise the last rows are reserved
-  before any training or optimization, and evaluated only after final fitting.
-  Set `test_size="2025-01-01"` or pass a `datetime.date` to start test on that
-  calendar day, inclusive, in the timezone of `data.time`. Strings must use
-  `YYYY-MM-DD` format and are normalized to dates during configuration creation.
-  Missing days use the next available observation; both partitions must be
-  nonempty. Exact datetimes are not accepted.
-- Rows must be ordered by ascending `time`; there is no shuffle. `gap` and
-  `max_train_size` are row counts. Explicit diagnostic indices use original
-  one-based split numbers before `skip_splits`.
-- Every split performs RFE once on its explicit train/val with base parameters,
-  then fixes its features for its own Optuna study and post-tuning fit. Final
-  fitting uses the last split's features, parameters, iterations and threshold.
-- Each split has an independent Optuna study scoring only its own val; trial and
-  time budgets apply per study. One fit with winning parameters follows each
-  search. Mean validation metrics are reports, not optimization objectives.
-- `reporting.validation_splits` selects built-in validation diagnostics only.
-  Test uses the same diagnostic functions when enabled. Trials have no built-in
-  diagnostics; custom trial evaluation can be enabled through `post_fit.stages`.
-- Custom evaluation defaults to validation and final stages, with train/val/test
-  enabled where available. It needs aligned `object_id` and does not contribute
-  to optimization or validation averages. Images follow `write_artifacts`.
-- Model packaging defaults to final fit only. Registry names apply only to that
-  final model. Metrics and configuration artifacts are always logged.
-- Regression ranking plots default off for signed targets. Frequency and severity
-  recipes enable gains/lift and require nonnegative targets with positive totals.
-- `None` disables optional stages. `features=None` selects all eligible features;
-  `features=()` selects none. SHAP defaults off; enable it with `ShapConfig` and
-  install the `shap` extra for diagnostic explanations.
+These examples keep feature selection, tuning, SHAP, and model packaging off.
+Built-in diagnostics run on the last validation split and on test. Metrics and
+configuration are always logged to MLflow. Set
+`TrackingConfig(log_final_model=True)` to also package the final model.
+
+- Rows must have ascending timestamps; splits never shuffle. Integers specify
+  row counts, and fractions round upward. Test fractions use the original data;
+  validation fractions use the retained non-test rows. `gap` and `max_train_size`
+  count rows.
+- Every validation split independently selects features and tunes parameters
+  when enabled. Final fitting uses the last split's features, parameters,
+  iteration budget, and classification threshold. It includes former validation
+  and gap rows, but excludes test.
+- `reporting.validation_splits` selects built-in validation reports only.
+  Explicit indices refer to original one-based splits before `skip_splits`.
+  Reports do not run during tuning trials.
+- Custom evaluation requires aligned `object_id`. Its default stages are
+  validation and final, with train/val/test where available. Its scores do not
+  enter optimization or validation averages.
 
 ## Binary classification
 
+Use a pool whose targets contain confirmed `0` and `1` labels. Include both
+classes in evaluated splits for finite ROC AUC; single-class splits return NaN.
+
 ```python
-classification_config = TrainingConfig(
-    validation=TimeSeriesCVConfig(
-        n_splits=5,
-        val_size=None,
-        gap=0,
-        max_train_size=None,
-        skip_splits=0,
-    ),
-    test_size=0.2,
-    feature_selection=RFEFeatureSelectionConfig(
-        min_features=10,
-        metric='log_loss',
-        direction='minimize',
-        max_fits=6,
-        score_tolerance=0.0,
-        protected_features=(),
-    ),
-    tuning=TuningConfig(
-        metric='log_loss',
-        direction='minimize',
-        n_trials=50,
-        timeout_seconds=None,
-        seed=42,
-    ),
+classification_config = replace(
+    base_config,
     reporting=ReportingConfig(
         diagnostics=ClassificationDiagnosticsConfig(
-            plots=ClassificationPlotsConfig(
-                common=CommonPlotsConfig(
-                    figure=FigureConfig(
-                        figsize=None,
-                        dpi=150,
-                        format='png',
-                    ),
-                    features=None,
-                    psi=True,
-                    observed_fitted=True,
-                    n_bins=10,
-                    epsilon=1e-6,
-                    numerical_distributions=NumericalFeatureDistributionConfig(
-                        features=None,
-                        quantile_bands=((0.05, 0.95), (0.25, 0.75)),
-                        show_mean=True,
-                        show_median=True,
-                    ),
-                    shap=None,
-                ),
-                precision_recall=True,
-                f1_threshold=True,
-                calibration=True,
-                gains=True,
-                lift=True,
-                monthly_observed_fitted=True,
-                max_curve_points=1000,
-                calibration_bins=10,
-                histogram_bins=30,
-            ),
+            plots=ClassificationPlotsConfig(common=common),
         ),
-        validation_splits='last',
-        post_fit=PostFitEvaluationConfig(
-            stages=('validation', 'final'),
-            splits=('train', 'val', 'test'),
-            write_artifacts=True,
-        ),
-    ),
-    tracking=TrackingConfig(
-        log_trial_models=False,
-        log_validation_models=False,
-        log_final_model=True,
-        input_example_rows=5,
-        model_name='model',
-        registered_model_name=None,
-        conda_env=None,
     ),
 )
+config = classification_config
+model_factory = CatBoostClassificationModel
+params = {**base_params, "loss_function": "Logloss"}
+metric = metrics_classification
 ```
+
+The reports include precision-recall, F1, calibration, gains/lift, monthly means,
+and the shared feature diagnostics.
 
 ## Regression
 
+Ordinary regression supports signed targets. Define a three-argument metric
+returning named scores; this example uses exposure-weighted absolute error.
+
 ```python
-regression_config = TrainingConfig(
-    validation=TimeSeriesCVConfig(
-        n_splits=5,
-        val_size=None,
-        gap=0,
-        max_train_size=None,
-        skip_splits=0,
-    ),
-    test_size=0.2,
-    feature_selection=RFEFeatureSelectionConfig(
-        min_features=10,
-        metric='mae',
-        direction='minimize',
-        max_fits=6,
-        score_tolerance=0.0,
-        protected_features=(),
-    ),
-    tuning=TuningConfig(
-        metric='mae',
-        direction='minimize',
-        n_trials=50,
-        timeout_seconds=None,
-        seed=42,
-    ),
+def weighted_mae(
+    observed: FloatArray, prediction: FloatArray, weight: FloatArray
+) -> MetricScores:
+    return MetricScores(
+        {"mae": float((abs(observed - prediction) * weight).sum() / weight.sum())}
+    )
+
+
+regression_config = replace(
+    base_config,
     reporting=ReportingConfig(
         diagnostics=RegressionDiagnosticsConfig(
-            task='regression',
-            plots=RegressionPlotsConfig(
-                common=CommonPlotsConfig(
-                    figure=FigureConfig(
-                        figsize=None,
-                        dpi=150,
-                        format='png',
-                    ),
-                    features=None,
-                    psi=True,
-                    observed_fitted=True,
-                    n_bins=10,
-                    epsilon=1e-6,
-                    numerical_distributions=NumericalFeatureDistributionConfig(
-                        features=None,
-                        quantile_bands=((0.05, 0.95), (0.25, 0.75)),
-                        show_mean=True,
-                        show_median=True,
-                    ),
-                    shap=None,
-                ),
-                gains=False,
-                lift=False,
-                monthly_observed_fitted=True,
-            ),
+            plots=RegressionPlotsConfig(common=common),
         ),
-        validation_splits='last',
-        post_fit=PostFitEvaluationConfig(
-            stages=('validation', 'final'),
-            splits=('train', 'val', 'test'),
-            write_artifacts=True,
-        ),
-    ),
-    tracking=TrackingConfig(
-        log_trial_models=False,
-        log_validation_models=False,
-        log_final_model=True,
-        input_example_rows=5,
-        model_name='model',
-        registered_model_name=None,
-        conda_env=None,
     ),
 )
+config = regression_config
+model_factory = CatBoostRegressionModel
+params = {**base_params, "loss_function": "RMSE"}
+metric = weighted_mae
 ```
+
+Gains and lift stay off because they require nonnegative targets with a positive
+weighted total. Shared feature diagnostics and monthly observed/fitted remain on.
 
 ## Frequency
 
+Use nonnegative targets with a positive weighted total in every evaluated split.
+The log-link adapter fits a training-only baseline and returns positive rates.
+
 ```python
-frequency_config = TrainingConfig(
-    validation=TimeSeriesCVConfig(
-        n_splits=5,
-        val_size=None,
-        gap=0,
-        max_train_size=None,
-        skip_splits=0,
-    ),
-    test_size=0.2,
-    feature_selection=RFEFeatureSelectionConfig(
-        min_features=10,
-        metric='mean_poisson_deviance',
-        direction='minimize',
-        max_fits=6,
-        score_tolerance=0.0,
-        protected_features=(),
-    ),
-    tuning=TuningConfig(
-        metric='mean_poisson_deviance',
-        direction='minimize',
-        n_trials=50,
-        timeout_seconds=None,
-        seed=42,
-    ),
+frequency_config = replace(
+    base_config,
     reporting=ReportingConfig(
         diagnostics=RegressionDiagnosticsConfig(
-            task='frequency',
-            plots=RegressionPlotsConfig(
-                common=CommonPlotsConfig(
-                    figure=FigureConfig(
-                        figsize=None,
-                        dpi=150,
-                        format='png',
-                    ),
-                    features=None,
-                    psi=True,
-                    observed_fitted=True,
-                    n_bins=10,
-                    epsilon=1e-6,
-                    numerical_distributions=NumericalFeatureDistributionConfig(
-                        features=None,
-                        quantile_bands=((0.05, 0.95), (0.25, 0.75)),
-                        show_mean=True,
-                        show_median=True,
-                    ),
-                    shap=None,
-                ),
-                gains=True,
-                lift=True,
-                monthly_observed_fitted=True,
-            ),
+            task="frequency",
+            plots=RegressionPlotsConfig(common=common, gains=True, lift=True),
         ),
-        validation_splits='last',
-        post_fit=PostFitEvaluationConfig(
-            stages=('validation', 'final'),
-            splits=('train', 'val', 'test'),
-            write_artifacts=True,
-        ),
-    ),
-    tracking=TrackingConfig(
-        log_trial_models=False,
-        log_validation_models=False,
-        log_final_model=True,
-        input_example_rows=5,
-        model_name='model',
-        registered_model_name=None,
-        conda_env=None,
     ),
 )
+config = frequency_config
+model_factory = CatBoostLogLinkRegressionModel
+params = {**base_params, "loss_function": "Poisson"}
+metric = metrics_frequency
 ```
 
 ## Severity
 
+Use a Tweedie power consistent with the model loss and metric. Here `power=1.5`
+allows zero targets and requires positive predictions and positive weighted
+observed totals. Gamma deviance (`power=2`) requires strictly positive targets.
+
 ```python
-severity_config = TrainingConfig(
-    validation=TimeSeriesCVConfig(
-        n_splits=5,
-        val_size=None,
-        gap=0,
-        max_train_size=None,
-        skip_splits=0,
-    ),
-    test_size=0.2,
-    feature_selection=RFEFeatureSelectionConfig(
-        min_features=10,
-        metric='mean_tweedie_deviance',
-        direction='minimize',
-        max_fits=6,
-        score_tolerance=0.0,
-        protected_features=(),
-    ),
-    tuning=TuningConfig(
-        metric='mean_tweedie_deviance',
-        direction='minimize',
-        n_trials=50,
-        timeout_seconds=None,
-        seed=42,
-    ),
+def severity_metric(
+    observed: FloatArray, prediction: FloatArray, weight: FloatArray
+) -> MetricsSeverity:
+    return metrics_severity(observed, prediction, weight, power=1.5)
+
+
+severity_config = replace(
+    base_config,
     reporting=ReportingConfig(
         diagnostics=RegressionDiagnosticsConfig(
-            task='severity',
-            plots=RegressionPlotsConfig(
-                common=CommonPlotsConfig(
-                    figure=FigureConfig(
-                        figsize=None,
-                        dpi=150,
-                        format='png',
-                    ),
-                    features=None,
-                    psi=True,
-                    observed_fitted=True,
-                    n_bins=10,
-                    epsilon=1e-6,
-                    numerical_distributions=NumericalFeatureDistributionConfig(
-                        features=None,
-                        quantile_bands=((0.05, 0.95), (0.25, 0.75)),
-                        show_mean=True,
-                        show_median=True,
-                    ),
-                    shap=None,
-                ),
-                gains=True,
-                lift=True,
-                monthly_observed_fitted=True,
-            ),
+            task="severity",
+            plots=RegressionPlotsConfig(common=common, gains=True, lift=True),
         ),
-        validation_splits='last',
-        post_fit=PostFitEvaluationConfig(
-            stages=('validation', 'final'),
-            splits=('train', 'val', 'test'),
-            write_artifacts=True,
-        ),
-    ),
-    tracking=TrackingConfig(
-        log_trial_models=False,
-        log_validation_models=False,
-        log_final_model=True,
-        input_example_rows=5,
-        model_name='model',
-        registered_model_name=None,
-        conda_env=None,
     ),
 )
+config = severity_config
+model_factory = CatBoostLogLinkRegressionModel
+params = {**base_params, "loss_function": "Tweedie:variance_power=1.5"}
+metric = severity_metric
 ```
 
 ## Positive–unlabeled classification
 
+Targets use `1` for known positives and `0` for unlabeled observations. Each
+training and evaluated sample needs positive weight in both groups. The prior
+is the expected positive fraction in the population, not the labeled fraction.
+Use the same prior in the model and metric.
+
 ```python
-pu_classification_config = TrainingConfig(
-    validation=TimeSeriesCVConfig(
-        n_splits=5,
-        val_size=None,
-        gap=0,
-        max_train_size=None,
-        skip_splits=0,
-    ),
-    test_size=0.2,
-    feature_selection=RFEFeatureSelectionConfig(
-        min_features=10,
-        metric='pu_risk',
-        direction='minimize',
-        max_fits=6,
-        score_tolerance=0.0,
-        protected_features=(),
-    ),
-    tuning=TuningConfig(
-        metric='pu_risk',
-        direction='minimize',
-        n_trials=50,
-        timeout_seconds=None,
-        seed=42,
-    ),
+pu_classification_config = replace(
+    base_config,
     reporting=ReportingConfig(
         diagnostics=PUDiagnosticsConfig(
-            plots=PUPlotsConfig(
-                common=CommonPlotsConfig(
-                    figure=FigureConfig(
-                        figsize=None,
-                        dpi=150,
-                        format='png',
-                    ),
-                    features=None,
-                    psi=True,
-                    observed_fitted=True,
-                    n_bins=10,
-                    epsilon=1e-6,
-                    numerical_distributions=NumericalFeatureDistributionConfig(
-                        features=None,
-                        quantile_bands=((0.05, 0.95), (0.25, 0.75)),
-                        show_mean=True,
-                        show_median=True,
-                    ),
-                    shap=None,
-                ),
-                score_distribution=True,
-                positive_capture=True,
-                histogram_bins=30,
-            ),
+            plots=PUPlotsConfig(common=common),
         ),
-        validation_splits='last',
-        post_fit=PostFitEvaluationConfig(
-            stages=('validation', 'final'),
-            splits=('train', 'val', 'test'),
-            write_artifacts=True,
-        ),
-    ),
-    tracking=TrackingConfig(
-        log_trial_models=False,
-        log_validation_models=False,
-        log_final_model=True,
-        input_example_rows=5,
-        model_name='model',
-        registered_model_name=None,
-        conda_env=None,
     ),
 )
+config = pu_classification_config
+model_factory = CatBoostPUClassificationModel
+params = {**base_params, "loss": "uPU", "pu_prior": 0.2}
+metric = PUMetric(0.2, loss="uPU")
 ```
+
+PU reports show score distributions and positive capture. They do not treat
+unlabeled rows as confirmed negatives. Shared observed/fitted charts still
+compare the supplied PU labels to predictions; decide whether that comparison
+is useful for your task. Set `common=replace(common, observed_fitted=False)`
+to omit those charts.
+
+## Run the chosen recipe
+
+Prepare a `data` pool with targets appropriate to the selected task. The
+[data example](api/data.md#prepare-a-pool) works for regression, frequency, and
+the severity recipe above. Configure MLflow, then run:
+
+```python
+import mlflow
+
+from ml_toolkit import train_model
+
+mlflow.set_tracking_uri("sqlite:///mlflow.db")
+mlflow.set_experiment("ml-toolkit-task-recipes")
+result = train_model(
+    data=data,
+    params=params,
+    model_factory=model_factory,
+    metric=metric,
+    run_name="task-example",
+    config=config,
+)
+print(result.validation.mean_metrics)
+print(result.test_metrics)
+```
+
+The call creates a local `mlflow.db` and logs metrics, configuration, tables,
+and figures. See the [training guide](api/training.md) to add feature selection,
+an Optuna search space, or a custom evaluator. Pass those callbacks as explicit
+arguments to `train_model`, alongside their configuration.
 
 ## Switching validation strategies
 
 ```python
-from dataclasses import replace
 holdout_config = replace(regression_config, validation=HoldoutConfig(val_size=0.2))
 no_test_config = replace(holdout_config, test_size=None)
+date_test_config = replace(holdout_config, test_size="2025-01-20")
 ```
 
-The training and Optuna calls remain identical. The final model fits every retained
-training row, including former validation and gap rows. `result.validation` holds
-split metadata and average val metrics; `result.test_metrics` is `None` when test
-is disabled. `result.params` and `result.features` come from the last split's
-post-tuning fit, rather than a median or a feature union.
+Run the regression configuration block first. `test_size=None` disables test;
+`result.test_metrics` is then `None`. A date or `YYYY-MM-DD` string starts test
+on that calendar day, inclusive, in the timezone of `data.time`. If that day is
+missing, the next observation starts test. Both partitions must be nonempty;
+exact datetimes are not accepted.
 
 ## Shared PSI and observed/fitted diagnostics
 
-Configure both diagnostics in the `plots.common` block. They share one
-feature list and levels fitted on the training sample. Numeric quantile bins,
-categories, missing/error sentinels, and valid bounds are identical in both
-reports. `features=None` selects every available model feature; `features=()`
-disables both. Explicit definitions must name columns that remain after feature
-selection.
+Configure both diagnostics in `plots.common`. They share levels fitted on the
+training sample: numerical bins, categories, missing/error sentinels, and valid
+bounds. The following example replaces the regression reports:
 
 ```python
-common = CommonPlotsConfig(
+feature_common = CommonPlotsConfig(
     features=(
         FeatureLevelSpec("age", "numerical", lower_bound=0, upper_bound=120),
         FeatureLevelSpec("region", "categorical", null_level="unknown"),
@@ -492,30 +281,29 @@ common = CommonPlotsConfig(
     observed_fitted=True,
     n_bins=8,
 )
-reporting = ReportingConfig(
-    diagnostics=RegressionDiagnosticsConfig(
-        plots=RegressionPlotsConfig(common=common),
+feature_config = replace(
+    regression_config,
+    reporting=ReportingConfig(
+        diagnostics=RegressionDiagnosticsConfig(
+            plots=RegressionPlotsConfig(common=feature_common),
+        ),
     ),
 )
 ```
 
-For all features and default levels, simply use `CommonPlotsConfig()`. To keep
-observed/fitted while disabling PSI, use
-`CommonPlotsConfig(psi=False, observed_fitted=True)`. The inverse enables only
-PSI. Both flags default to True. `n_bins=10` is the default requested number of
-quantile bins and `epsilon=1e-6` is the PSI share floor.
+`features=None` selects every eligible model feature; `features=()` disables
+both feature-level diagnostics. Explicit names must remain after feature
+selection. Raw numerical distributions are independently configured through
+`numerical_distributions`; set it to `None` to disable them. SHAP defaults off;
+set `shap=ShapConfig()` (imported from `ml_toolkit.config`) and install the `shap`
+extra to enable it.
 
-`psi=True` writes score and distribution tables, a PSI score figure, and monthly
-level distributions. `observed_fitted=True` writes one figure per feature with
-four exposure-weighted curves for train and validation/test, plus volume bars.
-A missing or zero-weight group has no mean and breaks the curve. Each validation
-split fits its own levels on its training rows. Test uses the final training
-sample as its reference. The two diagnostics reuse predictions and a single
-transformation of each sample.
+`psi=True` writes score and level-distribution tables, a PSI score figure, and
+monthly level distributions. `observed_fitted=True` writes one figure per feature
+with weighted train and validation/test means and volume bars. Missing or
+zero-weight groups have no mean and break the curve. Each validation split fits
+its own levels; test uses the final training sample as reference.
 
-These shared flags apply to classification, regression, frequency, severity, and
-PU. The developer is responsible for interpreting PU labels when enabling
-observed/fitted. Other plots have separate settings. In particular,
-`monthly_observed_fitted` controls the separate monthly target/prediction chart,
-not the per-feature charts. Setting the enclosing `plots=None` disables all
-figures and PSI tables. No task-specific PSI configuration is needed.
+Both flags default to `True` and work independently for every task. The separate
+`monthly_observed_fitted` flag controls monthly target/prediction charts. Setting
+the enclosing `plots=None` disables all built-in figures and PSI tables.

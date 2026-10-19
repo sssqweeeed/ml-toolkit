@@ -109,7 +109,7 @@ def metrics_classification(
     --------
     >>> import numpy as np
     >>> from ml_toolkit.metrics import metrics_classification
-    >>> scores = metrics_classification(np.array([0, 1]), np.array([0.2, 0.8]))
+    >>> scores = metrics_classification(np.array([0.0, 1.0]), np.array([0.2, 0.8]))
     >>> scores.accuracy, scores.f1
     (1.0, 1.0)
     """
@@ -178,6 +178,7 @@ def confusion_matrix(
         Predicted binary labels, rather than probability scores.
     sample_weight : numpy.ndarray or None, default None
         Row weights aligned with labels; None counts every row as one.
+        Supply finite, nonnegative values for meaningful weighted counts.
 
     Returns
     -------
@@ -191,8 +192,9 @@ def confusion_matrix(
 
     Examples
     --------
+    >>> import numpy as np
     >>> from ml_toolkit.metrics import confusion_matrix
-    >>> confusion_matrix([0, 0, 1, 1], [0, 1, 0, 1])
+    >>> confusion_matrix(np.array([0., 0., 1., 1.]), np.array([0., 1., 0., 1.]))
     (1.0, 1.0, 1.0, 1.0)
     """
     target = np.asarray(y_true).reshape(-1)

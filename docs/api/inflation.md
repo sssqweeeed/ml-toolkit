@@ -46,8 +46,43 @@ Every date within a month uses that month's level. Missing months between
 anchors are interpolated in log space; requested months must stay within the
 anchor range.
 
-To fit and serve an inflation-adjusted regressor, compose a strategy with
-`InflationAdjustedModel`; see its constructor in the [model reference](models.md).
+## Fit an inflation-adjusted regressor
+
+Use `data` from the [data example](data.md#prepare-a-pool), treating its target
+as a monetary amount observed at `data.time`. Fit the underlying regressor at
+one reference price date:
+
+```python
+from ml_toolkit.config import HoldoutConfig
+from ml_toolkit.models import CatBoostRegressionModel, InflationAdjustedModel
+from ml_toolkit.training import split_holdout
+
+split = split_holdout(data, HoldoutConfig(val_size=0.25))
+adjusted_model = InflationAdjustedModel(
+    CatBoostRegressionModel(
+        {
+            "iterations": 20, "depth": 2, "loss_function": "RMSE",
+            "random_seed": 42, "thread_count": 2, "verbose": False,
+            "allow_writing_files": False,
+        }
+    ),
+    inflation=ConstantRateInflation(annual_rate=0.08),
+    reference_date=date(2025, 1, 1),
+).fit(split.train, split.val)
+predictions = adjusted_model.predict_pool(split.val)
+print(predictions.shape)  # (6,)
+
+future = pl.DataFrame(
+    {"age": [25], "region": ["north"], "prediction_date": [date(2026, 1, 1)]}
+)
+print(adjusted_model.predict_frame(future).shape)  # (1,)
+```
+
+Pool predictions use each row's observation date. Frame predictions require
+the `prediction_date` column, whose name can be configured on the adapter.
+With `ManualInflation`, all training, reference, and prediction months must
+fall within the supplied index range. See the [model reference](models.md)
+for logging and loading the fitted adapter.
 
 ## API reference
 
@@ -56,3 +91,4 @@ Import strategies from `ml_toolkit.inflation`.
 ::: ml_toolkit.inflation
     options:
       members: [InflationAdjuster, ConstantRateInflation, ManualInflation]
+      filters: ['!^_', '!^to_config$']

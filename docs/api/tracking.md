@@ -26,7 +26,23 @@ the final transformed prediction.
 
 Native contributions do not require the optional `shap` package. Install the
 `shap` extra and use `calculate_shap_values` when you want a `shap.Explanation`
-for the plotting helpers or `top_shap_features`.
+for the plotting helpers or `top_shap_features`:
+
+```python
+from ml_toolkit.config import ShapConfig
+from ml_toolkit.explainability import calculate_shap_values, top_shap_features
+
+explanation = calculate_shap_values(
+    model.native_model, data.X, config=ShapConfig(max_samples=24, seed=0)
+)
+important_features = top_shap_features(explanation, top_n=2)
+print(len(important_features))  # 2
+```
+
+Calculation samples at most `max_samples` rows using `seed`; defaults are 10,000
+rows and seed `0`. The explanation retains sampled feature values and native
+raw-score contributions. See [plot SHAP explanations](plots.md#plot-shap-explanations)
+for importance, beeswarm, and dependence plots from the same fitted model.
 
 ## Save a table in MLflow
 

@@ -27,7 +27,7 @@ def tune_optuna(
     ----------
     base_params : ModelParams
         Fixed constructor parameters. Inputs are never mutated.
-    param_space : Callable[[optuna.Trial], ModelParams]
+    param_space : Callable[[optuna.Trial], Mapping[str, object]]
         Trial overrides, including fixed values and Optuna suggestions.
     score : Callable[[ModelParams], float]
         Receives complete copied parameters and returns one finite objective.

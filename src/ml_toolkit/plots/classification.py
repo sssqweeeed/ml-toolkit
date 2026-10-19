@@ -95,7 +95,8 @@ def precision_recall(
         Optional export dimensions, DPI, and format. None preserves native
         dimensions and the requested path format.
     config : ClassificationPlotsConfig or None, default None
-        Rendering point limit and bin counts. None uses defaults.
+        Uses max_curve_points to limit rendered points. Other settings are
+        ignored by this function. None uses defaults.
 
     Returns
     -------
@@ -111,8 +112,8 @@ def precision_recall(
     Notes
     -----
     Creates parent directories for save_fig and closes the figure after saving.
-    The plot uses at most config.max_curve_points; the returned table retains every
-    threshold.
+    The plot uses at most config.max_curve_points; the returned table retains
+    every threshold. Scores are unweighted.
     """
     config = ClassificationPlotsConfig() if config is None else config
     curve = binary_curves(observed, probabilities)
@@ -175,7 +176,8 @@ def f1_threshold(
         Optional export dimensions, DPI, and format. None preserves native
         dimensions and the requested path format.
     config : ClassificationPlotsConfig or None, default None
-        Rendering point limit and bin counts. None uses defaults.
+        Uses max_curve_points to limit rendered points. Other settings are
+        ignored by this function. None uses defaults.
 
     Returns
     -------
@@ -191,8 +193,8 @@ def f1_threshold(
     Notes
     -----
     Creates parent directories for save_fig and closes the figure after saving.
-    The plot uses at most config.max_curve_points; the returned table retains every
-    threshold.
+    The plot uses at most config.max_curve_points; the returned table retains
+    every threshold. Scores are unweighted.
     """
     config = ClassificationPlotsConfig() if config is None else config
     curve = binary_curves(observed, probabilities)

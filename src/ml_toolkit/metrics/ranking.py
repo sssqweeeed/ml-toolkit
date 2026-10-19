@@ -20,7 +20,8 @@ class SelectedRankingPoint:
     percent : float
         Exposure percentage in (0, 100].
     gain : float
-        Interpolated fraction of total observed outcome captured.
+        Interpolated fraction of total exposure-weighted observed outcome
+        captured at this capacity.
     lift : float
         Gain divided by percent / 100.
     """
@@ -53,7 +54,7 @@ class RankingMetrics:
         exposure.
     selected_points : tuple[SelectedRankingPoint, ...]
         Interpolated gain and lift at each requested percentage, in request
-        order.
+        order. Each point exposes percent, gain, and lift attributes.
     """
 
     gini: float
@@ -237,9 +238,9 @@ def ranking_metrics(
 
     Notes
     -----
-    Exposed publicly as ranking_metrics. Rows with zero exposure are omitted;
-    score ties retain input order. Ranking capacity is measured by exposure,
-    and observed amounts are y_target * exposure. Normalized Gini is NaN when
+    Rows with zero exposure are omitted; score ties retain input order.
+    Ranking capacity is measured by exposure, and observed amounts are
+    y_target * exposure. Normalized Gini is NaN when
     the perfect-ranking Gini is close to zero.
 
     Examples

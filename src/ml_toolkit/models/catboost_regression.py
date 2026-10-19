@@ -317,28 +317,6 @@ class CatBoostRegressionModel(PythonModel):
         conda_env: Path | None = None,
         metadata: dict[str, object] | None = None,
     ) -> ModelInfo:
-        """Package the full model class, native state and serving example.
-
-        Parameters
-        ----------
-        sample_frame : pandas.DataFrame
-            Nonempty serving input example.
-        sample_prediction : array-like
-            Predictions aligned with the example.
-        name : str
-            MLflow artifact name.
-        registered_model_name : str or None, default None
-            Optional registry name.
-        conda_env : path-like or None, default None
-            Explicit environment; otherwise installed dependencies are pinned.
-        metadata : dict or None, default None
-            Additional audit metadata.
-
-        Returns
-        -------
-        mlflow.models.ModelInfo
-            Logged model information.
-        """
         from ..tracking._model_state import log_catboost
 
         return log_catboost(

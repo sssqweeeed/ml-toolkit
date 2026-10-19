@@ -29,11 +29,6 @@ def importance_ranker(model: "Model", data: "TrainingData") -> dict[str, float]:
         Importance per input feature, using the adapter's backend policy.
         Constant CatBoost trees return zero even when native normalization
         produces NaN.
-
-    Notes
-    -----
-    The adapter owns importance calculation and feature-order validation.
-    This ranker does not discover backend methods or invoke feature selection.
     """
     return model.feature_importances(data)
 

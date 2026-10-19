@@ -27,6 +27,38 @@ def shap_contributions(
     data: pl.DataFrame,
     cat_features: Sequence[str] = (),
 ) -> tuple[list[str], pd.DataFrame, FloatArray]:
+    """Calculate native SHAP contributions without importing the shap package.
+
+    Parameters
+    ----------
+    model : catboost.CatBoost or lightgbm.Booster
+        Fitted single-output native model. Pass an adapter's native_model.
+    data : polars.DataFrame
+        Features containing the fitted model's columns. Extra columns are
+        ignored and fitted feature order is restored.
+    cat_features : sequence of str, default ()
+        Additional columns to cast to pandas categorical dtype for LightGBM.
+        String, object, and categorical columns are also converted. CatBoost
+        uses its fitted categorical indices and replaces null categories with
+        "unknown".
+
+    Returns
+    -------
+    names : list[str]
+        Feature names in fitted model order.
+    features : pandas.DataFrame
+        Backend-ready feature values in the original row order.
+    contributions : FloatArray of shape (n_rows, n_features + 1)
+        Per-feature contributions followed by the base value in the last
+        column. Each row sums to the native raw score, before link functions
+        or probability transformations.
+
+    Raises
+    ------
+    ValueError
+        The CatBoost model has no fitted feature names or contributions are
+        not single-output.
+    """
     import catboost
 
     if isinstance(model, catboost.CatBoost):
@@ -91,9 +123,7 @@ def calculate_shap_values(
     Raises
     ------
     ImportError
-        The shap extra or a working LightGBM installation is unavailable.
-    TypeError
-        The native model backend is unsupported.
+        The optional shap package is unavailable.
     ValueError
         Data is empty, the model lacks fitted feature
         names, or contributions are not single-output.

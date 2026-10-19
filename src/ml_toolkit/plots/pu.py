@@ -40,6 +40,11 @@ def score_distribution(
     config : PUPlotsConfig or None, default None
         Histogram bin count. None uses PUPlotsConfig defaults.
 
+    Returns
+    -------
+    None
+        The figure is saved to disk; no table is returned.
+
     Raises
     ------
     ValueError
@@ -49,8 +54,9 @@ def score_distribution(
     Notes
     -----
     Creates parent directories for save_fig and closes the figure after saving.
-    Histograms use config.histogram_bins equal-width bins in [0, 1] and normalize weights within
-    each group. Unlabeled rows are not confirmed negatives.
+    Histograms use config.histogram_bins equal-width bins in [0, 1] and
+    normalize weights within each group. Unlabeled rows are not confirmed
+    negatives.
     """
     config = PUPlotsConfig() if config is None else config
     y, p, w = pu_arrays(labels, probabilities, weights)
@@ -100,6 +106,11 @@ def positive_capture(
     figure : FigureConfig or None, default None
         Optional export dimensions, DPI, and format. None preserves native
         dimensions and the requested path format.
+
+    Returns
+    -------
+    None
+        The figure is saved to disk; no table is returned.
 
     Raises
     ------

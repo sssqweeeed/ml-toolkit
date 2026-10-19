@@ -18,16 +18,6 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class EvaluationResult:
-    """Store scores from the train and optional checked dataset.
-
-    Attributes
-    ----------
-    train_metrics : dict[str, float]
-        Training-row scores.
-    heldout_metrics : dict[str, float] or None
-        Validation or test scores, absent when no checked dataset is supplied.
-    """
-
     train_metrics: dict[str, float]
     heldout_metrics: dict[str, float] | None
 
@@ -35,22 +25,6 @@ class EvaluationResult:
 def calculate_metrics(
     metric: Metric, data: TrainingData, prediction: FloatArray
 ) -> dict[str, float]:
-    """Score one dataset using the declared metric contract.
-
-    Parameters
-    ----------
-    metric : Metric
-        Callable returning a result with to_dict().
-    data : TrainingData
-        Targets and weights aligned with predictions.
-    prediction : numpy.ndarray
-        One finite prediction per row.
-
-    Returns
-    -------
-    dict[str, float]
-        Named scores, including undefined non-objective scores when applicable.
-    """
     if prediction.shape != (len(data),) or not np.isfinite(prediction).all():
         raise ValueError("Predictions must contain one finite value per row")
     return metric(
@@ -73,34 +47,6 @@ def evaluate_model(
     split: DatasetSplit = DatasetSplit.VAL,
     diagnostics: bool = False,
 ) -> EvaluationResult:
-    """Predict once per dataset, score it and generate enabled reports.
-
-    Parameters
-    ----------
-    model : Model
-        Fitted adapter.
-    train, heldout : TrainingData or None
-        Reference training rows and optional validation/test rows.
-    metric : Metric
-        Scalar metric callback.
-    reporting : ReportingConfig
-        Built-in and custom report policy.
-    evaluator : PostFitEvaluator or None
-        Optional business evaluation.
-    stage : {'tuning', 'validation', 'final'}
-        Current workflow stage.
-    name : str
-        Run name used in log messages and error context.
-    split : DatasetSplit, default DatasetSplit.VAL
-        Identity of heldout rows.
-    diagnostics : bool, default False
-        Whether to generate configured built-in reports.
-
-    Returns
-    -------
-    EvaluationResult
-        Train scores and optional checked scores; predictions are reused for reports.
-    """
     datasets = [(DatasetSplit.TRAIN, train)]
     if heldout is not None:
         datasets.append((split, heldout))

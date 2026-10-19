@@ -28,7 +28,7 @@ def feature_importance(
 
     Parameters
     ----------
-    feature_names : Sequence[str]
+    feature_names : list[str]
         Names aligned with importance values.
     importance : array-like
         Nonempty finite numerical importance values; no backend model is
@@ -100,6 +100,11 @@ def shap_importance(
         Optional export dimensions, DPI, and format. None preserves native
         dimensions and the requested path format.
 
+    Returns
+    -------
+    None
+        The figure is saved to disk; no table is returned.
+
     Raises
     ------
     ImportError
@@ -140,6 +145,11 @@ def shap_beeswarm(
         Optional export dimensions, DPI, and format. None preserves native
         dimensions and the requested path format.
 
+    Returns
+    -------
+    None
+        The figure is saved to disk; no table is returned.
+
     Raises
     ------
     ImportError
@@ -178,6 +188,11 @@ def shap_dependence(
     figure : FigureConfig or None, default None
         Optional export dimensions, DPI, and format. None preserves native
         dimensions and the requested path format.
+
+    Returns
+    -------
+    None
+        The figure is saved to disk; no table is returned.
 
     Raises
     ------

@@ -46,11 +46,57 @@ training and validation, or `reporting.diagnostics=None` to disable built-in
 diagnostics. Model packaging defaults to on for the final fit; disabling it
 still allows MLflow metrics and configuration logging.
 
-The [task recipes](../configuration.md) expand every field when you need a
-complete configuration to adapt.
+Use the [task recipes](../configuration.md) to choose metrics and diagnostic
+settings, or the [training examples](training.md#select-features-and-tune-parameters)
+to wire feature selection and tuning into a run.
+
+## Find a setting
+
+| Change | Configuration |
+| --- | --- |
+| Validation windows or gaps | `HoldoutConfig`, `TimeSeriesCVConfig` |
+| Test tail, feature selection, tuning | `TrainingConfig`, `RFEFeatureSelectionConfig`, `TuningConfig` |
+| Enabled reports and evaluated windows | `ReportingConfig` |
+| Classification, regression, or PU figures | Corresponding diagnostics and plots configs |
+| Shared PSI, observed/fitted, and numerical distributions | `CommonPlotsConfig`, `NumericalFeatureDistributionConfig` |
+| SHAP sample size and displayed features | `ShapConfig` |
+| Image size, DPI, and format | `FigureConfig` |
+| Custom evaluator stages and splits | `PostFitEvaluationConfig` |
+| Model packaging and registry | `TrackingConfig` |
+
+Shared plot defaults apply when task diagnostics are enabled; a default
+`TrainingConfig` has no built-in diagnostics. `CommonPlotsConfig.features=()`
+disables feature-level PSI and observed/fitted, while numerical distributions
+and SHAP have their own switches. Set the enclosing diagnostics' `plots=None`
+to disable every figure and PSI table.
 
 ## API reference
 
 Import configurations from `ml_toolkit.config`.
 
 ::: ml_toolkit.config
+    options:
+      members:
+        - HoldoutConfig
+        - TimeSeriesCVConfig
+        - TrainingConfig
+        - RFEFeatureSelectionConfig
+        - TuningConfig
+        - ReportingConfig
+        - ClassificationDiagnosticsConfig
+        - RegressionDiagnosticsConfig
+        - PUDiagnosticsConfig
+        - ClassificationPlotsConfig
+        - RegressionPlotsConfig
+        - PUPlotsConfig
+        - CommonPlotsConfig
+        - NumericalFeatureDistributionConfig
+        - ShapConfig
+        - FigureConfig
+        - PostFitEvaluationConfig
+        - TrackingConfig
+        - FeatureLevelSpec
+
+`DiagnosticsConfig` is the union of the three task diagnostics configurations
+above. See the [feature-level reference](psi.md) for fitting and reusing learned
+level definitions.
