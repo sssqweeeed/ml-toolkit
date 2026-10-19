@@ -11,7 +11,7 @@ from ..metrics import Metric
 from ..models.base import Model
 from ..tracking import runs as tracking
 from ..types import ModelParams
-from .contracts import FeatureRanker, PostFitEvaluator, TrainingData
+from .contracts import FeatureRanker, PostFitEvaluator, Pool
 from .evaluation import evaluate_model
 from .feature_selection import select_features
 from .results import SplitResult
@@ -22,8 +22,8 @@ logger = logging.getLogger(__name__)
 
 def fit_split(
     *,
-    train: TrainingData,
-    validation: TrainingData,
+    train: Pool,
+    validation: Pool,
     params: ModelParams,
     model_factory: Callable[[ModelParams], Model],
     metric: Metric,
@@ -135,10 +135,10 @@ def fit_split(
 
 def fit_final_model(
     *,
-    data: TrainingData,
+    data: Pool,
     last_split: SplitResult,
     model_factory: Callable[[ModelParams], Model],
-) -> tuple[Model, TrainingData, ModelParams]:
+) -> tuple[Model, Pool, ModelParams]:
     params = last_split.refit_params.copy()
     train = data.select_features(last_split.features)
     logger.info("Starting final fit")

@@ -29,6 +29,7 @@ ml_toolkit = ["py.typed"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]
 
 [tool.pyright]
 include = ["src/ml_toolkit"]

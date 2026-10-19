@@ -1,5 +1,8 @@
 from typing import Any
 
+class PythonModelContext:
+    artifacts: dict[str, str]
+
 class PythonModel:
     def load_context(self, context: Any) -> None: ...
     def predict(

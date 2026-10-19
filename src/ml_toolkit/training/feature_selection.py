@@ -11,7 +11,7 @@ from ..data import validate_training_data
 from ..metrics import Metric
 from ..models.base import Model
 from ..types import ModelParams
-from .contracts import FeatureRanker, TrainingData
+from .contracts import FeatureRanker, Pool
 from .evaluation import calculate_metrics
 from .results import FeatureSelectionResult, FeatureSelectionStep
 
@@ -27,7 +27,7 @@ def _feature_counts(count: int, config: RFEFeatureSelectionConfig) -> tuple[int,
 
 
 def _importances(
-    ranker: FeatureRanker, model: Model, data: TrainingData
+    ranker: FeatureRanker, model: Model, data: Pool
 ) -> dict[str, float]:
     values = ranker(model, data)
     if set(values) != set(data.X.columns):
@@ -45,8 +45,8 @@ def _importances(
 
 def select_features(
     *,
-    train: TrainingData,
-    validation: TrainingData,
+    train: Pool,
+    validation: Pool,
     params: ModelParams,
     model_factory: Callable[[ModelParams], Model],
     metric: Metric,
@@ -57,7 +57,7 @@ def select_features(
 
     Parameters
     ----------
-    train, validation : TrainingData
+    train, validation : Pool
         Explicit training and validation rows with matching feature columns.
         The caller excludes test. Row operations preserve weights and metadata.
     params : dict

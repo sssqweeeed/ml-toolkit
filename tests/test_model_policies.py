@@ -20,7 +20,7 @@ import polars as pl
 import pytest
 from test_training import mae, setup_mlflow
 
-from ml_toolkit import Pool
+from examples.project_pool import ProjectPool as Pool
 from ml_toolkit.config import HoldoutConfig, RFEFeatureSelectionConfig
 from ml_toolkit.inflation import ConstantRateInflation, ManualInflation
 from ml_toolkit.models import (

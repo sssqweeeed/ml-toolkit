@@ -28,7 +28,7 @@ from ._catboost import (
 
 if TYPE_CHECKING:
     from ..config import TrackingConfig
-    from ..training.contracts import TrainingData
+    from ..training.contracts import Pool
 
 logger = logging.getLogger("ml_toolkit.models.catboost_classification")
 
@@ -252,12 +252,12 @@ class CatBoostClassificationModel(PythonModel):
             return None
         return int(value)
 
-    def feature_importances(self, data: TrainingData) -> dict[str, float]:
+    def feature_importances(self, data: Pool) -> dict[str, float]:
         """Rank the current fitted feature columns.
 
         Parameters
         ----------
-        data : TrainingData
+        data : Pool
             Rows with the fitted feature names in order.
 
         Returns
@@ -316,14 +316,14 @@ class CatBoostClassificationModel(PythonModel):
         """Return the supervised binary classification task identifier."""
         return "classification"
 
-    def fit(self, train: TrainingData, validation: TrainingData | None = None) -> Self:
+    def fit(self, train: Pool, validation: Pool | None = None) -> Self:
         """Fit the classifier with the subclass's baseline and training policy.
 
         Parameters
         ----------
-        train : TrainingData
+        train : Pool
             Aligned features, labels and exposure weights.
-        validation : TrainingData or None, default None
+        validation : Pool or None, default None
             Optional holdout for early stopping and supervised F1 tuning.
 
         Returns
@@ -364,7 +364,7 @@ class CatBoostClassificationModel(PythonModel):
         )
         return self
 
-    def _validate_params(self, params: ModelParams, train: TrainingData) -> None:
+    def _validate_params(self, params: ModelParams, train: Pool) -> None:
         loss = params.setdefault("loss_function", "Logloss")
         if not isinstance(loss, str) or loss.split(":", 1)[0] not in (
             "Logloss",
@@ -381,8 +381,8 @@ class CatBoostClassificationModel(PythonModel):
 
     def _fit_backend(
         self,
-        train: TrainingData,
-        validation: TrainingData | None,
+        train: Pool,
+        validation: Pool | None,
         baseline: float,
         params: ModelParams,
     ) -> catboost.CatBoostClassifier:
@@ -394,7 +394,7 @@ class CatBoostClassificationModel(PythonModel):
         )
 
     def _configure_threshold(
-        self, validation: TrainingData | None, threshold: float | None
+        self, validation: Pool | None, threshold: float | None
     ) -> None:
         self._threshold = 0.5 if threshold is None else threshold
         if validation is not None and threshold is None:
@@ -403,12 +403,12 @@ class CatBoostClassificationModel(PythonModel):
                 self.predict_pool(validation),
             )
 
-    def predict_pool(self, data: TrainingData) -> FloatArray:
+    def predict_pool(self, data: Pool) -> FloatArray:
         """Predict positive-class probabilities for project data.
 
         Parameters
         ----------
-        data : TrainingData
+        data : Pool
             Project data whose X contains all fitted model features.
 
         Returns
@@ -443,12 +443,12 @@ class CatBoostClassificationModel(PythonModel):
         """
         return (self.predict_frame(data) >= self.threshold).astype(np.int64)
 
-    def predict_labels_pool(self, data: TrainingData) -> IntArray:
+    def predict_labels_pool(self, data: Pool) -> IntArray:
         """Predict thresholded binary labels for project-owned data.
 
         Parameters
         ----------
-        data : TrainingData
+        data : Pool
             Project data with fitted feature columns in X.
 
         Returns
@@ -491,7 +491,7 @@ class CatBoostClassificationModel(PythonModel):
 
     def log(
         self,
-        sample: TrainingData,
+        sample: Pool,
         *,
         config: TrackingConfig | None = None,
     ) -> ModelInfo:
@@ -499,7 +499,7 @@ class CatBoostClassificationModel(PythonModel):
 
         Parameters
         ----------
-        sample : TrainingData
+        sample : Pool
             Serving example rows, capped by config.input_example_rows.
         config : TrackingConfig or None, default None
             Artifact name, positive example-row limit, registry name, and serving
@@ -596,7 +596,7 @@ class CatBoostClassificationModel(PythonModel):
         threshold = sorted_probabilities[group_ends[best_index]]
         return float(cast(float, threshold)), float(scores[best_index])
 
-    def _calculate_baseline(self, train: TrainingData) -> float:
+    def _calculate_baseline(self, train: Pool) -> float:
         """Calculate the baseline log-odds from the positive class prevalence."""
         weights = train.weight.to_numpy()
         y_values = train.y.to_numpy()
@@ -731,7 +731,7 @@ class CatBoostPUClassificationModel(CatBoostClassificationModel):
         assert self._pu_prior is not None
         return self._pu_prior
 
-    def _validate_params(self, params: ModelParams, train: TrainingData) -> None:
+    def _validate_params(self, params: ModelParams, train: Pool) -> None:
         loss = params.pop("loss_function", "uPU")
         if loss not in ("uPU", "nnPU"):
             raise ValueError("PU classification requires uPU or nnPU loss")
@@ -765,14 +765,14 @@ class CatBoostPUClassificationModel(CatBoostClassificationModel):
             prior,
         )
 
-    def _calculate_baseline(self, train: TrainingData) -> float:
+    def _calculate_baseline(self, train: Pool) -> float:
         assert self._pu_prior is not None
         return float(np.log(self._pu_prior / (1.0 - self._pu_prior)))
 
     def _fit_backend(
         self,
-        train: TrainingData,
-        validation: TrainingData | None,
+        train: Pool,
+        validation: Pool | None,
         baseline: float,
         params: ModelParams,
     ) -> catboost.CatBoostClassifier:
@@ -828,15 +828,15 @@ class CatBoostPUClassificationModel(CatBoostClassificationModel):
         return super()._fit_backend(train, validation, baseline, params)
 
     def _configure_threshold(
-        self, validation: TrainingData | None, threshold: float | None
+        self, validation: Pool | None, threshold: float | None
     ) -> None:
         self._threshold = threshold
 
     @staticmethod
     def _fit_nnpu(
         *,
-        train: TrainingData,
-        validation: TrainingData | None,
+        train: Pool,
+        validation: Pool | None,
         train_data: catboost.Pool,
         baseline: float,
         prior: float,

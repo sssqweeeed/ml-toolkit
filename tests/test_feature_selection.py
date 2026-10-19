@@ -8,7 +8,7 @@ import polars as pl
 import pytest
 from polars.testing import assert_frame_equal, assert_series_equal
 
-from ml_toolkit import Pool
+from examples.project_pool import ProjectPool as Pool
 from ml_toolkit.config import (
     HoldoutConfig,
     RFEFeatureSelectionConfig,

@@ -25,7 +25,7 @@ from ._catboost import (
 
 if TYPE_CHECKING:
     from ..config import TrackingConfig
-    from ..training.contracts import TrainingData
+    from ..training.contracts import Pool
 
 logger = logging.getLogger(__name__)
 
@@ -85,12 +85,12 @@ class CatBoostRegressionModel(PythonModel):
             return None
         return int(value)
 
-    def feature_importances(self, data: TrainingData) -> dict[str, float]:
+    def feature_importances(self, data: Pool) -> dict[str, float]:
         """Rank the current fitted feature columns.
 
         Parameters
         ----------
-        data : TrainingData
+        data : Pool
             Rows with the fitted feature names in order.
 
         Returns
@@ -141,14 +141,14 @@ class CatBoostRegressionModel(PythonModel):
         categorical = set(self.cat_features)
         return [name for name in self.feature_names if name not in categorical]
 
-    def fit(self, train: TrainingData, validation: TrainingData | None = None) -> Self:
+    def fit(self, train: Pool, validation: Pool | None = None) -> Self:
         """Fit the native regressor using this class's initialization policy.
 
         Parameters
         ----------
-        train : TrainingData
+        train : Pool
             Training features, targets and weights.
-        validation : TrainingData or None, default None
+        validation : Pool or None, default None
             Optional holdout for early stopping. It uses the training baseline.
 
         Returns
@@ -183,7 +183,7 @@ class CatBoostRegressionModel(PythonModel):
     def _validate_params(self, params: ModelParams) -> None:
         pass
 
-    def _calculate_baseline(self, train: TrainingData) -> float | None:
+    def _calculate_baseline(self, train: Pool) -> float | None:
         return None
 
     def predict_frame(self, data: pl.DataFrame | pd.DataFrame) -> FloatArray:
@@ -209,12 +209,12 @@ class CatBoostRegressionModel(PythonModel):
         )
         return np.asarray(self.native_model.predict(frame, **options), dtype=float)
 
-    def predict_pool(self, data: TrainingData) -> FloatArray:
+    def predict_pool(self, data: Pool) -> FloatArray:
         """Predict native regression outputs for project data.
 
         Parameters
         ----------
-        data : TrainingData
+        data : Pool
             Project data whose X contains all fitted model features.
 
         Returns
@@ -256,7 +256,7 @@ class CatBoostRegressionModel(PythonModel):
 
     def log(
         self,
-        sample: TrainingData,
+        sample: Pool,
         *,
         config: TrackingConfig | None = None,
     ) -> ModelInfo:
@@ -264,7 +264,7 @@ class CatBoostRegressionModel(PythonModel):
 
         Parameters
         ----------
-        sample : TrainingData
+        sample : Pool
             Serving example rows, capped by config.input_example_rows.
         config : TrackingConfig or None, default None
             Artifact name, positive example-row limit, registry name, and serving
@@ -381,7 +381,7 @@ class CatBoostLogLinkRegressionModel(CatBoostRegressionModel):
         ):
             raise ValueError("Log-link regression requires Poisson or Tweedie loss")
 
-    def _calculate_baseline(self, train: TrainingData) -> float:
+    def _calculate_baseline(self, train: Pool) -> float:
         mean = float(
             np.average(
                 train.y.to_numpy(),

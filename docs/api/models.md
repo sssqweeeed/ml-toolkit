@@ -20,6 +20,8 @@ The optional LightGBM wrapper packages an already fitted native regressor.
 Use `data` from the [data example](data.md#prepare-a-pool). This fits a general
 RMSE regressor and predicts two new rows without targets or timestamps.
 
+<!-- example: models-regression -->
+
 ```python
 import polars as pl
 
@@ -45,6 +47,12 @@ predictions = model.predict_frame(future)
 print(predictions.shape)  # (2,)
 ```
 
+<!-- output: models-regression -->
+```text
+(2,)
+```
+<!-- /output -->
+
 `predict_frame` accepts Polars or pandas features; `predict_pool` takes a pool.
 Both require the fitted feature columns. Extra columns are ignored and fitted
 feature order is restored. `model.native_model` exposes the fitted backend for
@@ -52,6 +60,8 @@ operations such as [SHAP contributions](tracking.md#explain-a-fitted-model).
 
 For binary classification, `predict_pool` returns positive-class probabilities;
 use `predict_labels_pool` for labels at the adapter's decision threshold.
+
+<!-- example: models-classification -->
 
 ```python
 from ml_toolkit.models import CatBoostClassificationModel
@@ -74,6 +84,12 @@ labels = classifier.predict_labels(future)
 print(probabilities.shape, labels.shape)  # (2,) (2,)
 ```
 
+<!-- output: models-classification -->
+```text
+(2,) (2,)
+```
+<!-- /output -->
+
 Without an explicit `decision_threshold`, validation chooses the classifier's
 cutoff using unweighted F1. `classifier.threshold` exposes that fitted cutoff.
 Positive-unlabeled training uses `CatBoostPUClassificationModel` with an
@@ -84,6 +100,8 @@ targets across dates, follow the [inflation composition example](inflation.md).
 
 Continue with the fitted regression `model`, `split`, and `future` above.
 Configure MLflow before logging and keep the returned model URI to load later.
+
+<!-- example: models-serving -->
 
 ```python
 import mlflow
@@ -109,6 +127,8 @@ artifact naming, registration, and the example size.
 Install the `lightgbm` extra. Fit LightGBM with its own training API, then wrap
 the fitted estimator for logging and inference. `LightGBMWrapper` is not a
 `train_model` factory. Continue with `data` from the data example:
+
+<!-- example: models-lightgbm -->
 
 ```python
 import lightgbm as lgb
@@ -155,6 +175,8 @@ signature validates them before the wrapper performs categorical conversion.
 Import the CatBoost adapters, `InflationAdjustedModel`, and `Model` from
 `ml_toolkit.models`.
 
+### Regression adapters
+
 ::: ml_toolkit.models.CatBoostRegressionModel
     options:
       members:
@@ -182,6 +204,8 @@ Import the CatBoost adapters, `InflationAdjustedModel`, and `Model` from
         - predict
         - log
         - baseline
+
+### Classification adapters
 
 ::: ml_toolkit.models.CatBoostClassificationModel
     options:
@@ -219,6 +243,8 @@ Import the CatBoost adapters, `InflationAdjustedModel`, and `Model` from
         - pu_loss
         - pu_prior
 
+### Inflation and serving
+
 ::: ml_toolkit.models.InflationAdjustedModel
     options:
       members:
@@ -240,9 +266,10 @@ Import the CatBoost adapters, `InflationAdjustedModel`, and `Model` from
         - native_model
         - feature_names
 
-### Implement a model factory
+### Model contract
 
-Custom factories accept a `ModelParams` dictionary and return a fresh adapter
+Follow [build a model adapter](../custom-model.md) for a complete implementation,
+factory, and serving parity check. Custom factories accept a `ModelParams` dictionary and return a fresh adapter
 implementing `Model`. Keep learned state in that adapter; the workflow creates
 new instances for selection, tuning, validation, and final fitting. A factory
 for `InflationAdjustedModel` must also create a fresh wrapped model and

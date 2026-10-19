@@ -9,6 +9,8 @@ Continue with the `data` pool from the [data example](data.md#prepare-a-pool).
 The [getting started](../getting-started.md) page contains a standalone version
 with a larger synthetic dataset.
 
+<!-- example: training-holdout -->
+
 ```python
 import mlflow
 
@@ -46,6 +48,13 @@ print(result.validation.mean_metrics)
 print(result.test_metrics)
 ```
 
+<!-- output: training-holdout -->
+```text
+{'mean_poisson_deviance': 1.1157166906742346, 'd2_poisson_score': -0.006024335420477422, 'mean_absolute_error': 0.8147537483416682, 'root_mean_squared_error': 0.8979581325982117, 'prediction_over_observed': 0.9288441980216964, 'lift_at_10': 0.0, 'gain_at_10': 0.0, 'normalized_gini': -0.3333333333333334}
+{'mean_poisson_deviance': 0.7329916919680924, 'd2_poisson_score': -0.09163255520540625, 'mean_absolute_error': 0.6309718855189681, 'root_mean_squared_error': 0.7894992039293456, 'prediction_over_observed': 0.7902734633982873, 'lift_at_10': 1.6666666666666665, 'gain_at_10': 0.16666666666666666, 'normalized_gini': 0.1999999999999992}
+```
+<!-- /output -->
+
 Of the 24 rows, the latest 5 become test. Of the remaining 19, the latest 5
 become validation and the first 14 become training. Fractions round upward.
 After validation, the final model fits all 19 non-test rows and evaluates the
@@ -70,6 +79,8 @@ settings.
 Continue after the holdout example. Selection needs a ranker and tuning needs
 an Optuna search-space callback. This small example visits the two-feature and
 one-feature subsets, then compares two parameter trials on the selected subset.
+
+<!-- example: training-search -->
 
 ```python
 from dataclasses import replace
@@ -111,9 +122,17 @@ searched = train_model(
     param_space=param_space,
 )
 print(searched.features)
-print(searched.feature_selection)
-print(searched.tuning)
+print(searched.feature_selection.selected_step)
+print(searched.tuning.best_params)
 ```
+
+<!-- output: training-search -->
+```text
+('region',)
+1
+{'iterations': 20, 'depth': 2, 'loss_function': 'Poisson', 'random_seed': 42, 'thread_count': 2, 'verbose': False, 'allow_writing_files': False}
+```
+<!-- /output -->
 
 The metric name must be a key returned by `metric(...).to_dict()`. Selection
 and tuning use validation rows, so their best scores are search results. Use
@@ -133,11 +152,13 @@ Custom evaluation needs aligned IDs in `Pool.object_id`. Continue with `data`,
 `params`, and `config` from the holdout example. The evaluator below reports
 unweighted MAE and returns no images; the inherited image writer does nothing.
 
+<!-- example: training-custom-evaluation -->
+
 ```python
 import numpy as np
 import polars as pl
 
-from ml_toolkit import Pool
+from examples.project_pool import ProjectPool
 from ml_toolkit.training import DatasetSplit, PostFitEvaluator
 from ml_toolkit.types import FloatArray
 
@@ -154,7 +175,7 @@ class ExtraMetrics(PostFitEvaluator):
         return {"mae": float(np.mean(np.abs(y_true - y_pred)))}
 
 
-identified = Pool(
+identified = ProjectPool(
     X=data.X,
     y=data.y,
     time=data.time,
@@ -190,32 +211,55 @@ below describes supported files and directory lifetime.
 Import these operations and result types from `ml_toolkit.training`.
 `train_model` and `TrainingResult` are also available from `ml_toolkit`.
 
-::: ml_toolkit.training
-    options:
-      members:
-        - train_model
-        - select_features
-        - importance_ranker
-        - ShapRanker
-        - tune_optuna
-        - split_holdout
-        - make_validation_splits
-        - TrainValSplit
-        - TrainingResult
-        - ValidationResult
-        - SplitResult
-        - FeatureSelectionResult
-        - FeatureSelectionStep
-        - TuningResult
-        - FeatureRanker
-        - PostFitEvaluator
-        - DatasetSplit
+### Training workflow
 
-### Call a feature ranker
+::: ml_toolkit.training.train_model
 
-Rankers are called as `ranker(model, data)`. Their callable interfaces describe
-the required feature coverage and the returned importance values.
+### Feature selection
+
+Rankers are called as `ranker(model, data)`. Their callable interfaces define
+feature coverage and returned importance values.
+
+::: ml_toolkit.training.select_features
+
+::: ml_toolkit.training.importance_ranker
+
+::: ml_toolkit.training.ShapRanker
+
+::: ml_toolkit.training.ShapRanker.__call__
+
+::: ml_toolkit.training.FeatureRanker
 
 ::: ml_toolkit.training.FeatureRanker.__call__
 
-::: ml_toolkit.training.ShapRanker.__call__
+::: ml_toolkit.training.FeatureSelectionResult
+
+::: ml_toolkit.training.FeatureSelectionStep
+
+### Parameter tuning
+
+::: ml_toolkit.training.tune_optuna
+
+::: ml_toolkit.training.TuningResult
+
+### Chronological splits
+
+::: ml_toolkit.training.split_holdout
+
+::: ml_toolkit.training.make_validation_splits
+
+::: ml_toolkit.training.TrainValSplit
+
+### Workflow results
+
+::: ml_toolkit.training.TrainingResult
+
+::: ml_toolkit.training.ValidationResult
+
+::: ml_toolkit.training.SplitResult
+
+### Custom evaluation
+
+::: ml_toolkit.training.PostFitEvaluator
+
+::: ml_toolkit.training.DatasetSplit

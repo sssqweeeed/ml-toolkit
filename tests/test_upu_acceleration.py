@@ -13,7 +13,7 @@ import numpy as np
 import polars as pl
 import pytest
 
-from ml_toolkit import Pool
+from examples.project_pool import ProjectPool as Pool
 from ml_toolkit.models import CatBoostPUClassificationModel
 from ml_toolkit.models._catboost_upu import UPUObjective, upu_derivatives, upu_risk
 from ml_toolkit.models.catboost_classification import (

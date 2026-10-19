@@ -3,7 +3,7 @@ from typing import Callable
 
 import polars as pl
 
-from ml_toolkit import TrainingResult
+from ml_toolkit import Pool, TrainingResult
 from ml_toolkit.config import (
     PUPlotsConfig,
     RegressionDiagnosticsConfig,
@@ -77,3 +77,18 @@ CommonPlotsConfig(psi="on")  # expected-type-error
 CommonPlotsConfig(observed_fitted=None)  # expected-type-error
 FeatureLevelSpec("age", "continuous")  # expected-type-error
 RegressionDiagnosticsConfig(psi=None)  # expected-type-error
+
+Pool()  # expected-type-error
+
+
+class IncompleteProjectPool:
+    X: pl.DataFrame
+    y: pl.Series
+    time: pl.Series
+    weight: pl.Series
+
+    def __len__(self) -> int:
+        return len(self.X)
+
+
+incomplete_pool: Pool = IncompleteProjectPool()  # expected-type-error

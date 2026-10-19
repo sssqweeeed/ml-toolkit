@@ -31,6 +31,8 @@ not require CUDA, and the `all` extra does not include it.
 This example creates synthetic frequency data, reserves the latest 20% for
 testing, and uses one chronological holdout for validation.
 
+<!-- example: getting-started-train -->
+
 ```python
 from datetime import date, timedelta
 
@@ -38,7 +40,8 @@ import mlflow
 import numpy as np
 import polars as pl
 
-from ml_toolkit import Pool, train_model
+from examples.project_pool import ProjectPool
+from ml_toolkit import train_model
 from ml_toolkit.config import HoldoutConfig, TrackingConfig, TrainingConfig
 from ml_toolkit.metrics import metrics_frequency
 from ml_toolkit.models import CatBoostLogLinkRegressionModel
@@ -57,7 +60,7 @@ frame = pl.DataFrame(
         "weight": np.ones(n_rows),
     }
 )
-data = Pool(
+data = ProjectPool(
     X=frame.select("age", "region"),
     y=frame["target"],
     time=frame["date"],
@@ -90,11 +93,25 @@ result = train_model(
     ),
 )
 
-print(result.validation.mean_metrics)
-print(result.test_metrics)
+print(f"Validation deviance: {result.validation.mean_metrics['mean_poisson_deviance']:.4f}")
+assert result.test_metrics is not None
+print(f"Test deviance: {result.test_metrics['mean_poisson_deviance']:.4f}")
 predictions = result.model.predict_pool(data)
-print(predictions[:5])
+print(predictions[:5].round(4).tolist())
 ```
+
+<!-- output: getting-started-train -->
+```text
+Validation deviance: 1.2006
+Test deviance: 1.3690
+[0.6797, 0.7921, 0.7012, 0.6933, 0.6933]
+```
+<!-- /output -->
+
+`ProjectPool` is the runnable data implementation in this repository's
+`examples/project_pool.py`. It is outside the installed package. Copy it into
+your project or implement the [Pool interface](api/data.md) on your existing
+container; inheritance is unnecessary.
 
 The example creates a local `mlflow.db` and logs metrics and configuration.
 Model packaging is disabled to keep the example small; set

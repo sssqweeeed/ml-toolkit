@@ -3,7 +3,7 @@
 Reusable tools for model training, chronological validation, feature selection,
 Optuna tuning, metrics, diagnostic plots, and MLflow logging.
 
-Prepare your data as a Polars-backed `Pool`, choose a model adapter and metric,
+Implement the `Pool` interface on your data container, choose a model adapter and metric,
 then run the same training workflow across tasks.
 
 ## Start here

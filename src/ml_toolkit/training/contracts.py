@@ -1,4 +1,4 @@
-"""Shared interface for toolkit Pool and compatible project data containers."""
+"""Interfaces for project-owned data containers and training extensions."""
 
 from __future__ import annotations
 
@@ -28,14 +28,14 @@ class FeatureRanker(Protocol):
     Explicit inheritance from this protocol is unnecessary.
     """
 
-    def __call__(self, model: "Model", data: "TrainingData") -> Mapping[str, float]:
+    def __call__(self, model: "Model", data: "Pool") -> Mapping[str, float]:
         """Return finite ranking values keyed by every current feature name.
 
         Parameters
         ----------
         model : Model
             Fitted adapter for the current feature subset.
-        data : TrainingData
+        data : Pool
             Supplied validation rows with aligned features and weights.
 
         Returns
@@ -161,8 +161,13 @@ class PostFitEvaluator(ABC):
         return []
 
 
-class TrainingData(Protocol):
-    """Describe the data interface used by training and models.
+class Pool(Protocol):
+    """Describe project-owned data accepted by training and model adapters.
+
+    Implement this structural interface in your project. Pool is a protocol
+    for type annotations and cannot be instantiated. Explicit inheritance is
+    unnecessary; a compatible container supplies these attributes and methods.
+    Represent unused optional metadata with None.
 
     Attributes
     ----------
@@ -171,7 +176,7 @@ class TrainingData(Protocol):
     y : polars.Series
         Finite numeric target values aligned with X.
     time : polars.Series
-        Non-null ascending observation timestamps aligned with X.
+        Non-null ascending Date or Datetime observations aligned with X.
     weight : polars.Series
         Finite, nonnegative row weights with positive total.
     cat_features : tuple[str, ...]
@@ -179,18 +184,18 @@ class TrainingData(Protocol):
     numerical_features : tuple[str, ...]
         Declared numerical columns; may describe a subset of X.
     object_id : polars.Series or None
-        Optional aligned IDs for custom evaluation.
+        Optional aligned, non-null string or integer IDs for custom evaluation;
+        repeated IDs are allowed.
     business_type : polars.Series or None
         Optional aligned groups for monthly diagnostics.
 
     Notes
     -----
-    Projects may use ml_toolkit.data.Pool or their own compatible container.
     Row operations must keep features, target, timestamps, and weights aligned.
-    Optional business_type values are used for grouped monthly plots. Custom
-    models need only the data operations their workflows invoke. Attribute
-    access is read-only here so frozen Pool and mutable custom containers both
-    satisfy the protocol.
+    Optional business_type values are used for grouped monthly plots. Attribute
+    access is read-only here so frozen and mutable project containers can both
+    satisfy the protocol. Row and feature operations preserve the concrete
+    container type and all associated row metadata.
     """
 
     @property
@@ -307,7 +312,7 @@ class TrainingData(Protocol):
         ----------
         n_rows : int or None, default None
             Optional limit on the number of rows in the serving example. The
-            toolkit Pool returns the first rows, preserving timestamp alignment.
+            selected rows must preserve timestamp alignment.
 
         Returns
         -------

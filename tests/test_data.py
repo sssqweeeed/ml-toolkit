@@ -9,7 +9,10 @@ import pytest
 from polars.testing import assert_frame_equal, assert_series_equal
 
 from ml_toolkit import Pool as PublicPool
-from ml_toolkit.data import Pool, validate_training_data
+from ml_toolkit.data import validate_training_data
+from ml_toolkit.training import Pool as TrainingPool
+from ml_toolkit.training.contracts import Pool as ContractPool
+from examples.project_pool import ProjectPool as Pool
 
 
 @pytest.fixture
@@ -30,8 +33,13 @@ def pool():
     )
 
 
-def test_public_import_and_frozen_fields(pool):
-    assert PublicPool is Pool
+def test_public_pool_is_one_non_instantiable_protocol():
+    assert PublicPool is TrainingPool is ContractPool
+    with pytest.raises(TypeError, match="Protocols cannot be instantiated"):
+        PublicPool()
+
+
+def test_project_pool_preserves_frozen_fields(pool):
     assert len(pool) == 3
     with pytest.raises(FrozenInstanceError):
         pool.cat_features = ()

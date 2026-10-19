@@ -17,7 +17,7 @@ from .contracts import (
     DatasetSplit,
     FeatureRanker,
     PostFitEvaluator,
-    TrainingData,
+    Pool,
 )
 from .evaluation import evaluate_model
 from .fit import fit_final_model, fit_split
@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 def train_model(
     *,
-    data: TrainingData,
+    data: Pool,
     params: ModelParams,
     model_factory: Callable[[ModelParams], Model],
     metric: Metric,
@@ -43,7 +43,7 @@ def train_model(
 
     Parameters
     ----------
-    data : TrainingData
+    data : Pool
         Aligned prepared features, finite targets, ascending non-null timestamps
         and nonnegative weights with positive total. May include a future test tail.
     params : ModelParams

@@ -8,9 +8,9 @@ from sklearn.model_selection import TimeSeriesSplit
 
 from ..config import HoldoutConfig, TimeSeriesCVConfig
 from ..data import validate_training_data
-from .contracts import TrainingData
+from .contracts import Pool
 
-DataT = TypeVar("DataT", bound=TrainingData, covariant=True)
+DataT = TypeVar("DataT", bound=Pool, covariant=True)
 
 
 @dataclass(frozen=True)
@@ -21,7 +21,7 @@ class TrainValSplit(Generic[DataT]):
     ----------
     index : int
         One-based original split number before skipping.
-    train, val : TrainingData
+    train, val : Pool
         Training and validation observations, preserving their container type.
 
     Notes
@@ -44,7 +44,7 @@ def split_holdout(data: DataT, config: HoldoutConfig) -> TrainValSplit[DataT]:
 
     Parameters
     ----------
-    data : TrainingData
+    data : Pool
         Chronologically ordered input with aligned metadata.
     config : HoldoutConfig
         Row count or fraction of this input, rounded upward, and a row gap.
@@ -78,7 +78,7 @@ def make_validation_splits(
 
     Parameters
     ----------
-    data : TrainingData
+    data : Pool
         Training observations excluding any future test tail.
     config : HoldoutConfig or TimeSeriesCVConfig
         Chronological split sizes, gaps and optional training window.

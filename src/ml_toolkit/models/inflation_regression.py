@@ -20,7 +20,7 @@ from .catboost_regression import CatBoostLogLinkRegressionModel, CatBoostRegress
 
 if TYPE_CHECKING:
     from ..config import TrackingConfig
-    from ..training.contracts import TrainingData
+    from ..training.contracts import Pool
 
 logger = logging.getLogger(__name__)
 
@@ -78,12 +78,12 @@ class InflationAdjustedModel(PythonModel):
             raise RuntimeError("Model has not been fitted")
         return self.model.best_iteration
 
-    def feature_importances(self, data: TrainingData) -> dict[str, float]:
+    def feature_importances(self, data: Pool) -> dict[str, float]:
         """Delegate importance ranking to the fitted regressor.
 
         Parameters
         ----------
-        data : TrainingData
+        data : Pool
             Current feature subset.
 
         Returns
@@ -113,15 +113,15 @@ class InflationAdjustedModel(PythonModel):
             raise RuntimeError("Configure model before obtaining refit parameters")
         return self.model.get_refit_params()
 
-    def fit(self, train: TrainingData, validation: TrainingData | None = None) -> Self:
+    def fit(self, train: Pool, validation: Pool | None = None) -> Self:
         """Fit inflation on training rows and regress targets at the reference date.
 
         Parameters
         ----------
-        train : TrainingData
+        train : Pool
             Project-owned training data supplying the conversion methods required
             by this model.
-        validation : TrainingData or None, default None
+        validation : Pool or None, default None
             Optional holdout data for early stopping and model selection.
 
         Returns
@@ -154,12 +154,12 @@ class InflationAdjustedModel(PythonModel):
         logger.debug("Fitted inflation-adjusted model")
         return self
 
-    def predict_pool(self, data: TrainingData) -> FloatArray:
+    def predict_pool(self, data: Pool) -> FloatArray:
         """Predict monetary values at each row's observation date.
 
         Parameters
         ----------
-        data : TrainingData
+        data : Pool
             Project data containing fitted feature columns and Date/Datetime values
             in time.
 
@@ -264,7 +264,7 @@ class InflationAdjustedModel(PythonModel):
 
     def log(
         self,
-        sample: TrainingData,
+        sample: Pool,
         *,
         config: TrackingConfig | None = None,
     ) -> tuple[ModelInfo, ModelInfo]:
@@ -272,7 +272,7 @@ class InflationAdjustedModel(PythonModel):
 
         Parameters
         ----------
-        sample : TrainingData
+        sample : Pool
             Rows used to build a serving example including observation dates.
         config : TrackingConfig or None, default None
             Artifact name, positive example-row limit, registry name, and serving
@@ -359,7 +359,7 @@ class InflationAdjustedModel(PythonModel):
         )
         return native_info, wrapper_info
 
-    def _at_reference_date(self, data: TrainingData) -> TrainingData:
+    def _at_reference_date(self, data: Pool) -> Pool:
         assert (
             self.model is not None
             and self.inflation is not None

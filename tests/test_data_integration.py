@@ -5,7 +5,7 @@ import numpy as np
 import polars as pl
 import pytest
 from polars.testing import assert_frame_equal
-from test_training import MeanModel, mae, make_data, setup_mlflow
+from test_training import MeanModel, ProjectData, mae, make_data, setup_mlflow
 
 from ml_toolkit.config import (
     PostFitEvaluationConfig,
@@ -13,7 +13,7 @@ from ml_toolkit.config import (
     TimeSeriesCVConfig,
     TrainingConfig,
 )
-from ml_toolkit.data import Pool
+from examples.project_pool import ProjectPool as Pool
 from ml_toolkit.inflation import ConstantRateInflation
 from ml_toolkit.metrics import metrics_classification
 from ml_toolkit.models import (
@@ -21,7 +21,7 @@ from ml_toolkit.models import (
     CatBoostRegressionModel,
     InflationAdjustedModel,
 )
-from ml_toolkit.training import importance_ranker, train_model
+from ml_toolkit.training import importance_ranker, make_validation_splits, train_model
 
 
 @pytest.fixture
@@ -65,7 +65,7 @@ def test_catboost_predictions_use_same_categories_as_fitting(pool, classifier):
     assert_frame_equal(pool.X, original)
 
 
-def test_training_feature_selection_accepts_shared_pool(pool, tmp_path):
+def test_training_feature_selection_accepts_project_pool(pool, tmp_path):
     setup_mlflow(tmp_path)
     fitted = []
 
@@ -96,6 +96,29 @@ def test_training_feature_selection_accepts_shared_pool(pool, tmp_path):
     assert result.features == ("x",)
     assert len(result.validation.splits) == 2
     assert len(fitted[-1]) == len(pool)
+
+
+def test_independent_project_container_preserves_its_type_through_model_fitting():
+    data = make_data()
+    partitions = make_validation_splits(data, TimeSeriesCVConfig(n_splits=2))
+    for part in partitions:
+        assert isinstance(part.train, ProjectData)
+        assert isinstance(part.val, ProjectData)
+        model = CatBoostRegressionModel(
+            {
+                "iterations": 3,
+                "depth": 2,
+                "thread_count": 1,
+                "verbose": False,
+                "allow_writing_files": False,
+            }
+        ).fit(part.train, part.val)
+        predictions = model.predict_pool(part.val)
+        assert predictions.shape == (len(part.val),)
+        assert np.isfinite(predictions).all()
+        np.testing.assert_allclose(
+            predictions, model.predict_frame(part.val.to_model_input())
+        )
 
 
 @pytest.mark.parametrize("classifier", [False, True])

@@ -35,7 +35,7 @@ from ..types import FloatArray
 from .contracts import (
     DatasetSplit,
     PostFitEvaluator,
-    TrainingData,
+    Pool,
 )
 
 
@@ -57,7 +57,7 @@ def _feature_filename(index: int, feature: str) -> str:
 def report_custom_evaluation(
     *,
     evaluator: PostFitEvaluator,
-    data: TrainingData,
+    data: Pool,
     prediction: FloatArray,
     split: DatasetSplit,
     name: str,
@@ -137,8 +137,8 @@ def report_custom_artifacts(
 
 def report_diagnostics(
     model: Model,
-    train: TrainingData,
-    validation: TrainingData,
+    train: Pool,
+    validation: Pool,
     train_prediction: FloatArray,
     validation_prediction: FloatArray,
     options: DiagnosticsConfig,

@@ -1,9 +1,12 @@
 from datetime import date
 from pathlib import Path
+from collections.abc import Callable
 from typing import assert_type
 
 import polars as pl
 
+from examples.project_pool import ProjectPool
+from examples.custom_model import model_factory
 from ml_toolkit import Pool, TrainingResult, train_model
 from ml_toolkit.config import HoldoutConfig, TimeSeriesCVConfig, TrainingConfig
 from ml_toolkit.metrics import (
@@ -17,9 +20,10 @@ from ml_toolkit.metrics import (
 )
 from ml_toolkit.models import CatBoostPUClassificationModel, CatBoostRegressionModel
 from ml_toolkit.models.base import Model
-from ml_toolkit.training import DatasetSplit, PostFitEvaluator, TrainingData
+from ml_toolkit.training import DatasetSplit, PostFitEvaluator
+from ml_toolkit.training import Pool as TrainingPool
 from ml_toolkit.training.splits import TrainValSplit, make_validation_splits
-from ml_toolkit.types import FloatArray
+from ml_toolkit.types import FloatArray, ModelParams
 
 
 class BusinessEvaluator(PostFitEvaluator):
@@ -69,7 +73,7 @@ def contracts(data: Pool) -> None:
         ),
         TrainingResult,
     )
-    protocol: TrainingData = data
+    protocol: TrainingPool = data
     model: Model = CatBoostRegressionModel({"iterations": 10})
     pu = CatBoostPUClassificationModel(
         {"loss": "uPU", "pu_prior": 0.1, "task_type": "GPU", "devices": "0"}
@@ -104,6 +108,30 @@ def contracts(data: Pool) -> None:
     TrainingConfig(validation=HoldoutConfig(), test_size="2025-01-01")
     TrainingConfig(validation=HoldoutConfig(), test_size=date(2025, 1, 1))
     TrainingConfig(validation=HoldoutConfig(), test_size=None)
+
+
+def project_pool_contract(data: ProjectPool) -> None:
+    protocol: Pool = data
+    training_protocol: TrainingPool = protocol
+    contracts(training_protocol)
+    assert_type(data.take([0]), ProjectPool)
+    assert_type(data.select_features([data.X.columns[0]]), ProjectPool)
+    assert_type(
+        make_validation_splits(data, HoldoutConfig()),
+        list[TrainValSplit[ProjectPool]],
+    )
+    assert_type(
+        CatBoostRegressionModel({"iterations": 2}).fit(data),
+        CatBoostRegressionModel,
+    )
+
+
+def custom_adapter_contract(data: Pool, params: ModelParams) -> None:
+    factory: Callable[[ModelParams], Model] = model_factory
+    adapter: Model = factory(params)
+    adapter.fit(data)
+    assert_type(adapter.predict_pool(data), FloatArray)
+    assert_type(adapter.get_refit_params(), ModelParams)
 
 
 from ml_toolkit.config import RFEFeatureSelectionConfig

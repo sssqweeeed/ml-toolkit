@@ -11,7 +11,7 @@ if TYPE_CHECKING:
     import lightgbm
 
     from ..config import TrackingConfig
-    from ..training.contracts import TrainingData
+    from ..training.contracts import Pool
 
 
 class Model(Protocol):
@@ -34,15 +34,15 @@ class Model(Protocol):
         """Return the zero-based best iteration index, or None when unavailable."""
         ...
 
-    def fit(self, train: TrainingData, validation: TrainingData | None = None) -> Self:
+    def fit(self, train: Pool, validation: Pool | None = None) -> Self:
         """Fit the adapter using project-owned training and optional holdout data.
 
         Parameters
         ----------
-        train : TrainingData
+        train : Pool
             Project-owned training data supplying the conversion methods required
             by this model.
-        validation : TrainingData or None, default None
+        validation : Pool or None, default None
             Optional holdout data for early stopping and model selection.
 
         Returns
@@ -52,12 +52,12 @@ class Model(Protocol):
         """
         ...
 
-    def predict_pool(self, data: TrainingData) -> FloatArray:
+    def predict_pool(self, data: Pool) -> FloatArray:
         """Predict one numeric value per project data row.
 
         Parameters
         ----------
-        data : TrainingData
+        data : Pool
             Aligned feature rows accepted by this adapter.
 
         Returns
@@ -68,12 +68,12 @@ class Model(Protocol):
         """
         ...
 
-    def feature_importances(self, data: TrainingData) -> dict[str, float]:
+    def feature_importances(self, data: Pool) -> dict[str, float]:
         """Return feature ranking values for the adapter's backend.
 
         Parameters
         ----------
-        data : TrainingData
+        data : Pool
             Current feature subset in fitted order.
 
         Returns
@@ -96,13 +96,13 @@ class Model(Protocol):
         ...
 
     def log(
-        self, sample: TrainingData, *, config: TrackingConfig | None = None
+        self, sample: Pool, *, config: TrackingConfig | None = None
     ) -> ModelInfo | tuple[ModelInfo, ModelInfo]:
         """Log a fitted model to the configured MLflow tracking store.
 
         Parameters
         ----------
-        sample : TrainingData
+        sample : Pool
             Data supplying a representative serving input example.
         config : TrackingConfig or None, default None
             Model artifact name, sample size, registry, and environment settings.

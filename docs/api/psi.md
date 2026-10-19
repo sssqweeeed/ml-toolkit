@@ -6,6 +6,8 @@ bins on the reference once, then reuse them for every comparison.
 
 ## Compare two samples
 
+<!-- example: psi-compare -->
+
 ```python
 import polars as pl
 
@@ -28,9 +30,16 @@ analysis = PSIAnalysis(
     )
 ).fit(reference)
 comparison = analysis.compare(current)
-print(comparison.psi)
-print(comparison.level_distribution)
+print(comparison.psi.sort("feature").with_columns(pl.col("psi").round(4)).to_dicts())
+print(comparison.level_distribution.select("feature", "sample", "level", "rows").sort("feature", "sample", "level").to_dicts())
 ```
+
+<!-- output: psi-compare -->
+```text
+[{'feature': 'age', 'psi': 6.9077}, {'feature': 'region', 'psi': 6.9077}]
+[{'feature': 'age', 'sample': 'current', 'level': '[0, 35)', 'rows': 0}, {'feature': 'age', 'sample': 'current', 'level': '[35, inf)', 'rows': 4}, {'feature': 'age', 'sample': 'current', 'level': '__ERROR__', 'rows': 0}, {'feature': 'age', 'sample': 'current', 'level': '__NULL__', 'rows': 0}, {'feature': 'age', 'sample': 'reference', 'level': '[0, 35)', 'rows': 2}, {'feature': 'age', 'sample': 'reference', 'level': '[35, inf)', 'rows': 2}, {'feature': 'age', 'sample': 'reference', 'level': '__ERROR__', 'rows': 0}, {'feature': 'age', 'sample': 'reference', 'level': '__NULL__', 'rows': 0}, {'feature': 'region', 'sample': 'current', 'level': '__NULL__', 'rows': 0}, {'feature': 'region', 'sample': 'current', 'level': '__UNSEEN__', 'rows': 2}, {'feature': 'region', 'sample': 'current', 'level': 'north', 'rows': 1}, {'feature': 'region', 'sample': 'current', 'level': 'south', 'rows': 1}, {'feature': 'region', 'sample': 'reference', 'level': '__NULL__', 'rows': 0}, {'feature': 'region', 'sample': 'reference', 'level': '__UNSEEN__', 'rows': 0}, {'feature': 'region', 'sample': 'reference', 'level': 'north', 'rows': 2}, {'feature': 'region', 'sample': 'reference', 'level': 'south', 'rows': 2}]
+```
+<!-- /output -->
 
 `comparison.psi` has one score per feature. Larger values mean a greater change
 in fitted-level shares. `level_distribution` shows the reference/current counts
@@ -47,6 +56,8 @@ would change the reference. For monthly distributions, provide aligned
 consistent bins for another report. Continue with `reference` and `current`
 above to transform both samples and compare their existing levels:
 
+<!-- example: psi-levels -->
+
 ```python
 from ml_toolkit.feature_levels import LevelTransformer
 from ml_toolkit.psi import compare_psi
@@ -60,6 +71,12 @@ print(current_levels["region"].cast(pl.String).to_list())
 # ['north', 'south', '__UNSEEN__', '__UNSEEN__']
 ```
 
+<!-- output: psi-levels -->
+```text
+['north', 'south', '__UNSEEN__', '__UNSEEN__']
+```
+<!-- /output -->
+
 Configured columns become Polars `Categorical` columns; other columns retain
 their values and order. Reuse the fitted transformer for subsequent samples.
 Training's shared PSI and observed/fitted diagnostics use these levels too; see the
@@ -69,24 +86,36 @@ Training's shared PSI and observed/fitted diagnostics use these levels too; see 
 
 Import PSI analysis from `ml_toolkit.psi`.
 
-::: ml_toolkit.psi
-    options:
-      members: [PSIAnalysis, PSIConfig, PSIResult, compare_psi, psi]
+### Drift analysis
 
-### Shared feature levels
+::: ml_toolkit.psi.PSIAnalysis
+
+::: ml_toolkit.psi.compare_psi
+
+### Configuration and results
+
+::: ml_toolkit.psi.PSIConfig
+
+::: ml_toolkit.psi.PSIResult
+
+### Discrete-series comparison
+
+::: ml_toolkit.psi.psi
+
+### Reference-fitted feature levels
 
 Import these lower-level types from `ml_toolkit.feature_levels`.
 `FeatureLevelSpec` is also exported from `ml_toolkit.config` and documented in the
 [configuration reference](configuration.md).
 
-::: ml_toolkit.feature_levels
-    options:
-      members:
-        - LevelTransformer
-        - LevelConfig
-        - FeatureLevelConfig
-        - FeatureType
-        - FeatureScalar
-        - NULL_LEVEL
-        - ERROR_LEVEL
-        - UNSEEN_LEVEL
+::: ml_toolkit.feature_levels.LevelTransformer
+
+### Level definitions
+
+::: ml_toolkit.feature_levels.LevelConfig
+
+::: ml_toolkit.feature_levels.FeatureLevelConfig
+
+`FeatureType` identifies numerical and categorical features. `FeatureScalar`
+describes the values retained by learned levels. `NULL_LEVEL`, `ERROR_LEVEL`,
+and `UNSEEN_LEVEL` are the default missing, invalid, and unseen-category labels.

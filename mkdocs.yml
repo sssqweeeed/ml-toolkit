@@ -17,6 +17,7 @@ nav:
   - Home: index.md
   - Getting started: getting-started.md
   - Configuration by task: configuration.md
+  - Build a model adapter: custom-model.md
   - Usage and API:
       - Data: api/data.md
       - Training: api/training.md
@@ -39,7 +40,10 @@ plugins:
             docstring_style: numpy
             show_source: false
             show_root_heading: true
-            heading_level: 3
+            show_root_full_path: false
+            heading_level: 4
+            show_root_toc_entry: false
+            show_symbol_type_toc: false
             show_signature_annotations: true
             separate_signature: true
             members_order: source
@@ -51,8 +55,13 @@ markdown_extensions:
   - admonition
   - pymdownx.highlight
   - pymdownx.superfences
+  - pymdownx.details
+  - pymdownx.snippets:
+      base_path: ['.']
+      check_paths: true
   - toc:
       permalink: true
+      toc_depth: 3
 
 validation:
   nav:

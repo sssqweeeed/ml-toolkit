@@ -20,6 +20,8 @@ The [configuration reference](api/configuration.md) lists every field and defaul
 Run this block first, then choose one task block below. Each task defines
 `config`, `model_factory`, `params`, and `metric` for the same training call.
 
+<!-- example: configuration-shared -->
+
 ```python
 from dataclasses import replace
 
@@ -95,6 +97,8 @@ configuration are always logged to MLflow. Set
 Use a pool whose targets contain confirmed `0` and `1` labels. Include both
 classes in evaluated splits for finite ROC AUC; single-class splits return NaN.
 
+<!-- example: configuration-classification -->
+
 ```python
 classification_config = replace(
     base_config,
@@ -117,6 +121,8 @@ and the shared feature diagnostics.
 
 Ordinary regression supports signed targets. Define a three-argument metric
 returning named scores; this example uses exposure-weighted absolute error.
+
+<!-- example: configuration-regression -->
 
 ```python
 def weighted_mae(
@@ -149,6 +155,8 @@ weighted total. Shared feature diagnostics and monthly observed/fitted remain on
 Use nonnegative targets with a positive weighted total in every evaluated split.
 The log-link adapter fits a training-only baseline and returns positive rates.
 
+<!-- example: configuration-frequency -->
+
 ```python
 frequency_config = replace(
     base_config,
@@ -170,6 +178,8 @@ metric = metrics_frequency
 Use a Tweedie power consistent with the model loss and metric. Here `power=1.5`
 allows zero targets and requires positive predictions and positive weighted
 observed totals. Gamma deviance (`power=2`) requires strictly positive targets.
+
+<!-- example: configuration-severity -->
 
 ```python
 def severity_metric(
@@ -200,6 +210,8 @@ training and evaluated sample needs positive weight in both groups. The prior
 is the expected positive fraction in the population, not the labeled fraction.
 Use the same prior in the model and metric.
 
+<!-- example: configuration-pu -->
+
 ```python
 pu_classification_config = replace(
     base_config,
@@ -227,6 +239,8 @@ Prepare a `data` pool with targets appropriate to the selected task. The
 [data example](api/data.md#prepare-a-pool) works for regression, frequency, and
 the severity recipe above. Configure MLflow, then run:
 
+<!-- example: configuration-run -->
+
 ```python
 import mlflow
 
@@ -242,9 +256,21 @@ result = train_model(
     run_name="task-example",
     config=config,
 )
-print(result.validation.mean_metrics)
-print(result.test_metrics)
+print({name: round(value, 4) for name, value in result.validation.mean_metrics.items()})
+assert result.test_metrics is not None
+print({name: round(value, 4) for name, value in result.test_metrics.items()})
 ```
+
+<!-- output: configuration-run -->
+```text
+{'mean_poisson_deviance': 0.9547, 'd2_poisson_score': -0.0823, 'mean_absolute_error': 0.707, 'root_mean_squared_error': 0.8303, 'prediction_over_observed': 0.9742, 'lift_at_10': 0.3333, 'gain_at_10': 0.0333, 'normalized_gini': -0.5079}
+{'mean_poisson_deviance': 0.733, 'd2_poisson_score': -0.0916, 'mean_absolute_error': 0.631, 'root_mean_squared_error': 0.7895, 'prediction_over_observed': 0.7903, 'lift_at_10': 1.6667, 'gain_at_10': 0.1667, 'normalized_gini': 0.2}
+```
+<!-- /output -->
+
+The output shown below the example uses the Frequency recipe and the data
+example. Choose your task block before running this shared call; its metric
+names and values will differ for other tasks.
 
 The call creates a local `mlflow.db` and logs metrics, configuration, tables,
 and figures. See the [training guide](api/training.md) to add feature selection,
@@ -252,6 +278,8 @@ an Optuna search space, or a custom evaluator. Pass those callbacks as explicit
 arguments to `train_model`, alongside their configuration.
 
 ## Switching validation strategies
+
+<!-- example: configuration-splits -->
 
 ```python
 holdout_config = replace(regression_config, validation=HoldoutConfig(val_size=0.2))
@@ -270,6 +298,8 @@ exact datetimes are not accepted.
 Configure both diagnostics in `plots.common`. They share levels fitted on the
 training sample: numerical bins, categories, missing/error sentinels, and valid
 bounds. The following example replaces the regression reports:
+
+<!-- example: configuration-features -->
 
 ```python
 feature_common = CommonPlotsConfig(

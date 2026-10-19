@@ -19,7 +19,7 @@ from ..types import FloatArray, ModelParams
 
 if TYPE_CHECKING:
     from ..config import TrackingConfig
-    from ..training.contracts import TrainingData
+    from ..training.contracts import Pool
 
 logger = logging.getLogger("ml_toolkit.models.lightgbm")
 
@@ -119,7 +119,7 @@ class LightGBMWrapper(PythonModel):
 
     def log(
         self,
-        sample: TrainingData,
+        sample: Pool,
         *,
         config: TrackingConfig | None = None,
     ) -> ModelInfo:
@@ -127,7 +127,7 @@ class LightGBMWrapper(PythonModel):
 
         Parameters
         ----------
-        sample : TrainingData
+        sample : Pool
             Project data supplying at least one serving row via to_model_input; up
             to config.input_example_rows rows are used.
         config : TrackingConfig or None, default None

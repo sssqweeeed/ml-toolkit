@@ -26,7 +26,7 @@ from .contracts import (
     DatasetSplit,
     FeatureRanker,
     PostFitEvaluator,
-    TrainingData,
+    Pool,
 )
 from .feature_selection import select_features
 from .rankers import ShapRanker, importance_ranker
@@ -49,7 +49,7 @@ __all__ = [
     "DatasetSplit",
     "FeatureRanker",
     "PostFitEvaluator",
-    "TrainingData",
+    "Pool",
     "FeatureSelectionResult",
     "FeatureSelectionStep",
     "SplitResult",

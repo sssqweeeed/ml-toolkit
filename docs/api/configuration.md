@@ -7,6 +7,8 @@ to `train_model`.
 
 ## Start with a small configuration
 
+<!-- example: configuration-small -->
+
 ```python
 from dataclasses import replace
 
@@ -74,28 +76,53 @@ to disable every figure and PSI table.
 
 Import configurations from `ml_toolkit.config`.
 
-::: ml_toolkit.config
-    options:
-      members:
-        - HoldoutConfig
-        - TimeSeriesCVConfig
-        - TrainingConfig
-        - RFEFeatureSelectionConfig
-        - TuningConfig
-        - ReportingConfig
-        - ClassificationDiagnosticsConfig
-        - RegressionDiagnosticsConfig
-        - PUDiagnosticsConfig
-        - ClassificationPlotsConfig
-        - RegressionPlotsConfig
-        - PUPlotsConfig
-        - CommonPlotsConfig
-        - NumericalFeatureDistributionConfig
-        - ShapConfig
-        - FigureConfig
-        - PostFitEvaluationConfig
-        - TrackingConfig
-        - FeatureLevelSpec
+### Validation and fitting
+
+::: ml_toolkit.config.TrainingConfig
+
+::: ml_toolkit.config.HoldoutConfig
+
+::: ml_toolkit.config.TimeSeriesCVConfig
+
+### Selection and tuning
+
+::: ml_toolkit.config.RFEFeatureSelectionConfig
+
+::: ml_toolkit.config.TuningConfig
+
+### Diagnostic families
+
+::: ml_toolkit.config.ReportingConfig
+
+::: ml_toolkit.config.ClassificationDiagnosticsConfig
+
+::: ml_toolkit.config.RegressionDiagnosticsConfig
+
+::: ml_toolkit.config.PUDiagnosticsConfig
+
+::: ml_toolkit.config.ClassificationPlotsConfig
+
+::: ml_toolkit.config.RegressionPlotsConfig
+
+::: ml_toolkit.config.PUPlotsConfig
+
+### Shared figures and feature levels
+
+::: ml_toolkit.config.CommonPlotsConfig
+
+::: ml_toolkit.config.FeatureLevelSpec
+
+::: ml_toolkit.config.NumericalFeatureDistributionConfig
+
+::: ml_toolkit.config.ShapConfig
+
+::: ml_toolkit.config.FigureConfig
+
+### Model logging and custom evaluation
+
+::: ml_toolkit.config.TrackingConfig
+
+::: ml_toolkit.config.PostFitEvaluationConfig
 
 `DiagnosticsConfig` is the union of the three task diagnostics configurations
 above. See the [feature-level reference](psi.md) for fitting and reusing learned

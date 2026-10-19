@@ -9,7 +9,7 @@ import pytest
 from evaluators import CallbackEvaluator
 from test_training import MeanModel, ProjectData, mae, make_data, setup_mlflow
 
-from ml_toolkit import Pool
+from examples.project_pool import ProjectPool as Pool
 from ml_toolkit.config import (
     PostFitEvaluationConfig,
     RegressionDiagnosticsConfig,

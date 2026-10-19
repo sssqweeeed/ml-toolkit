@@ -10,7 +10,7 @@ from ..metrics import Metric
 from ..models.base import Model
 from ..tracking import runs as tracking
 from ..types import FloatArray
-from .contracts import DatasetSplit, PostFitEvaluator, TrainingData, TrainingStage
+from .contracts import DatasetSplit, PostFitEvaluator, Pool, TrainingStage
 from .reporting import report_custom_evaluation, report_diagnostics
 
 logger = logging.getLogger(__name__)
@@ -23,7 +23,7 @@ class EvaluationResult:
 
 
 def calculate_metrics(
-    metric: Metric, data: TrainingData, prediction: FloatArray
+    metric: Metric, data: Pool, prediction: FloatArray
 ) -> dict[str, float]:
     if prediction.shape != (len(data),) or not np.isfinite(prediction).all():
         raise ValueError("Predictions must contain one finite value per row")
@@ -36,8 +36,8 @@ def calculate_metrics(
 
 def evaluate_model(
     model: Model,
-    train: TrainingData,
-    heldout: TrainingData | None,
+    train: Pool,
+    heldout: Pool | None,
     metric: Metric,
     reporting: ReportingConfig,
     evaluator: PostFitEvaluator | None,

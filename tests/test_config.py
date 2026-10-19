@@ -15,7 +15,7 @@ from evaluators import CallbackEvaluator
 from test_training import MeanModel, list_all_artifacts, mae, make_data, setup_mlflow
 
 import ml_toolkit.config as settings
-from ml_toolkit import Pool
+from examples.project_pool import ProjectPool as Pool
 from ml_toolkit.config import (
     ClassificationDiagnosticsConfig,
     ClassificationPlotsConfig,

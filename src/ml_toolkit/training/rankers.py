@@ -10,17 +10,17 @@ from ..explainability import shap_contributions
 
 if TYPE_CHECKING:
     from ..models.base import Model
-    from .contracts import TrainingData
+    from .contracts import Pool
 
 
-def importance_ranker(model: "Model", data: "TrainingData") -> dict[str, float]:
+def importance_ranker(model: "Model", data: "Pool") -> dict[str, float]:
     """Obtain importance values from the adapter's explicit ranking method.
 
     Parameters
     ----------
     model : Model
         Fitted adapter implementing feature_importances(data).
-    data : TrainingData
+    data : Pool
         Current input columns in fitted order.
 
     Returns
@@ -61,14 +61,14 @@ class ShapRanker:
     def __post_init__(self) -> None:
         ShapConfig(max_samples=self.max_samples, seed=self.seed)
 
-    def __call__(self, model: "Model", data: "TrainingData") -> dict[str, float]:
+    def __call__(self, model: "Model", data: "Pool") -> dict[str, float]:
         """Return weighted SHAP importances for the current feature subset.
 
         Parameters
         ----------
         model : Model
             Fitted adapter exposing a supported single-output native tree model.
-        data : TrainingData
+        data : Pool
             Validation rows with finite nonnegative weights and positive total.
 
         Returns
