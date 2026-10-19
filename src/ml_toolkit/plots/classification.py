@@ -7,12 +7,15 @@ import numpy as np
 import pandas as pd
 from numpy.typing import ArrayLike
 
+from ..metrics._binary import binary_threshold_scores
 from ..config import ClassificationPlotsConfig, FigureConfig
-from .utils import PlotError, numeric_vector, same_length, save_figure
+from .utils import PlotError, numeric_vector, same_length, save_figure, weights
 
 
-def binary_curves(observed: ArrayLike, probabilities: ArrayLike) -> pd.DataFrame:
-    """Compute unweighted binary scores at each distinct probability threshold.
+def binary_curves(
+    observed: ArrayLike, probabilities: ArrayLike, *, weight: ArrayLike | None = None
+) -> pd.DataFrame:
+    """Compute weighted binary scores at each distinct probability threshold.
 
     Parameters
     ----------
@@ -20,6 +23,10 @@ def binary_curves(observed: ArrayLike, probabilities: ArrayLike) -> pd.DataFrame
         Nonempty binary ground-truth labels, containing only 0 and 1.
     probabilities : array-like of shape (n_samples,)
         Finite positive-class probabilities in [0, 1], aligned with labels.
+
+    weight : array-like of shape (n_samples,) or None, default None
+        Nonnegative finite sample weights with positive total; None uses ones.
+        Zero-weight rows do not influence the calculations.
 
     Returns
     -------
@@ -52,23 +59,13 @@ def binary_curves(observed: ArrayLike, probabilities: ArrayLike) -> pd.DataFrame
     same_length(observed=y, probabilities=p)
     if not np.isin(y, [0.0, 1.0]).all():
         raise PlotError("observed must contain binary labels (0 or 1)")
-    order = np.argsort(-p, kind="stable")
-    sorted_y, sorted_p = y[order], p[order]
-    ends = np.r_[np.flatnonzero(np.diff(sorted_p) != 0), len(y) - 1]
-    tp = np.cumsum(sorted_y)[ends]
-    predicted = ends + 1
-    positives = y.sum()
+    w = weights(weight, len(y))
+    try:
+        threshold, precision, recall, f1 = binary_threshold_scores(y, p, w)
+    except ValueError as error:
+        raise PlotError(str(error)) from error
     return pd.DataFrame(
-        {
-            "threshold": sorted_p[ends],
-            "precision": tp / predicted,
-            "recall": tp / positives if positives > 0 else np.zeros(len(ends)),
-            "f1": (
-                2 * tp / (predicted + positives)
-                if positives > 0
-                else np.zeros(len(ends))
-            ),
-        }
+        {"threshold": threshold, "precision": precision, "recall": recall, "f1": f1}
     )
 
 
@@ -77,6 +74,7 @@ def precision_recall(
     probabilities: ArrayLike,
     save_fig: str | Path,
     *,
+    weight: ArrayLike | None = None,
     config: ClassificationPlotsConfig | None = None,
     figure: FigureConfig | None = None,
 ) -> pd.DataFrame:
@@ -98,6 +96,10 @@ def precision_recall(
         Uses max_curve_points to limit rendered points. Other settings are
         ignored by this function. None uses defaults.
 
+    weight : array-like of shape (n_samples,) or None, default None
+        Nonnegative finite sample weights with positive total; None uses ones.
+        Zero-weight rows do not influence the calculations.
+
     Returns
     -------
     pandas.DataFrame
@@ -113,11 +115,16 @@ def precision_recall(
     -----
     Creates parent directories for save_fig and closes the figure after saving.
     The plot uses at most config.max_curve_points; the returned table retains
-    every threshold. Scores are unweighted.
+    every threshold. Scores use the supplied weights.
     """
     config = ClassificationPlotsConfig() if config is None else config
-    curve = binary_curves(observed, probabilities)
-    prevalence = float(np.mean(np.asarray(observed, dtype=float)))
+    curve = binary_curves(observed, probabilities, weight=weight)
+    prevalence = float(
+        np.average(
+            np.asarray(observed, dtype=float),
+            weights=weights(weight, len(np.asarray(observed))),
+        )
+    )
     ap = float(
         (
             np.diff(np.r_[0.0, curve.recall.to_numpy()]) * curve.precision.to_numpy()
@@ -132,9 +139,11 @@ def precision_recall(
     ax.plot(
         np.r_[0.0, shown.recall],
         np.r_[1.0, shown.precision],
-        label=f"Model (AP={ap:.3f})",
+        label=f"Model (weighted AP={ap:.3f})",
     )
-    ax.axhline(prevalence, color="gray", linestyle="--", label="Positive prevalence")
+    ax.axhline(
+        prevalence, color="gray", linestyle="--", label="Weighted positive prevalence"
+    )
     if prevalence > 0:
         best = curve.iloc[int(np.argmax(curve.f1.to_numpy()))]
         ax.scatter(best.recall, best.precision, color="tab:red", zorder=3)
@@ -144,7 +153,9 @@ def precision_recall(
             xytext=(8, -30),
             textcoords="offset points",
         )
-    ax.set(xlabel="Recall", ylabel="Precision", title="Precision–recall")
+    ax.set(
+        xlabel="Weighted recall", ylabel="Weighted precision", title="Precision–recall"
+    )
     ax.set(xlim=(0, 1), ylim=(0, 1.02))
     ax.grid(alpha=0.25)
     ax.legend(loc="best")
@@ -158,6 +169,7 @@ def f1_threshold(
     probabilities: ArrayLike,
     save_fig: str | Path,
     *,
+    weight: ArrayLike | None = None,
     config: ClassificationPlotsConfig | None = None,
     figure: FigureConfig | None = None,
 ) -> pd.DataFrame:
@@ -179,6 +191,10 @@ def f1_threshold(
         Uses max_curve_points to limit rendered points. Other settings are
         ignored by this function. None uses defaults.
 
+    weight : array-like of shape (n_samples,) or None, default None
+        Nonnegative finite sample weights with positive total; None uses ones.
+        Zero-weight rows do not influence the calculations.
+
     Returns
     -------
     pandas.DataFrame
@@ -194,10 +210,10 @@ def f1_threshold(
     -----
     Creates parent directories for save_fig and closes the figure after saving.
     The plot uses at most config.max_curve_points; the returned table retains
-    every threshold. Scores are unweighted.
+    every threshold. Scores use the supplied weights.
     """
     config = ClassificationPlotsConfig() if config is None else config
-    curve = binary_curves(observed, probabilities)
+    curve = binary_curves(observed, probabilities, weight=weight)
     shown = curve.iloc[
         np.linspace(
             0, len(curve) - 1, min(len(curve), config.max_curve_points), dtype=int
@@ -205,14 +221,21 @@ def f1_threshold(
     ]
     fig, ax = plt.subplots(figsize=(9, 6))
     ax.plot(shown.threshold, shown.f1)
-    if np.any(np.asarray(observed) == 1):
+    if np.any(
+        (np.asarray(observed) == 1) & (weights(weight, len(np.asarray(observed))) > 0)
+    ):
         best = curve.iloc[int(np.argmax(curve.f1.to_numpy()))]
         ax.scatter(best.threshold, best.f1, color="tab:red", zorder=3)
         ax.axvline(best.threshold, color="tab:red", linestyle="--", alpha=0.7)
         ax.set_title(f"F1 by threshold — best={best.f1:.3f} at {best.threshold:.3g}")
     else:
         ax.set_title("F1 by threshold — no positive examples")
-    ax.set(xlabel="Probability threshold", ylabel="F1", xlim=(0, 1), ylim=(0, 1.02))
+    ax.set(
+        xlabel="Probability threshold",
+        ylabel="Weighted F1",
+        xlim=(0, 1),
+        ylim=(0, 1.02),
+    )
     ax.grid(alpha=0.25)
     fig.tight_layout()
     save_figure(fig, save_fig, config=figure)
@@ -224,6 +247,7 @@ def calibration(
     probabilities: ArrayLike,
     save_fig: str | Path,
     *,
+    weight: ArrayLike | None = None,
     config: ClassificationPlotsConfig | None = None,
     figure: FigureConfig | None = None,
 ) -> pd.DataFrame:
@@ -245,11 +269,16 @@ def calibration(
         Optional export dimensions, DPI, and format. None preserves native
         dimensions and the requested path format.
 
+    weight : array-like of shape (n_samples,) or None, default None
+        Nonnegative finite sample weights with positive total; None uses ones.
+        Zero-weight rows do not influence the calculations.
+
     Returns
     -------
     pandas.DataFrame
-        Columns bin, observed_rate, predicted_rate, and count for populated
-        bins; rates are unweighted means.
+        Columns bin, observed_rate, predicted_rate, count, and weight_sum for
+        populated positive-weight bins. Rates are weighted means; quantile
+        boundaries use the positive-weight observations without weighting.
 
     Raises
     ------
@@ -263,36 +292,42 @@ def calibration(
     """
     config = ClassificationPlotsConfig() if config is None else config
     n_bins = config.calibration_bins
-    binary_curves(observed, probabilities)
+    binary_curves(observed, probabilities, weight=weight)
     y = np.asarray(observed, dtype=float)
     p = np.asarray(probabilities, dtype=float)
+    w = weights(weight, len(y))
+    keep = w > 0
+    y, p, w = y[keep], p[keep], w[keep]
     edges = np.unique(np.quantile(p, np.linspace(0, 1, n_bins + 1)))
     bins = np.searchsorted(edges[1:-1], p, side="left")
     grouped = (
-        pd.DataFrame({"bin": bins, "observed": y, "predicted": p})
+        pd.DataFrame({"bin": bins, "observed": y * w, "predicted": p * w, "weight": w})
         .groupby("bin", as_index=False)
         .agg(
-            observed_rate=("observed", "mean"),
-            predicted_rate=("predicted", "mean"),
+            observed_rate=("observed", "sum"),
+            predicted_rate=("predicted", "sum"),
             count=("observed", "size"),
+            weight_sum=("weight", "sum"),
         )
     )
+    grouped["observed_rate"] /= grouped["weight_sum"]
+    grouped["predicted_rate"] /= grouped["weight_sum"]
     fig, (ax, histogram) = plt.subplots(
         2, 1, figsize=(9, 8), gridspec_kw={"height_ratios": [3, 1.2]}
     )
     ax.plot([0, 1], [0, 1], color="gray", linestyle="--", label="Perfect calibration")
     ax.plot(grouped.predicted_rate, grouped.observed_rate, marker="o", label="Model")
     ax.set(
-        xlabel="Mean predicted probability",
-        ylabel="Observed rate",
+        xlabel="Weighted mean predicted probability",
+        ylabel="Weighted observed rate",
         title="Probability calibration",
         xlim=(0, 1),
         ylim=(0, 1),
     )
     ax.grid(alpha=0.25)
     ax.legend(loc="best")
-    histogram.hist(p, bins=config.histogram_bins, color="tab:blue")
-    histogram.set(xlabel="Predicted probability", ylabel="Cases", xlim=(0, 1))
+    histogram.hist(p, weights=w, bins=config.histogram_bins, color="tab:blue")
+    histogram.set(xlabel="Predicted probability", ylabel="Sample weight", xlim=(0, 1))
     histogram.set_yscale("log")
     fig.tight_layout()
     save_figure(fig, save_fig, config=figure)

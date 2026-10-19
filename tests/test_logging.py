@@ -1,3 +1,5 @@
+"""Application-controlled logging and independent experiment tracking."""
+
 import io
 import json
 import logging
@@ -19,10 +21,10 @@ import polars as pl
 import pytest
 from test_training import MeanModel, mae, make_data, setup_mlflow
 
+from ml_toolkit.feature_selection import RFESelector
 from ml_toolkit.config import (
     HoldoutConfig,
     PostFitEvaluationConfig,
-    RFEFeatureSelectionConfig,
     ShapConfig,
     TimeSeriesCVConfig,
     TrainingConfig,
@@ -38,9 +40,6 @@ from ml_toolkit.psi import PSIAnalysis, PSIConfig
 from ml_toolkit.tracking.mlflow import log_polars_table
 from ml_toolkit.tracking.model_artifacts import log_model_from_code
 from ml_toolkit.training import importance_ranker, split_holdout, train_model
-from ml_toolkit.training.feature_selection import select_features
-
-"""Application-controlled logging and independent experiment tracking."""
 
 
 def toolkit_records(caplog):
@@ -108,7 +107,6 @@ def test_workflow_levels_and_results(tmp_path, caplog, level):
     caplog.set_level(level, logger="ml_toolkit")
     optuna_verbosity = optuna.logging.get_verbosity()
     result = train_model(
-        feature_ranker=importance_ranker,
         data=make_data(),
         params={"private_parameter": "do-not-log"},
         model_factory=MeanModel,
@@ -117,10 +115,10 @@ def test_workflow_levels_and_results(tmp_path, caplog, level):
         param_space=lambda trial: {"choice": trial.suggest_int("choice", 1, 2)},
         config=TrainingConfig(
             validation=TimeSeriesCVConfig(n_splits=2, skip_splits=1),
-            feature_selection=RFEFeatureSelectionConfig(
-                min_features=1, metric="mae", direction="minimize"
-            ),
             tuning=TuningConfig(metric="mae", direction="minimize", n_trials=2),
+        ),
+        feature_selector=RFESelector(
+            ranker=importance_ranker, min_features=1, metric="mae", direction="minimize"
         ),
     )
     assert result.features == ("x",)
@@ -164,23 +162,21 @@ def test_workflow_levels_and_results(tmp_path, caplog, level):
 
 def test_module_override_propagates_once(caplog):
     caplog.set_level(logging.INFO, logger="ml_toolkit")
-    caplog.set_level(logging.DEBUG, logger="ml_toolkit.training.feature_selection")
+    caplog.set_level(logging.DEBUG, logger="ml_toolkit.feature_selection")
     package = logging.getLogger("ml_toolkit")
     stream = io.StringIO()
     handler = logging.StreamHandler(stream)
     package.addHandler(handler)
     try:
         partition = split_holdout(make_data(), HoldoutConfig(val_size=0.25))
-        selected = select_features(
+        selected = RFESelector(
+            ranker=importance_ranker, min_features=1, metric="mae", direction="minimize"
+        ).select(
             metric=mae,
-            ranker=importance_ranker,
             train=partition.train,
             validation=partition.val,
             params={},
             model_factory=MeanModel,
-            config=RFEFeatureSelectionConfig(
-                min_features=1, metric="mae", direction="minimize"
-            ),
         )
     finally:
         package.removeHandler(handler)
@@ -371,16 +367,14 @@ def test_feature_selection_keeps_catboost_verbosity(caplog, classifier, level):
 
     params = {"iterations": 3, "verbose": False, "allow_writing_files": False}
     partition = split_holdout(data, HoldoutConfig(val_size=0.25))
-    result = select_features(
+    result = RFESelector(
+        ranker=importance_ranker, min_features=1, metric="mae", direction="minimize"
+    ).select(
         metric=mae,
-        ranker=importance_ranker,
         train=partition.train,
         validation=partition.val,
         params=params,
         model_factory=record,
-        config=RFEFeatureSelectionConfig(
-            min_features=1, metric="mae", direction="minimize"
-        ),
     )
     assert [len(step.features) for step in result.steps] == [2, 1]
     assert fitted[0].native_model.get_params()["verbose"] is False

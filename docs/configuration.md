@@ -114,7 +114,7 @@ params = {**base_params, "loss_function": "Logloss"}
 metric = metrics_classification
 ```
 
-The reports include precision-recall, F1, calibration, gains/lift, monthly means,
+The reports include precision-recall, F1, calibration, gains/lift, temporal means,
 and the shared feature diagnostics.
 
 ## Regression
@@ -148,7 +148,7 @@ metric = weighted_mae
 ```
 
 Gains and lift stay off because they require nonnegative targets with a positive
-weighted total. Shared feature diagnostics and monthly observed/fitted remain on.
+weighted total. Shared feature diagnostics and time observed/fitted remain on.
 
 ## Frequency
 
@@ -329,11 +329,20 @@ set `shap=ShapConfig()` (imported from `ml_toolkit.config`) and install the `sha
 extra to enable it.
 
 `psi=True` writes score and level-distribution tables, a PSI score figure, and
-monthly level distributions. `observed_fitted=True` writes one figure per feature
+time-based level distributions. `observed_fitted=True` writes one figure per feature
 with weighted train and validation/test means and volume bars. Missing or
 zero-weight groups have no mean and break the curve. Each validation split fits
 its own levels; test uses the final training sample as reference.
 
 Both flags default to `True` and work independently for every task. The separate
-`monthly_observed_fitted` flag controls monthly target/prediction charts. Setting
+`time_observed_fitted` flag controls time-based target/prediction charts. Setting
 the enclosing `plots=None` disables all built-in figures and PSI tables.
+
+Set `CommonPlotsConfig(period="week")` to group all temporal diagnostics by week.
+The default is `"month"`; `"minute"`, `"hour"`, `"day"`, `"quarter"`, and `"year"`
+are also supported. Week boundaries are Mondays, and all calendar boundaries
+use the data's timezone. Minute/hour grouping requires `Datetime` inputs.
+Independent PSI analysis accepts the same option in `PSIConfig(period=...)`.
+Temporal diagnostics require the latest reference timestamp to be strictly
+earlier than the earliest current timestamp. Overlap or equal endpoints raise
+`ValueError`; splitting inside a grouping period is allowed.

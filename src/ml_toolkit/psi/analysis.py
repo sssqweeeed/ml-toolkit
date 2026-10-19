@@ -9,10 +9,11 @@ import polars as pl
 
 from .config import PSIConfig
 from .distributions import (
-    MONTHLY_SCHEMA,
+    TIME_SCHEMA,
     level_distributions,
-    monthly_level_distributions,
+    time_level_distributions,
 )
+from ..types import TimePeriod
 from ..feature_levels import LevelConfig, LevelTransformer
 from .results import PSIResult
 from .score import psi
@@ -50,7 +51,7 @@ class PSIAnalysis:
     reference_levels : polars.DataFrame or None
         Transformed reference frame; None before fitting.
     reference_time : polars.Series or None
-        Optional reference timestamps for monthly distributions.
+        Optional reference timestamps for time-based distributions.
 
     Examples
     --------
@@ -91,6 +92,8 @@ class PSIAnalysis:
         time : polars.Series, str, or None, default None
             Optional non-null Date/Datetime Series aligned with rows, or the name
             of a timestamp column. Provide time for both samples or neither.
+            Current timestamps must all be strictly later than the latest
+            reference timestamp; a split inside one grouping period is allowed.
 
         Returns
         -------
@@ -136,7 +139,7 @@ class PSIAnalysis:
         Returns
         -------
         PSIResult
-            Per-feature PSI, level shares for both samples, optional monthly
+            Per-feature PSI, level shares for both samples, optional time-based
             shares, and fitted level definitions.
 
         Raises
@@ -145,13 +148,16 @@ class PSIAnalysis:
             The analysis has not been fitted.
         ValueError
             Data is empty, required features are missing, timestamps are invalid,
-            or only one sample supplies time.
+            only one sample supplies time, or the reference time range does not
+            strictly precede current. A split inside one period is allowed.
         """
         if self.reference_levels is None or self.transformer.config is None:
             raise RuntimeError("PSIAnalysis must be fitted before compare")
         current_time = _resolve_time(current, time)
         if (self.reference_time is None) != (current_time is None):
-            raise ValueError("Both samples must provide time for monthly distributions")
+            raise ValueError(
+                "Both samples must provide time for time-based distributions"
+            )
 
         logger.debug(
             "Comparing PSI: %s current rows, %s features",
@@ -164,6 +170,7 @@ class PSIAnalysis:
             current_levels,
             self.transformer.config,
             epsilon=self.config.epsilon,
+            period=self.config.period,
             reference_time=self.reference_time,
             current_time=current_time,
         )
@@ -175,6 +182,7 @@ def compare_psi(
     level_config: LevelConfig,
     *,
     epsilon: float = 1e-6,
+    period: TimePeriod = "month",
     reference_time: pl.Series | None = None,
     current_time: pl.Series | None = None,
 ) -> PSIResult:
@@ -187,23 +195,28 @@ def compare_psi(
         LevelTransformer. Extra columns are ignored.
     level_config : LevelConfig
         Fitted definitions, including the order of features and levels.
+    period : TimePeriod, default "month"
+        Calendar grouping in the input timezone. Both time zones must match;
+        minute/hour require Datetime. Missing periods are not filled.
     epsilon : float, default 1e-6
         Share floor strictly between zero and one for PSI logarithms.
     reference_time, current_time : polars.Series or None, default None
-        Aligned, non-null Date/Datetime values. Supply both to include monthly
-        distributions, or neither.
+        Aligned, non-null Date/Datetime values. Supply both to include time-based
+        distributions, or neither. max(reference_time) must be strictly less
+        than min(current_time); a split inside one grouping period is allowed.
 
     Returns
     -------
     PSIResult
-        Per-feature scores, level distributions, optional monthly distributions,
+        Per-feature scores, level distributions, optional time-based distributions,
         and the supplied fitted definitions. No levels are fitted here.
 
     Raises
     ------
     ValueError
         Frames or feature definitions are empty, configured columns or levels
-        are missing or invalid, timestamps are misaligned, or epsilon is invalid.
+        are missing or invalid, timestamps are misaligned, time ranges overlap
+        or are not ordered reference before current, or epsilon is invalid.
     TypeError
         Feature columns are not Categorical or timestamps have an invalid dtype.
     """
@@ -231,7 +244,7 @@ def compare_psi(
     reference_time = _resolve_time(reference_levels, reference_time)
     current_time = _resolve_time(current_levels, current_time)
     if (reference_time is None) != (current_time is None):
-        raise ValueError("Both samples must provide time for monthly distributions")
+        raise ValueError("Both samples must provide time for time-based distributions")
     feature_scores = pl.DataFrame(
         {
             "feature": [feature.name for feature in level_config.features],
@@ -249,19 +262,20 @@ def compare_psi(
     level_distribution = level_distributions(
         reference_levels, current_levels, level_config
     )
-    monthly_distribution = pl.DataFrame(schema=MONTHLY_SCHEMA)
+    time_distribution = pl.DataFrame(schema=TIME_SCHEMA)
     if reference_time is not None and current_time is not None:
-        monthly_distribution = monthly_level_distributions(
+        time_distribution = time_level_distributions(
             reference_levels,
             reference_time,
             current_levels,
             current_time,
             level_config,
+            period=period,
         )
     result = PSIResult(
         psi=feature_scores,
         level_distribution=level_distribution,
-        monthly_distribution=monthly_distribution,
+        time_distribution=time_distribution,
         level_config=level_config,
     )
     logger.debug("Completed PSI comparison: %s feature scores", len(feature_scores))

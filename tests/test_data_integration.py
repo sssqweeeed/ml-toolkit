@@ -7,9 +7,9 @@ import pytest
 from polars.testing import assert_frame_equal
 from test_training import MeanModel, ProjectData, mae, make_data, setup_mlflow
 
+from ml_toolkit.feature_selection import RFESelector
 from ml_toolkit.config import (
     PostFitEvaluationConfig,
-    RFEFeatureSelectionConfig,
     TimeSeriesCVConfig,
     TrainingConfig,
 )
@@ -80,17 +80,14 @@ def test_training_feature_selection_accepts_project_pool(pool, tmp_path):
             return super().fit(train, validation)
 
     result = train_model(
-        feature_ranker=importance_ranker,
         data=pool,
         params={},
         model_factory=RecordingModel,
         metric=mae,
         run_name="shared-pool-selection",
-        config=TrainingConfig(
-            validation=TimeSeriesCVConfig(n_splits=2),
-            feature_selection=RFEFeatureSelectionConfig(
-                min_features=1, metric="mae", direction="minimize"
-            ),
+        config=TrainingConfig(validation=TimeSeriesCVConfig(n_splits=2)),
+        feature_selector=RFESelector(
+            ranker=importance_ranker, min_features=1, metric="mae", direction="minimize"
         ),
     )
     assert result.features == ("x",)

@@ -4,7 +4,9 @@ from dataclasses import dataclass, field
 from math import isfinite
 from typing import Literal
 
+from .._time import PERIOD_INTERVALS
 from ..feature_levels import FeatureLevelSpec
+from ..types import TimePeriod
 
 
 @dataclass(frozen=True, kw_only=True, slots=True)
@@ -38,7 +40,7 @@ class FigureConfig:
 
 @dataclass(frozen=True, kw_only=True, slots=True)
 class NumericalFeatureDistributionConfig:
-    """Choose monthly numerical-feature distributions and summary curves.
+    """Choose time-based numerical-feature distributions and summary curves.
 
     Parameters
     ----------
@@ -49,13 +51,13 @@ class NumericalFeatureDistributionConfig:
         Ordered unique pairs with 0 <= lower < upper <= 1. Defaults to 5-95%
         and 25-75%. An empty tuple disables shaded bands.
     show_mean : bool, default True
-        Display the unweighted monthly mean.
+        Display the unweighted time-based mean.
     show_median : bool, default True
-        Display the unweighted monthly median.
+        Display the unweighted time-based median.
 
     Notes
     -----
-    Null and non-finite values are omitted. Calendar-month summaries and curves
+    Null and non-finite values are omitted. Calendar-period summaries and curves
     do not use exposure weights.
     """
 
@@ -126,11 +128,16 @@ class CommonPlotsConfig:
         disables both feature diagnostics. Explicit names must exist after
         feature selection. Order is preserved.
     psi : bool, default True
-        Calculate PSI tables and plot scores and monthly level distributions.
+        Calculate PSI tables and plot scores and time-based level distributions.
     observed_fitted : bool, default True
         Plot weighted observed/fitted means for train and validation/test on the
         same reference-fitted levels. Available for every task; the caller is
         responsible for the interpretation of targets, including PU labels.
+    period : TimePeriod, default "month"
+        Calendar grouping for all temporal diagnostics in the input timezone.
+        Minute/hour require Datetime values; weeks start on Monday.
+        Reference timestamps must strictly precede current timestamps; a split
+        inside one grouping period is allowed.
     n_bins : int, default 10
         Positive requested number of reference quantile bins for both diagnostics.
     epsilon : float, default 1e-6
@@ -163,6 +170,7 @@ class CommonPlotsConfig:
     features: tuple[FeatureLevelSpec, ...] | None = None
     psi: bool = True
     observed_fitted: bool = True
+    period: TimePeriod = "month"
     n_bins: int = 10
     epsilon: float = 1e-6
     figure: FigureConfig = field(default_factory=FigureConfig)
@@ -172,6 +180,8 @@ class CommonPlotsConfig:
     shap: ShapConfig | None = None
 
     def __post_init__(self) -> None:
+        if self.period not in PERIOD_INTERVALS:
+            raise ValueError("Unsupported time period")
         if self.n_bins < 1:
             raise ValueError("n_bins must be positive")
         if not 0 < self.epsilon < 1:
@@ -191,17 +201,17 @@ class ClassificationPlotsConfig:
     common : CommonPlotsConfig
         Shared figures and export settings; defaults to CommonPlotsConfig.
     precision_recall : bool, default True
-        Display the unweighted precision-recall curve.
+        Display the weighted precision-recall curve.
     f1_threshold : bool, default True
-        Display unweighted F1 across distinct score thresholds.
+        Display weighted F1 across distinct score thresholds.
     calibration : bool, default True
-        Display unweighted observed rates against predicted probabilities.
+        Display weighted observed rates against predicted probabilities.
     gains : bool, default True
         Display exposure-weighted cumulative gains for nonnegative outcomes.
     lift : bool, default True
         Display exposure-weighted cumulative lift.
-    monthly_observed_fitted : bool, default True
-        Display monthly exposure-weighted observed and fitted means.
+    time_observed_fitted : bool, default True
+        Display time-based exposure-weighted observed and fitted means.
     max_curve_points : int, default 1000
         Positive rendering limit for PR and F1; calculations retain all points.
     calibration_bins : int, default 10
@@ -216,7 +226,7 @@ class ClassificationPlotsConfig:
     calibration: bool = True
     gains: bool = True
     lift: bool = True
-    monthly_observed_fitted: bool = True
+    time_observed_fitted: bool = True
     max_curve_points: int = 1_000
     calibration_bins: int = 10
     histogram_bins: int = 30
@@ -243,8 +253,8 @@ class RegressionPlotsConfig:
         with positive weighted total; invalid inputs raise rather than skip.
     lift : bool, default False
         Enable cumulative lift with the same target constraints as gains.
-    monthly_observed_fitted : bool, default True
-        Display monthly exposure-weighted observed and fitted means.
+    time_observed_fitted : bool, default True
+        Display time-based exposure-weighted observed and fitted means.
 
     Notes
     -----
@@ -255,7 +265,7 @@ class RegressionPlotsConfig:
     common: CommonPlotsConfig = field(default_factory=CommonPlotsConfig)
     gains: bool = False
     lift: bool = False
-    monthly_observed_fitted: bool = True
+    time_observed_fitted: bool = True
 
 
 @dataclass(frozen=True, kw_only=True, slots=True)

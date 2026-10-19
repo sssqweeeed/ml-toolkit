@@ -24,14 +24,15 @@ FIGURE_NAMES = (
     "calibration.png",
     "observed-fitted.png",
     "observed-fitted-levels.png",
-    "monthly-observed-fitted.png",
+    "time-observed-fitted.png",
     "gains.png",
     "lift.png",
     "pu-distribution.png",
     "pu-capture.png",
     "psi-scores.png",
-    "psi-monthly.png",
-    "monthly-humidity.png",
+    "psi-time.png",
+    "time-humidity.png",
+    "time-humidity-week.png",
     "feature-importance.png",
     "shap-importance.png",
     "shap-beeswarm.png",
@@ -61,11 +62,16 @@ def _execute_examples(
     for example in examples:
         captured = StringIO()
         with redirect_stdout(captured):
-            exec(compile(example["code"], f"{page.name}:{example['name']}", "exec"), namespace)
+            exec(
+                compile(example["code"], f"{page.name}:{example['name']}", "exec"),
+                namespace,
+            )
         if example["name"] == "plots-setup":
             namespace["output"] = figure_directory
         replacement = example["example"]
-        stdout = "\n".join(line.rstrip() for line in captured.getvalue().splitlines()).rstrip("\n")
+        stdout = "\n".join(
+            line.rstrip() for line in captured.getvalue().splitlines()
+        ).rstrip("\n")
         if stdout:
             replacement += (
                 f"\n\n<!-- output: {example['name']} -->\n```text\n"
@@ -88,6 +94,7 @@ def _validate_plot_results(namespace: dict[str, object]) -> None:
     from examples.citation_data import CitationGallery
     from ml_toolkit.metrics import RankingMetrics
     from ml_toolkit.psi import PSIResult
+
     digits = cast(DigitsGallery, namespace["digits"])
     bikes = cast(BikeGallery, namespace["bikes"])
     assert len(digits.train_indices) + len(digits.test_indices) == 1797
@@ -110,8 +117,12 @@ def _validate_plot_results(namespace: dict[str, object]) -> None:
         threshold = float(curve["threshold"].iloc[int(index)])
         selected = digits.probabilities >= threshold
         positives = digits.observed[selected].sum()
-        np.testing.assert_allclose(float(curve["precision"].iloc[int(index)]), positives / selected.sum())
-        np.testing.assert_allclose(float(curve["recall"].iloc[int(index)]), positives / digits.observed.sum())
+        np.testing.assert_allclose(
+            float(curve["precision"].iloc[int(index)]), positives / selected.sum()
+        )
+        np.testing.assert_allclose(
+            float(curve["recall"].iloc[int(index)]), positives / digits.observed.sum()
+        )
     calibration = cast(pd.DataFrame, namespace["calibration_table"])
     assert len(calibration) == 10
     assert calibration["count"].sum() == len(digits.observed)
@@ -133,18 +144,18 @@ def _validate_plot_results(namespace: dict[str, object]) -> None:
         part = by_level.loc[by_level["sample"] == sample]
         assert part["volume"].sum() == expected_count
         assert (part["volume"] > 0).sum() >= 8
-    monthly = cast(pd.DataFrame, namespace["monthly"])
+    monthly = cast(pd.DataFrame, namespace["temporal"])
     assert len(monthly) == 18
     assert monthly.groupby("split").size().to_dict() == {"current": 12, "reference": 6}
     assert monthly["volume"].min() >= 500
     assert monthly["volume"].sum() == len(bikes.observed)
-    assert str(monthly["month"].min().date()) == "2011-07-01"
-    assert str(monthly["month"].max().date()) == "2012-12-01"
+    assert str(monthly["period_start"].min().date()) == "2011-07-01"
+    assert str(monthly["period_start"].max().date()) == "2012-12-01"
     np.testing.assert_allclose(
         np.average(monthly["observed"], weights=monthly["volume"]),
         bikes.observed.mean(),
     )
-    distribution = cast(pl.DataFrame, namespace["monthly_distribution"])
+    distribution = cast(pl.DataFrame, namespace["time_distribution"])
     assert distribution.height == 18
     assert (distribution["p05"] <= distribution["p25"]).all()
     assert (distribution["p25"] <= distribution["p50"]).all()
@@ -154,8 +165,10 @@ def _validate_plot_results(namespace: dict[str, object]) -> None:
     assert comparison.psi.height == bikes.features.width == 11
     assert set(comparison.psi["feature"]) == set(bikes.features.columns)
     assert np.isfinite(comparison.psi["psi"].to_numpy()).all()
-    temperature = comparison.monthly_distribution.filter(pl.col("feature") == "temperature")
-    shares = temperature.group_by("sample", "month").agg(pl.col("share").sum())
+    temperature = comparison.time_distribution.filter(
+        pl.col("feature") == "temperature"
+    )
+    shares = temperature.group_by("sample", "period_start").agg(pl.col("share").sum())
     assert shares.height == 18
     np.testing.assert_allclose(shares["share"].to_numpy(), 1.0)
     importance = cast(pd.DataFrame, namespace["importance_table"])
@@ -176,7 +189,9 @@ def _validate_plot_results(namespace: dict[str, object]) -> None:
     assert contributions.std() > 1.0
     base_values = np.asarray(explanation.base_values, dtype=float)
     prediction = bikes.native_model.predict(explanation.data)
-    np.testing.assert_allclose(contributions.sum(axis=1) + base_values, prediction, atol=1e-6)
+    np.testing.assert_allclose(
+        contributions.sum(axis=1) + base_values, prediction, atol=1e-6
+    )
     citations = cast(CitationGallery, namespace["citations"])
     assert citations.paper_count == 2708 and citations.feature_count == 1433
     assert citations.known_citation_count == 5429
@@ -186,7 +201,10 @@ def _validate_plot_results(namespace: dict[str, object]) -> None:
     assert citations.labels.sum() == citations.known_citation_count
     assert np.unique(citations.scores).size >= 500
     assert np.std(citations.scores) > 0.01
-    assert citations.scores[citations.labels == 1].mean() > citations.scores[citations.labels == 0].mean()
+    assert (
+        citations.scores[citations.labels == 1].mean()
+        > citations.scores[citations.labels == 0].mean()
+    )
     assert not plt.get_fignums(), "A documented plot left a figure open"
 
 
@@ -194,7 +212,10 @@ def _validate_gallery_assets(directory: Path) -> None:
     import matplotlib.image as mpimg
     import numpy as np
 
-    linked = re.findall(r"!\[[^\]]*\]\(\.\./assets/plots/([^)]*)\)", (ROOT / "docs/api/plots.md").read_text())
+    linked = re.findall(
+        r"!\[[^\]]*\]\(\.\./assets/plots/([^)]*)\)",
+        (ROOT / "docs/api/plots.md").read_text(),
+    )
     assert set(linked) == set(FIGURE_NAMES) and len(linked) == len(FIGURE_NAMES)
     for name in FIGURE_NAMES:
         path = directory / name
@@ -207,17 +228,35 @@ def _validate_gallery_assets(directory: Path) -> None:
 def _validate_metric_results(namespace: dict[str, object]) -> None:
     import numpy as np
 
-    from ml_toolkit.metrics import Metric, MetricsClassification, MetricsFrequency, MetricsSeverity, MetricScores, RankingMetrics
+    from ml_toolkit.metrics import (
+        Metric,
+        MetricsClassification,
+        MetricsFrequency,
+        MetricsSeverity,
+        MetricScores,
+        RankingMetrics,
+    )
 
     assert cast(MetricsClassification, namespace["scores"]).recall == 1.0
-    assert cast(MetricsFrequency, namespace["frequency"]).prediction_over_observed == 1.0
+    assert (
+        cast(MetricsFrequency, namespace["frequency"]).prediction_over_observed == 1.0
+    )
     assert cast(MetricsSeverity, namespace["severity"]).prediction_over_observed == 1.0
     assert cast(RankingMetrics, namespace["ranking"]).normalized_gini == 1.0
-    assert cast(MetricScores, namespace["pu_scores"]).to_dict()["known_positive_capture_at_10pct"] == 0.5
+    assert (
+        cast(MetricScores, namespace["pu_scores"]).to_dict()[
+            "known_positive_capture_at_10pct"
+        ]
+        == 0.5
+    )
     from ml_toolkit.types import FloatArray
 
-    np.testing.assert_allclose(cast(FloatArray, namespace["capacity"]), [0.0, 0.0, 0.5, 0.5, 1.0])
-    np.testing.assert_allclose(cast(FloatArray, namespace["capture"]), [0.0, 0.5, 0.5, 1.0, 1.0])
+    np.testing.assert_allclose(
+        cast(FloatArray, namespace["capacity"]), [0.0, 0.0, 0.5, 0.5, 1.0]
+    )
+    np.testing.assert_allclose(
+        cast(FloatArray, namespace["capture"]), [0.0, 0.5, 0.5, 1.0, 1.0]
+    )
     metric = cast(Metric, namespace["metric"])
 
     assert metric(
@@ -240,8 +279,13 @@ def render(check: bool = False) -> None:
     try:
         importlib.import_module("shap")
     except ImportError as error:
-        raise RuntimeError("Install the shap extra before rendering the complete gallery") from error
-    with TemporaryDirectory(prefix="ml-toolkit-gallery-") as temporary, chdir(temporary):
+        raise RuntimeError(
+            "Install the shap extra before rendering the complete gallery"
+        ) from error
+    with (
+        TemporaryDirectory(prefix="ml-toolkit-gallery-") as temporary,
+        chdir(temporary),
+    ):
         os.environ.setdefault("MPLCONFIGDIR", str(Path(temporary) / "matplotlib"))
         import matplotlib
         import numpy as np
@@ -264,17 +308,25 @@ def render(check: bool = False) -> None:
         for page, document in ((plots, plot_document), (metrics, metric_document)):
             if check:
                 if page.read_text() != document:
-                    raise RuntimeError(f"Stale output in {page.name}; run python -m examples.render_plots")
+                    raise RuntimeError(
+                        f"Stale output in {page.name}; run python -m examples.render_plots"
+                    )
             else:
                 page.write_text(document)
         if check:
             _validate_gallery_assets(asset_directory)
-        print("Verified 18 plot examples, 17 gallery figures, and every metric family.")
+        print(
+            f"Verified {len(EXAMPLE.findall(plot_document))} plot examples, {len(FIGURE_NAMES)} gallery figures, and every metric family."
+        )
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--check", action="store_true", help="Verify without modifying gallery assets or API pages")
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="Verify without modifying gallery assets or API pages",
+    )
     arguments = parser.parse_args()
     render(check=arguments.check)
 

@@ -2,6 +2,8 @@
 
 from dataclasses import dataclass
 
+from ..types import TimePeriod
+from .._time import PERIOD_INTERVALS
 from ..feature_levels import FeatureLevelSpec
 
 
@@ -14,6 +16,8 @@ class PSIConfig:
     features : tuple[FeatureLevelSpec, ...]
         Nonempty collection of uniquely named feature definitions, normalized
         to a tuple.
+    period : TimePeriod, default "month"
+        Calendar period for temporal distributions, preserving the input timezone.
     n_bins : int, default 10
         Positive requested number of numerical quantile bins. Ties and constant
         features may produce fewer bins.
@@ -22,10 +26,13 @@ class PSIConfig:
     """
 
     features: tuple[FeatureLevelSpec, ...]
+    period: TimePeriod = "month"
     n_bins: int = 10
     epsilon: float = 1e-6
 
     def __post_init__(self) -> None:
+        if self.period not in PERIOD_INTERVALS:
+            raise ValueError("Unsupported time period")
         object.__setattr__(self, "features", tuple(self.features))
         if not self.features:
             raise ValueError("features must not be empty")

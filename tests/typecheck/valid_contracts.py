@@ -1,3 +1,13 @@
+from dataclasses import replace
+from ml_toolkit.feature_selection import (
+    RFESelector,
+    TopKSelector,
+    ForwardSelector,
+    FeatureSelector,
+    FeatureSelectionResult,
+)
+from examples.custom_selector import FixedFeatureSelector
+from ml_toolkit.types import TimePeriod
 from datetime import date
 from pathlib import Path
 from collections.abc import Callable
@@ -134,27 +144,20 @@ def custom_adapter_contract(data: Pool, params: ModelParams) -> None:
     assert_type(adapter.get_refit_params(), ModelParams)
 
 
-from ml_toolkit.config import RFEFeatureSelectionConfig
-from ml_toolkit.training import (
-    FeatureSelectionResult,
-    importance_ranker,
-    select_features,
-)
+from ml_toolkit.training import importance_ranker
 
 
 def explicit_selection(data: Pool) -> None:
-    settings = RFEFeatureSelectionConfig(
-        min_features=1, metric="mae", direction="minimize"
+    settings = RFESelector(
+        ranker=importance_ranker, min_features=1, metric="mae", direction="minimize"
     )
     assert_type(
-        select_features(
+        replace(settings, ranker=importance_ranker).select(
             train=data,
             validation=data,
             params={},
             model_factory=CatBoostRegressionModel,
             metric=dictionary_metric,
-            ranker=importance_ranker,
-            config=settings,
         ),
         FeatureSelectionResult,
     )
@@ -199,3 +202,29 @@ def feature_diagnostics(
         ),
         pd.DataFrame,
     )
+
+
+def selector_contracts(data: Pool) -> None:
+    selectors: tuple[FeatureSelector, ...] = (
+        RFESelector(
+            min_features=1, metric="mae", direction="minimize", ranker=importance_ranker
+        ),
+        TopKSelector(k=1, ranker=importance_ranker),
+        ForwardSelector(
+            metric="mae", direction="minimize", max_features=1, max_fits=20
+        ),
+        FixedFeatureSelector(("age",)),
+    )
+    for selector in selectors:
+        assert_type(
+            selector.select(
+                train=data,
+                validation=data,
+                params={},
+                model_factory=CatBoostRegressionModel,
+                metric=dictionary_metric,
+            ),
+            FeatureSelectionResult,
+        )
+    period: TimePeriod = "hour"
+    assert_type(CommonPlotsConfig(period=period).period, TimePeriod)

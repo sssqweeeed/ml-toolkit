@@ -1,10 +1,12 @@
-"""Monthly distributions of numerical features."""
+"""Time distributions of numerical features."""
 
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import polars as pl
 
+from ..types import TimePeriod
+from .._time import paired_period_starts
 from ..config import FigureConfig, NumericalFeatureDistributionConfig
 from .utils import save_figure
 
@@ -13,30 +15,36 @@ def _quantile_name(quantile: float) -> str:
     return f"p{quantile * 100:02g}".replace(".", "_")
 
 
-def monthly_feature_distribution(
+def time_feature_distribution(
     reference: pl.DataFrame,
     current: pl.DataFrame,
     feature: str,
     timestamp: str,
     save_fig: str | Path,
     *,
+    period: TimePeriod = "month",
     config: NumericalFeatureDistributionConfig | None = None,
     figure: FigureConfig | None = None,
 ) -> pl.DataFrame:
-    """Plot configured monthly quantile bands, median, and mean.
+    """Plot configured time-based quantile bands, median, and mean.
 
     Parameters
     ----------
     reference : polars.DataFrame
         Reference frame containing feature and timestamp columns.
     current : polars.DataFrame
-        Current frame containing the same required columns.
+        Current frame containing the same required columns. Its earliest
+        timestamp must be strictly later than the latest reference timestamp.
+        The split may fall inside one grouping period.
     feature : str
         Numerical feature to summarize.
     timestamp : str
-        Date/Datetime column used for calendar-month grouping.
+        Date/Datetime column used for calendar grouping.
     save_fig : str or pathlib.Path
         Output figure path; parent directories are created.
+    period : TimePeriod, default "month"
+        Calendar grouping in the matching input timezones. Minute/hour need
+        Datetime; weeks start on Monday. Empty periods are not filled.
     config : NumericalFeatureDistributionConfig or None, default None
         Quantile bands and displayed mean/median. None uses defaults. The
         features list controls workflow selection; this call plots feature.
@@ -46,14 +54,15 @@ def monthly_feature_distribution(
     Returns
     -------
     polars.DataFrame
-        month, split, mean, p50, and configured endpoint quantiles named by
-        percentage, such as p05 or p2_5. Defaults produce month, split, p05, p25,
+        period_start, split, mean, p50, and configured endpoint quantiles named by
+        percentage, such as p05 or p2_5. Defaults produce period_start, split, p05, p25,
         p50, mean, p75, p95. Summaries are unweighted.
 
     Raises
     ------
     ValueError
-        Required columns are missing.
+        Required columns are missing, timezones differ, or time ranges overlap
+        or are not ordered reference before current.
     TypeError
         Feature is not numerical or timestamp is not Date/Datetime.
 
@@ -64,12 +73,20 @@ def monthly_feature_distribution(
     """
     config = NumericalFeatureDistributionConfig() if config is None else config
     quantiles = sorted({0.5, *(q for band in config.quantile_bands for q in band)})
-    columns = ["month", "split"]
+    columns = ["period_start", "split"]
     columns += [_quantile_name(q) for q in quantiles if q <= 0.5]
     columns += ["mean"]
     columns += [_quantile_name(q) for q in quantiles if q > 0.5]
+    if timestamp not in reference.columns or timestamp not in current.columns:
+        raise ValueError(f"Both samples need timestamp column {timestamp!r}")
+    reference_start, current_start = paired_period_starts(
+        reference[timestamp], current[timestamp], period
+    )
     frames: list[pl.DataFrame] = []
-    for split, data in (("reference", reference), ("current", current)):
+    for split, data, starts in (
+        ("reference", reference, reference_start),
+        ("current", current, current_start),
+    ):
         if feature not in data.columns or timestamp not in data.columns:
             raise ValueError(f"{split} data needs {feature!r} and {timestamp!r}")
         if not data.schema[feature].is_numeric():
@@ -81,11 +98,11 @@ def monthly_feature_distribution(
             raise TypeError(f"{timestamp!r} must be a date or datetime")
         frame = (
             data.select(
-                pl.col(timestamp).dt.truncate("1mo").cast(pl.Date).alias("month"),
+                starts,
                 pl.col(feature).cast(pl.Float64).alias("value"),
             )
             .filter(pl.col("value").is_not_null() & pl.col("value").is_finite())
-            .group_by("month")
+            .group_by("period_start")
             .agg(
                 *(
                     pl.col("value")
@@ -97,7 +114,7 @@ def monthly_feature_distribution(
             )
             .with_columns(pl.lit(split).alias("split"))
             .select(columns)
-            .sort("month")
+            .sort("period_start")
         )
         frames.append(frame)
     grouped = pl.concat(frames)
@@ -109,10 +126,10 @@ def monthly_feature_distribution(
         part = grouped.filter(pl.col("split") == split)
         if part.is_empty():
             continue
-        month = part.get_column("month").to_list()
+        period_start = part.get_column("period_start").to_list()
         for index, (lower, upper) in enumerate(config.quantile_bands):
             ax.fill_between(
-                month,
+                period_start,
                 part[_quantile_name(lower)].to_numpy(),
                 part[_quantile_name(upper)].to_numpy(),
                 color=color,
@@ -121,7 +138,7 @@ def monthly_feature_distribution(
             )
         if config.show_median:
             ax.plot(
-                month,
+                period_start,
                 part["p50"].to_numpy(),
                 color=color,
                 linestyle=linestyle,
@@ -131,21 +148,25 @@ def monthly_feature_distribution(
             )
         if config.show_mean:
             ax.plot(
-                month,
+                period_start,
                 part["mean"].to_numpy(),
                 color=color,
                 linestyle=":",
                 label=f"{split} mean",
             )
-    current_months = grouped.filter(pl.col("split") == "current")["month"]
-    if not current_months.is_empty():
+    current_periods = grouped.filter(pl.col("split") == "current")["period_start"]
+    if not current_periods.is_empty():
         ax.axvline(
-            current_months.min(),
+            current_periods.min(),
             color="tab:orange",
             linestyle=":",
             label="Current begins",
         )
-    ax.set(title=f"Monthly distribution — {feature}", xlabel="Month", ylabel=feature)
+    ax.set(
+        title=f"Time distribution — {feature} ({period})",
+        xlabel=f"Period start ({period})",
+        ylabel=feature,
+    )
     ax.grid(alpha=0.2)
     if grouped.is_empty():
         ax.text(

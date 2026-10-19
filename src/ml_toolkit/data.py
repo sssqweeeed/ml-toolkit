@@ -45,3 +45,13 @@ def validate_training_data(data: Pool) -> None:
         raise ValueError("Weights must be finite, nonnegative, and have positive total")
     if data.object_id is not None:
         validate_object_ids(data.object_id, size)
+
+
+def validate_training_categories(data: Pool) -> None:
+    for name in data.cat_features:
+        if name not in data.X.columns:
+            raise ValueError(f"Categorical feature is missing: {name}")
+        if (data.X[name].cast(pl.String) == "unknown").any():
+            raise ValueError(
+                f"Categorical feature {name!r} contains reserved value 'unknown'"
+            )

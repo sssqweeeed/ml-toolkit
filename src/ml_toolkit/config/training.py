@@ -11,54 +11,6 @@ from .tracking import TrackingConfig
 
 
 @dataclass(frozen=True, kw_only=True, slots=True)
-class RFEFeatureSelectionConfig:
-    """Search feature subsets on the supplied train/validation split.
-
-    Parameters
-    ----------
-    min_features : int
-        Positive lower bound on visited subset sizes, not a required result size.
-    metric : str
-        Key returned by the metric callable for comparing subsets.
-    direction : {'minimize', 'maximize'}
-        Direction of the selection objective.
-    max_fits : int, default 6
-        Maximum fits, including the complete feature set.
-    score_tolerance : float, default 0.0
-        Nonnegative absolute distance from the best score. Choose the smallest
-        visited subset within this distance.
-    protected_features : tuple[str, ...], default ()
-        Unique columns retained in every subset, at most min_features names.
-
-    Notes
-    -----
-    Each split selects features once before its own Optuna study. Final fitting
-    reuses the last split's selected columns.
-    """
-
-    min_features: int
-    metric: str
-    direction: Literal["minimize", "maximize"]
-    max_fits: int = 6
-    score_tolerance: float = 0.0
-    protected_features: tuple[str, ...] = ()
-
-    def __post_init__(self) -> None:
-        if self.min_features < 1 or self.max_fits < 1:
-            raise ValueError("min_features and max_fits must be positive")
-        if not self.metric.strip():
-            raise ValueError("metric must not be empty")
-        if any(not name.strip() for name in self.protected_features) or len(
-            set(self.protected_features)
-        ) != len(self.protected_features):
-            raise ValueError("protected_features must contain unique nonempty names")
-        if not isfinite(self.score_tolerance) or self.score_tolerance < 0:
-            raise ValueError("score_tolerance must be nonnegative")
-        if len(self.protected_features) > self.min_features:
-            raise ValueError("protected_features must not exceed min_features")
-
-
-@dataclass(frozen=True, kw_only=True, slots=True)
 class TuningConfig:
     """Configure each split's independent Optuna study.
 
@@ -110,8 +62,6 @@ class TrainingConfig:
         normalized to dates during construction; datetimes are not accepted.
         Both training and test must retain at least one row.
         None uses all rows for training and performs no test evaluation.
-    feature_selection : RFEFeatureSelectionConfig or None, default None
-        Selection once per train/validation split; None keeps all columns.
     tuning : TuningConfig or None, default None
         Independent search per split, requiring a separately supplied param_space.
     reporting : ReportingConfig
@@ -137,7 +87,6 @@ class TrainingConfig:
 
     validation: HoldoutConfig | TimeSeriesCVConfig
     test_size: int | float | str | date | None = None
-    feature_selection: RFEFeatureSelectionConfig | None = None
     tuning: TuningConfig | None = None
     reporting: ReportingConfig = field(default_factory=ReportingConfig)
     tracking: TrackingConfig = field(default_factory=TrackingConfig)

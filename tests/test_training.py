@@ -1,3 +1,5 @@
+"""Train with a project-owned data object and inspect MLflow artifacts."""
+
 import json
 import logging
 from dataclasses import dataclass
@@ -9,6 +11,7 @@ import numpy as np
 import polars as pl
 import pytest
 
+from ml_toolkit.feature_selection import RFESelector
 from ml_toolkit.config import (
     ClassificationDiagnosticsConfig,
     ClassificationPlotsConfig,
@@ -20,7 +23,6 @@ from ml_toolkit.config import (
     RegressionDiagnosticsConfig,
     RegressionPlotsConfig,
     ReportingConfig,
-    RFEFeatureSelectionConfig,
     ShapConfig,
     TimeSeriesCVConfig,
     TrainingConfig,
@@ -41,8 +43,6 @@ from ml_toolkit.plots.explainability import (
     shap_importance,
 )
 from ml_toolkit.training import importance_ranker, train_model
-
-"""Train with a project-owned data object and inspect MLflow artifacts."""
 
 
 @dataclass(frozen=True)
@@ -223,17 +223,14 @@ def list_all_artifacts(client, run_id, path=""):
 def test_train_model_selection_and_mlflow(tmp_path):
     setup_mlflow(tmp_path)
     result = train_model(
-        feature_ranker=importance_ranker,
         data=make_data(),
         params={"unused_param": 1},
         model_factory=MeanModel,
         metric=mae,
         run_name="example",
-        config=TrainingConfig(
-            validation=TimeSeriesCVConfig(n_splits=2),
-            feature_selection=RFEFeatureSelectionConfig(
-                min_features=1, metric="mae", direction="minimize"
-            ),
+        config=TrainingConfig(validation=TimeSeriesCVConfig(n_splits=2)),
+        feature_selector=RFESelector(
+            ranker=importance_ranker, min_features=1, metric="mae", direction="minimize"
         ),
     )
     assert result.features == ("x",)
@@ -267,17 +264,16 @@ def test_feature_selection_uses_each_evaluated_split_training_rows(
     setup_mlflow(tmp_path)
     model_factory, calls = recording_model()
     result = train_model(
-        feature_ranker=importance_ranker,
         data=make_data(),
         params={},
         model_factory=model_factory,
         metric=mae,
         run_name="early-selection",
         config=TrainingConfig(
-            validation=TimeSeriesCVConfig(n_splits=2, skip_splits=skip_splits),
-            feature_selection=RFEFeatureSelectionConfig(
-                min_features=1, metric="mae", direction="minimize"
-            ),
+            validation=TimeSeriesCVConfig(n_splits=2, skip_splits=skip_splits)
+        ),
+        feature_selector=RFESelector(
+            ranker=importance_ranker, min_features=1, metric="mae", direction="minimize"
         ),
     )
 
@@ -295,7 +291,6 @@ def test_tuning_keeps_selected_features_and_final_reuses_last_split(tmp_path):
     setup_mlflow(tmp_path)
     model_factory, calls = recording_model()
     result = train_model(
-        feature_ranker=importance_ranker,
         data=make_data(),
         params={},
         model_factory=model_factory,
@@ -306,10 +301,10 @@ def test_tuning_keeps_selected_features_and_final_reuses_last_split(tmp_path):
         },
         config=TrainingConfig(
             validation=TimeSeriesCVConfig(n_splits=2),
-            feature_selection=RFEFeatureSelectionConfig(
-                min_features=1, metric="mae", direction="minimize"
-            ),
             tuning=TuningConfig(metric="mae", direction="minimize", n_trials=2),
+        ),
+        feature_selector=RFESelector(
+            ranker=importance_ranker, min_features=1, metric="mae", direction="minimize"
         ),
     )
 
@@ -343,17 +338,14 @@ def test_training_without_feature_selection_keeps_all_features(tmp_path):
 def test_feature_selection_accepts_single_row_training_window(tmp_path):
     setup_mlflow(tmp_path)
     result = train_model(
-        feature_ranker=importance_ranker,
         data=make_data().take(np.arange(3)),
         params={},
         model_factory=MeanModel,
         metric=mae,
         run_name="small-selection-window",
-        config=TrainingConfig(
-            validation=TimeSeriesCVConfig(n_splits=2),
-            feature_selection=RFEFeatureSelectionConfig(
-                min_features=1, metric="mae", direction="minimize"
-            ),
+        config=TrainingConfig(validation=TimeSeriesCVConfig(n_splits=2)),
+        feature_selector=RFESelector(
+            ranker=importance_ranker, min_features=1, metric="mae", direction="minimize"
         ),
     )
     assert len(result.validation.splits) == 2
@@ -419,14 +411,14 @@ def test_training_logs_psi_and_plots(tmp_path, caplog):
         assert set(artifacts) == {
             "tables/psi/val/scores.json",
             "tables/psi/val/level_distribution.json",
-            "tables/psi/val/monthly_distribution.json",
+            "tables/psi/val/time_distribution.json",
             "figures/psi/val/scores.png",
-            "figures/psi/val/monthly_by_feature/000_x.png",
-            "figures/psi/val/monthly_by_feature/001_unused.png",
-            "figures/observed_fitted/val/monthly.png",
+            "figures/psi/val/time_by_feature/000_x.png",
+            "figures/psi/val/time_by_feature/001_unused.png",
+            "figures/observed_fitted/val/time.png",
             "figures/observed_fitted/val/by_feature/000_x.png",
             "figures/observed_fitted/val/by_feature/001_unused.png",
-            "figures/feature_distributions/val/monthly_by_feature/000_x.png",
+            "figures/feature_distributions/val/time_by_feature/000_x.png",
         }
     messages = [
         record.getMessage()
@@ -437,7 +429,10 @@ def test_training_logs_psi_and_plots(tmp_path, caplog):
         message.startswith("Generating diagnostics for validation/split_1")
         for message in messages
     )
-    assert "Logged diagnostic figure figures/psi/val/scores.png for validation/split_1" in messages
+    assert (
+        "Logged diagnostic figure figures/psi/val/scores.png for validation/split_1"
+        in messages
+    )
 
 
 def test_bundled_catboost_model_runs_through_training(tmp_path):

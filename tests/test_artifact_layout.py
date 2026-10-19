@@ -46,7 +46,13 @@ def test_diagnostic_layout_preserves_all_images_and_tables(
         options = ClassificationDiagnosticsConfig(
             plots=ClassificationPlotsConfig(common=common)
         )
-        performance = {"gains", "lift", "precision_recall", "f1_threshold", "calibration"}
+        performance = {
+            "gains",
+            "lift",
+            "precision_recall",
+            "f1_threshold",
+            "calibration",
+        }
     elif task == "pu":
         options = PUDiagnosticsConfig(plots=PUPlotsConfig(common=common))
         performance = {"score_distribution", "positive_capture"}
@@ -83,7 +89,7 @@ def test_diagnostic_layout_preserves_all_images_and_tables(
         f"figures/shap/{split.value}/beeswarm{suffix}",
     }
     collections = ("psi", "observed_fitted", "feature_distributions", "shap")
-    directories = ("monthly_by_feature", "by_feature", "monthly_by_feature", "dependence")
+    directories = ("time_by_feature", "by_feature", "time_by_feature", "dependence")
     for category, directory in zip(collections, directories, strict=True):
         expected_images.update(
             f"figures/{category}/{split.value}/{directory}/{feature}{suffix}"
@@ -93,13 +99,16 @@ def test_diagnostic_layout_preserves_all_images_and_tables(
         f"figures/performance/{split.value}/{name}{suffix}" for name in performance
     )
     if task != "pu":
-        expected_images.add(f"figures/observed_fitted/{split.value}/monthly{suffix}")
+        expected_images.add(f"figures/observed_fitted/{split.value}/time{suffix}")
     expected_tables = {
         f"tables/psi/{split.value}/{name}.json"
-        for name in ("scores", "level_distribution", "monthly_distribution")
+        for name in ("scores", "level_distribution", "time_distribution")
     }
     client = mlflow.MlflowClient()
-    assert set(list_all_artifacts(client, run.info.run_id)) == expected_images | expected_tables
+    assert (
+        set(list_all_artifacts(client, run.info.run_id))
+        == expected_images | expected_tables
+    )
     download_dir = tmp_path / "download"
     download_dir.mkdir()
     downloaded = Path(client.download_artifacts(run.info.run_id, "", str(download_dir)))
@@ -112,10 +121,12 @@ def test_diagnostic_layout_preserves_all_images_and_tables(
         else:
             assert b"<svg" in content
     # The same feature filename must retain a distinct image in each category.
-    assert len({
-        images[f"figures/{category}/{split.value}/{directory}/000_x{suffix}"]
-        for category, directory in zip(collections, directories, strict=True)
-    }) == len(collections)
+    assert len(
+        {
+            images[f"figures/{category}/{split.value}/{directory}/000_x{suffix}"]
+            for category, directory in zip(collections, directories, strict=True)
+        }
+    ) == len(collections)
     assert set(tables) == expected_tables
     for path in expected_tables:
         assert tables[path]
@@ -145,7 +156,7 @@ def test_feature_filenames_preserve_order_and_disambiguate_sanitized_names(
         RegressionDiagnosticsConfig(
             plots=RegressionPlotsConfig(
                 common=CommonPlotsConfig(psi=False, numerical_distributions=None),
-                monthly_observed_fitted=False,
+                time_observed_fitted=False,
             )
         ),
         "filenames",

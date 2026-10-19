@@ -57,7 +57,7 @@ to wire feature selection and tuning into a run.
 | Change | Configuration |
 | --- | --- |
 | Validation windows or gaps | `HoldoutConfig`, `TimeSeriesCVConfig` |
-| Test tail, feature selection, tuning | `TrainingConfig`, `RFEFeatureSelectionConfig`, `TuningConfig` |
+| Test tail and tuning | `TrainingConfig`, `TuningConfig` |
 | Enabled reports and evaluated windows | `ReportingConfig` |
 | Classification, regression, or PU figures | Corresponding diagnostics and plots configs |
 | Shared PSI, observed/fitted, and numerical distributions | `CommonPlotsConfig`, `NumericalFeatureDistributionConfig` |
@@ -84,9 +84,7 @@ Import configurations from `ml_toolkit.config`.
 
 ::: ml_toolkit.config.TimeSeriesCVConfig
 
-### Selection and tuning
-
-::: ml_toolkit.config.RFEFeatureSelectionConfig
+### Parameter tuning
 
 ::: ml_toolkit.config.TuningConfig
 
@@ -107,6 +105,12 @@ Import configurations from `ml_toolkit.config`.
 ::: ml_toolkit.config.PUPlotsConfig
 
 ### Shared figures and feature levels
+
+`TimePeriod`, importable from `ml_toolkit.config` or `ml_toolkit.types`, is the
+literal union `"minute"`, `"hour"`, `"day"`, `"week"`, `"month"`, `"quarter"`,
+and `"year"`. `CommonPlotsConfig.period` defaults to `"month"` and controls
+all temporal diagnostics; standalone functions take the same `period` keyword.
+
 
 ::: ml_toolkit.config.CommonPlotsConfig
 

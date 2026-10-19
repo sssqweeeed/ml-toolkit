@@ -71,14 +71,14 @@ class PostFitEvaluator(ABC):
 
     Notes
     -----
-    Initialization and helper methods are unrestricted; the default image writer does
+    Initialization and helper methods are unrestricted; the default artifact writer does
     nothing. The same instance is reused for splits, tuning trials, post-tuning
     evaluation, and final fitting, without copying or resetting its state.
     Reference data and caches may be stored internally, but returned metrics
     should describe the supplied rows rather than accumulate unrelated fits.
     Intermediate feature-selection fits do not invoke this evaluator.
     Subclass this evaluator and implement evaluate. Override write_artifacts
-    to save images; its default implementation returns an empty list.
+    to save files; its default implementation returns an empty list.
     """
 
     @abstractmethod
@@ -125,7 +125,7 @@ class PostFitEvaluator(ABC):
         split: DatasetSplit,
         artifact_dir: Path,
     ) -> list[Path]:
-        """Save and select images to log for the current split.
+        """Save and select artifacts to log for the current split.
 
         Parameters
         ----------
@@ -138,17 +138,16 @@ class PostFitEvaluator(ABC):
         split : DatasetSplit
             The current train, val, or test split.
         artifact_dir : pathlib.Path
-            Fresh temporary directory owned by the toolkit. Save images inside
+            Fresh temporary directory owned by the toolkit. Save files inside
             this directory; nested directories are preserved in MLflow.
 
         Returns
         -------
         list[pathlib.Path]
-            Existing image files to upload under figures/custom/<split>/ in the
+            Existing files to upload under custom/<split>/ in the
             current MLflow run. Paths may be absolute or relative to artifact_dir.
             An empty list skips upload. Only returned files are logged; PNG,
-            JPEG, SVG, WebP, GIF, TIFF, and BMP extensions are accepted. Tables
-            are not accepted. The directory is removed after the call and
+            JPEG, SVG, WebP, GIF, TIFF, BMP, CSV, Parquet, JSON, and HTML extensions are accepted. The directory is removed after the call and
             uploads, including on errors; returned paths must not be retained.
 
         Notes
@@ -187,12 +186,12 @@ class Pool(Protocol):
         Optional aligned, non-null string or integer IDs for custom evaluation;
         repeated IDs are allowed.
     business_type : polars.Series or None
-        Optional aligned groups for monthly diagnostics.
+        Optional aligned groups for temporal diagnostics.
 
     Notes
     -----
     Row operations must keep features, target, timestamps, and weights aligned.
-    Optional business_type values are used for grouped monthly plots. Attribute
+    Optional business_type values are used for grouped time plots. Attribute
     access is read-only here so frozen and mutable project containers can both
     satisfy the protocol. Row and feature operations preserve the concrete
     container type and all associated row metadata.

@@ -54,7 +54,7 @@ class PSITests(unittest.TestCase):
         self.assertEqual(result.get_column("group").cast(pl.String)[0], UNSEEN_LEVEL)
         self.assertEqual(result.get_column("group").cast(pl.String)[1], NULL_LEVEL)
 
-    def test_analysis_preserves_feature_and_monthly_distributions(self):
+    def test_analysis_preserves_feature_and_time_distributions(self):
         config = PSIConfig(
             (
                 FeatureLevelSpec("value", "numerical"),
@@ -93,8 +93,8 @@ class PSITests(unittest.TestCase):
             pl.col("share").sum().alias("total")
         )
         self.assertTrue(np.allclose(shares.get_column("total").to_numpy(), 1.0))
-        monthly = result.monthly_distribution.group_by(
-            "feature", "sample", "month"
+        monthly = result.time_distribution.group_by(
+            "feature", "sample", "period_start"
         ).agg(pl.col("share").sum().alias("total"))
         self.assertTrue(np.allclose(monthly.get_column("total").to_numpy(), 1.0))
 
@@ -111,10 +111,10 @@ class PSITests(unittest.TestCase):
         reference = pl.DataFrame({"x": [1.0, 2.0]})
         current = pl.DataFrame({"x": [3.0, 4.0]})
         result = PSIAnalysis(config).fit(reference).compare(current)
-        self.assertTrue(result.monthly_distribution.is_empty())
+        self.assertTrue(result.time_distribution.is_empty())
         self.assertEqual(
-            result.monthly_distribution.columns,
-            ["feature", "month", "sample", "level", "share"],
+            result.time_distribution.columns,
+            ["feature", "period_start", "sample", "level", "share"],
         )
         with self.assertRaisesRegex(ValueError, "Both samples"):
             PSIAnalysis(config).fit(
@@ -125,7 +125,7 @@ class PSITests(unittest.TestCase):
         try:
             from ml_toolkit.plots.psi import (
                 feature_psi_plot,
-                monthly_psi_level_distribution,
+                time_psi_level_distribution,
             )
         except ImportError:
             self.skipTest("Matplotlib is not available")
@@ -141,7 +141,7 @@ class PSITests(unittest.TestCase):
             summary = Path(directory) / "summary.png"
             monthly = Path(directory) / "monthly.png"
             feature_psi_plot(result.psi, summary)
-            monthly_psi_level_distribution(result.monthly_distribution, "x", monthly)
+            time_psi_level_distribution(result.time_distribution, "x", monthly)
             self.assertGreater(summary.stat().st_size, 0)
             self.assertGreater(monthly.stat().st_size, 0)
 

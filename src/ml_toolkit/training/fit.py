@@ -11,9 +11,10 @@ from ..metrics import Metric
 from ..models.base import Model
 from ..tracking import runs as tracking
 from ..types import ModelParams
-from .contracts import FeatureRanker, PostFitEvaluator, Pool
+from .contracts import PostFitEvaluator, Pool
+from ..feature_selection import FeatureSelector
+from ..data import validate_training_categories
 from .evaluation import evaluate_model
-from .feature_selection import select_features
 from .results import SplitResult
 from .tuning import tune_optuna
 
@@ -28,12 +29,14 @@ def fit_split(
     model_factory: Callable[[ModelParams], Model],
     metric: Metric,
     config: TrainingConfig,
-    feature_ranker: FeatureRanker | None,
+    feature_selector: FeatureSelector | None,
     post_fit_evaluator: PostFitEvaluator | None,
     param_space: Callable[[Trial], ModelParams] | None,
     index: int,
     diagnostics: bool,
 ) -> SplitResult:
+    validate_training_categories(train)
+    validate_training_categories(validation)
     if train.X.columns != validation.X.columns:
         raise ValueError("Train and validation features must match")
     logger.info("Starting validation split %s", index)
@@ -45,33 +48,45 @@ def fit_split(
     )
     with tracking.run(f"validation/split_{index}"):
         selection = None
-        if config.feature_selection is not None:
-            if feature_ranker is None:
-                raise ValueError(
-                    "feature_ranker is required when feature selection is enabled"
-                )
-            selection = select_features(
+        if feature_selector is not None:
+            selection = feature_selector.select(
                 train=train,
                 validation=validation,
-                params=params,
+                params=params.copy(),
                 model_factory=model_factory,
                 metric=metric,
-                ranker=feature_ranker,
-                config=config.feature_selection,
             )
-            train = train.select_features(selection.features)
-            validation = validation.select_features(selection.features)
+            names = selection.features
+            if (
+                not names
+                or len(set(names)) != len(names)
+                or tuple(n for n in train.X.columns if n in names) != names
+            ):
+                raise ValueError(
+                    "Selector must return unique input features in original order"
+                )
+            if (
+                not 0 <= selection.selected_step < len(selection.steps)
+                or selection.steps[selection.selected_step].features != names
+            ):
+                raise ValueError(
+                    "Selector selected_step must identify its returned features"
+                )
+            train = train.select_features(names)
+            validation = validation.select_features(names)
             tracking.log_json(asdict(selection), "selection/history.json")
-            selected_score = selection.steps[selection.selected_step].metrics[
-                config.feature_selection.metric
-            ]
             tracking.log_metrics(
                 {
                     "selection/n_fits": float(len(selection.steps)),
-                    "selection/n_features": float(len(selection.features)),
+                    "selection/n_features": float(len(names)),
                     "selection/selected_step": float(selection.selected_step),
-                    "selection/score": selected_score,
-                },
+                    **{
+                        f"selection/metrics/{key}": value
+                        for key, value in selection.steps[
+                            selection.selected_step
+                        ].metrics.items()
+                    },
+                }
             )
         tuning = None
         selected_params = params.copy()
@@ -139,6 +154,7 @@ def fit_final_model(
     last_split: SplitResult,
     model_factory: Callable[[ModelParams], Model],
 ) -> tuple[Model, Pool, ModelParams]:
+    validate_training_categories(data)
     params = last_split.refit_params.copy()
     train = data.select_features(last_split.features)
     logger.info("Starting final fit")

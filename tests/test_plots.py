@@ -16,9 +16,9 @@ from ml_toolkit.plots.classification import (
     precision_recall,
 )
 from ml_toolkit.plots.explainability import feature_importance
-from ml_toolkit.plots.monitoring import monthly_feature_distribution
+from ml_toolkit.plots.monitoring import time_feature_distribution
 from ml_toolkit.plots.ranking import gains_curve, lift_curve
-from ml_toolkit.plots.regression import monthly_observed_fitted, observed_fitted
+from ml_toolkit.plots.regression import time_observed_fitted, observed_fitted
 from ml_toolkit.plots.utils import PlotError
 
 matplotlib.use("Agg")
@@ -70,11 +70,11 @@ def test_regression_weighted_aggregations(tmp_path):
         weight=[1, 3, 1],
     )
     assert summary.loc[summary.feature == "a", "observed"].iloc[0] == 2.5
-    monthly = monthly_observed_fitted(
-        ["2025-01-01", "2025-01-20"],
+    monthly = time_observed_fitted(
+        [date(2025, 1, 1), date(2025, 1, 20)],
         [1, 3],
         [2, 2],
-        ["2025-02-01"],
+        [date(2025, 2, 1)],
         [4],
         [5],
         tmp_path / "monthly.png",
@@ -86,14 +86,14 @@ def test_regression_weighted_aggregations(tmp_path):
     assert (tmp_path / "feature.png").is_file() and (tmp_path / "monthly.png").is_file()
 
 
-def test_monthly_numeric_distribution_and_importance(tmp_path):
+def test_time_numeric_distribution_and_importance(tmp_path):
     reference = pl.DataFrame(
         {"date": [date(2025, 1, 1), date(2025, 1, 15)], "value": [1.0, 3.0]}
     )
     current = pl.DataFrame(
         {"date": [date(2025, 2, 1), date(2025, 2, 15)], "value": [2.0, 4.0]}
     )
-    summary = monthly_feature_distribution(
+    summary = time_feature_distribution(
         reference, current, "value", "date", tmp_path / "feature.png"
     )
     assert summary.height == 2

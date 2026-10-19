@@ -12,6 +12,8 @@ import pandas as pd
 import polars as pl
 from numpy.typing import ArrayLike
 
+from ..types import TimePeriod
+from .._time import paired_period_starts
 from ..config import FigureConfig
 from ..types import FloatArray
 from .utils import PlotError, numeric_vector, same_length, save_figure, weights
@@ -272,7 +274,7 @@ def observed_fitted_by_level(
     return grouped
 
 
-def monthly_observed_fitted(
+def time_observed_fitted(
     reference_timestamp: Sequence[date | datetime],
     reference_observed: ArrayLike,
     reference_fitted: ArrayLike,
@@ -281,13 +283,14 @@ def monthly_observed_fitted(
     current_fitted: ArrayLike,
     save_fig: str | Path,
     *,
+    period: TimePeriod = "month",
     reference_weight: ArrayLike | None = None,
     current_weight: ArrayLike | None = None,
     reference_group: pl.Series | None = None,
     current_group: pl.Series | None = None,
     figure: FigureConfig | None = None,
 ) -> pd.DataFrame:
-    """Plot monthly weighted means for two samples and optional groups.
+    """Plot time-based weighted means for two samples and optional groups.
 
     Parameters
     ----------
@@ -298,13 +301,18 @@ def monthly_observed_fitted(
     reference_fitted : array-like
         Finite reference predictions aligned with targets.
     current_timestamp : Sequence[date | datetime]
-        Dates or datetimes aligned with current observations.
+        Dates or datetimes aligned with current observations. Their minimum
+        must be strictly greater than the maximum reference timestamp. A split
+        inside one grouping period is allowed.
     current_observed : array-like
         Nonempty finite current targets.
     current_fitted : array-like
         Finite current predictions aligned with targets.
     save_fig : str or pathlib.Path
         Output figure path; parent directories are created.
+    period : TimePeriod, default "month"
+        Calendar grouping in matching input timezones. Minute/hour require
+        datetimes; weeks start on Monday. Points are at period starts.
     reference_weight : array-like or None, default None
         Finite, nonnegative reference weights with positive total; None uses
         equal weights.
@@ -323,12 +331,15 @@ def monthly_observed_fitted(
     Returns
     -------
     pandas.DataFrame
-        Columns month, plot_date, group, split, observed, fitted, and volume.
-        month is month start; plot_date is mean observation time; means use
+        Columns period_start, group, split, observed, fitted, and volume.
+        period_start retains the input timezone; means use
         weights and zero-weight groups are omitted.
 
     Raises
     ------
+    ValueError
+        Timezones differ, or time ranges overlap or are not ordered reference
+        before current.
     PlotError
         Vectors are misaligned, timestamps are missing, or numeric values and
         weights are invalid.
@@ -336,14 +347,35 @@ def monthly_observed_fitted(
     Notes
     -----
     Creates parent directories for save_fig and closes the figure after saving.
-    Both samples accept datetime-like values, normalized to UTC before monthly
-    grouping. Supplied group labels select separate observed/fitted curves.
+    Both samples preserve their matching input timezone during calendar
+    grouping. Missing periods are not filled or interpolated. Supplied group labels select separate observed/fitted curves.
     """
+    reference_index = pd.DatetimeIndex(list(reference_timestamp))
+    current_index = pd.DatetimeIndex(list(current_timestamp))
+    if reference_index.tz != current_index.tz:
+        raise ValueError(
+            "Reference and current timestamps must have matching time zones"
+        )
+    zone = reference_index.tz
+    fixed_offset = zone is not None and zone.utcoffset(None) is not None
+    times: list[pl.Series] = []
+    for timestamps, index in (
+        (reference_timestamp, reference_index),
+        (current_timestamp, current_index),
+    ):
+        if all(not isinstance(value, datetime) for value in timestamps):
+            times.append(pl.Series("time", timestamps))
+        else:
+            # Fixed offsets have no DST: group their local clock values, then
+            # restore the original offset. Polars only supports named zones.
+            local = index.tz_localize(None) if fixed_offset else index
+            times.append(pl.from_pandas(pd.Series(local, name="time")))
+    reference_start, current_start = paired_period_starts(times[0], times[1], period)
     splits: list[pd.DataFrame] = []
     for name, timestamps, observed, fitted, weight, group in (
         (
             "reference",
-            reference_timestamp,
+            reference_start,
             reference_observed,
             reference_fitted,
             reference_weight,
@@ -351,7 +383,7 @@ def monthly_observed_fitted(
         ),
         (
             "current",
-            current_timestamp,
+            current_start,
             current_observed,
             current_fitted,
             current_weight,
@@ -361,7 +393,9 @@ def monthly_observed_fitted(
         y, prediction = numeric_vector(observed, f"{name}_observed"), numeric_vector(
             fitted, f"{name}_fitted"
         )
-        time = pd.DatetimeIndex(pd.to_datetime(timestamps, utc=True)).tz_localize(None)
+        time = pd.DatetimeIndex(timestamps.to_list())
+        if fixed_offset:
+            time = time.tz_localize(zone)
         same_length(timestamp=time, observed=y, fitted=prediction)
         if np.asarray(time.isna()).any():
             raise PlotError("timestamps must not contain missing values")
@@ -374,16 +408,14 @@ def monthly_observed_fitted(
         same_length(group=labels, observed=y)
         frame = pd.DataFrame(
             {
-                "month": time.to_period("M").to_timestamp(),
-                "plot_date": time,
+                "period_start": time,
                 "group": pd.Series(labels).fillna("missing").astype(str),
                 "observed_weighted": y * exposure,
                 "fitted_weighted": prediction * exposure,
                 "volume": exposure,
             }
         )
-        aggregated = frame.groupby(["month", "group"], as_index=False).agg(
-            plot_date=("plot_date", "mean"),
+        aggregated = frame.groupby(["period_start", "group"], as_index=False).agg(
             observed_weighted=("observed_weighted", "sum"),
             fitted_weighted=("fitted_weighted", "sum"),
             volume=("volume", "sum"),
@@ -394,24 +426,25 @@ def monthly_observed_fitted(
         aggregated["split"] = name
         splits.append(
             aggregated[
-                ["month", "plot_date", "group", "split", "observed", "fitted", "volume"]
+                ["period_start", "group", "split", "observed", "fitted", "volume"]
             ]
         )
     grouped = pd.concat(splits, ignore_index=True)
     groups = sorted(str(value) for value in grouped.group.unique())
     fig, axes = plt.subplots(len(groups), 1, figsize=(14, 5 * len(groups)), sharex=True)
-    boundary = pd.Timestamp(
-        pd.to_datetime(current_timestamp, utc=True).min()
-    ).tz_localize(None)
+    boundary_index = pd.DatetimeIndex(current_start.to_list())
+    boundary = (
+        boundary_index.tz_localize(zone) if fixed_offset else boundary_index
+    ).min()
     for ax, label in zip(np.atleast_1d(axes), groups):
         ax.axvline(boundary, color="tab:orange", linestyle=":", label="Current begins")
         for split, linestyle in (("reference", "-"), ("current", "--")):
             subset = grouped.loc[
                 (grouped.group == label) & (grouped.split == split)
-            ].sort_values("month")
+            ].sort_values("period_start")
             if not subset.empty:
                 ax.plot(
-                    subset.plot_date,
+                    subset.period_start,
                     subset.observed,
                     color="tab:blue",
                     linestyle=linestyle,
@@ -419,7 +452,7 @@ def monthly_observed_fitted(
                     label=f"Observed — {split}",
                 )
                 ax.plot(
-                    subset.plot_date,
+                    subset.period_start,
                     subset.fitted,
                     color="tab:red",
                     linestyle=linestyle,
@@ -429,8 +462,8 @@ def monthly_observed_fitted(
         ax.set(title=label, ylabel="Weighted observed / fitted")
         ax.grid(alpha=0.2)
         ax.legend(loc="best")
-    np.atleast_1d(axes)[-1].set_xlabel("Month")
-    fig.suptitle("Monthly observed vs fitted")
+    np.atleast_1d(axes)[-1].set_xlabel(f"Period start ({period})")
+    fig.suptitle(f"Observed vs fitted ({period})")
     fig.autofmt_xdate()
     fig.tight_layout()
     save_figure(fig, save_fig, config=figure)

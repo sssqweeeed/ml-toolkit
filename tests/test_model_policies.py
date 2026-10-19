@@ -1,7 +1,10 @@
+"""Baseline policies, shared importance selection and portable serving state."""
+
+from dataclasses import replace
+from ml_toolkit.feature_selection import RFESelector
 from ml_toolkit.config import HoldoutConfig
 from ml_toolkit.training import split_holdout
 
-"""Baseline policies, shared importance selection and portable serving state."""
 
 import json
 import os
@@ -21,7 +24,7 @@ import pytest
 from test_training import mae, setup_mlflow
 
 from examples.project_pool import ProjectPool as Pool
-from ml_toolkit.config import HoldoutConfig, RFEFeatureSelectionConfig
+from ml_toolkit.config import HoldoutConfig
 from ml_toolkit.inflation import ConstantRateInflation, ManualInflation
 from ml_toolkit.models import (
     CatBoostClassificationModel,
@@ -32,7 +35,7 @@ from ml_toolkit.models import (
 )
 from ml_toolkit.training import ShapRanker, importance_ranker
 from ml_toolkit.training.evaluation import calculate_metrics
-from ml_toolkit.training.feature_selection import select_features
+
 from ml_toolkit.types import FloatArray
 
 PARAMS = dict(
@@ -284,7 +287,9 @@ def test_supervised_threshold_policy_and_refit_reset(data, loss):
     train, validation = binary.take(range(32)), binary.take(range(32, 48))
     model = CatBoostClassificationModel({**PARAMS, "loss": loss}).fit(train, validation)
     expected_threshold, expected_f1 = model._select_threshold(
-        validation.y.to_numpy(), model.predict_pool(validation)
+        validation.y.to_numpy(),
+        model.predict_pool(validation),
+        validation.weight.to_numpy(),
     )
     assert model.threshold == expected_threshold and model.validation_f1 == expected_f1
     model.fit(binary)
@@ -359,7 +364,7 @@ def test_nnpu_correction_branch_early_stopping_and_best_tree(monkeypatch, data):
 def test_rfe_selection_preserves_adapter_policies_and_original_order(
     data, kind, ranker
 ):
-    if kind in ("classification", "uPU", "nnPU"):
+    if kind in ("classification", "classification_auto", "uPU", "nnPU"):
         data = data.with_target(pl.Series("target", [1, 0, 0] * 16))
     fitted = []
 
@@ -388,16 +393,14 @@ def test_rfe_selection_preserves_adapter_policies_and_original_order(
     metric = PUMetric(0.2, loss=kind) if kind in ("uPU", "nnPU") else mae
     metric_name = "pu_risk" if kind in ("uPU", "nnPU") else "mae"
     partition = split_holdout(data.take(range(32)), HoldoutConfig(val_size=0.25))
-    result = select_features(
+    result = RFESelector(
+        ranker=ranker, min_features=2, metric=metric_name, direction="minimize"
+    ).select(
         metric=metric,
-        ranker=ranker,
         train=partition.train,
         validation=partition.val,
         params=PARAMS,
         model_factory=factory,
-        config=RFEFeatureSelectionConfig(
-            min_features=2, metric=metric_name, direction="minimize"
-        ),
     )
     assert len(fitted) == len(result.steps) == 2
     assert [len(step.features) for step in result.steps] == [3, 2]
@@ -415,6 +418,7 @@ def test_rfe_selection_preserves_adapter_policies_and_original_order(
         "custom",
         "log_link",
         "classification",
+        "classification_auto",
         "uPU",
         "nnPU",
         "inflation_native",
@@ -425,7 +429,7 @@ def test_models_from_code_roundtrip_outside_repository(
     data, tmp_path, kind, inference_python
 ):
     setup_mlflow(tmp_path)
-    if kind in ("classification", "uPU", "nnPU"):
+    if kind in ("classification", "classification_auto", "uPU", "nnPU"):
         data = data.with_target(pl.Series("target", [1, 0, 0] * 16))
     if kind == "regression":
         model = CatBoostRegressionModel(PARAMS, prediction_type="RawFormulaVal")
@@ -442,6 +446,8 @@ def test_models_from_code_roundtrip_outside_repository(
         model = CatBoostLogLinkRegressionModel(PARAMS)
     elif kind == "classification":
         model = CatBoostClassificationModel({**PARAMS, "decision_threshold": 0.4})
+    elif kind == "classification_auto":
+        model = CatBoostClassificationModel(PARAMS)
     elif kind in ("uPU", "nnPU"):
         model = CatBoostPUClassificationModel(
             {**PARAMS, "loss": kind, "pu_prior": 0.2, "decision_threshold": 0.3},
@@ -480,6 +486,21 @@ def test_models_from_code_roundtrip_outside_repository(
         path.name in ("__pycache__", ".codex", ".codegraph", "AGENTS.md")
         for path in files
     )
+    if kind == "classification_auto":
+        loaded = mlflow.pyfunc.load_model(info.model_uri).unwrap_python_model()
+        assert loaded.threshold == model.threshold
+        assert loaded.validation_f1 == model.validation_f1
+        assert model.validation_f1 is not None
+        from sklearn.metrics import f1_score
+
+        validation = data.take(range(32, 48))
+        assert loaded.validation_f1 == pytest.approx(
+            f1_score(
+                validation.y.to_numpy(),
+                model.predict_pool(validation) >= model.threshold,
+                sample_weight=validation.weight.to_numpy(),
+            )
+        )
     state = model.export_state()
     assert state["version"] == 1 and state["model_type"] == type(model).__name__
     nested = (
@@ -548,21 +569,15 @@ def test_inflation_selection_fits_strategy_on_supplied_training_only(data):
             return super().fit(dates, y, sample_weight)
 
     partition = split_holdout(data.take(range(32)), HoldoutConfig(val_size=0.25))
-    select_features(
+    RFESelector(
+        ranker=importance_ranker, min_features=2, metric="mae", direction="minimize"
+    ).select(
         metric=mae,
-        ranker=importance_ranker,
         train=partition.train,
         validation=partition.val,
         params={},
         model_factory=lambda params: InflationAdjustedModel(
-            CatBoostRegressionModel(PARAMS),
-            RecordingInflation(0.03),
-            date(2024, 1, 1),
-        ),
-        config=RFEFeatureSelectionConfig(
-            min_features=2,
-            metric="mae",
-            direction="minimize",
+            CatBoostRegressionModel(PARAMS), RecordingInflation(0.03), date(2024, 1, 1)
         ),
     )
     assert len(seen) == 2

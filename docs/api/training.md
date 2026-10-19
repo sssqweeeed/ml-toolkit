@@ -76,7 +76,7 @@ settings.
 
 ## Select features and tune parameters
 
-Continue after the holdout example. Selection needs a ranker and tuning needs
+Continue after the holdout example. RFE selection needs a ranker and tuning needs
 an Optuna search-space callback. This small example visits the two-feature and
 one-feature subsets, then compares two parameter trials on the selected subset.
 
@@ -87,7 +87,8 @@ from dataclasses import replace
 
 from optuna import Trial
 
-from ml_toolkit.config import RFEFeatureSelectionConfig, TuningConfig
+from ml_toolkit.config import TuningConfig
+from ml_toolkit.feature_selection import RFESelector, TopKSelector, ForwardSelector
 from ml_toolkit.training import importance_ranker
 from ml_toolkit.types import ModelParams
 
@@ -98,12 +99,6 @@ def param_space(trial: Trial) -> ModelParams:
 
 search_config = replace(
     config,
-    feature_selection=RFEFeatureSelectionConfig(
-        min_features=1,
-        metric="mean_poisson_deviance",
-        direction="minimize",
-        max_fits=2,
-    ),
     tuning=TuningConfig(
         metric="mean_poisson_deviance",
         direction="minimize",
@@ -118,7 +113,10 @@ searched = train_model(
     metric=metrics_frequency,
     run_name="frequency-search",
     config=search_config,
-    feature_ranker=importance_ranker,
+    feature_selector=RFESelector(
+        min_features=1, metric="mean_poisson_deviance", direction="minimize",
+        max_fits=2, ranker=importance_ranker,
+    ),
     param_space=param_space,
 )
 print(searched.features)
@@ -142,19 +140,151 @@ window repeats this process; the final fit reuses the last window's settings.
 it does not require the `shap` extra.
 
 For an explicit train/validation pair, use `split_holdout` and
-`select_features` directly. Selection returns history and column names; apply
+`selector.select(train=..., validation=..., params=..., model_factory=..., metric=...)` directly. Selection returns history and column names; apply
 them with `data.select_features(selection.features)` before your own fit.
 `tune_optuna` also works independently when supplied a scalar `score` callback.
+
+## Choose a selector
+
+All selectors below work with the prepared `data`, `params`, model factory,
+metric and `search_config` above. The selector owns its settings and ranker;
+`TrainingConfig` has no feature-selection settings. Omit `feature_selector` to
+keep all columns. Each validation window uses fresh models, and the final fit
+reuses the last window's selected columns.
+
+<!-- example: training-selectors -->
+
+```python
+from ml_toolkit.training import split_holdout
+
+partition = split_holdout(data, HoldoutConfig(val_size=0.25))
+selectors = (
+    RFESelector(min_features=1, metric="mean_poisson_deviance", direction="minimize",
+                ranker=importance_ranker, max_fits=2),
+    TopKSelector(k=1, ranker=importance_ranker),
+    ForwardSelector(metric="mean_poisson_deviance", direction="minimize",
+                    max_features=2, max_fits=3),
+)
+for selector in selectors:
+    selection = selector.select(
+        train=partition.train, validation=partition.val, params=params,
+        model_factory=CatBoostLogLinkRegressionModel, metric=metrics_frequency,
+    )
+    print(type(selector).__name__, selection.features, len(selection.steps))
+```
+
+<!-- output: training-selectors -->
+```text
+RFESelector ('age', 'region') 2
+TopKSelector ('age',) 2
+ForwardSelector ('region',) 3
+```
+<!-- /output -->
+
+RFE repeatedly removes low-ranked columns and chooses the smallest visited
+subset within `score_tolerance` of the best result. Top-K ranks once and keeps
+exactly `k`, including protected features, even if its quality is worse. Forward
+compares every remaining single-feature addition and accepts it only when the
+absolute gain exceeds `min_improvement` (default zero). It does not begin a
+round that exceeds `max_fits`; too little budget for its first comparison is an
+error. With no protected columns it starts by comparing every singleton.
+
+`protected_features` are mandatory and count toward every size limit. Ties
+prefer the original feature order. `steps` contains all evaluated candidates,
+including rejected ones, with metrics and timings; `selected_step` identifies
+the returned subset. No fitted models are retained. `settings` records concrete
+JSON-compatible configuration; executable rankers are excluded.
+Its public type, `ml_toolkit.feature_selection.SelectionSettings`, is a flat
+dictionary with string keys and values of type `str`, `int`, `float`, `bool`,
+`None`, or `tuple[str, ...]`. Use it for a custom selector's configuration;
+the tuple form records feature names.
+
+Each validation run stores concrete settings and every evaluated subset in
+`selection/history.json`, including scores, timings, available importances and
+`selected_step`. No fitted models or executable rankers are serialized there.
+The selected scores are logged under `selection/metrics/<name>`; fit count,
+feature count and selected index have separate `selection/` entries.
+
+## Implement a selector
+
+Implement `FeatureSelector.select` with the documented keyword arguments and
+return a `FeatureSelectionResult`. The workflow checks the selected history
+entry and input-column order. Create a fresh model for every fit, copy parameter
+dictionaries, and keep learned state local to each call. The same selector
+instance is reused across splits; it must not accumulate fitted estimators.
+
+This reusable example evaluates a project-approved feature subset:
+
+??? note "Complete custom selector source"
+
+    ```python
+    --8<-- "examples/custom_selector.py"
+    ```
+
+<!-- example: training-custom-selector -->
+
+```python
+from examples.custom_selector import FixedFeatureSelector
+
+custom_selection = train_model(
+    data=data, params=params, model_factory=CatBoostLogLinkRegressionModel,
+    metric=metrics_frequency, run_name="custom-selector", config=config,
+    feature_selector=FixedFeatureSelector(("age",)),
+)
+print(custom_selection.features)
+print(custom_selection.feature_selection.settings)
+```
+
+<!-- output: training-custom-selector -->
+```text
+('age',)
+{'selector': 'fixed', 'features': ('age',)}
+```
+<!-- /output -->
+
+The normal workflow performs validation, optional tuning and a fresh final fit
+using those columns. Prediction, refitting and model packaging remain the model
+adapter's responsibility: serve inputs in `result.features` order through that
+adapter. The selector itself owns no learned model state and is not a serving
+artifact. See [model packaging](tracking.md) for saving and reloading the final
+model. Custom selectors must use the supported `Pool` and `Model` contracts;
+they do not extend backend or prediction-shape support.
+
+The selected final model can be packaged and checked independently of the
+selector. Continue with `custom_selection` above; this creates an MLflow model
+artifact and verifies its reloaded predictions on the selected input schema.
+
+<!-- example: training-selector-serving -->
+
+```python
+import numpy as np
+
+selected_data = data.select_features(custom_selection.features)
+expected = custom_selection.model.predict_pool(selected_data)
+with mlflow.start_run():
+    logged = custom_selection.model.log(selected_data)
+model_info = logged[1] if isinstance(logged, tuple) else logged
+reloaded = mlflow.pyfunc.load_model(model_info.model_uri)
+np.testing.assert_allclose(reloaded.predict(selected_data.to_model_input()), expected)
+print("Selected model predictions preserved after reload")
+```
+
+<!-- output: training-selector-serving -->
+```text
+Selected model predictions preserved after reload
+```
+<!-- /output -->
 
 ## Add custom evaluation
 
 Custom evaluation needs aligned IDs in `Pool.object_id`. Continue with `data`,
 `params`, and `config` from the holdout example. The evaluator below reports
-unweighted MAE and returns no images; the inherited image writer does nothing.
+unweighted MAE and writes a table in four supported formats.
 
 <!-- example: training-custom-evaluation -->
 
 ```python
+from pathlib import Path
 import numpy as np
 import polars as pl
 
@@ -173,6 +303,21 @@ class ExtraMetrics(PostFitEvaluator):
         split: DatasetSplit,
     ) -> dict[str, float]:
         return {"mae": float(np.mean(np.abs(y_true - y_pred)))}
+
+    def write_artifacts(
+        self, *, object_id: pl.Series, y_pred: FloatArray, y_true: FloatArray,
+        split: DatasetSplit, artifact_dir: Path,
+    ) -> list[Path]:
+        directory = artifact_dir / "tables"
+        directory.mkdir()
+        table = pl.DataFrame({"id": object_id, "observed": y_true, "predicted": y_pred})
+        paths = [directory / f"predictions.{extension}"
+                 for extension in ("csv", "parquet", "json", "html")]
+        table.write_csv(paths[0])
+        table.write_parquet(paths[1])
+        table.write_json(paths[2])
+        paths[3].write_text(table.to_pandas().to_html(index=False))
+        return paths
 
 
 identified = ProjectPool(
@@ -202,13 +347,16 @@ objective. The same evaluator instance is reused, so return scores for the
 supplied rows and keep inputs unchanged.
 
 Use `ReportingConfig(post_fit=PostFitEvaluationConfig(...))` to choose stages
-and splits. To log images, override `write_artifacts`, save them inside the
+and splits. To log images, CSV, Parquet, JSON, or HTML, override `write_artifacts`, save them inside the
 supplied temporary `artifact_dir`, and return their paths. The method's reference
-below describes supported files and directory lifetime.
+below describes supported files and directory lifetime. Files are stored under
+`custom/<split>/`, preserving your relative subdirectories. Every returned path
+is validated before any upload.
 
 ## API reference
 
-Import these operations and result types from `ml_toolkit.training`.
+Import selectors and selection results from `ml_toolkit.feature_selection`;
+import workflow operations from `ml_toolkit.training`.
 `train_model` and `TrainingResult` are also available from `ml_toolkit`.
 
 ### Training workflow
@@ -220,7 +368,21 @@ Import these operations and result types from `ml_toolkit.training`.
 Rankers are called as `ranker(model, data)`. Their callable interfaces define
 feature coverage and returned importance values.
 
-::: ml_toolkit.training.select_features
+::: ml_toolkit.feature_selection.FeatureSelector
+    options:
+      members: [select]
+
+::: ml_toolkit.feature_selection.RFESelector
+    options:
+      members: [select]
+
+::: ml_toolkit.feature_selection.TopKSelector
+    options:
+      members: [select]
+
+::: ml_toolkit.feature_selection.ForwardSelector
+    options:
+      members: [select]
 
 ::: ml_toolkit.training.importance_ranker
 
@@ -232,9 +394,9 @@ feature coverage and returned importance values.
 
 ::: ml_toolkit.training.FeatureRanker.__call__
 
-::: ml_toolkit.training.FeatureSelectionResult
+::: ml_toolkit.feature_selection.FeatureSelectionResult
 
-::: ml_toolkit.training.FeatureSelectionStep
+::: ml_toolkit.feature_selection.FeatureSelectionStep
 
 ### Parameter tuning
 

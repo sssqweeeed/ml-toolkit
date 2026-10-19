@@ -1,9 +1,11 @@
-"""Reference/current and optional monthly level-share tables."""
+"""Reference/current and optional time-based level-share tables."""
 
 from __future__ import annotations
 
 import polars as pl
 
+from .._time import paired_period_starts
+from ..types import TimePeriod
 from ..feature_levels import LevelConfig
 
 LEVEL_SCHEMA = {
@@ -13,9 +15,9 @@ LEVEL_SCHEMA = {
     "rows": pl.Int64,
     "share": pl.Float64,
 }
-MONTHLY_SCHEMA = {
+TIME_SCHEMA = {
     "feature": pl.String,
-    "month": pl.Date,
+    "period_start": pl.Datetime("us"),
     "sample": pl.String,
     "level": pl.String,
     "share": pl.Float64,
@@ -61,13 +63,17 @@ def level_distributions(
     )
 
 
-def monthly_level_distributions(
+def time_level_distributions(
     reference_levels: pl.DataFrame,
     reference_time: pl.Series,
     current_levels: pl.DataFrame,
     current_time: pl.Series,
     config: LevelConfig,
+    period: TimePeriod = "month",
 ) -> pl.DataFrame:
+    reference_start, current_start = paired_period_starts(
+        reference_time, current_time, period
+    )
     tables: list[pl.DataFrame] = []
     for feature_order, feature in enumerate(config.features):
         grid = pl.DataFrame(
@@ -76,27 +82,29 @@ def monthly_level_distributions(
         )
         for sample_order, (sample, timestamp, levels) in enumerate(
             (
-                ("reference", reference_time, reference_levels),
-                ("current", current_time, current_levels),
+                ("reference", reference_start, reference_levels),
+                ("current", current_start, current_levels),
             )
         ):
-            month = timestamp.dt.truncate("1mo").cast(pl.Date).alias("month")
+            period_start = timestamp
             values = pl.DataFrame(
                 {
-                    "month": month,
+                    "period_start": period_start,
                     "level": levels.get_column(feature.name).cast(pl.String),
                 }
             )
-            counts = values.group_by("month", "level").agg(pl.len().alias("rows"))
+            counts = values.group_by("period_start", "level").agg(
+                pl.len().alias("rows")
+            )
             tables.append(
-                values.select("month")
+                values.select("period_start")
                 .unique()
-                .sort("month")
+                .sort("period_start")
                 .join(grid, how="cross")
-                .join(counts, on=["month", "level"], how="left")
+                .join(counts, on=["period_start", "level"], how="left")
                 .with_columns(pl.col("rows").fill_null(0))
                 .with_columns(
-                    (pl.col("rows") / pl.col("rows").sum().over("month")).alias(
+                    (pl.col("rows") / pl.col("rows").sum().over("period_start")).alias(
                         "share"
                     ),
                     pl.lit(feature.name).alias("feature"),
@@ -107,7 +115,7 @@ def monthly_level_distributions(
             )
     return (
         pl.concat(tables)
-        .sort("feature_order", "sample_order", "month", "level_order")
-        .select(*MONTHLY_SCHEMA)
-        .cast(pl.Schema(MONTHLY_SCHEMA))
+        .sort("feature_order", "sample_order", "period_start", "level_order")
+        .select(*TIME_SCHEMA)
+        .cast(pl.Schema({**TIME_SCHEMA, "period_start": reference_start.dtype}))
     )

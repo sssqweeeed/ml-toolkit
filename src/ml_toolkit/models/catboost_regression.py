@@ -12,6 +12,7 @@ import polars as pl
 from mlflow.models.model import ModelInfo
 from mlflow.pyfunc.model import PythonModel
 
+from ..data import validate_training_categories
 from ..tracking.state import RegressionState
 from ..types import FloatArray, ModelParams
 from ._catboost import (
@@ -147,8 +148,10 @@ class CatBoostRegressionModel(PythonModel):
         Parameters
         ----------
         train : Pool
+            Raw categorical values must not stringify to the reserved "unknown".
             Training features, targets and weights.
         validation : Pool or None, default None
+            Subject to the same reserved-category check as training.
             Optional holdout for early stopping. It uses the training baseline.
 
         Returns
@@ -162,6 +165,9 @@ class CatBoostRegressionModel(PythonModel):
             len(train),
             validation is not None,
         )
+        validate_training_categories(train)
+        if validation is not None:
+            validate_training_categories(validation)
         params = normalize_loss(self.params)
         self._validate_params(params)
         baseline = self._calculate_baseline(train)

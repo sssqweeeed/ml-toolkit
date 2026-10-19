@@ -1,3 +1,5 @@
+"""Batch RFE selection, objective handling and adapter/ranker boundaries."""
+
 from dataclasses import dataclass, replace
 from datetime import date, timedelta
 from types import SimpleNamespace
@@ -9,23 +11,16 @@ import pytest
 from polars.testing import assert_frame_equal, assert_series_equal
 
 from examples.project_pool import ProjectPool as Pool
-from ml_toolkit.config import (
-    HoldoutConfig,
-    RFEFeatureSelectionConfig,
-    TimeSeriesCVConfig,
-    TrainingConfig,
-)
+from ml_toolkit.feature_selection import RFESelector
+from ml_toolkit.config import HoldoutConfig, TimeSeriesCVConfig, TrainingConfig
 from ml_toolkit.metrics import MetricScores
 from ml_toolkit.models import CatBoostRegressionModel
 from ml_toolkit.training import (
     ShapRanker,
     importance_ranker,
-    select_features,
     split_holdout,
     train_model,
 )
-
-"""Batch RFE selection, objective handling and adapter/ranker boundaries."""
 
 
 @pytest.fixture
@@ -45,14 +40,15 @@ def data():
 
 
 def settings(**overrides):
-    return RFEFeatureSelectionConfig(
+    return RFESelector(
+        ranker=importance_ranker,
         **{
             "min_features": 2,
             "metric": "objective",
             "direction": "minimize",
             "max_fits": 3,
             **overrides,
-        }
+        },
     )
 
 
@@ -99,14 +95,12 @@ def run(data, quality, config=None, ranker=ordered_ranker, metric=scores, holdou
     calls = []
     params = {"seed": 123}
     partition = split_holdout(data, holdout or HoldoutConfig(val_size=0.25))
-    result = select_features(
+    result = replace(config or settings(), ranker=ranker).select(
         train=partition.train,
         validation=partition.val,
         params=params,
         model_factory=factory(quality, calls),
         metric=metric,
-        ranker=ranker,
-        config=config or settings(),
     )
     assert params == {"seed": 123}
     return result, calls
@@ -268,14 +262,12 @@ def test_invalid_data_configuration_fails_before_fit(data, config):
 
     with pytest.raises(ValueError):
         partition = split_holdout(data, HoldoutConfig(val_size=0.25))
-        select_features(
+        replace(config, ranker=ordered_ranker).select(
             train=partition.train,
             validation=partition.val,
             params={},
             model_factory=fail,
             metric=scores,
-            ranker=ordered_ranker,
-            config=config,
         )
 
 
@@ -292,27 +284,9 @@ def test_standalone_selection_does_not_log_or_call_native_backend(data, monkeypa
     assert result.selected_step == 1
 
 
-def test_training_requires_ranker_before_starting_run(data, monkeypatch):
-    import mlflow
-
-    def fail(*args, **kwargs):
-        pytest.fail(
-            "Missing selection dependencies must fail before tracking or fitting"
-        )
-
-    monkeypatch.setattr(mlflow, "start_run", fail)
-    with pytest.raises(ValueError, match="feature_ranker is required"):
-        train_model(
-            data=data,
-            params={},
-            model_factory=fail,
-            metric=scores,
-            run_name="missing-ranker",
-            config=TrainingConfig(
-                validation=TimeSeriesCVConfig(n_splits=2),
-                feature_selection=settings(),
-            ),
-        )
+def test_selector_requires_ranker_at_construction():
+    with pytest.raises(TypeError, match="ranker"):
+        RFESelector(min_features=1, metric="mae", direction="minimize")
 
 
 def test_importance_ranker_uses_explicit_adapter_contract(data):
@@ -429,16 +403,17 @@ def test_real_shap_ranker_handles_null_and_numeric_categories_without_shap_extra
     result = ShapRanker(max_samples=count)(model, data)
     np.testing.assert_allclose(list(result.values()), expected)
     partition = split_holdout(data, HoldoutConfig(val_size=0.25))
-    selection = select_features(
+    selection = RFESelector(
+        ranker=ShapRanker(max_samples=8),
+        min_features=1,
+        metric="mae",
+        direction="minimize",
+    ).select(
         train=partition.train,
         validation=partition.val,
         params=model.params,
         model_factory=CatBoostRegressionModel,
         metric=lambda y, p, w: MetricScores({"mae": np.average(abs(y - p), weights=w)}),
-        ranker=ShapRanker(max_samples=8),
-        config=RFEFeatureSelectionConfig(
-            min_features=1, metric="mae", direction="minimize"
-        ),
     )
     assert len(selection.steps) == 2
     assert all(
@@ -454,14 +429,14 @@ def test_selection_requires_matching_columns_and_nonempty_supplied_windows(data)
         params={},
         model_factory=fail,
         metric=scores,
-        ranker=ordered_ranker,
-        config=settings(),
     )
     with pytest.raises(ValueError, match="features must match"):
-        select_features(
+        replace(settings(), ranker=ordered_ranker).select(
             train=data.take(range(18)),
             validation=data.take(range(18, 24)).select_features(["f0"]),
             **kwargs,
         )
     with pytest.raises(ValueError, match="empty"):
-        select_features(train=data.take([]), validation=data, **kwargs)
+        replace(settings(), ranker=ordered_ranker).select(
+            train=data.take([]), validation=data, **kwargs
+        )

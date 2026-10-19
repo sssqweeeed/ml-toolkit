@@ -9,13 +9,13 @@ from optuna import Trial
 
 from ..config import HoldoutConfig, TrainingConfig
 from ..data import validate_training_data
+from ..feature_selection import FeatureSelector
 from ..metrics import Metric
 from ..models.base import Model
 from ..tracking import runs as tracking
 from ..types import ModelParams
 from .contracts import (
     DatasetSplit,
-    FeatureRanker,
     PostFitEvaluator,
     Pool,
 )
@@ -35,7 +35,7 @@ def train_model(
     metric: Metric,
     run_name: str,
     config: TrainingConfig,
-    feature_ranker: FeatureRanker | None = None,
+    feature_selector: FeatureSelector | None = None,
     param_space: Callable[[Trial], ModelParams] | None = None,
     post_fit_evaluator: PostFitEvaluator | None = None,
 ) -> TrainingResult:
@@ -44,6 +44,7 @@ def train_model(
     Parameters
     ----------
     data : Pool
+        Raw categorical values must not stringify to the reserved "unknown".
         Aligned prepared features, finite targets, ascending non-null timestamps
         and nonnegative weights with positive total. May include a future test tail.
     params : ModelParams
@@ -56,11 +57,12 @@ def train_model(
     run_name : str
         Enclosing MLflow experiment run name.
     config : TrainingConfig
-        Holdout/TSCV, test row count, fraction or calendar start date, selection,
+        Holdout/TSCV, test row count, fraction or calendar start date,
         tuning, reporting and packaging. A test start date includes the entire
         day in the timezone of data.time.
-    feature_ranker : FeatureRanker or None, default None
-        Required for selection on each split's validation rows.
+    feature_selector : FeatureSelector or None, default None
+        Selects features independently before tuning on each split. None keeps
+        all columns. The selector owns its settings and must not retain fitted state.
     param_space : Callable or None, default None
         Optuna trial overrides; required when tuning is enabled.
     post_fit_evaluator : PostFitEvaluator or None, default None
@@ -95,14 +97,14 @@ def train_model(
     if isinstance(test_size, date):
         train_rows = int((data.time.dt.date() < test_size).sum())
         if train_rows == 0 or train_rows == len(data):
-            raise ValueError("test_size date must leave nonempty training and test data")
+            raise ValueError(
+                "test_size date must leave nonempty training and test data"
+            )
         test_size = len(data) - train_rows
     if isinstance(test_size, (int, float)):
         partition = split_holdout(data, HoldoutConfig(val_size=test_size))
         train, test = partition.train, partition.val
     splits = make_validation_splits(train, config.validation)
-    if config.feature_selection is not None and feature_ranker is None:
-        raise ValueError("feature_ranker is required when feature selection is enabled")
     if config.tuning is not None and param_space is None:
         raise ValueError("param_space is required when tuning is enabled")
     policy = config.reporting.post_fit
@@ -139,7 +141,7 @@ def train_model(
                         model_factory=model_factory,
                         metric=metric,
                         config=config,
-                        feature_ranker=feature_ranker,
+                        feature_selector=feature_selector,
                         post_fit_evaluator=post_fit_evaluator,
                         param_space=param_space,
                         index=part.index,

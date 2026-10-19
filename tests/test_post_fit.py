@@ -10,11 +10,11 @@ from evaluators import CallbackEvaluator
 from test_training import MeanModel, ProjectData, mae, make_data, setup_mlflow
 
 from examples.project_pool import ProjectPool as Pool
+from ml_toolkit.feature_selection import RFESelector
 from ml_toolkit.config import (
     PostFitEvaluationConfig,
     RegressionDiagnosticsConfig,
     ReportingConfig,
-    RFEFeatureSelectionConfig,
     TimeSeriesCVConfig,
     TrainingConfig,
     TuningConfig,
@@ -134,7 +134,6 @@ def test_post_fit_lifecycle_alignment_and_mlflow(
 
     evaluator: PostFitEvaluator = RecordingArtifactEvaluator()
     result = train_model(
-        feature_ranker=importance_ranker,
         data=identified_data,
         params={},
         model_factory=Model,
@@ -144,9 +143,6 @@ def test_post_fit_lifecycle_alignment_and_mlflow(
         param_space=lambda trial: {"parameter": trial.suggest_int("parameter", 1, 2)},
         config=TrainingConfig(
             validation=TimeSeriesCVConfig(n_splits=2, skip_splits=skip),
-            feature_selection=RFEFeatureSelectionConfig(
-                min_features=1, metric="mae", direction="minimize"
-            ),
             tuning=(
                 TuningConfig(metric="mae", direction="minimize", n_trials=2)
                 if tuning
@@ -163,6 +159,9 @@ def test_post_fit_lifecycle_alignment_and_mlflow(
                 ),
             ),
         ),
+        feature_selector=RFESelector(
+            ranker=importance_ranker, min_features=1, metric="mae", direction="minimize"
+        ),
     )
     assert len(evaluator.calls) == expected_calls
     assert len(evaluator.artifact_calls) == expected_calls
@@ -178,14 +177,14 @@ def test_post_fit_lifecycle_alignment_and_mlflow(
         run = runs[run_id]
         assert run.data.metrics[f"{split.value}/custom/rows"] == len(ids)
         client = mlflow.MlflowClient()
-        artifacts = client.list_artifacts(run_id, f"figures/custom/{split.value}/figures")
+        artifacts = client.list_artifacts(run_id, f"custom/{split.value}/figures")
         assert [item.path for item in artifacts] == [
-            f"figures/custom/{split.value}/figures/summary.svg"
+            f"custom/{split.value}/figures/summary.svg"
         ]
         assert [
-            item.path for item in client.list_artifacts(run_id, f"figures/custom/{split.value}")
+            item.path for item in client.list_artifacts(run_id, f"custom/{split.value}")
         ] == [
-            f"figures/custom/{split.value}/figures",
+            f"custom/{split.value}/figures",
         ]
         if run.data.tags["mlflow.runName"] == "final_fit":
             assert "val/custom/rows" not in run.data.metrics
@@ -346,7 +345,18 @@ def test_disabled_evaluator_needs_no_ids_but_final_metrics_predict(tmp_path):
 
 
 @pytest.mark.parametrize("split", list(DatasetSplit))
-@pytest.mark.parametrize("relative_path", ["plot.PNG", "nested/plot.PNG", "figures/plot.PNG"])
+@pytest.mark.parametrize(
+    "relative_path",
+    [
+        "plot.PNG",
+        "nested/plot.PNG",
+        "figures/plot.PNG",
+        "nested/report.csv",
+        "nested/report.parquet",
+        "nested/report.json",
+        "nested/report.html",
+    ],
+)
 @pytest.mark.parametrize("absolute", [False, True])
 def test_artifacts_work_with_empty_metrics_and_preserve_selected_paths(
     identified_data, monkeypatch, split, relative_path, absolute
@@ -381,10 +391,10 @@ def test_artifacts_work_with_empty_metrics_and_preserve_selected_paths(
         name="manual",
     )
     parent = Path(relative_path).parent
-    destination = f"figures/custom/{split.value}"
+    destination = f"custom/{split.value}"
     if parent != Path("."):
         destination += f"/{parent.as_posix()}"
-    assert uploaded == [("plot.PNG", destination)]
+    assert uploaded == [(Path(relative_path).name, destination)]
     assert all(not root.exists() for root in roots)
 
 
@@ -448,7 +458,7 @@ def test_invalid_artifact_results_fail_before_upload(
         if mode == "missing":
             return [image, root / "missing.png"]
         if mode == "table":
-            table = root / "data.parquet"
+            table = root / "data.exe"
             table.write_bytes(b"table")
             return [image, table]
         if mode == "symlink":
@@ -507,3 +517,35 @@ def test_artifact_errors_propagate_and_clean_temporary_directory(
     assert raised.value is original
     assert "stage=final_fit, split=train" in original.__notes__[0]
     assert all(not root.exists() for root in roots)
+
+
+def test_internal_artifact_symlink_keeps_authors_relative_path(
+    identified_data, monkeypatch
+):
+    uploaded = []
+
+    def writer(**kwargs):
+        root = kwargs["artifact_dir"]
+        original = root / "data.csv"
+        original.write_text("value\n1\n")
+        nested = root / "nested"
+        nested.mkdir()
+        link = nested / "report.csv"
+        link.symlink_to(original)
+        return [link]
+
+    monkeypatch.setattr(
+        mlflow,
+        "log_artifact",
+        lambda path, artifact_path: uploaded.append((Path(path).name, artifact_path)),
+    )
+    report_custom_evaluation(
+        evaluator=CallbackEvaluator(
+            evaluate=lambda **kwargs: {}, write_artifacts=writer
+        ),
+        data=identified_data,
+        prediction=np.ones(24),
+        split=DatasetSplit.VAL,
+        name="manual",
+    )
+    assert uploaded == [("report.csv", "custom/val/nested")]

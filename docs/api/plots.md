@@ -10,12 +10,33 @@ it. `binary_curves` only calculates a table.
 | Question | Functions |
 | --- | --- |
 | How do precision, recall, F1, and calibration behave? | `classification.precision_recall`, `f1_threshold`, `calibration` |
-| Where do predictions differ from observations? | `regression.observed_fitted`, `observed_fitted_by_level`, `monthly_observed_fitted` |
+| Where do predictions differ from observations? | `regression.observed_fitted`, `observed_fitted_by_level`, `time_observed_fitted` |
 | How much outcome is captured at a given capacity? | `ranking.gains_curve`, `lift_curve` |
 | How are known positives ranked among unlabeled rows? | `pu.score_distribution`, `positive_capture` |
-| Which feature distributions have shifted? | `psi.feature_psi_plot`, `monthly_psi_level_distribution` |
-| How does a numerical feature change over time? | `monitoring.monthly_feature_distribution` |
+| Which feature distributions have shifted? | `psi.feature_psi_plot`, `time_psi_level_distribution` |
+| How does a numerical feature change over time? | `monitoring.time_feature_distribution` |
 | Which features contribute most to predictions? | `explainability.feature_importance`, `shap_importance`, `shap_beeswarm`, `shap_dependence` |
+
+All temporal functions accept `period="month"` by default. Supported values
+are `minute`, `hour`, `day`, `week`, `month`, `quarter`, and `year`. They group in
+the input timezone; both samples must have matching timezones. Weeks begin on
+Monday and quarters are calendar quarters. Minute/hour require `Datetime`, not
+`Date`. Returned `period_start` values preserve timezone and time-of-day.
+Points are drawn at period starts. Entirely missing periods have no computed
+values or markers; lines simply connect neighboring observed periods.
+
+Time ranges must be ordered and strictly separated:
+`max(reference_timestamp) < min(current_timestamp)`. Overlapping ranges,
+equal endpoints, and reversed samples raise `ValueError`. This check uses the
+original timestamps, so a split inside a month (or any other grouping period)
+is allowed. Line plots retain separate reference/current points at that
+period's start.
+
+Classification functions accept `weight=`. Precision, recall, F1, prevalence,
+AP, calibration means and histograms use it; omitted weights mean ones, and
+zero-weight rows are ignored. Calibration bin boundaries remain unweighted
+quantiles of positive-weight rows; its `count` column counts those rows and
+`weight_sum` reports their weight.
 
 ## Prepare real example data
 
@@ -152,17 +173,17 @@ print(calibration_table.round(3).to_string(index=False))
 
 <!-- output: plots-calibration -->
 ```text
- bin  observed_rate  predicted_rate  count
-   0          0.000           0.002     72
-   1          0.000           0.005     72
-   2          0.000           0.012     72
-   3          0.000           0.032     72
-   4          0.097           0.157     72
-   5          0.887           0.815     71
-   6          1.000           0.967     72
-   7          1.000           0.986     72
-   8          1.000           0.993     72
-   9          1.000           0.997     72
+ bin  observed_rate  predicted_rate  count  weight_sum
+   0          0.000           0.002     72        72.0
+   1          0.000           0.005     72        72.0
+   2          0.000           0.012     72        72.0
+   3          0.000           0.032     72        72.0
+   4          0.097           0.157     72        72.0
+   5          0.887           0.815     71        71.0
+   6          1.000           0.967     72        72.0
+   7          1.000           0.986     72        72.0
+   8          1.000           0.993     72        72.0
+   9          1.000           0.997     72        72.0
 ```
 <!-- /output -->
 
@@ -170,7 +191,7 @@ print(calibration_table.round(3).to_string(index=False))
 
 Each bin contains roughly 72 held-out images. The table compares mean predicted
 probability with observed positive rate and reports the supporting count.
-These classification plots are unweighted and require confirmed ground truth.
+These classification plots use supplied sample weights and require confirmed ground truth.
 
 ## Observed versus fitted
 
@@ -265,37 +286,37 @@ reference  [0.42, 0.5)    145.87  140.84   515.0
 `sample` remains `reference`/`current`; legend labels affect only the figure.
 Levels absent from one sample have zero volume and NaN means for that sample.
 
-<!-- example: plots-monthly-observed-fitted -->
+<!-- example: plots-time-observed-fitted -->
 ```python
-monthly = regression.monthly_observed_fitted(
+temporal = regression.time_observed_fitted(
     reference_time,
     reference_y,
     reference_prediction,
     current_time,
     current_y,
     current_prediction,
-    output / "monthly-observed-fitted.png",
+    output / "time-observed-fitted.png",
     figure=figure,
 )
-summary = monthly[["month", "split", "observed", "fitted", "volume"]]
+summary = temporal[["period_start", "split", "observed", "fitted", "volume"]]
 print(summary.head(6).round({"observed": 2, "fitted": 2}).to_string(index=False))
-print(f"Monthly summaries: {len(monthly)}; minimum hours per month: {int(monthly.volume.min())}")
+print(f"Monthly summaries: {len(temporal)}; minimum hours per month: {int(temporal.volume.min())}")
 ```
 
-<!-- output: plots-monthly-observed-fitted -->
+<!-- output: plots-time-observed-fitted -->
 ```text
-     month     split  observed  fitted  volume
-2011-07-01 reference    189.97  200.42   744.0
-2011-08-01 reference    186.99  201.52   731.0
-2011-09-01 reference    177.71  178.78   717.0
-2011-10-01 reference    166.23  154.92   743.0
-2011-11-01 reference    142.10  137.59   719.0
-2011-12-01 reference    117.84  113.86   741.0
+period_start     split  observed  fitted  volume
+  2011-07-01 reference    189.97  200.42   744.0
+  2011-08-01 reference    186.99  201.52   731.0
+  2011-09-01 reference    177.71  178.78   717.0
+  2011-10-01 reference    166.23  154.92   743.0
+  2011-11-01 reference    142.10  137.59   719.0
+  2011-12-01 reference    117.84  113.86   741.0
 Monthly summaries: 18; minimum hours per month: 692
 ```
 <!-- /output -->
 
-![Monthly actual and predicted bike rental means across recorded July 2011–December 2012 hours.](../assets/plots/monthly-observed-fitted.png)
+![Monthly actual and predicted bike rental means across recorded July 2011–December 2012 hours.](../assets/plots/time-observed-fitted.png)
 
 This uses the six actual reference months and twelve actual current months.
 Each point summarizes hundreds of hours. The model was fitted before both
@@ -304,8 +325,8 @@ in weather, calendar mix, and demand can all affect these comparisons;
 a figure alone does not establish a cause. The simple RMSE fit permits negative
 individual predictions; the gallery preserves its raw outputs.
 
-The monthly table also contains `plot_date`, the mean observation time used
-for positioning. Dates are normalized to UTC. Optional group Series add
+The temporal table contains `period_start`, the calendar-period start used
+for positioning. Dates retain their original time zone and calendar boundaries. Optional group Series add
 separate curves; optional weights change means and volumes.
 
 ## Gains and lift
@@ -407,7 +428,7 @@ unverified review fraction increases. Missing records are not confirmed
 negative citations, and capture on this graph does not establish recall for
 all real citations. Both axes show percentages; tied scores enter together.
 
-## PSI scores and monthly level shares
+## PSI scores and temporal level shares
 
 Fit up to ten quantile bins for each of the eleven covariates on July–December
 2011, then compare their distributions with 2012. Calendar changes can be
@@ -442,61 +463,90 @@ temperature,0.059
 
 ![Distribution shift for eleven real weather and calendar covariates between reference and current periods.](../assets/plots/psi-scores.png)
 
-<!-- example: plots-psi-monthly -->
+<!-- example: plots-psi-time -->
 ```python
-psi.monthly_psi_level_distribution(
-    comparison.monthly_distribution,
+psi.time_psi_level_distribution(
+    comparison.time_distribution,
     "temperature",
-    output / "psi-monthly.png",
+    output / "psi-time.png",
     figure=figure,
 )
 ```
 
-![Recorded monthly temperature shares across reference-fitted levels over eighteen actual calendar months.](../assets/plots/psi-monthly.png)
+![Recorded monthly temperature shares across reference-fitted levels over eighteen actual calendar months.](../assets/plots/psi-time.png)
 
 Both calls return `None`. The second plot shows how reference-fitted temperature
-levels vary by recorded month and marks the period boundary. Reuse the tables
+levels vary by recorded period on one calendar axis, with a dashed boundary
+at the first current bar. If the split falls inside a period, that boundary
+period contains two equal-width bars, reference then current. The separator
+marks their visual boundary, not the exact split date. Empty periods remain
+empty. Reuse the validated tables
 from `PSIAnalysis`; see the [PSI guide](psi.md) for their schemas and reuse.
 
-## Monthly numerical distributions
+## Numerical distributions over time
 
 Inspect actual humidity distributions alongside the rental-prediction plots.
 This exposes the seasonal range of a measured covariate without inventing a
 time axis.
 
-<!-- example: plots-monthly-humidity -->
+<!-- example: plots-time-humidity -->
 ```python
 from ml_toolkit.plots import monitoring
 
-monthly_distribution = monitoring.monthly_feature_distribution(
+time_distribution = monitoring.time_feature_distribution(
     reference.with_columns(bikes.reference.time.alias("timestamp")),
     current.with_columns(bikes.current.time.alias("timestamp")),
     "humidity",
     "timestamp",
-    output / "monthly-humidity.png",
+    output / "time-humidity.png",
     figure=figure,
 )
-print(monthly_distribution.select("month", "split", "p50", "mean").head(6).with_columns(pl.col("mean").round(3)).write_csv(), end="")
+print(time_distribution.select("period_start", "split", "p50", "mean").head(6).with_columns(pl.col("mean").round(3)).write_csv(), end="")
 ```
 
-<!-- output: plots-monthly-humidity -->
+<!-- output: plots-time-humidity -->
 ```text
-month,split,p50,mean
-2011-07-01,reference,0.59,0.59
-2011-08-01,reference,0.65,0.626
-2011-09-01,reference,0.79,0.784
-2011-10-01,reference,0.73,0.707
-2011-11-01,reference,0.67,0.675
-2011-12-01,reference,0.63,0.65
+period_start,split,p50,mean
+2011-07-01T00:00:00.000000,reference,0.59,0.59
+2011-08-01T00:00:00.000000,reference,0.65,0.626
+2011-09-01T00:00:00.000000,reference,0.79,0.784
+2011-10-01T00:00:00.000000,reference,0.73,0.707
+2011-11-01T00:00:00.000000,reference,0.67,0.675
+2011-12-01T00:00:00.000000,reference,0.63,0.65
 ```
 <!-- /output -->
 
-![Actual monthly humidity quantiles, median, and mean in recorded bike-sharing observations.](../assets/plots/monthly-humidity.png)
+![Actual monthly humidity quantiles, median, and mean in recorded bike-sharing observations.](../assets/plots/time-humidity.png)
 
-The Polars result contains one row per recorded month and sample. By default
+The Polars result contains one row per recorded period and sample. By default
 the plot shows 5–95% and 25–75% bands, median, and mean. Pass
 `NumericalFeatureDistributionConfig` to choose bands or hide curves.
 Summaries are unweighted; null/non-finite feature values are omitted.
+
+For a shorter calendar interval, use the same recorded timestamps with
+`period="week"`. Each point below is the Monday starting its observed week.
+
+<!-- example: plots-weekly-humidity -->
+```python
+weekly_distribution = monitoring.time_feature_distribution(
+    reference.with_columns(bikes.reference.time.alias("timestamp")),
+    current.with_columns(bikes.current.time.alias("timestamp")),
+    "humidity", "timestamp", output / "time-humidity-week.png",
+    period="week", figure=figure,
+)
+print(weekly_distribution.select("period_start", "split", "p50", "mean").head(3).with_columns(pl.col("mean").round(3)).write_csv(), end="")
+```
+
+<!-- output: plots-weekly-humidity -->
+```text
+period_start,split,p50,mean
+2011-06-27T00:00:00.000000,reference,0.53,0.508
+2011-07-04T00:00:00.000000,reference,0.66,0.653
+2011-07-11T00:00:00.000000,reference,0.56,0.583
+```
+<!-- /output -->
+
+![Weekly humidity quantiles and means from the same recorded bike-sharing observations.](../assets/plots/time-humidity-week.png)
 
 ## Feature importance
 
@@ -626,7 +676,7 @@ accepted inputs, returned tables, and validation constraints.
     options:
       show_root_heading: false
       heading_level: 4
-      members: [observed_fitted, observed_fitted_by_level, monthly_observed_fitted]
+      members: [observed_fitted, observed_fitted_by_level, time_observed_fitted]
 
 ### Ranking
 
@@ -650,7 +700,7 @@ accepted inputs, returned tables, and validation constraints.
     options:
       show_root_heading: false
       heading_level: 4
-      members: [feature_psi_plot, monthly_psi_level_distribution]
+      members: [feature_psi_plot, time_psi_level_distribution]
 
 ### Monitoring
 
@@ -658,7 +708,7 @@ accepted inputs, returned tables, and validation constraints.
     options:
       show_root_heading: false
       heading_level: 4
-      members: [monthly_feature_distribution]
+      members: [time_feature_distribution]
 
 ### Explainability
 

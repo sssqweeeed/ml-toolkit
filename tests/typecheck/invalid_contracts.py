@@ -1,3 +1,6 @@
+from ml_toolkit.feature_selection import RFESelector, TopKSelector, ForwardSelector, FeatureSelector
+from ml_toolkit.types import TimePeriod
+from ml_toolkit.training import importance_ranker
 from pathlib import Path
 from typing import Callable
 
@@ -64,11 +67,11 @@ factory: Callable[[ModelParams], Model] = lambda params: {"model": 1.0}  # expec
 ranker: FeatureRanker = lambda model, data: [1.0]  # expected-type-error
 TimeSeriesCVConfig(3)  # expected-type-error
 
-from ml_toolkit.config import HoldoutConfig, RFEFeatureSelectionConfig
+from ml_toolkit.config import HoldoutConfig
 
 TrainingConfig(validation=HoldoutConfig(), test_size=["2025-01-01"])  # expected-type-error
 TrainingConfig(validation=HoldoutConfig(), test_size={"start_date": "2025-01-01"})  # expected-type-error
-RFEFeatureSelectionConfig(min_features=1, metric="mae", direction="minimize", holdout=HoldoutConfig())  # expected-type-error
+RFESelector(ranker=importance_ranker, min_features=1, metric="mae", direction="minimize", holdout=HoldoutConfig())  # expected-type-error
 
 from ml_toolkit.config import CommonPlotsConfig, FeatureLevelSpec
 
@@ -92,3 +95,18 @@ class IncompleteProjectPool:
 
 
 incomplete_pool: Pool = IncompleteProjectPool()  # expected-type-error
+
+
+TopKSelector(k=1)  # expected-type-error
+ForwardSelector(metric="mae", direction="lowest", max_features=1, max_fits=2)  # expected-type-error
+period: TimePeriod = "fortnight"  # expected-type-error
+CommonPlotsConfig(period="seconds")  # expected-type-error
+TrainingConfig(feature_selection=None)  # expected-type-error
+
+
+class WrongSelector:
+    def select(self, *, train: Pool) -> tuple[str, ...]:
+        return tuple(train.X.columns)
+
+
+selector: FeatureSelector = WrongSelector()  # expected-type-error

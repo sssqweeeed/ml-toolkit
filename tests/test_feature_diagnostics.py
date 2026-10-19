@@ -32,7 +32,7 @@ def diagnostics_for(task, common):
                 calibration=False,
                 gains=False,
                 lift=False,
-                monthly_observed_fitted=False,
+                time_observed_fitted=False,
             )
         )
     if task == "pu":
@@ -42,7 +42,7 @@ def diagnostics_for(task, common):
             )
         )
     return RegressionDiagnosticsConfig(
-        plots=RegressionPlotsConfig(common=common, monthly_observed_fitted=False)
+        plots=RegressionPlotsConfig(common=common, time_observed_fitted=False)
     )
 
 
@@ -118,11 +118,14 @@ def test_shared_diagnostics_switches_and_single_reference_fit(
         assert not fits and not transforms
     assert bool(tables) == psi
     if psi:
-        assert tables["tables/psi/test/scores.json"]["feature"].to_list() == ["unused", "x"]
+        assert tables["tables/psi/test/scores.json"]["feature"].to_list() == [
+            "unused",
+            "x",
+        ]
         assert comparisons[0][0] is transforms[0]
         assert comparisons[0][1] is transforms[1]
-        assert "figures/psi/test/monthly_by_feature/000_unused.png" in artifacts
-        assert "figures/psi/test/monthly_by_feature/001_x.png" in artifacts
+        assert "figures/psi/test/time_by_feature/000_unused.png" in artifacts
+        assert "figures/psi/test/time_by_feature/001_x.png" in artifacts
     else:
         assert not comparisons
     assert len(summaries) == (2 if observed_fitted else 0)

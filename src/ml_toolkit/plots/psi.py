@@ -1,11 +1,16 @@
-"""PSI score and monthly level-distribution figures."""
+"""PSI score and time-based level-distribution figures."""
 
+from collections.abc import Callable
 from pathlib import Path
+from typing import cast
 
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 import numpy as np
 import polars as pl
 
+from ..types import FloatArray, TimePeriod
+from .._time import PERIOD_INTERVALS, period_starts
 from ..config import FigureConfig
 from .utils import save_figure
 
@@ -64,25 +69,29 @@ def feature_psi_plot(
     save_figure(fig, save_fig, config=figure)
 
 
-def monthly_psi_level_distribution(
+def time_psi_level_distribution(
     distribution: pl.DataFrame,
     feature: str,
     save_fig: Path,
     *,
+    period: TimePeriod = "month",
     figure: FigureConfig | None = None,
 ) -> None:
-    """Save monthly fitted-level shares as touching stacked bars.
+    """Save time-based fitted-level shares as stacked bars at calendar-period starts.
 
     Parameters
     ----------
     distribution : polars.DataFrame
-        Monthly share table with feature, month, sample, level, and share
-        columns, such as PSIResult.monthly_distribution.
+        Time share table with feature, period_start, sample, level, and share
+        columns, such as PSIResult.time_distribution. Reference must precede
+        current; only their boundary period may be shared.
     feature : str
         Feature name present in the distribution table.
     save_fig : pathlib.Path
         Output figure path; pass a Path object, not a string.
 
+    period : TimePeriod, default "month"
+        Period used to build the table; determines calendar bar widths.
     figure : FigureConfig or None, default None
         Optional export dimensions, DPI, and format. None preserves native
         dimensions and the requested path format.
@@ -95,15 +104,20 @@ def monthly_psi_level_distribution(
     Raises
     ------
     ValueError
-        Required columns or the requested feature are missing.
+        Required columns or the requested feature are missing, or reference
+        periods extend beyond the first current period.
 
     Notes
     -----
     Creates parent directories for save_fig and closes the figure after saving.
-    The reference/current boundary is marked. Supply periods in the desired
-    order, as produced by PSIAnalysis.
+    Samples share one calendar axis, with a boundary at the first current bar.
+    Missing periods remain empty. A shared boundary period is split into two
+    equal-width bars, reference then current. This is a display convention,
+    not the exact timestamp of the split. PSIAnalysis and compare_psi validate
+    the original time ranges before aggregation; a manually prepared table
+    must satisfy the same constraint, which period starts alone cannot verify.
     """
-    required = {"feature", "month", "sample", "level", "share"}
+    required = {"feature", "period_start", "sample", "level", "share"}
     missing = sorted(required - set(distribution.columns))
     if missing:
         raise ValueError(f"PSI level distribution columns are missing: {missing}")
@@ -112,87 +126,100 @@ def monthly_psi_level_distribution(
     if feature_data.is_empty():
         raise ValueError(f"Feature {feature!r} is missing from PSI distribution")
 
-    periods = feature_data.select("sample", "month").unique(maintain_order=True)
+    if period not in PERIOD_INTERVALS:
+        raise ValueError("Unsupported time period")
     levels = feature_data.get_column("level").unique(maintain_order=True).to_list()
-    x = np.arange(len(periods))
-    bottom = np.zeros(len(periods), dtype=float)
-
+    periods = (
+        feature_data.select("period_start", "sample").unique()
+        # Reference first, then current; chronological within each sample.
+        .sort(["sample", "period_start"], descending=[True, False])
+    )
+    starts = periods["period_start"]
+    # Matplotlib does not provide a typed date converter.
+    date_numbers = cast(
+        Callable[[object], FloatArray],
+        mdates.date2num,  # pyright: ignore[reportUnknownMemberType]
+    )
+    x = date_numbers(starts.to_list())
+    ends = period_starts(starts.dt.offset_by(PERIOD_INTERVALS[period]), period)
+    width = date_numbers(ends.to_list()) - x
+    boundary_index = periods.filter(pl.col("sample") == "reference").height
+    if 0 < boundary_index < len(periods):
+        previous, following = boundary_index - 1, boundary_index
+        if x[previous] > x[following]:
+            raise ValueError(
+                "Reference periods must precede current periods; "
+                "only the boundary period may be shared"
+            )
+        if x[previous] == x[following]:
+            width[previous : following + 1] /= 2
+            x[following] += width[previous]
+    bottom = np.zeros(len(periods))
     fig, ax = plt.subplots(figsize=(14, 6))
     colors = plt.get_cmap("tab20")
-    legend_handles: list[object] = []
     for index, level in enumerate(levels):
         shares = (
             periods.join(
                 feature_data.filter(pl.col("level") == level).select(
-                    "sample", "month", "share"
+                    "period_start", "sample", "share"
                 ),
-                on=["sample", "month"],
+                on=["period_start", "sample"],
                 how="left",
-            )
-            .get_column("share")
+            )["share"]
             .fill_null(0.0)
             .to_numpy()
         )
-        legend_handles.append(
-            ax.bar(
-                x,
-                shares,
-                width=1.0,
-                bottom=bottom,
-                color=colors(index % 20),
-                linewidth=0,
-                antialiased=False,
-            )
+        ax.bar(
+            x,
+            shares,
+            width=width,
+            align="edge",
+            bottom=bottom,
+            color=colors(index % 20),
+            linewidth=0,
+            antialiased=False,
+            label=level,
         )
         bottom += shares
 
-    samples = periods.get_column("sample").to_list()
-    if "current" in samples:
-        current_start = samples.index("current")
-        ax.axvline(
-            current_start - 0.5,
-            color="black",
-            linestyle="--",
-            linewidth=1.2,
-        )
-        ax.text(
-            -0.45,
-            0.98,
-            "REFERENCE",
-            transform=ax.get_xaxis_transform(),
-            va="top",
-        )
-        ax.text(
-            current_start - 0.4,
-            0.98,
+    if boundary_index < len(periods):
+        boundary = float(x[boundary_index])
+        ax.axvline(boundary, color="black", linestyle="--", linewidth=1.2)
+        if boundary_index:
+            ax.annotate(
+                "REFERENCE",
+                (float(x[0]), 0.98),
+                xycoords=ax.get_xaxis_transform(),
+                xytext=(4, 0),
+                textcoords="offset points",
+                va="top",
+            )
+        ax.annotate(
             "CURRENT",
-            transform=ax.get_xaxis_transform(),
+            (boundary, 0.98),
+            xycoords=ax.get_xaxis_transform(),
+            xytext=(4, 0),
+            textcoords="offset points",
             va="top",
         )
-
-    months = periods.get_column("month").to_list()
-    tick_positions = np.linspace(0, len(months) - 1, min(6, len(months)), dtype=int)
-    ax.set_xticks(
-        tick_positions,
-        [months[index].strftime("%b %Y") for index in tick_positions],
+    zone = starts.to_list()[0].tzinfo
+    x_axis = ax.get_xaxis()
+    x_axis.axis_date(tz=zone)
+    locator = mdates.AutoDateLocator(tz=zone)
+    x_axis.set_major_locator(locator)
+    x_axis.set_major_formatter(mdates.ConciseDateFormatter(locator, tz=zone))
+    ax.set(
+        title=f"Time PSI level distribution — {feature}",
+        ylabel="Share of rows",
+        xlabel=f"Period start ({period})",
+        ylim=(0, 1),
     )
-    ax.set_xlim(-0.5, len(periods) - 0.5)
-    ax.set_ylim(0.0, 1.0)
-    ax.set_yticks(np.linspace(0.0, 1.0, 6))
-    ax.set_yticklabels([f"{value:.0%}" for value in np.linspace(0.0, 1.0, 6)])
-    ax.set_title(
-        f"Monthly PSI level distribution — {feature}",
-        loc="left",
-        pad=52,
-    )
-    ax.set_xlabel("Month")
-    ax.set_ylabel("Share of rows")
+    ax.set_yticks(np.linspace(0, 1, 6))
+    ax.set_yticklabels([f"{value:.0%}" for value in np.linspace(0, 1, 6)])
     ax.grid(axis="y", alpha=0.2)
     ax.legend(
-        handles=legend_handles,
-        labels=levels,
         loc="lower left",
-        bbox_to_anchor=(0.0, 1.02),
+        bbox_to_anchor=(0, 1.13),
         ncol=min(6, len(levels)),
         frameon=False,
     )

@@ -15,6 +15,7 @@ from mlflow.models.model import ModelInfo
 from mlflow.pyfunc.model import PythonModel
 from mlflow.pyfunc.utils import pyfunc
 
+from ..data import validate_training_categories
 from ..tracking.state import ClassificationState
 from ..types import FloatArray, IntArray, ModelParams
 from ._catboost import (
@@ -182,7 +183,7 @@ class CatBoostClassificationModel(PythonModel):
     params : dict or None, default None
         Copied CatBoost parameters; loss accepts Logloss or CrossEntropy.
         ``decision_threshold`` fixes the label cutoff and disables F1 tuning.
-        Otherwise validation tunes unweighted F1, or the cutoff defaults to 0.5.
+        Otherwise validation tunes weighted F1, or the cutoff defaults to 0.5.
     """
 
     def __init__(self, params: ModelParams | None = None) -> None:
@@ -234,11 +235,12 @@ class CatBoostClassificationModel(PythonModel):
 
     @property
     def validation_f1(self) -> float | None:
-        """Return the unweighted positive-class F1 used for threshold tuning, if available.
+        """Return the weighted positive-class F1 used for threshold tuning, if available.
 
         Notes
         -----
-        None for PU models and supervised fits without validation.
+        None for PU models, supervised fits without validation, and fits with
+        an explicit decision_threshold.
         """
         return self._validation_f1
 
@@ -322,8 +324,10 @@ class CatBoostClassificationModel(PythonModel):
         Parameters
         ----------
         train : Pool
+            Raw categorical values must not stringify to the reserved "unknown".
             Aligned features, labels and exposure weights.
         validation : Pool or None, default None
+            Subject to the same reserved-category check as training.
             Optional holdout for early stopping and supervised F1 tuning.
 
         Returns
@@ -336,6 +340,9 @@ class CatBoostClassificationModel(PythonModel):
             len(train),
             validation is not None,
         )
+        validate_training_categories(train)
+        if validation is not None:
+            validate_training_categories(validation)
         params = normalize_loss(self.params)
         threshold = params.pop("decision_threshold", None)
         if threshold is not None:
@@ -401,6 +408,7 @@ class CatBoostClassificationModel(PythonModel):
             self._threshold, self._validation_f1 = self._select_threshold(
                 validation.y.to_numpy(),
                 self.predict_pool(validation),
+                validation.weight.to_numpy().astype(float),
             )
 
     def predict_pool(self, data: Pool) -> FloatArray:
@@ -549,52 +557,18 @@ class CatBoostClassificationModel(PythonModel):
 
     @staticmethod
     def _select_threshold(
-        y_true: FloatArray, probabilities: FloatArray
+        y_true: FloatArray, probabilities: FloatArray, weight: FloatArray | None = None
     ) -> tuple[float, float]:
-        """Maximize unweighted binary F1; prefer the highest threshold on ties."""
-        y_true = np.asarray(y_true)
-        probabilities = np.asarray(probabilities, dtype=float)
-        if (
-            y_true.ndim != 1
-            or probabilities.ndim != 1
-            or y_true.size == 0
-            or y_true.shape != probabilities.shape
-        ):
-            raise ValueError(
-                "Labels and probabilities must be matching nonempty vectors"
-            )
-        if not np.isin(y_true, [0, 1]).all():
-            raise ValueError("Threshold tuning requires binary labels 0 and 1")
-        if (
-            not np.isfinite(probabilities).all()
-            or (probabilities < 0).any()
-            or (probabilities > 1).any()
-        ):
-            raise ValueError("Probabilities must be finite and between 0 and 1")
+        from ..metrics._binary import binary_threshold_scores
 
-        # Without positive examples, every threshold has F1=0
-        # under the zero_division=0 convention. Keep the default.
-        if not (y_true == 1).any():
+        y = np.asarray(y_true, dtype=float)
+        p = np.asarray(probabilities, dtype=float)
+        w = np.ones(len(y)) if weight is None else np.asarray(weight, dtype=float)
+        thresholds, _, _, scores = binary_threshold_scores(y, p, w)
+        if not np.any((y == 1) & (w > 0)):
             return 0.5, 0.0
-
-        # Sort once and evaluate each distinct score as a threshold.
-        # Group tied probabilities so this matches the >= prediction rule.
-        order = np.argsort(-probabilities, kind="stable")
-        sorted_probabilities = probabilities[order]
-        cumulative_tp = np.cumsum(y_true[order] == 1)
-        group_ends = np.r_[
-            np.flatnonzero(np.diff(sorted_probabilities) != 0),
-            y_true.size - 1,
-        ]
-        true_positives = cumulative_tp[group_ends]
-        predicted_positives = group_ends + 1
-        actual_positives = cumulative_tp[-1]
-        # F1 = 2*TP / (2*TP + FP + FN).
-        scores = 2.0 * true_positives / (predicted_positives + actual_positives)
-        # Thresholds are descending: argmax chooses the highest on ties.
-        best_index = int(np.argmax(scores))
-        threshold = sorted_probabilities[group_ends[best_index]]
-        return float(cast(float, threshold)), float(scores[best_index])
+        best = int(np.argmax(scores))
+        return float(thresholds[best]), float(scores[best])
 
     def _calculate_baseline(self, train: Pool) -> float:
         """Calculate the baseline log-odds from the positive class prevalence."""

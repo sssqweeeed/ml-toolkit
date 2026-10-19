@@ -4,66 +4,9 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from ..feature_selection import FeatureSelectionResult
 from ..models.base import Model
 from ..types import ModelParams
-
-
-@dataclass(frozen=True)
-class FeatureSelectionStep:
-    """Store one fitted and evaluated feature subset.
-
-    Attributes
-    ----------
-    features : tuple[str, ...]
-        Evaluated input columns in original order.
-    metrics : dict[str, float]
-        All supplied validation scores returned by the training metric.
-    importances : dict[str, float]
-        Ranking values by feature name; empty when no elimination follows.
-    eliminated_features : tuple[str, ...]
-        Columns removed before the next fit, in original column order.
-    fit_seconds : float
-        Elapsed adapter construction and training time.
-    evaluation_seconds : float
-        Elapsed prediction and metric calculation time.
-    ranking_seconds : float
-        Elapsed ranking and importance validation time, or zero on the last step.
-    best_iteration : int or None
-        Adapter's zero-based best iteration; not used for final fitting.
-    """
-
-    features: tuple[str, ...]
-    metrics: dict[str, float]
-    importances: dict[str, float]
-    eliminated_features: tuple[str, ...]
-    fit_seconds: float
-    evaluation_seconds: float
-    ranking_seconds: float
-    best_iteration: int | None
-
-
-@dataclass(frozen=True)
-class FeatureSelectionResult:
-    """Store batch RFE's selected subset and complete search history.
-
-    Attributes
-    ----------
-    features : tuple[str, ...]
-        Selected columns in original input order; may include the full set.
-    selected_step : int
-        Zero-based index into steps for the selected subset.
-    steps : tuple[FeatureSelectionStep, ...]
-        Chronological history of every fitted subset; contains no fitted models.
-
-    Notes
-    -----
-    Validation scores describe selection, not independent performance.
-    Frozen result objects contain mutable metric and importance dictionaries.
-    """
-
-    features: tuple[str, ...]
-    selected_step: int
-    steps: tuple[FeatureSelectionStep, ...]
 
 
 @dataclass(frozen=True)

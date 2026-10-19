@@ -1,3 +1,7 @@
+"""Shared training behavior across holdout, temporal validation and tuning."""
+
+from ml_toolkit.feature_selection import RFESelector
+from ml_toolkit.training import importance_ranker
 import json
 from dataclasses import replace
 from datetime import date, datetime
@@ -19,7 +23,6 @@ from ml_toolkit.config import (
     RegressionPlotsConfig,
     RegressionDiagnosticsConfig,
     ReportingConfig,
-    RFEFeatureSelectionConfig,
     TimeSeriesCVConfig,
     TrackingConfig,
     TrainingConfig,
@@ -35,8 +38,6 @@ from ml_toolkit.models import (
 from ml_toolkit.models._catboost import refit_parameters
 from ml_toolkit.training import DatasetSplit, train_model, tune_optuna
 from ml_toolkit.training.splits import make_validation_splits, split_holdout
-
-"""Shared training behavior across holdout, temporal validation and tuning."""
 
 
 def identified_data():
@@ -167,9 +168,6 @@ def test_each_split_selects_once_before_tuning_and_excludes_test(
     config = TrainingConfig(
         validation=validation,
         test_size=test_size,
-        feature_selection=RFEFeatureSelectionConfig(
-            min_features=1, metric="mae", direction="minimize"
-        ),
         tuning=(
             TuningConfig(metric="mae", direction="minimize", n_trials=2)
             if tuning
@@ -184,8 +182,10 @@ def test_each_split_selects_once_before_tuning_and_excludes_test(
         metric=mae,
         config=config,
         run_name="shared",
-        feature_ranker=ranker,
         param_space=lambda trial: {"fixed": 42},
+        feature_selector=RFESelector(
+            ranker=ranker, min_features=1, metric="mae", direction="minimize"
+        ),
     )
     count = 1 if isinstance(validation, HoldoutConfig) else 2
     assert len(ranked) == count
@@ -388,7 +388,7 @@ def test_test_reuses_reports_and_evaluator_independently_of_split_selection(tmp_
                         common=CommonPlotsConfig(
                             n_bins=3, numerical_distributions=None
                         ),
-                        monthly_observed_fitted=False,
+                        time_observed_fitted=False,
                     )
                 ),
                 validation_splits=(1,),
@@ -730,7 +730,6 @@ def test_split_searches_are_independent_and_final_uses_last_post_tuning_fit(tmp_
         params=base,
         model_factory=Model,
         metric=mae,
-        feature_ranker=ranker,
         param_space=lambda trial: {
             "level": (10, 18)[trial.number],
             "marker": trial.number,
@@ -739,15 +738,15 @@ def test_split_searches_are_independent_and_final_uses_last_post_tuning_fit(tmp_
         config=TrainingConfig(
             validation=TimeSeriesCVConfig(n_splits=2),
             test_size=4,
-            feature_selection=RFEFeatureSelectionConfig(
-                min_features=1, metric="mae", direction="minimize"
-            ),
             tuning=TuningConfig(metric="mae", direction="minimize", n_trials=2),
             tracking=TrackingConfig(
                 log_trial_models=True,
                 log_validation_models=True,
                 registered_model_name="final-only",
             ),
+        ),
+        feature_selector=RFESelector(
+            ranker=ranker, min_features=1, metric="mae", direction="minimize"
         ),
     )
     first, last = result.validation.splits

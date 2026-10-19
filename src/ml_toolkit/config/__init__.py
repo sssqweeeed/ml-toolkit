@@ -1,5 +1,6 @@
 """Validated, immutable workflow configurations."""
 
+from ..types import TimePeriod
 from ..feature_levels import FeatureLevelSpec
 from .reporting import (
     ClassificationDiagnosticsConfig,
@@ -24,15 +25,14 @@ from .tracking import (
     TrackingConfig,
 )
 from .training import (
-    RFEFeatureSelectionConfig,
     TrainingConfig,
     TuningConfig,
 )
 
 __all__ = [
+    "TimePeriod",
     "HoldoutConfig",
     "TimeSeriesCVConfig",
-    "RFEFeatureSelectionConfig",
     "TuningConfig",
     "TrainingConfig",
     "TrackingConfig",

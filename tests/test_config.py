@@ -1,3 +1,5 @@
+"""Configuration contracts and observable workflow behavior."""
+
 import inspect
 import re
 from dataclasses import FrozenInstanceError, fields, is_dataclass, replace
@@ -16,6 +18,7 @@ from test_training import MeanModel, list_all_artifacts, mae, make_data, setup_m
 
 import ml_toolkit.config as settings
 from examples.project_pool import ProjectPool as Pool
+from ml_toolkit.feature_selection import RFESelector
 from ml_toolkit.config import (
     ClassificationDiagnosticsConfig,
     ClassificationPlotsConfig,
@@ -29,7 +32,6 @@ from ml_toolkit.config import (
     RegressionDiagnosticsConfig,
     RegressionPlotsConfig,
     ReportingConfig,
-    RFEFeatureSelectionConfig,
     ShapConfig,
     TimeSeriesCVConfig,
     TrackingConfig,
@@ -40,13 +42,11 @@ from ml_toolkit.explainability import calculate_shap_values
 from ml_toolkit.inflation import ConstantRateInflation
 from ml_toolkit.models import CatBoostRegressionModel, InflationAdjustedModel
 from ml_toolkit.plots.classification import calibration, precision_recall
-from ml_toolkit.plots.monitoring import monthly_feature_distribution
+from ml_toolkit.plots.monitoring import time_feature_distribution
 from ml_toolkit.plots.utils import save_figure
 from ml_toolkit.feature_levels import FeatureLevelSpec
 from ml_toolkit.training import importance_ranker, split_holdout, train_model
 from ml_toolkit.training.splits import make_validation_splits
-
-"""Configuration contracts and observable workflow behavior."""
 
 
 @pytest.mark.parametrize(
@@ -55,10 +55,11 @@ from ml_toolkit.training.splits import make_validation_splits
         lambda: TimeSeriesCVConfig(n_splits=1),
         lambda: TimeSeriesCVConfig(n_splits=3, skip_splits=3),
         lambda: TimeSeriesCVConfig(n_splits=3, gap=-1),
-        lambda: RFEFeatureSelectionConfig(
-            min_features=0, metric="mae", direction="minimize"
+        lambda: RFESelector(
+            ranker=importance_ranker, min_features=0, metric="mae", direction="minimize"
         ),
-        lambda: RFEFeatureSelectionConfig(
+        lambda: RFESelector(
+            ranker=importance_ranker,
             min_features=1,
             metric="mae",
             direction="minimize",
@@ -179,7 +180,9 @@ def test_documented_task_recipes_train_and_evaluate(task, tmp_path, monkeypatch)
     monkeypatch.chdir(tmp_path)
     set_uri = mlflow.set_tracking_uri
     monkeypatch.setattr(
-        mlflow, "set_tracking_uri", lambda uri: set_uri(f"sqlite:///{tmp_path}/mlflow.db")
+        mlflow,
+        "set_tracking_uri",
+        lambda uri: set_uri(f"sqlite:///{tmp_path}/mlflow.db"),
     )
     run_block = re.findall(
         r"```python\n(.*?)\n```", sections["Run the chosen recipe"], re.DOTALL
@@ -208,7 +211,6 @@ def test_cv_honors_gap_and_row_window_sizes():
 @pytest.mark.parametrize("classifier", [False, True])
 def test_selection_fits_native_model_with_normal_parameters(classifier):
     from ml_toolkit.models import CatBoostClassificationModel
-    from ml_toolkit.training.feature_selection import select_features
 
     data = make_data()
     if classifier:
@@ -223,16 +225,14 @@ def test_selection_fits_native_model_with_normal_parameters(classifier):
 
     params = {"iterations": 3, "verbose": False, "allow_writing_files": False}
     partition = split_holdout(data, HoldoutConfig(val_size=0.25))
-    result = select_features(
+    result = RFESelector(
+        ranker=importance_ranker, min_features=1, metric="mae", direction="minimize"
+    ).select(
         metric=mae,
-        ranker=importance_ranker,
         train=partition.train,
         validation=partition.val,
         params=params,
         model_factory=record,
-        config=RFEFeatureSelectionConfig(
-            min_features=1, metric="mae", direction="minimize"
-        ),
     )
     assert [len(step.features) for step in result.steps] == [2, 1]
     assert result.features == result.steps[result.selected_step].features
@@ -255,22 +255,21 @@ def test_selection_uses_external_train_val_and_gap(monkeypatch, tmp_path):
             )
             return super().fit(train, validation)
 
-    selection = RFEFeatureSelectionConfig(
+    selection = RFESelector(
+        ranker=importance_ranker,
         min_features=1,
         metric="mae",
         direction="minimize",
     )
-    config = TrainingConfig(
-        validation=TimeSeriesCVConfig(n_splits=2, gap=2), feature_selection=selection
-    )
+    config = TrainingConfig(validation=TimeSeriesCVConfig(n_splits=2, gap=2))
     train_model(
         data=make_data(),
         params={},
         model_factory=Model,
         metric=mae,
-        feature_ranker=importance_ranker,
         run_name="split-options",
         config=config,
+        feature_selector=replace(selection, ranker=importance_ranker),
     )
     assert len(fits[0][0]) == 6 and len(fits[0][1]) == 8
     assert fits[0][0][-1] == 5 and fits[0][1][0] == 8
@@ -352,7 +351,6 @@ def test_standalone_model_logging_uses_example_size(monkeypatch):
 
 
 def test_inflation_wrapper_uses_shared_importance_selection():
-    from ml_toolkit.training.feature_selection import select_features
 
     data = make_data()
     fitted = []
@@ -367,16 +365,14 @@ def test_inflation_wrapper_uses_shared_importance_selection():
         return model
 
     partition = split_holdout(data, HoldoutConfig(val_size=0.25))
-    result = select_features(
+    result = RFESelector(
+        ranker=importance_ranker, min_features=1, metric="mae", direction="minimize"
+    ).select(
         metric=mae,
-        ranker=importance_ranker,
         train=partition.train,
         validation=partition.val,
         params={"iterations": 3, "verbose": False, "allow_writing_files": False},
         model_factory=factory,
-        config=RFEFeatureSelectionConfig(
-            min_features=1, metric="mae", direction="minimize"
-        ),
     )
     assert [len(step.features) for step in result.steps] == [2, 1]
     assert result.features == result.steps[result.selected_step].features
@@ -540,7 +536,7 @@ def test_psi_definition_and_svg_output_reach_diagnostics(tmp_path):
             features=(FeatureLevelSpec("x", "numerical", lower_bound=0),),
             numerical_distributions=None,
         ),
-        monthly_observed_fitted=False,
+        time_observed_fitted=False,
     )
     train_model(
         data=make_data(),
@@ -563,11 +559,11 @@ def test_psi_definition_and_svg_output_reach_diagnostics(tmp_path):
         if run.data.tags["mlflow.runName"] == "validation/split_2":
             assert set(artifacts) == {
                 "figures/psi/val/scores.svg",
-                "figures/psi/val/monthly_by_feature/000_x.svg",
+                "figures/psi/val/time_by_feature/000_x.svg",
                 "figures/observed_fitted/val/by_feature/000_x.svg",
                 "tables/psi/val/scores.json",
                 "tables/psi/val/level_distribution.json",
-                "tables/psi/val/monthly_distribution.json",
+                "tables/psi/val/time_distribution.json",
             }
             table = Path(
                 mlflow.artifacts.download_artifacts(
@@ -589,8 +585,13 @@ def test_custom_quantile_bands_and_hidden_curves(tmp_path):
     config = NumericalFeatureDistributionConfig(
         quantile_bands=((0.1, 0.9),), show_mean=False, show_median=False
     )
-    summary = monthly_feature_distribution(
-        frame, frame, "x", "date", tmp_path / "quantiles.png", config=config
+    summary = time_feature_distribution(
+        frame.head(len(frame) // 2),
+        frame.tail(len(frame) - len(frame) // 2),
+        "x",
+        "date",
+        tmp_path / "quantiles.png",
+        config=config,
     )
     assert (
         "p10" in summary.columns
@@ -738,5 +739,5 @@ def test_ordinary_regression_defaults_accept_signed_targets(tmp_path):
         run for run in runs if run.data.tags["mlflow.runName"] == "validation/split_2"
     )
     paths = list_all_artifacts(mlflow.MlflowClient(), fold.info.run_id)
-    assert "figures/observed_fitted/val/monthly.png" in paths
+    assert "figures/observed_fitted/val/time.png" in paths
     assert not any(path.endswith(("gains.png", "lift.png")) for path in paths)

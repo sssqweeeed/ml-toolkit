@@ -16,7 +16,6 @@ from ..config import PUPlotsConfig as PUPlotsConfig
 from ..config import RegressionDiagnosticsConfig as RegressionDiagnosticsConfig
 from ..config import RegressionPlotsConfig as RegressionPlotsConfig
 from ..config import ReportingConfig as ReportingConfig
-from ..config import RFEFeatureSelectionConfig as RFEFeatureSelectionConfig
 from ..config import ShapConfig as ShapConfig
 from ..config import TimeSeriesCVConfig as TimeSeriesCVConfig
 from ..config import TrackingConfig as TrackingConfig
@@ -28,11 +27,8 @@ from .contracts import (
     PostFitEvaluator,
     Pool,
 )
-from .feature_selection import select_features
 from .rankers import ShapRanker, importance_ranker
 from .results import (
-    FeatureSelectionResult,
-    FeatureSelectionStep,
     SplitResult,
     TrainingResult,
     TuningResult,
@@ -50,20 +46,16 @@ __all__ = [
     "FeatureRanker",
     "PostFitEvaluator",
     "Pool",
-    "FeatureSelectionResult",
-    "FeatureSelectionStep",
     "SplitResult",
     "TrainingResult",
     "TuningResult",
     "ValidationResult",
-    "select_features",
     "ShapRanker",
     "importance_ranker",
     "train_model",
     "tune_optuna",
     "HoldoutConfig",
     "TimeSeriesCVConfig",
-    "RFEFeatureSelectionConfig",
     "TuningConfig",
     "TrainingConfig",
     "TrackingConfig",

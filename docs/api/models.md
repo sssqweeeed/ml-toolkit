@@ -91,7 +91,13 @@ print(probabilities.shape, labels.shape)  # (2,) (2,)
 <!-- /output -->
 
 Without an explicit `decision_threshold`, validation chooses the classifier's
-cutoff using unweighted F1. `classifier.threshold` exposes that fitted cutoff.
+cutoff using weighted F1. Labels use `probability >= threshold`; ties in F1
+choose the higher threshold. Zero-weight rows do not affect the choice. With
+no positive-class validation weight, the cutoff is `0.5` and F1 is `0`.
+`classifier.threshold` and `classifier.validation_f1` expose these fitted
+values, which are preserved when the model is saved and reloaded. The latter
+is `None` when threshold tuning is skipped: an explicit threshold, no
+validation, or PU training.
 Positive-unlabeled training uses `CatBoostPUClassificationModel` with an
 explicit population prior; see its constructor constraints below. For monetary
 targets across dates, follow the [inflation composition example](inflation.md).

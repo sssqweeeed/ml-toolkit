@@ -71,6 +71,12 @@ and groups together. `with_target` replaces only the target. `to_model_input()`
 produces a pandas feature frame; the example implementation converts categorical
 columns to strings and fills missing categories with `"unknown"`.
 
+Training reserves the literal category `"unknown"` for missing values. Raw
+categorical columns in training and validation inputs must not already contain
+that value after string conversion, even when they have no missing values.
+Training reports the offending column. Prepared model inputs, prediction and
+serving continue to accept `"unknown"`; ordinary missing values are still filled.
+
 ## Implement your own container
 
 Import the protocol for annotations or static checking; explicit inheritance

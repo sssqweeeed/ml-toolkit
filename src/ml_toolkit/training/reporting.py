@@ -105,13 +105,18 @@ def report_custom_artifacts(
     with TemporaryDirectory(prefix="ml-toolkit-post-fit-") as directory:
         root = Path(directory).resolve()
         paths = evaluator.write_artifacts(**inputs, artifact_dir=root)
-        images: list[Path] = []
+        files: list[Path] = []
         for path in paths:
-            image = (root / path).resolve()
-            if not image.is_relative_to(root):
-                raise ValueError("write_artifacts images must be inside artifact_dir")
+            image = root / path
+            resolved = image.resolve()
+            if (
+                not image.is_relative_to(root)
+                or ".." in image.relative_to(root).parts
+                or not resolved.is_relative_to(root)
+            ):
+                raise ValueError("write_artifacts files must be inside artifact_dir")
             if not image.is_file():
-                raise ValueError(f"write_artifacts image does not exist: {path}")
+                raise ValueError(f"write_artifacts file does not exist: {path}")
             if image.suffix.lower() not in {
                 ".png",
                 ".jpg",
@@ -122,17 +127,23 @@ def report_custom_artifacts(
                 ".tif",
                 ".tiff",
                 ".bmp",
+                ".csv",
+                ".parquet",
+                ".json",
+                ".html",
             }:
-                raise ValueError(f"write_artifacts accepts only image files: {path}")
-            images.append(image)
-        for image in images:
+                raise ValueError(
+                    f"write_artifacts does not support this file format: {path}"
+                )
+            files.append(image)
+        for image in files:
             relative = image.relative_to(root)
             parent = relative.parent.as_posix()
-            artifact_path = f"figures/custom/{inputs['split'].value}"
+            artifact_path = f"custom/{inputs['split'].value}"
             if parent != ".":
                 artifact_path += f"/{parent}"
             tracking.log_artifact(image, artifact_path=artifact_path)
-            logger.debug("Logged post-fit image %s to %s", relative, artifact_path)
+            logger.debug("Logged post-fit artifact %s to %s", relative, artifact_path)
 
 
 def report_diagnostics(
@@ -162,7 +173,10 @@ def report_diagnostics(
         root = Path(directory)
 
         def emit(
-            artifact_file: str, draw: Callable[..., object], *args: object, **kwargs: object
+            artifact_file: str,
+            draw: Callable[..., object],
+            *args: object,
+            **kwargs: object,
         ) -> None:
             assert plots is not None
             figure = plots.common.figure
@@ -170,7 +184,9 @@ def report_diagnostics(
             path = root / relative
             draw(*args, save_fig=path, figure=figure, **kwargs)
             tracking.log_artifact(path, artifact_path=relative.parent.as_posix())
-            logger.debug("Logged diagnostic figure %s for %s", relative.as_posix(), name)
+            logger.debug(
+                "Logged diagnostic figure %s for %s", relative.as_posix(), name
+            )
 
         train_y, val_y = train.y.to_numpy(), validation.y.to_numpy()
         train_weight, val_weight = train.weight.to_numpy(), validation.weight.to_numpy()
@@ -204,32 +220,36 @@ def report_diagnostics(
                         current_levels,
                         level_config,
                         epsilon=common.epsilon,
+                        period=common.period,
                         reference_time=train.time,
                         current_time=validation.time,
                     )
-                    log_polars_table(psi_result.psi, f"tables/psi/{split.value}/scores.json")
+                    log_polars_table(
+                        psi_result.psi, f"tables/psi/{split.value}/scores.json"
+                    )
                     log_polars_table(
                         psi_result.level_distribution,
                         f"tables/psi/{split.value}/level_distribution.json",
                     )
-                    if not psi_result.monthly_distribution.is_empty():
+                    if not psi_result.time_distribution.is_empty():
                         log_polars_table(
-                            psi_result.monthly_distribution,
-                            f"tables/psi/{split.value}/monthly_distribution.json",
+                            psi_result.time_distribution,
+                            f"tables/psi/{split.value}/time_distribution.json",
                         )
                     emit(
                         f"figures/psi/{split.value}/scores.png",
                         psi_plots.feature_psi_plot,
                         psi_result.psi,
                     )
-                    if not psi_result.monthly_distribution.is_empty():
+                    if not psi_result.time_distribution.is_empty():
                         for index, feature in enumerate(level_config.features):
                             emit(
-                                f"figures/psi/{split.value}/monthly_by_feature/"
+                                f"figures/psi/{split.value}/time_by_feature/"
                                 f"{_feature_filename(index, feature.name)}",
-                                psi_plots.monthly_psi_level_distribution,
-                                psi_result.monthly_distribution,
+                                psi_plots.time_psi_level_distribution,
+                                psi_result.time_distribution,
                                 feature.name,
+                                period=common.period,
                             )
                 if common.observed_fitted:
                     for index, feature in enumerate(level_config.features):
@@ -253,10 +273,10 @@ def report_diagnostics(
                         )
 
         if isinstance(plots, (ClassificationPlotsConfig, RegressionPlotsConfig)):
-            if plots.monthly_observed_fitted:
+            if plots.time_observed_fitted:
                 emit(
-                    f"figures/observed_fitted/{split.value}/monthly.png",
-                    regression.monthly_observed_fitted,
+                    f"figures/observed_fitted/{split.value}/time.png",
+                    regression.time_observed_fitted,
                     train.time.to_list(),
                     train_y,
                     train_prediction,
@@ -265,6 +285,7 @@ def report_diagnostics(
                     validation_prediction,
                     reference_weight=train_weight,
                     current_weight=val_weight,
+                    period=common.period,
                     reference_group=train.business_type,
                     current_group=validation.business_type,
                 )
@@ -302,6 +323,7 @@ def report_diagnostics(
                         draw,
                         val_y,
                         validation_prediction,
+                        weight=val_weight,
                         config=plots,
                     )
         elif isinstance(plots, PUPlotsConfig):
@@ -344,13 +366,14 @@ def report_diagnostics(
                 ):
                     raise ValueError(f"Feature {feature!r} is missing or not numerical")
                 emit(
-                    f"figures/feature_distributions/{split.value}/monthly_by_feature/"
+                    f"figures/feature_distributions/{split.value}/time_by_feature/"
                     f"{_feature_filename(index, feature)}",
-                    monitoring.monthly_feature_distribution,
+                    monitoring.time_feature_distribution,
                     reference,
                     current,
                     feature,
                     time_column,
+                    period=common.period,
                     config=distribution,
                 )
         if common.shap is not None:
