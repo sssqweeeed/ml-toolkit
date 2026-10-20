@@ -16,14 +16,14 @@ from ml_toolkit.config import (
     TuningConfig,
 )
 from ml_toolkit.metrics import Metric, MetricScores
-from ml_toolkit.training import DatasetSplit, PostFitEvaluator
+from ml_toolkit.training import DatasetSplit, PredictionEvaluator
 from ml_toolkit.types import FloatArray, ModelParams
 
 TrainingConfig(validation={"n_splits": 3})  # expected-type-error
 TuningConfig(metric="mae", direction="invalid")  # expected-type-error
 RegressionDiagnosticsConfig(plots=PUPlotsConfig())  # expected-type-error
-ReportingConfig(post_fit=False)  # expected-type-error
-ReportingConfig(post_fit={"stages": ()})  # expected-type-error
+ReportingConfig(prediction_evaluation=False)  # expected-type-error
+ReportingConfig(prediction_evaluation={"stages": ()})  # expected-type-error
 MetricScores({"mae": "1"})  # expected-type-error
 result: TrainingResult = {}  # expected-type-error
 
@@ -37,7 +37,7 @@ def dictionary_metric(
 metric: Metric = dictionary_metric  # expected-type-error
 
 
-class WrongWriter(PostFitEvaluator):
+class WrongWriter(PredictionEvaluator):
     def evaluate(
         self,
         *,
@@ -74,7 +74,7 @@ def invalid_evaluator_list(data: Pool, metric: Metric) -> None:
         metric=metric,
         run_name="invalid-evaluators",
         config=TrainingConfig(validation=TimeSeriesCVConfig(n_splits=2)),
-        post_fit_evaluator=["business"],  # expected-type-error
+        prediction_evaluators=["business"],  # expected-type-error
     )
 
 
@@ -95,13 +95,20 @@ TrainingConfig(validation=HoldoutConfig(), test_size=["2025-01-01"])  # expected
 TrainingConfig(validation=HoldoutConfig(), test_size={"start_date": "2025-01-01"})  # expected-type-error
 RFESelector(ranker=importance_ranker, min_features=1, metric="mae", direction="minimize", holdout=HoldoutConfig())  # expected-type-error
 
-from ml_toolkit.config import CommonPlotsConfig, FeatureLevelSpec
+from ml_toolkit.config import CommonPlotsConfig, FeatureLevelConfig
 
 CommonPlotsConfig(features=("age",))  # expected-type-error
 CommonPlotsConfig(psi="on")  # expected-type-error
 CommonPlotsConfig(observed_fitted=None)  # expected-type-error
-FeatureLevelSpec("age", "continuous")  # expected-type-error
+FeatureLevelConfig("age", "continuous")  # expected-type-error
 RegressionDiagnosticsConfig(psi=None)  # expected-type-error
+
+from ml_toolkit.feature_levels import FeatureLevels
+from ml_toolkit.psi import compare_psi
+
+rules = FeatureLevelConfig("age", "numerical")
+FeatureLevels(config=rules, levels=(), boundaries=("1",))  # expected-type-error
+compare_psi(pl.DataFrame(), pl.DataFrame(), feature_levels=(rules,))  # expected-type-error
 
 Pool()  # expected-type-error
 

@@ -41,7 +41,7 @@ class RankingMetrics:
         Twice the area under the gains curve minus one.
     normalized_gini : float
         Gini divided by perfect_gini; NaN when perfect_gini is close to zero.
-    gini_area : float
+    gains_area : float
         Area under the cumulative gains curve.
     perfect_gini : float
         Gini obtained by ranking rows by their observed target.
@@ -59,7 +59,7 @@ class RankingMetrics:
 
     gini: float
     normalized_gini: float
-    gini_area: float
+    gains_area: float
     perfect_gini: float
 
     cumulative_exposure: FloatArray
@@ -261,7 +261,7 @@ def ranking_metrics(
         exposure=exposure,
     )
 
-    gini, gini_area = _gini_from_curve(model_curve)
+    gini, gains_area = _gini_from_curve(model_curve)
 
     perfect_curve = _cumulative_curve(
         y_target=y_target,
@@ -286,7 +286,7 @@ def ranking_metrics(
     return RankingMetrics(
         gini=gini,
         normalized_gini=float(normalized_gini),
-        gini_area=gini_area,
+        gains_area=gains_area,
         perfect_gini=perfect_gini,
         cumulative_exposure=model_curve.cumulative_exposure,
         cumulative_observed=model_curve.cumulative_observed,

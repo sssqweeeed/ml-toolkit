@@ -2,7 +2,7 @@ import numpy as np
 import polars as pl
 import pytest
 
-from ml_toolkit.config import FeatureLevelSpec
+from ml_toolkit.config import FeatureLevelConfig
 from ml_toolkit.feature_levels import LevelTransformer
 from ml_toolkit.plots.regression import observed_fitted_by_level
 from ml_toolkit.plots.utils import PlotError
@@ -81,7 +81,7 @@ def test_special_levels_and_constant_features_are_shared_with_psi(tmp_path):
     )
     transformer = LevelTransformer(
         (
-            FeatureLevelSpec(
+            FeatureLevelConfig(
                 "value",
                 "numerical",
                 lower_bound=0,
@@ -89,19 +89,19 @@ def test_special_levels_and_constant_features_are_shared_with_psi(tmp_path):
                 null_level=-1,
                 error_level=-999,
             ),
-            FeatureLevelSpec(
+            FeatureLevelConfig(
                 "group", "categorical", null_level="missing", error_level="error"
             ),
-            FeatureLevelSpec("constant", "numerical"),
+            FeatureLevelConfig("constant", "numerical"),
         ),
         n_bins=10,
     ).fit(reference)
     ref_levels, cur_levels = transformer.transform(reference), transformer.transform(
         current
     )
-    assert transformer.config is not None
-    assert len(transformer.config.features[0].boundaries) < 9
-    assert transformer.config.features[2].boundaries == ()
+    assert transformer.feature_levels is not None
+    assert len(transformer.feature_levels[0].boundaries) < 9
+    assert transformer.feature_levels[2].boundaries == ()
     assert cur_levels["value"].cast(pl.String).to_list()[3:] == [
         "__ERROR__",
         "__NULL__",
@@ -117,20 +117,20 @@ def test_special_levels_and_constant_features_are_shared_with_psi(tmp_path):
         "__NULL__",
         "__ERROR__",
     ]
-    result = compare_psi(ref_levels, cur_levels, transformer.config)
-    for feature in transformer.config.features:
+    result = compare_psi(ref_levels, cur_levels, transformer.feature_levels)
+    for feature in transformer.feature_levels:
         table = observed_fitted_by_level(
-            ref_levels[feature.name],
+            ref_levels[feature.config.name],
             np.arange(7),
             np.arange(7),
-            cur_levels[feature.name],
+            cur_levels[feature.config.name],
             np.arange(7),
             np.arange(7),
-            tmp_path / f"{feature.name}.png",
+            tmp_path / f"{feature.config.name}.png",
             level_order=feature.levels,
         )
         distribution = result.level_distribution.filter(
-            pl.col("feature") == feature.name
+            pl.col("feature") == feature.config.name
         )
         for row in table.itertuples():
             count = distribution.filter(

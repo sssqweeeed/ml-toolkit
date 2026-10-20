@@ -23,7 +23,7 @@ from ml_toolkit.feature_selection import RFESelector
 from ml_toolkit.config import (
     CommonPlotsConfig,
     FigureConfig,
-    PostFitEvaluationConfig,
+    PredictionEvaluationConfig,
     RegressionDiagnosticsConfig,
     RegressionPlotsConfig,
     ReportingConfig,
@@ -32,7 +32,7 @@ from ml_toolkit.config import (
     TrainingConfig,
     TuningConfig,
 )
-from ml_toolkit.feature_levels import FeatureLevelSpec
+from ml_toolkit.feature_levels import FeatureLevelConfig
 from ml_toolkit.training import importance_ranker, train_model
 from ml_toolkit.training.splits import make_validation_splits
 
@@ -190,7 +190,7 @@ def test_diagnostics_only_run_for_selected_folds(
         (("final",), ("train",), True, [("final_fit", "train")]),
     ],
 )
-def test_post_fit_stage_split_and_image_policies(
+def test_prediction_evaluation_stage_split_and_image_policies(
     tmp_path, stages, splits, images, expected
 ):
     setup_mlflow(tmp_path)
@@ -222,12 +222,12 @@ def test_post_fit_stage_split_and_image_policies(
         metric=mae,
         run_name="post-policy",
         param_space=lambda trial: {},
-        post_fit_evaluator=evaluator,
+        prediction_evaluators=evaluator,
         config=TrainingConfig(
             validation=TimeSeriesCVConfig(n_splits=2),
             tuning=TuningConfig(metric="mae", direction="minimize", n_trials=1),
             reporting=ReportingConfig(
-                post_fit=PostFitEvaluationConfig(
+                prediction_evaluation=PredictionEvaluationConfig(
                     stages=stages, splits=splits, write_artifacts=images
                 ),
             ),
@@ -237,7 +237,7 @@ def test_post_fit_stage_split_and_image_policies(
     assert len(written) == (len(expected) if images else 0)
 
 
-def test_disabled_post_fit_does_not_require_ids(tmp_path):
+def test_disabled_prediction_evaluation_does_not_require_ids(tmp_path):
     setup_mlflow(tmp_path)
     evaluator = CallbackEvaluator(name="business",
         evaluate=lambda **kwargs: pytest.fail("disabled evaluator")
@@ -248,10 +248,10 @@ def test_disabled_post_fit_does_not_require_ids(tmp_path):
         model_factory=MeanModel,
         metric=mae,
         run_name="disabled-post",
-        post_fit_evaluator=evaluator,
+        prediction_evaluators=evaluator,
         config=TrainingConfig(
             validation=TimeSeriesCVConfig(n_splits=2),
-            reporting=ReportingConfig(post_fit=PostFitEvaluationConfig(stages=())),
+            reporting=ReportingConfig(prediction_evaluation=PredictionEvaluationConfig(stages=())),
         ),
     )
 
@@ -263,7 +263,7 @@ def test_psi_definition_and_svg_output_reach_diagnostics(tmp_path):
             figure=FigureConfig(format="svg", figsize=(6, 4), dpi=90),
             n_bins=2,
             epsilon=0.01,
-            features=(FeatureLevelSpec("x", "numerical", lower_bound=0),),
+            features=(FeatureLevelConfig("x", "numerical", lower_bound=0),),
             numerical_distributions=None,
         ),
         time_observed_fitted=False,

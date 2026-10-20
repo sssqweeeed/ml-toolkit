@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 from ..types import TimePeriod
 from .._time import PERIOD_INTERVALS
-from ..feature_levels import FeatureLevelSpec
+from ..feature_levels import FeatureLevelConfig
 
 
 @dataclass(frozen=True)
@@ -13,7 +13,7 @@ class PSIConfig:
 
     Parameters
     ----------
-    features : tuple[FeatureLevelSpec, ...]
+    features : tuple[FeatureLevelConfig, ...]
         Nonempty collection of uniquely named feature definitions, normalized
         to a tuple.
     period : TimePeriod, default "month"
@@ -25,7 +25,7 @@ class PSIConfig:
         Share floor strictly between zero and one, applied before logarithms.
     """
 
-    features: tuple[FeatureLevelSpec, ...]
+    features: tuple[FeatureLevelConfig, ...]
     period: TimePeriod = "month"
     n_bins: int = 10
     epsilon: float = 1e-6

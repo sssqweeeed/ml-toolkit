@@ -2,13 +2,13 @@ from datetime import date
 
 import polars as pl
 
-from ml_toolkit.feature_levels import FeatureLevelSpec
+from ml_toolkit.feature_levels import FeatureLevelConfig
 from ml_toolkit.plots.psi import feature_psi_plot, time_psi_level_distribution
 from ml_toolkit.psi import PSIAnalysis, PSIConfig
 
 
 def test_psi_plots_export_nonempty_files(tmp_path):
-    config = PSIConfig((FeatureLevelSpec("x", "numerical"),))
+    config = PSIConfig((FeatureLevelConfig("x", "numerical"),))
     reference = pl.DataFrame({"x": [1.0, 2.0], "date": [date(2025, 1, 1)] * 2})
     current = pl.DataFrame({"x": [2.0, 3.0], "date": [date(2025, 2, 1)] * 2})
     result = (

@@ -13,7 +13,7 @@ from examples.project_pool import ProjectPool as Pool
 from ml_toolkit.feature_selection import RFESelector
 from ml_toolkit.config import (
     HoldoutConfig,
-    PostFitEvaluationConfig,
+    PredictionEvaluationConfig,
     RegressionDiagnosticsConfig,
     ReportingConfig,
     TimeSeriesCVConfig,
@@ -24,7 +24,7 @@ from ml_toolkit.config import (
 from ml_toolkit.data import validate_training_data
 from ml_toolkit.training import (
     DatasetSplit,
-    PostFitEvaluator,
+    PredictionEvaluator,
     importance_ranker,
     train_model,
 )
@@ -66,7 +66,7 @@ def identified_data():
     )
 
 
-class RecordingEvaluator(PostFitEvaluator):
+class RecordingEvaluator(PredictionEvaluator):
     def __init__(self, *, name):
         super().__init__(name=name)
         self.calls = []
@@ -110,7 +110,7 @@ def test_evaluator_rejects_invalid_names(name):
 
 @pytest.mark.parametrize("name", ["business", "Quality-v2", "1_report.v3"])
 def test_evaluator_name_is_required_and_read_only(name):
-    class MinimalEvaluator(PostFitEvaluator):
+    class MinimalEvaluator(PredictionEvaluator):
         def evaluate(self, **inputs):
             return {}
 
@@ -138,11 +138,11 @@ def test_duplicate_evaluators_fail_before_any_fit_or_run(tmp_path, disabled, dup
             model_factory=lambda params: pytest.fail("Model constructed before validation"),
             metric=mae,
             run_name="duplicate-evaluators",
-            post_fit_evaluator=[first, second],
+            prediction_evaluators=[first, second],
             config=TrainingConfig(
                 validation=HoldoutConfig(),
                 reporting=ReportingConfig(
-                    post_fit=PostFitEvaluationConfig(stages=()) if disabled else None
+                    prediction_evaluation=PredictionEvaluationConfig(stages=()) if disabled else None
                 ),
             ),
         )
@@ -166,7 +166,7 @@ def test_multiple_evaluators_share_predictions_and_isolate_results(
             predictions.append(prediction)
             return prediction
 
-    class NamedEvaluator(PostFitEvaluator):
+    class NamedEvaluator(PredictionEvaluator):
         def __init__(self, *, name, value):
             super().__init__(name=name)
             self.value = value
@@ -197,14 +197,14 @@ def test_multiple_evaluators_share_predictions_and_isolate_results(
         model_factory=Model,
         metric=mae,
         run_name="multiple-evaluators",
-        post_fit_evaluator=evaluators,
+        prediction_evaluators=evaluators,
         param_space=lambda trial: {},
         config=TrainingConfig(
             validation=HoldoutConfig(val_size=4),
             test_size=4,
             tuning=TuningConfig(metric="mae", direction="minimize", n_trials=1),
             reporting=ReportingConfig(
-                post_fit=PostFitEvaluationConfig(
+                prediction_evaluation=PredictionEvaluationConfig(
                     stages=("tuning", "validation", "final"),
                     write_artifacts=write_artifacts,
                 )
@@ -264,7 +264,7 @@ def test_evaluator_failure_stops_following_evaluators_without_rollback(
             model_factory=MeanModel,
             metric=mae,
             run_name="failing-evaluator",
-            post_fit_evaluator=[
+            prediction_evaluators=[
                 CallbackEvaluator(name="first", evaluate=first),
                 CallbackEvaluator(name="second", evaluate=second),
                 CallbackEvaluator(
@@ -290,7 +290,7 @@ def test_evaluator_failure_stops_following_evaluators_without_rollback(
     ],
 )
 @pytest.mark.parametrize("custom_container", [False, True])
-def test_post_fit_lifecycle_alignment_and_mlflow(
+def test_prediction_evaluation_lifecycle_alignment_and_mlflow(
     tmp_path,
     identified_data,
     tuning,
@@ -315,14 +315,14 @@ def test_post_fit_lifecycle_alignment_and_mlflow(
             predictions.append(len(data))
             return data.X["x"].to_numpy() + 0.25
 
-    evaluator: PostFitEvaluator = RecordingArtifactEvaluator(name="business")
+    evaluator: PredictionEvaluator = RecordingArtifactEvaluator(name="business")
     result = train_model(
         data=identified_data,
         params={},
         model_factory=Model,
         metric=mae,
-        run_name="post-fit",
-        post_fit_evaluator=evaluator,
+        run_name="prediction evaluation",
+        prediction_evaluators=evaluator,
         param_space=lambda trial: {"parameter": trial.suggest_int("parameter", 1, 2)},
         config=TrainingConfig(
             validation=TimeSeriesCVConfig(n_splits=2, skip_splits=skip),
@@ -337,7 +337,7 @@ def test_post_fit_lifecycle_alignment_and_mlflow(
                     if repeat_cv
                     else None
                 ),
-                post_fit=PostFitEvaluationConfig(
+                prediction_evaluation=PredictionEvaluationConfig(
                     stages=("tuning", "validation", "final")
                 ),
             ),
@@ -372,7 +372,7 @@ def test_post_fit_lifecycle_alignment_and_mlflow(
         if run.data.tags["mlflow.runName"] == "final_fit":
             assert "val/business/rows" not in run.data.metrics
     parent = next(
-        run for run in runs.values() if run.data.tags["mlflow.runName"] == "post-fit"
+        run for run in runs.values() if run.data.tags["mlflow.runName"] == "prediction evaluation"
     )
     assert any("validation/mae" in run.data.metrics for run in runs.values())
     assert not any(
@@ -387,17 +387,17 @@ def test_post_fit_lifecycle_alignment_and_mlflow(
     "policy,tuning,test_size",
     [
         (None, None, None),
-        (PostFitEvaluationConfig(stages=("validation",), splits=("train",)), None, None),
-        (PostFitEvaluationConfig(stages=("validation",), splits=("val",)), None, None),
-        (PostFitEvaluationConfig(stages=("final",), splits=("train",)), None, None),
-        (PostFitEvaluationConfig(stages=("final",), splits=("test",)), None, 4),
+        (PredictionEvaluationConfig(stages=("validation",), splits=("train",)), None, None),
+        (PredictionEvaluationConfig(stages=("validation",), splits=("val",)), None, None),
+        (PredictionEvaluationConfig(stages=("final",), splits=("train",)), None, None),
+        (PredictionEvaluationConfig(stages=("final",), splits=("test",)), None, 4),
         (
-            PostFitEvaluationConfig(stages=("tuning",), splits=("train",)),
+            PredictionEvaluationConfig(stages=("tuning",), splits=("train",)),
             TuningConfig(metric="mae", direction="minimize", n_trials=1),
             None,
         ),
         (
-            PostFitEvaluationConfig(stages=("tuning",), splits=("val",)),
+            PredictionEvaluationConfig(stages=("tuning",), splits=("val",)),
             TuningConfig(metric="mae", direction="minimize", n_trials=1),
             None,
         ),
@@ -420,7 +420,7 @@ def test_missing_ids_fail_before_any_fit_or_run(
         params={},
         model_factory=Model,
         metric=mae,
-        post_fit_evaluator=(
+        prediction_evaluators=(
             [RecordingEvaluator(name="business"), RecordingEvaluator(name="quality")]
             if as_list else RecordingEvaluator(name="business")
         ),
@@ -429,7 +429,7 @@ def test_missing_ids_fail_before_any_fit_or_run(
             validation=TimeSeriesCVConfig(n_splits=2),
             test_size=test_size,
             tuning=tuning,
-            reporting=ReportingConfig(post_fit=policy),
+            reporting=ReportingConfig(prediction_evaluation=policy),
         ),
     )
     with pytest.raises(ValueError, match="object_id is required"):
@@ -441,21 +441,21 @@ def test_missing_ids_fail_before_any_fit_or_run(
 @pytest.mark.parametrize(
     "policy,tuning,test_size",
     [
-        (PostFitEvaluationConfig(stages=()), None, None),
-        (PostFitEvaluationConfig(splits=()), None, None),
-        (PostFitEvaluationConfig(stages=("tuning",)), None, None),
-        (PostFitEvaluationConfig(stages=("final",), splits=("test",)), None, None),
-        (PostFitEvaluationConfig(stages=("validation",), splits=("test",)), None, 4),
-        (PostFitEvaluationConfig(stages=("final",), splits=("val",)), None, 4),
+        (PredictionEvaluationConfig(stages=()), None, None),
+        (PredictionEvaluationConfig(splits=()), None, None),
+        (PredictionEvaluationConfig(stages=("tuning",)), None, None),
+        (PredictionEvaluationConfig(stages=("final",), splits=("test",)), None, None),
+        (PredictionEvaluationConfig(stages=("validation",), splits=("test",)), None, 4),
+        (PredictionEvaluationConfig(stages=("final",), splits=("val",)), None, 4),
         (
-            PostFitEvaluationConfig(stages=("tuning",), splits=("test",)),
+            PredictionEvaluationConfig(stages=("tuning",), splits=("test",)),
             TuningConfig(metric="mae", direction="minimize", n_trials=1),
             4,
         ),
     ],
 )
 @pytest.mark.parametrize("as_list", [False, True])
-def test_unreachable_post_fit_calls_do_not_require_ids(
+def test_unreachable_prediction_evaluation_calls_do_not_require_ids(
     tmp_path, policy, tuning, test_size, as_list
 ):
     setup_mlflow(tmp_path)
@@ -468,14 +468,14 @@ def test_unreachable_post_fit_calls_do_not_require_ids(
         params={},
         model_factory=MeanModel,
         metric=mae,
-        run_name="unreachable-post-fit",
+        run_name="unreachable-prediction-evaluation",
         param_space=lambda trial: {},
-        post_fit_evaluator=[evaluator] if as_list else evaluator,
+        prediction_evaluators=[evaluator] if as_list else evaluator,
         config=TrainingConfig(
             validation=HoldoutConfig(),
             test_size=test_size,
             tuning=tuning,
-            reporting=ReportingConfig(post_fit=policy),
+            reporting=ReportingConfig(prediction_evaluation=policy),
             tracking=TrackingConfig(log_final_model=False),
         ),
     )
@@ -483,7 +483,7 @@ def test_unreachable_post_fit_calls_do_not_require_ids(
     assert (result.test_metrics is not None) == (test_size is not None)
 
 
-def test_default_post_fit_uses_available_splits_and_preserves_requested_null(
+def test_default_prediction_evaluation_uses_available_splits_and_preserves_requested_null(
     tmp_path, identified_data
 ):
     setup_mlflow(tmp_path)
@@ -516,10 +516,10 @@ def test_default_post_fit_uses_available_splits_and_preserves_requested_null(
         params={},
         model_factory=MeanModel,
         metric=mae,
-        run_name="default-post-fit",
+        run_name="default-prediction-evaluation",
         config=config,
         param_space=lambda trial: {},
-        post_fit_evaluator=CallbackEvaluator(name="business",
+        prediction_evaluators=CallbackEvaluator(name="business",
             evaluate=evaluate, write_artifacts=write_artifacts
         ),
     )
@@ -532,15 +532,15 @@ def test_default_post_fit_uses_available_splits_and_preserves_requested_null(
     assert artifacts == [call[1] for call in calls]
     parent = next(
         run for run in mlflow.search_runs(output_format="list")
-        if run.data.tags["mlflow.runName"] == "default-post-fit"
+        if run.data.tags["mlflow.runName"] == "default-prediction-evaluation"
     )
     requested = Path(
         mlflow.MlflowClient().download_artifacts(
             parent.info.run_id, "configuration/requested.json"
         )
     )
-    assert json.loads(requested.read_text())["reporting"]["post_fit"] is None
-    assert config.reporting.post_fit is None
+    assert json.loads(requested.read_text())["reporting"]["prediction_evaluation"] is None
+    assert config.reporting.prediction_evaluation is None
 
 
 @pytest.mark.parametrize(
@@ -606,7 +606,7 @@ def test_invalid_predictions_do_not_reach_evaluator(tmp_path, identified_data, i
             return np.full(len(data), np.nan)
 
     def evaluate(**kwargs):
-        pytest.fail("Invalid predictions must not reach the post-fit evaluator")
+        pytest.fail("Invalid predictions must not reach the prediction evaluator")
 
     with pytest.raises(ValueError, match="Predictions"):
         train_model(
@@ -614,7 +614,7 @@ def test_invalid_predictions_do_not_reach_evaluator(tmp_path, identified_data, i
             params={},
             model_factory=Model,
             metric=mae,
-            post_fit_evaluator=CallbackEvaluator(name="business", evaluate=evaluate),
+            prediction_evaluators=CallbackEvaluator(name="business", evaluate=evaluate),
             run_name="invalid-predictions",
             config=TrainingConfig(validation=TimeSeriesCVConfig(n_splits=2)),
         )
@@ -655,7 +655,7 @@ def test_custom_container_ids_are_checked_without_requiring_pool():
 
 
 @pytest.mark.parametrize(
-    "policy", [None, PostFitEvaluationConfig(stages=("tuning", "validation", "final"))]
+    "policy", [None, PredictionEvaluationConfig(stages=("tuning", "validation", "final"))]
 )
 @pytest.mark.parametrize("evaluators", [None, []])
 def test_disabled_evaluator_needs_no_ids_but_final_metrics_predict(
@@ -674,11 +674,11 @@ def test_disabled_evaluator_needs_no_ids_but_final_metrics_predict(
         params={},
         model_factory=Model,
         metric=mae,
-        run_name="no-post-fit",
-        post_fit_evaluator=evaluators,
+        run_name="no-prediction-evaluation",
+        prediction_evaluators=evaluators,
         config=TrainingConfig(
             validation=TimeSeriesCVConfig(n_splits=2),
-            reporting=ReportingConfig(post_fit=policy),
+            reporting=ReportingConfig(prediction_evaluation=policy),
         ),
     )
     assert predictions == [8, 8, 16, 8, 24]

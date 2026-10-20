@@ -6,7 +6,7 @@ import polars as pl
 
 from .._time import paired_period_starts
 from ..types import TimePeriod
-from ..feature_levels import LevelConfig
+from ..feature_levels import FeatureLevels
 
 LEVEL_SCHEMA = {
     "feature": pl.String,
@@ -27,10 +27,10 @@ TIME_SCHEMA = {
 def level_distributions(
     reference_levels: pl.DataFrame,
     current_levels: pl.DataFrame,
-    config: LevelConfig,
+    feature_levels: tuple[FeatureLevels, ...],
 ) -> pl.DataFrame:
     tables: list[pl.DataFrame] = []
-    for feature_order, feature in enumerate(config.features):
+    for feature_order, feature in enumerate(feature_levels):
         grid = pl.DataFrame(
             {"level": feature.levels, "level_order": range(len(feature.levels))},
             schema={"level": pl.String, "level_order": pl.Int64},
@@ -38,7 +38,7 @@ def level_distributions(
         for sample_order, (sample, data) in enumerate(
             (("reference", reference_levels), ("current", current_levels))
         ):
-            values = data.get_column(feature.name).cast(pl.String)
+            values = data.get_column(feature.config.name).cast(pl.String)
             counts = (
                 pl.DataFrame({"level": values})
                 .group_by("level")
@@ -48,7 +48,7 @@ def level_distributions(
                 grid.join(counts, on="level", how="left")
                 .with_columns(
                     pl.col("rows").fill_null(0),
-                    pl.lit(feature.name).alias("feature"),
+                    pl.lit(feature.config.name).alias("feature"),
                     pl.lit(sample).alias("sample"),
                     pl.lit(feature_order).alias("feature_order"),
                     pl.lit(sample_order).alias("sample_order"),
@@ -68,14 +68,14 @@ def time_level_distributions(
     reference_time: pl.Series,
     current_levels: pl.DataFrame,
     current_time: pl.Series,
-    config: LevelConfig,
+    feature_levels: tuple[FeatureLevels, ...],
     period: TimePeriod = "month",
 ) -> pl.DataFrame:
     reference_start, current_start = paired_period_starts(
         reference_time, current_time, period
     )
     tables: list[pl.DataFrame] = []
-    for feature_order, feature in enumerate(config.features):
+    for feature_order, feature in enumerate(feature_levels):
         grid = pl.DataFrame(
             {"level": feature.levels, "level_order": range(len(feature.levels))},
             schema={"level": pl.String, "level_order": pl.Int64},
@@ -90,7 +90,7 @@ def time_level_distributions(
             values = pl.DataFrame(
                 {
                     "period_start": period_start,
-                    "level": levels.get_column(feature.name).cast(pl.String),
+                    "level": levels.get_column(feature.config.name).cast(pl.String),
                 }
             )
             counts = values.group_by("period_start", "level").agg(
@@ -107,7 +107,7 @@ def time_level_distributions(
                     (pl.col("rows") / pl.col("rows").sum().over("period_start")).alias(
                         "share"
                     ),
-                    pl.lit(feature.name).alias("feature"),
+                    pl.lit(feature.config.name).alias("feature"),
                     pl.lit(sample).alias("sample"),
                     pl.lit(feature_order).alias("feature_order"),
                     pl.lit(sample_order).alias("sample_order"),

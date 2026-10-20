@@ -11,7 +11,7 @@ bins on the reference once, then reuse them for every comparison.
 ```python
 import polars as pl
 
-from ml_toolkit.config import FeatureLevelSpec
+from ml_toolkit.config import FeatureLevelConfig
 from ml_toolkit.psi import PSIAnalysis, PSIConfig
 
 reference = pl.DataFrame(
@@ -23,8 +23,8 @@ current = pl.DataFrame(
 analysis = PSIAnalysis(
     PSIConfig(
         features=(
-            FeatureLevelSpec("age", "numerical", lower_bound=0),
-            FeatureLevelSpec("region", "categorical"),
+            FeatureLevelConfig("age", "numerical", lower_bound=0),
+            FeatureLevelConfig("region", "categorical"),
         ),
         n_bins=2,
     )
@@ -61,6 +61,13 @@ have this restriction.
 consistent bins for another report. Continue with `reference` and `current`
 above to transform both samples and compare their existing levels:
 
+`FeatureLevelConfig` supplies the rules for each column. `fit(reference)`
+determines categories or numerical intervals from the reference sample;
+it does not train a prediction model. The resulting `feature_levels` tuple
+contains one `FeatureLevels` per configured column, in the same order.
+Each result holds its original rules in `config`, its labels in `levels`,
+and its numerical `boundaries` or categorical `categories`.
+
 <!-- example: psi-levels -->
 
 ```python
@@ -70,8 +77,12 @@ from ml_toolkit.psi import compare_psi
 levels = LevelTransformer(analysis.config.features, n_bins=2).fit(reference)
 reference_levels = levels.transform(reference)
 current_levels = levels.transform(current)
-assert levels.config is not None
-level_comparison = compare_psi(reference_levels, current_levels, levels.config)
+assert levels.feature_levels is not None
+level_comparison = compare_psi(
+    reference_levels, current_levels, feature_levels=levels.feature_levels
+)
+assert level_comparison.feature_levels is levels.feature_levels
+assert levels.feature_levels[0].config is analysis.config.features[0]
 print(current_levels["region"].cast(pl.String).to_list())
 # ['north', 'south', '__UNSEEN__', '__UNSEEN__']
 ```
@@ -84,6 +95,8 @@ print(current_levels["region"].cast(pl.String).to_list())
 
 Configured columns become Polars `Categorical` columns; other columns retain
 their values and order. Reuse the fitted transformer for subsequent samples.
+Calling `fit` again replaces its levels; previously returned comparison results
+retain their original immutable rules and levels.
 Training's shared PSI and observed/fitted diagnostics use these levels too; see the
 [shared diagnostic recipe](../configuration.md#shared-psi-and-observedfitted-diagnostics).
 
@@ -110,16 +123,14 @@ Import PSI analysis from `ml_toolkit.psi`.
 ### Reference-fitted feature levels
 
 Import these lower-level types from `ml_toolkit.feature_levels`.
-`FeatureLevelSpec` is also exported from `ml_toolkit.config` and documented in the
+`FeatureLevelConfig` is also exported from `ml_toolkit.config` and documented in the
 [configuration reference](configuration.md).
 
 ::: ml_toolkit.feature_levels.LevelTransformer
 
 ### Level definitions
 
-::: ml_toolkit.feature_levels.LevelConfig
-
-::: ml_toolkit.feature_levels.FeatureLevelConfig
+::: ml_toolkit.feature_levels.FeatureLevels
 
 `FeatureType` identifies numerical and categorical features. `FeatureScalar`
 describes the values retained by learned levels. `NULL_LEVEL`, `ERROR_LEVEL`,

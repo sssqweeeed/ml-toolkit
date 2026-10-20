@@ -8,9 +8,7 @@ from .classification import (
 )
 from .frequency import (
     MetricsFrequency,
-    MetricsFrequncy,
     metrics_frequency,
-    metrics_frequncy,
 )
 from .pu import PUMetric, positive_capture_curve
 from .ranking import RankingMetrics, ranking_metrics
@@ -22,7 +20,6 @@ __all__ = [
     "MetricScores",
     "MetricsClassification",
     "MetricsFrequency",
-    "MetricsFrequncy",
     "MetricsSeverity",
     "RankingMetrics",
     "PUMetric",
@@ -30,7 +27,6 @@ __all__ = [
     "confusion_matrix",
     "metrics_classification",
     "metrics_frequency",
-    "metrics_frequncy",
     "metrics_severity",
     "ranking_metrics",
 ]

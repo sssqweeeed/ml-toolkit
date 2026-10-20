@@ -4,11 +4,10 @@ from .config import (
     ERROR_LEVEL,
     NULL_LEVEL,
     UNSEEN_LEVEL,
+    FeatureLevels,
     FeatureLevelConfig,
-    FeatureLevelSpec,
     FeatureScalar,
     FeatureType,
-    LevelConfig,
 )
 from .levels import LevelTransformer
 
@@ -16,10 +15,9 @@ __all__ = [
     "ERROR_LEVEL",
     "NULL_LEVEL",
     "UNSEEN_LEVEL",
+    "FeatureLevels",
     "FeatureLevelConfig",
-    "FeatureLevelSpec",
     "FeatureScalar",
     "FeatureType",
-    "LevelConfig",
     "LevelTransformer",
 ]

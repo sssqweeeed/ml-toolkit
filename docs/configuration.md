@@ -49,16 +49,16 @@ selected features and settings; test rows never participate in either search.
 | Final-model packaging | Off | Saved in MLflow with the selected input schema |
 | Custom evaluation | No callback | No callback; see [custom evaluation](api/training.md#add-custom-evaluation) |
 
-Custom evaluation uses a named project-specific `PostFitEvaluator`, or a list
+Custom evaluation uses a named project-specific `PredictionEvaluator`, or a list
 of evaluators with names unique without regard to case.
-`ReportingConfig.post_fit` defaults to `None`: supplying an evaluator activates
+`ReportingConfig.prediction_evaluation` defaults to `None`: supplying an evaluator activates
 the standard policy on validation and final stages, while omitting the evaluator
-disables custom evaluation. Pass `PostFitEvaluationConfig` only to override this
+disables custom evaluation. Pass `PredictionEvaluationConfig` only to override this
 policy; empty stages or splits disable calls. Aligned `data.object_id` is required
 before training only when the selected stages and available splits permit a call.
 An empty list also disables evaluation. Each evaluator stores artifacts under
 `<name>/<split>/` and metrics under `<split>/<name>/`.
-Both recipes leave `post_fit_evaluator=None`. Built-in metrics, PSI, and figures
+Both recipes leave `prediction_evaluators=None`. Built-in metrics, PSI, and figures
 need no custom evaluator. See [selector alternatives](api/training.md#choose-a-selector)
 for Top-K, forward selection, and SHAP ranking.
 
@@ -75,7 +75,7 @@ from ml_toolkit.config import (
     ClassificationDiagnosticsConfig,
     ClassificationPlotsConfig,
     CommonPlotsConfig,
-    FeatureLevelSpec,
+    FeatureLevelConfig,
     HoldoutConfig,
     PUDiagnosticsConfig,
     PUPlotsConfig,
@@ -162,7 +162,7 @@ params = {**base_params, "loss_function": "Logloss"}
 metric = metrics_classification
 feature_selector = None
 param_space = None
-post_fit_evaluator = None
+prediction_evaluators = None
 ```
 
 ### Full configuration
@@ -288,7 +288,7 @@ def param_space(trial: Trial) -> ModelParams:
     }
 
 
-post_fit_evaluator = None
+prediction_evaluators = None
 ```
 
 The reports include precision-recall, F1, calibration, gains/lift, temporal means,
@@ -326,7 +326,7 @@ params = {**base_params, "loss_function": "RMSE"}
 metric = weighted_mae
 feature_selector = None
 param_space = None
-post_fit_evaluator = None
+prediction_evaluators = None
 ```
 
 ### Full configuration
@@ -456,7 +456,7 @@ def param_space(trial: Trial) -> ModelParams:
     }
 
 
-post_fit_evaluator = None
+prediction_evaluators = None
 ```
 
 Gains and lift stay off because they require nonnegative targets with a positive
@@ -487,7 +487,7 @@ params = {**base_params, "loss_function": "Poisson"}
 metric = metrics_frequency
 feature_selector = None
 param_space = None
-post_fit_evaluator = None
+prediction_evaluators = None
 ```
 
 ### Full configuration
@@ -608,7 +608,7 @@ def param_space(trial: Trial) -> ModelParams:
     }
 
 
-post_fit_evaluator = None
+prediction_evaluators = None
 ```
 
 ## Severity
@@ -643,7 +643,7 @@ params = {**base_params, "loss_function": "Tweedie:variance_power=1.5"}
 metric = severity_metric
 feature_selector = None
 param_space = None
-post_fit_evaluator = None
+prediction_evaluators = None
 ```
 
 ### Full configuration
@@ -771,7 +771,7 @@ def param_space(trial: Trial) -> ModelParams:
     }
 
 
-post_fit_evaluator = None
+prediction_evaluators = None
 ```
 
 ## Positive–unlabeled classification
@@ -800,7 +800,7 @@ params = {**base_params, "loss": "uPU", "pu_prior": 0.2}
 metric = PUMetric(0.2, loss="uPU")
 feature_selector = None
 param_space = None
-post_fit_evaluator = None
+prediction_evaluators = None
 ```
 
 ### Full configuration
@@ -921,7 +921,7 @@ def param_space(trial: Trial) -> ModelParams:
     }
 
 
-post_fit_evaluator = None
+prediction_evaluators = None
 ```
 
 PU reports show score distributions and positive capture. They do not treat
@@ -954,7 +954,7 @@ result = train_model(
     config=config,
     feature_selector=feature_selector,
     param_space=param_space,
-    post_fit_evaluator=post_fit_evaluator,
+    prediction_evaluators=prediction_evaluators,
 )
 print({name: round(value, 4) for name, value in result.validation.mean_metrics.items()})
 assert result.test_metrics is not None
@@ -1025,7 +1025,7 @@ result = train_model(
     config=config,
     feature_selector=feature_selector,
     param_space=param_space,
-    post_fit_evaluator=post_fit_evaluator,
+    prediction_evaluators=prediction_evaluators,
 )
 assert result.feature_selection is not None
 assert result.tuning is not None
@@ -1105,12 +1105,12 @@ bounds. The following example replaces the regression reports:
 ```python
 from dataclasses import replace
 
-from ml_toolkit.config import FeatureLevelSpec
+from ml_toolkit.config import FeatureLevelConfig
 
 feature_common = CommonPlotsConfig(
     features=(
-        FeatureLevelSpec("age", "numerical", lower_bound=0, upper_bound=120),
-        FeatureLevelSpec("region", "categorical", null_level="unknown"),
+        FeatureLevelConfig("age", "numerical", lower_bound=0, upper_bound=120),
+        FeatureLevelConfig("region", "categorical", null_level="unknown"),
     ),
     psi=True,
     observed_fitted=True,

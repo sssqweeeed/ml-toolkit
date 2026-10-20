@@ -63,7 +63,7 @@ to wire feature selection and tuning into a run.
 | Shared PSI, observed/fitted, and numerical distributions | `CommonPlotsConfig`, `NumericalFeatureDistributionConfig` |
 | SHAP sample size and displayed features | `ShapConfig` |
 | Image size, DPI, and format | `FigureConfig` |
-| Custom evaluator stages and splits | `PostFitEvaluationConfig` |
+| Custom evaluator stages and splits | `PredictionEvaluationConfig` |
 | Model packaging and registry | `TrackingConfig` |
 
 Shared plot defaults apply when task diagnostics are enabled; a default
@@ -114,7 +114,7 @@ all temporal diagnostics; standalone functions take the same `period` keyword.
 
 ::: ml_toolkit.config.CommonPlotsConfig
 
-::: ml_toolkit.config.FeatureLevelSpec
+::: ml_toolkit.config.FeatureLevelConfig
 
 ::: ml_toolkit.config.NumericalFeatureDistributionConfig
 
@@ -126,7 +126,7 @@ all temporal diagnostics; standalone functions take the same `period` keyword.
 
 ::: ml_toolkit.config.TrackingConfig
 
-::: ml_toolkit.config.PostFitEvaluationConfig
+::: ml_toolkit.config.PredictionEvaluationConfig
 
 `DiagnosticsConfig` is the union of the three task diagnostics configurations
 above. See the [feature-level reference](psi.md) for fitting and reusing learned

@@ -66,8 +66,8 @@ class DatasetSplit(StrEnum):
     TEST = "test"
 
 
-class PostFitEvaluator(ABC):
-    """Describe a user-owned evaluator called after each evaluated model fit.
+class PredictionEvaluator(ABC):
+    """Evaluate prepared predictions and write additional metrics and artifacts.
 
     Parameters
     ----------
@@ -179,7 +179,7 @@ class PostFitEvaluator(ABC):
         Notes
         -----
         Invoked wherever scalar evaluation runs, including Optuna trials and
-        final fitting, subject to PostFitEvaluationConfig. Choose whether to
+        final fitting, subject to PredictionEvaluationConfig. Choose whether to
         render inside this method. Inputs must not be mutated. Errors propagate
         with evaluator name, evaluation stage and split context.
         """

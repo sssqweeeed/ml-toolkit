@@ -9,7 +9,7 @@ from ml_toolkit.config import CommonPlotsConfig
 from ml_toolkit.plots.monitoring import time_feature_distribution
 from ml_toolkit.plots.regression import time_observed_fitted
 from ml_toolkit.psi import PSIAnalysis, PSIConfig
-from ml_toolkit.feature_levels import FeatureLevelSpec
+from ml_toolkit.feature_levels import FeatureLevelConfig
 from ml_toolkit._time import paired_period_starts, period_starts
 
 
@@ -32,7 +32,7 @@ def test_all_periods_agree_across_reports(period, expected, tmp_path):
     current = frame.with_columns(pl.col("time") + pl.duration(seconds=1))
     result = (
         PSIAnalysis(
-            PSIConfig(features=(FeatureLevelSpec("x", "numerical"),), period=period)
+            PSIConfig(features=(FeatureLevelConfig("x", "numerical"),), period=period)
         )
         .fit(frame, time="time")
         .compare(current, time="time")
@@ -175,7 +175,7 @@ def test_time_plot_points_and_dst_bar_end(monkeypatch, tmp_path):
         )
         result = (
             PSIAnalysis(
-                PSIConfig(features=(FeatureLevelSpec("x", "numerical"),), period="day")
+                PSIConfig(features=(FeatureLevelConfig("x", "numerical"),), period="day")
             )
             .fit(frame.head(1), time="time")
             .compare(

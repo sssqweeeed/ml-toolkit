@@ -9,8 +9,8 @@ from ..config import HoldoutConfig as HoldoutConfig
 from ..config import (
     NumericalFeatureDistributionConfig as NumericalFeatureDistributionConfig,
 )
-from ..config import PostFitEvaluationConfig as PostFitEvaluationConfig
-from ..config import FeatureLevelSpec as FeatureLevelSpec
+from ..config import PredictionEvaluationConfig as PredictionEvaluationConfig
+from ..config import FeatureLevelConfig as FeatureLevelConfig
 from ..config import PUDiagnosticsConfig as PUDiagnosticsConfig
 from ..config import PUPlotsConfig as PUPlotsConfig
 from ..config import RegressionDiagnosticsConfig as RegressionDiagnosticsConfig
@@ -24,7 +24,7 @@ from ..config import TuningConfig as TuningConfig
 from .contracts import (
     DatasetSplit,
     FeatureRanker,
-    PostFitEvaluator,
+    PredictionEvaluator,
     Pool,
 )
 from .rankers import ShapRanker, importance_ranker
@@ -44,7 +44,7 @@ __all__ = [
     "split_holdout",
     "DatasetSplit",
     "FeatureRanker",
-    "PostFitEvaluator",
+    "PredictionEvaluator",
     "Pool",
     "SplitResult",
     "TrainingResult",
@@ -59,7 +59,7 @@ __all__ = [
     "TuningConfig",
     "TrainingConfig",
     "TrackingConfig",
-    "FeatureLevelSpec",
+    "FeatureLevelConfig",
     "FigureConfig",
     "NumericalFeatureDistributionConfig",
     "ShapConfig",
@@ -71,6 +71,6 @@ __all__ = [
     "RegressionDiagnosticsConfig",
     "PUDiagnosticsConfig",
     "DiagnosticsConfig",
-    "PostFitEvaluationConfig",
+    "PredictionEvaluationConfig",
     "ReportingConfig",
 ]

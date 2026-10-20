@@ -291,11 +291,11 @@ import numpy as np
 import polars as pl
 
 from ml_toolkit.data import Pool
-from ml_toolkit.training import DatasetSplit, PostFitEvaluator
+from ml_toolkit.training import DatasetSplit, PredictionEvaluator
 from ml_toolkit.types import FloatArray
 
 
-class ExtraMetrics(PostFitEvaluator):
+class ExtraMetrics(PredictionEvaluator):
     def evaluate(
         self,
         *,
@@ -338,14 +338,14 @@ evaluated = train_model(
     metric=metrics_frequency,
     run_name="frequency-custom-evaluation",
     config=config,
-    post_fit_evaluator=[
+    prediction_evaluators=[
         ExtraMetrics(name="business"),
         ExtraMetrics(name="quality"),
     ],
 )
 ```
 
-With `ReportingConfig.post_fit=None`, supplying an evaluator uses the default
+With `ReportingConfig.prediction_evaluation=None`, supplying an evaluator uses the default
 policy: available train, validation, and test rows during validation and final
 fitting. Pass one evaluator directly, a list, or `None`; an empty list also
 disables custom evaluation. All evaluators share the policy and run in list
@@ -360,7 +360,7 @@ regard to case before training, including when evaluation is disabled.
 The `name` property is read-only. Subclasses with their own constructor must
 call `super().__init__(name=name)`.
 
-Use `ReportingConfig(post_fit=PostFitEvaluationConfig(...))` to choose stages
+Use `ReportingConfig(prediction_evaluation=PredictionEvaluationConfig(...))` to choose stages
 and splits, or empty stages/splits to disable calls. The workflow resolves these
 calls before training and requires IDs only if a call is scheduled. For example,
 a test-only policy needs no IDs when `test_size=None`, and a tuning-only policy
@@ -448,7 +448,7 @@ feature coverage and returned importance values.
 
 ### Custom evaluation
 
-::: ml_toolkit.training.PostFitEvaluator
+::: ml_toolkit.training.PredictionEvaluator
     options:
       merge_init_into_class: true
       members: [name, evaluate, write_artifacts]

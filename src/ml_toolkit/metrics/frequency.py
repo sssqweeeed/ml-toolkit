@@ -16,7 +16,7 @@ def root_mean_squared_error(
 
 
 @dataclass(frozen=True)
-class MetricsFrequncy:
+class MetricsFrequency:
     """Store exposure-weighted frequency errors and ranking scores.
 
     Attributes
@@ -40,10 +40,6 @@ class MetricsFrequncy:
     normalized_gini : float
         Model Gini divided by perfect-ranking Gini; NaN when the latter is
         close to zero.
-
-    Notes
-    -----
-    MetricsFrequency is the preferred public alias of this class.
     """
 
     mean_poisson_deviance: float
@@ -75,9 +71,9 @@ class MetricsFrequncy:
         }
 
 
-def metrics_frequncy(
+def metrics_frequency(
     y_target: FloatArray, y_pred: FloatArray, exposure: FloatArray
-) -> MetricsFrequncy:
+) -> MetricsFrequency:
     """Calculate exposure-weighted Poisson and ranking metrics.
 
     Parameters
@@ -105,7 +101,6 @@ def metrics_frequncy(
     -----
     Targets and predictions are rates, not exposure-multiplied totals.
     Exposures weight error scores and determine ranking capacity.
-    metrics_frequency is the preferred public alias of this function.
 
     Examples
     --------
@@ -122,7 +117,7 @@ def metrics_frequncy(
     ranking = ranking_metrics(
         y_target=y_target, y_pred=y_pred, exposure=exposure, selected_percents=(10.0,)
     )
-    return MetricsFrequncy(
+    return MetricsFrequency(
         mean_poisson_deviance=float(
             mean_poisson_deviance(y_target, y_pred, sample_weight=exposure)
         ),
@@ -140,7 +135,3 @@ def metrics_frequncy(
         gain_at_10=ranking.selected_points[0].gain,
         normalized_gini=ranking.normalized_gini,
     )
-
-
-MetricsFrequency = MetricsFrequncy
-metrics_frequency = metrics_frequncy

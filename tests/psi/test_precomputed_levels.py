@@ -3,7 +3,7 @@
 import polars as pl
 import pytest
 
-from ml_toolkit.feature_levels import FeatureLevelSpec, LevelTransformer
+from ml_toolkit.feature_levels import FeatureLevelConfig, LevelTransformer
 from ml_toolkit.psi import compare_psi
 
 
@@ -30,11 +30,11 @@ def test_compare_validates_both_precomputed_level_tables(
     sample, invalid, message, error
 ):
     frame = pl.DataFrame({"group": ["a"]})
-    transformer = LevelTransformer((FeatureLevelSpec("group", "categorical"),)).fit(
+    transformer = LevelTransformer((FeatureLevelConfig("group", "categorical"),)).fit(
         frame
     )
     valid = transformer.transform(frame)
-    assert transformer.config is not None
+    assert transformer.feature_levels is not None
     reference, current = (invalid, valid) if sample == "reference" else (valid, invalid)
     with pytest.raises(error, match=message):
-        compare_psi(reference, current, transformer.config)
+        compare_psi(reference, current, transformer.feature_levels)

@@ -17,6 +17,7 @@ def test_weighted_gain_curve_interpolation_and_requested_point_order():
     np.testing.assert_allclose(result.cumulative_observed, [0, 6 / 9, 8 / 9, 1])
     assert np.isnan(result.cumulative_lift[0])
     assert result.gini == pytest.approx(7 / 36)
+    assert result.gains_area == pytest.approx(43 / 72)
     assert result.normalized_gini == pytest.approx(1)
     assert [point.percent for point in result.selected_points] == [75, 25, 100]
     np.testing.assert_allclose([p.gain for p in result.selected_points], [8 / 9, 1 / 3, 1])
@@ -28,6 +29,7 @@ def test_ties_preserve_input_order_and_constant_targets_have_undefined_normalize
     np.testing.assert_allclose(tied.cumulative_observed, [0, 0.25, 1])
     constant = ranking_metrics(np.ones(2), np.array([0.2, 0.8]), np.array([1., 3.]))
     assert constant.gini == pytest.approx(0)
+    assert constant.gains_area == pytest.approx(0.5)
     assert np.isnan(constant.normalized_gini)
 
 

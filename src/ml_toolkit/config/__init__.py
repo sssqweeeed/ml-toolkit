@@ -1,7 +1,7 @@
 """Validated, immutable workflow configurations."""
 
 from ..types import TimePeriod
-from ..feature_levels import FeatureLevelSpec
+from ..feature_levels import FeatureLevelConfig
 from .reporting import (
     ClassificationDiagnosticsConfig,
     ClassificationPlotsConfig,
@@ -9,7 +9,7 @@ from .reporting import (
     DiagnosticsConfig,
     FigureConfig,
     NumericalFeatureDistributionConfig,
-    PostFitEvaluationConfig,
+    PredictionEvaluationConfig,
     PUDiagnosticsConfig,
     PUPlotsConfig,
     RegressionDiagnosticsConfig,
@@ -36,7 +36,7 @@ __all__ = [
     "TuningConfig",
     "TrainingConfig",
     "TrackingConfig",
-    "FeatureLevelSpec",
+    "FeatureLevelConfig",
     "FigureConfig",
     "NumericalFeatureDistributionConfig",
     "ShapConfig",
@@ -48,6 +48,6 @@ __all__ = [
     "RegressionDiagnosticsConfig",
     "PUDiagnosticsConfig",
     "DiagnosticsConfig",
-    "PostFitEvaluationConfig",
+    "PredictionEvaluationConfig",
     "ReportingConfig",
 ]

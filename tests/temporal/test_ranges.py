@@ -8,7 +8,7 @@ import polars as pl
 import pytest
 
 from ml_toolkit._time import paired_period_starts
-from ml_toolkit.feature_levels import FeatureLevelSpec
+from ml_toolkit.feature_levels import FeatureLevelConfig
 from ml_toolkit.plots import monitoring, psi, regression
 from ml_toolkit.psi import PSIAnalysis, PSIConfig, compare_psi
 
@@ -36,7 +36,7 @@ def test_temporal_reports_reject_overlapping_equal_or_reversed_ranges(
     output = tmp_path / "invalid.png"
     with pytest.raises(ValueError, match=r"max\(reference\) < min\(current\)"):
         if report == "psi":
-            PSIAnalysis(PSIConfig(features=(FeatureLevelSpec("x", "numerical"),))).fit(
+            PSIAnalysis(PSIConfig(features=(FeatureLevelConfig("x", "numerical"),))).fit(
                 before, time="time"
             ).compare(after, time="time")
         elif report == "observed_fitted":
@@ -80,7 +80,7 @@ def test_split_within_one_period_is_allowed_by_every_report(
     try:
         comparison = (
             PSIAnalysis(
-                PSIConfig(features=(FeatureLevelSpec("x", "numerical"),), period=period)
+                PSIConfig(features=(FeatureLevelConfig("x", "numerical"),), period=period)
             )
             .fit(before, time="time")
             .compare(after, time="time")
@@ -145,10 +145,10 @@ def test_range_check_preserves_nanosecond_order():
 def test_compare_psi_validates_times_only_when_requested():
     frame = pl.DataFrame({"x": [1.0, 2.0]})
     analysis = PSIAnalysis(
-        PSIConfig(features=(FeatureLevelSpec("x", "numerical"),))
+        PSIConfig(features=(FeatureLevelConfig("x", "numerical"),))
     ).fit(frame)
     assert analysis.compare(frame).psi["psi"][0] == 0
-    config = analysis.transformer.config
+    config = analysis.transformer.feature_levels
     assert config is not None
     levels = analysis.transformer.transform(frame)
     reference = pl.Series([datetime(2025, 1, 1), datetime(2025, 1, 3)])

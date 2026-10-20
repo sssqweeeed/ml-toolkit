@@ -5,15 +5,15 @@ from ml_toolkit.feature_levels import (
     ERROR_LEVEL,
     NULL_LEVEL,
     UNSEEN_LEVEL,
-    FeatureLevelSpec,
+    FeatureLevelConfig,
     LevelTransformer,
 )
 
 
 def test_numeric_and_categorical_level_rules():
     features = (
-        FeatureLevelSpec("value", "numerical", lower_bound=0),
-        FeatureLevelSpec("group", "categorical"),
+        FeatureLevelConfig("value", "numerical", lower_bound=0),
+        FeatureLevelConfig("group", "categorical"),
     )
     transformer = LevelTransformer(features, n_bins=2).fit(
         pl.DataFrame({"value": [0.0, 10.0, 20.0, None], "group": ["a", "b", "a", None]})
@@ -29,7 +29,7 @@ def test_numeric_and_categorical_level_rules():
 
 def test_numeric_boundaries_are_left_inclusive_and_keep_passthrough_rows():
     transformer = LevelTransformer(
-        (FeatureLevelSpec("x", "numerical", lower_bound=0, upper_bound=10),),
+        (FeatureLevelConfig("x", "numerical", lower_bound=0, upper_bound=10),),
         n_bins=2,
     ).fit(pl.DataFrame({"x": [0.0, 10.0]}))
     frame = pl.DataFrame(
@@ -52,7 +52,7 @@ def test_numeric_boundaries_are_left_inclusive_and_keep_passthrough_rows():
 
 
 def test_transform_requires_fit_and_all_configured_features():
-    transformer = LevelTransformer((FeatureLevelSpec("x", "numerical"),))
+    transformer = LevelTransformer((FeatureLevelConfig("x", "numerical"),))
     frame = pl.DataFrame({"x": [1.0]})
     with pytest.raises(RuntimeError, match="fitted"):
         transformer.transform(frame)
@@ -61,8 +61,34 @@ def test_transform_requires_fit_and_all_configured_features():
         transformer.transform(frame.rename({"x": "other"}))
 
 
+def test_refit_replaces_levels_without_changing_previous_results_or_rules():
+    rules = (
+        FeatureLevelConfig("x", "numerical", lower_bound=0),
+        FeatureLevelConfig("group", "categorical"),
+    )
+    transformer = LevelTransformer(rules, n_bins=2)
+    assert transformer.feature_levels is None
+    transformer.fit(pl.DataFrame({"x": [0.0, 10.0], "group": ["a", "b"]}))
+    original = transformer.feature_levels
+    assert original is not None
+    assert tuple(level.config for level in original) == rules
+    assert original[0].boundaries == (5.0,)
+    assert original[1].categories == ("a", "b")
+
+    transformer.fit(pl.DataFrame({"x": [10.0, 30.0], "group": ["b", "c"]}))
+    current = transformer.feature_levels
+    assert current is not None
+    assert current[0].boundaries == (20.0,)
+    assert current[1].categories == ("b", "c")
+    assert original[0].boundaries == (5.0,)
+    assert original[1].categories == ("a", "b")
+    probe = transformer.transform(pl.DataFrame({"x": [15.0], "group": ["a"]}))
+    assert probe["x"].cast(pl.String).item() == "[0, 20)"
+    assert probe["group"].cast(pl.String).item() == UNSEEN_LEVEL
+
+
 @pytest.mark.parametrize("reserved", [NULL_LEVEL, ERROR_LEVEL, UNSEEN_LEVEL])
 def test_categorical_reference_rejects_reserved_diagnostic_labels(reserved):
-    transformer = LevelTransformer((FeatureLevelSpec("group", "categorical"),))
+    transformer = LevelTransformer((FeatureLevelConfig("group", "categorical"),))
     with pytest.raises(ValueError, match="reserved"):
         transformer.fit(pl.DataFrame({"group": ["regular", reserved]}))

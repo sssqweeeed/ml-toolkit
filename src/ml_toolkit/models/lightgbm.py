@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger("ml_toolkit.models.lightgbm")
 
 
-class LightGBMWrapper(PythonModel):
+class LightGBMServingModel(PythonModel):
     """Log and serve a LightGBM regressor without pickling the model.
 
     Parameters
@@ -170,7 +170,7 @@ class LightGBMWrapper(PythonModel):
             Path(__file__).resolve().parents[1]
             / "tracking"
             / "entrypoints"
-            / "LightGBMWrapper.py"
+            / "LightGBMServingModel.py"
         )
         sample_frame = sample.to_model_input(n_rows=config.input_example_rows).loc[
             :, self.feature_names

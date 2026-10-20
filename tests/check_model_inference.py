@@ -59,7 +59,7 @@ prediction = loaded.predict(frame)
 assert prediction.shape == expected.shape
 np.testing.assert_allclose(prediction, expected)
 np.testing.assert_allclose(loaded.predict(frame.iloc[:1]), expected[:1])
-if sys.argv[4] != "LightGBMWrapper":
+if sys.argv[4] != "LightGBMServingModel":
     np.testing.assert_allclose(model.predict_frame(frame), expected)
     from ml_toolkit.tracking._model_state import log_catboost
 

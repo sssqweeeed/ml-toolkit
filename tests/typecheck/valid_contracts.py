@@ -20,7 +20,7 @@ from examples.custom_model import model_factory
 from ml_toolkit import Pool, TrainingResult, train_model
 from ml_toolkit.config import (
     HoldoutConfig,
-    PostFitEvaluationConfig,
+    PredictionEvaluationConfig,
     ReportingConfig,
     TimeSeriesCVConfig,
     TrainingConfig,
@@ -28,21 +28,23 @@ from ml_toolkit.config import (
 from ml_toolkit.metrics import (
     Metric,
     MetricScores,
+    MetricsFrequency,
     MetricsSeverity,
     PUMetric,
     metrics_classification,
     metrics_frequency,
     metrics_severity,
+    ranking_metrics,
 )
 from ml_toolkit.models import CatBoostPUClassificationModel, CatBoostRegressionModel
 from ml_toolkit.models.base import Model
-from ml_toolkit.training import DatasetSplit, PostFitEvaluator
+from ml_toolkit.training import DatasetSplit, PredictionEvaluator
 from ml_toolkit.training import Pool as TrainingPool
 from ml_toolkit.training.splits import TrainValSplit, make_validation_splits
 from ml_toolkit.types import FloatArray, ModelParams
 
 
-class BusinessEvaluator(PostFitEvaluator):
+class BusinessEvaluator(PredictionEvaluator):
     def evaluate(
         self,
         *,
@@ -77,15 +79,20 @@ def severity_metric(
     return metrics_severity(y, predictions, weight, power=1.5)
 
 
+def metric_contracts(y: FloatArray, prediction: FloatArray, weight: FloatArray) -> None:
+    assert_type(metrics_frequency(y, prediction, weight), MetricsFrequency)
+    assert_type(ranking_metrics(y, prediction, weight).gains_area, float)
+
+
 def contracts(data: Pool) -> None:
-    reporting = ReportingConfig(post_fit=None)
-    assert_type(reporting.post_fit, PostFitEvaluationConfig | None)
-    ReportingConfig(post_fit=PostFitEvaluationConfig(stages=()))
-    evaluators: list[PostFitEvaluator] = [
+    reporting = ReportingConfig(prediction_evaluation=None)
+    assert_type(reporting.prediction_evaluation, PredictionEvaluationConfig | None)
+    ReportingConfig(prediction_evaluation=PredictionEvaluationConfig(stages=()))
+    evaluators: list[PredictionEvaluator] = [
         BusinessEvaluator(name="business"), BusinessEvaluator(name="quality")
     ]
     assert_type(evaluators[0].name, str)
-    inputs: tuple[PostFitEvaluator | list[PostFitEvaluator] | None, ...] = (
+    inputs: tuple[PredictionEvaluator | list[PredictionEvaluator] | None, ...] = (
         None, evaluators[0], evaluators, []
     )
     for evaluator in inputs:
@@ -96,7 +103,7 @@ def contracts(data: Pool) -> None:
             metric=dictionary_metric,
             run_name="named-evaluators",
             config=TrainingConfig(validation=HoldoutConfig()),
-            post_fit_evaluator=evaluator,
+            prediction_evaluators=evaluator,
         )
     assert_type(
         train_model(
@@ -189,8 +196,8 @@ def explicit_selection(data: Pool) -> None:
     )
 
 
-from ml_toolkit.config import CommonPlotsConfig, FeatureLevelSpec, PUPlotsConfig
-from ml_toolkit.feature_levels import LevelTransformer
+from ml_toolkit.config import CommonPlotsConfig, FeatureLevelConfig, PUPlotsConfig
+from ml_toolkit.feature_levels import FeatureLevels, LevelTransformer
 from ml_toolkit.plots.regression import observed_fitted_by_level
 from ml_toolkit.psi import PSIResult, compare_psi
 import pandas as pd
@@ -200,20 +207,26 @@ def feature_diagnostics(
     reference: pl.DataFrame, current: pl.DataFrame, y: FloatArray, output: Path
 ) -> None:
     common = CommonPlotsConfig(
-        features=(FeatureLevelSpec("age", "numerical", lower_bound=0),),
+        features=(FeatureLevelConfig("age", "numerical", lower_bound=0),),
         psi=False,
         observed_fitted=True,
     )
-    assert_type(common.features, tuple[FeatureLevelSpec, ...] | None)
+    assert_type(common.features, tuple[FeatureLevelConfig, ...] | None)
     assert_type(PUPlotsConfig(common=common), PUPlotsConfig)
-    transformer = LevelTransformer((FeatureLevelSpec("age", "numerical"),)).fit(
+    transformer = LevelTransformer((FeatureLevelConfig("age", "numerical"),)).fit(
         reference
     )
+    assert_type(transformer.feature_levels, tuple[FeatureLevels, ...] | None)
     reference_levels = transformer.transform(reference)
     current_levels = transformer.transform(current)
-    assert transformer.config is not None
+    assert transformer.feature_levels is not None
+    assert_type(transformer.feature_levels[0].config, FeatureLevelConfig)
+    result = compare_psi(
+        reference_levels, current_levels, feature_levels=transformer.feature_levels
+    )
+    assert_type(result.feature_levels, tuple[FeatureLevels, ...])
     assert_type(
-        compare_psi(reference_levels, current_levels, transformer.config), PSIResult
+        compare_psi(reference_levels, current_levels, transformer.feature_levels), PSIResult
     )
     assert_type(
         observed_fitted_by_level(
@@ -224,7 +237,7 @@ def feature_diagnostics(
             y,
             y,
             output,
-            level_order=transformer.config.features[0].levels,
+            level_order=transformer.feature_levels[0].levels,
         ),
         pd.DataFrame,
     )

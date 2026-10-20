@@ -90,7 +90,7 @@ def render_page(path: Path, *, check: bool) -> None:
                 name: namespace[name]
                 for name in (
                     'config', 'params', 'metric', 'model_factory',
-                    'feature_selector', 'param_space', 'post_fit_evaluator',
+                    'feature_selector', 'param_space', 'prediction_evaluators',
                 )
             }
         if recipe.name == 'configuration-full-run':

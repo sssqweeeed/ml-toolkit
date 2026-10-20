@@ -136,8 +136,6 @@ print(round(bound_scores.mean_tweedie_deviance, 4))
 ```
 <!-- /output -->
 
-Use `metrics_frequency` and `MetricsFrequency` in new code. The legacy
-`metrics_frequncy` and `MetricsFrequncy` spellings remain available as aliases.
 
 ## Inspect gains, lift, and Gini
 
@@ -259,31 +257,13 @@ from `ml_toolkit.metrics.ranking`.
 
 ### Frequency
 
-<a id="ml_toolkit.metrics.metrics_frequency"></a>
-
-#### metrics_frequency
-
-```text
-metrics_frequency(
-    y_target: FloatArray, y_pred: FloatArray, exposure: FloatArray
-) -> MetricsFrequency
-```
-
-::: ml_toolkit.metrics.frequency.metrics_frequncy
+::: ml_toolkit.metrics.metrics_frequency
     options:
       heading_level: 4
-      show_root_heading: false
-      show_root_toc_entry: false
-      show_signature: false
 
-<a id="ml_toolkit.metrics.MetricsFrequency"></a>
-
-::: ml_toolkit.metrics.frequency.MetricsFrequncy
+::: ml_toolkit.metrics.MetricsFrequency
     options:
       heading_level: 4
-      heading: MetricsFrequency
-      toc_label: MetricsFrequency
-      show_signature: false
 
 ### Severity
 

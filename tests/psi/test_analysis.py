@@ -6,7 +6,7 @@ import pytest
 
 from ml_toolkit.feature_levels import (
     UNSEEN_LEVEL,
-    FeatureLevelSpec,
+    FeatureLevelConfig,
 )
 from ml_toolkit.psi import PSIAnalysis, PSIConfig
 
@@ -14,8 +14,8 @@ from ml_toolkit.psi import PSIAnalysis, PSIConfig
 def test_analysis_preserves_feature_and_time_distributions():
     config = PSIConfig(
         (
-            FeatureLevelSpec("value", "numerical"),
-            FeatureLevelSpec("group", "categorical"),
+            FeatureLevelConfig("value", "numerical"),
+            FeatureLevelConfig("group", "categorical"),
         ),
         n_bins=2,
     )
@@ -61,7 +61,7 @@ def test_analysis_preserves_feature_and_time_distributions():
 
 
 def test_optional_time_and_validation():
-    config = PSIConfig((FeatureLevelSpec("x", "numerical"),))
+    config = PSIConfig((FeatureLevelConfig("x", "numerical"),))
     reference = pl.DataFrame({"x": [1.0, 2.0]})
     current = pl.DataFrame({"x": [3.0, 4.0]})
     result = PSIAnalysis(config).fit(reference).compare(current)
@@ -80,7 +80,7 @@ def test_optional_time_and_validation():
 
 
 def test_compare_requires_fitted_reference():
-    analysis = PSIAnalysis(PSIConfig((FeatureLevelSpec("x", "numerical"),)))
+    analysis = PSIAnalysis(PSIConfig((FeatureLevelConfig("x", "numerical"),)))
     with pytest.raises(RuntimeError, match="fitted"):
         analysis.compare(pl.DataFrame({"x": [1.0]}))
 
@@ -95,7 +95,7 @@ def test_compare_requires_fitted_reference():
     ],
 )
 def test_analysis_validates_time_at_each_public_boundary(stage, time, error, message):
-    analysis = PSIAnalysis(PSIConfig((FeatureLevelSpec("x", "numerical"),)))
+    analysis = PSIAnalysis(PSIConfig((FeatureLevelConfig("x", "numerical"),)))
     frame = pl.DataFrame({"x": [1.0, 2.0]})
     if stage == "compare":
         analysis.fit(frame)
@@ -104,7 +104,7 @@ def test_analysis_validates_time_at_each_public_boundary(stage, time, error, mes
 
 
 def test_repeated_comparisons_preserve_reference_levels_until_refit():
-    config = PSIConfig((FeatureLevelSpec("group", "categorical"),))
+    config = PSIConfig((FeatureLevelConfig("group", "categorical"),))
     original = pl.DataFrame({"group": ["a", "a"]})
     new = pl.DataFrame({"group": ["b", "b"]})
     analysis = PSIAnalysis(config).fit(original)
@@ -116,4 +116,8 @@ def test_repeated_comparisons_preserve_reference_levels_until_refit():
         (pl.col("sample") == "current") & (pl.col("level") == UNSEEN_LEVEL)
     )
     assert unseen["share"].item() == 1
-    assert analysis.fit(new).compare(new).psi["psi"].item() == 0
+    refitted = analysis.fit(new).compare(new)
+    assert refitted.psi["psi"].item() == 0
+    assert first.feature_levels[0].config is config.features[0]
+    assert first.feature_levels[0].categories == ("a",)
+    assert refitted.feature_levels[0].categories == ("b",)

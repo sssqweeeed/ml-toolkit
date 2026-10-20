@@ -11,9 +11,8 @@ from .config import (
     ERROR_LEVEL,
     NULL_LEVEL,
     UNSEEN_LEVEL,
+    FeatureLevels,
     FeatureLevelConfig,
-    LevelConfig,
-    FeatureLevelSpec,
 )
 
 
@@ -23,15 +22,15 @@ class LevelTransformer:
 
     Parameters
     ----------
-    features : sequence of FeatureLevelSpec
+    features : sequence of FeatureLevelConfig
         Feature definitions with unique names; stored as a tuple.
     n_bins : int, default 10
         Positive requested number of numerical intervals.
 
     Attributes
     ----------
-    config : LevelConfig or None
-        Fitted level definitions; None until fit is called.
+    feature_levels : tuple[FeatureLevels, ...] or None
+        Levels in feature order; None until fit is called.
 
     Notes
     -----
@@ -42,9 +41,9 @@ class LevelTransformer:
     Transformation retains unconfigured columns.
     """
 
-    features: Sequence[FeatureLevelSpec]
+    features: Sequence[FeatureLevelConfig]
     n_bins: int = 10
-    config: LevelConfig | None = field(init=False, default=None)
+    feature_levels: tuple[FeatureLevels, ...] | None = field(init=False, default=None)
 
     def __post_init__(self) -> None:
         self.features = tuple(self.features)
@@ -66,8 +65,8 @@ class LevelTransformer:
         Returns
         -------
         Self
-            Transformer with fitted config; calling fit again replaces previous
-            levels.
+            Transformer with reference-based levels. Calling fit again replaces
+            its levels; previously returned tuples retain their original values.
 
         Raises
         ------
@@ -85,7 +84,7 @@ class LevelTransformer:
         if missing:
             raise ValueError(f"Features are missing from reference: {missing}")
 
-        configs: list[FeatureLevelConfig] = []
+        feature_levels: list[FeatureLevels] = []
         for feature in self.features:
             column = reference.get_column(feature.name)
             valid = column.is_not_null()
@@ -110,13 +109,10 @@ class LevelTransformer:
                 levels = (*labels, NULL_LEVEL, UNSEEN_LEVEL)
                 if feature.error_level is not None:
                     levels = (*levels, ERROR_LEVEL)
-                feature_config = FeatureLevelConfig(
-                    name=feature.name,
-                    ftype=feature.ftype,
+                result = FeatureLevels(
+                    config=feature,
                     levels=levels,
                     categories=categories,
-                    error_level=feature.error_level,
-                    null_level=feature.null_level,
                 )
             else:
                 numbers = regular.cast(pl.Float64, strict=True)
@@ -167,19 +163,14 @@ class LevelTransformer:
                     or feature.upper_bound not in (None, np.inf)
                 ):
                     levels = (*levels, ERROR_LEVEL)
-                feature_config = FeatureLevelConfig(
-                    name=feature.name,
-                    ftype=feature.ftype,
+                result = FeatureLevels(
+                    config=feature,
                     levels=levels,
                     boundaries=boundaries,
-                    error_level=feature.error_level,
-                    null_level=feature.null_level,
-                    lower_bound=feature.lower_bound,
-                    upper_bound=feature.upper_bound,
                 )
-            configs.append(feature_config)
+            feature_levels.append(result)
 
-        self.config = LevelConfig(tuple(configs))
+        self.feature_levels = tuple(feature_levels)
         return self
 
     def transform(self, data: pl.DataFrame) -> pl.DataFrame:
@@ -208,28 +199,28 @@ class LevelTransformer:
         Numerical intervals are left-inclusive. A value equal to an internal
         boundary enters the interval on its right.
         """
-        if self.config is None:
+        if self.feature_levels is None:
             raise RuntimeError("LevelTransformer must be fitted before transform")
         missing = sorted(
-            {feature.name for feature in self.config.features} - set(data.columns)
+            {feature.config.name for feature in self.feature_levels} - set(data.columns)
         )
         if missing:
             raise ValueError(f"Features are missing from data: {missing}")
 
         expressions: list[pl.Expr] = []
-        for feature in self.config.features:
-            column = pl.col(feature.name)
+        for feature in self.feature_levels:
+            column = pl.col(feature.config.name)
             nulls = column.is_null()
-            if data.schema[feature.name].is_float():
+            if data.schema[feature.config.name].is_float():
                 nulls |= column.is_nan()
-            if feature.null_level is not None:
-                nulls |= column == feature.null_level
+            if feature.config.null_level is not None:
+                nulls |= column == feature.config.null_level
 
             errors = pl.lit(False)
-            if feature.error_level is not None:
-                errors = column == feature.error_level
+            if feature.config.error_level is not None:
+                errors = column == feature.config.error_level
 
-            if feature.ftype == "categorical":
+            if feature.config.ftype == "categorical":
                 regular = (
                     pl.when(column.is_in(feature.categories))
                     .then(column.cast(pl.String))
@@ -243,10 +234,10 @@ class LevelTransformer:
                     .otherwise(column)
                     .cast(pl.Float64, strict=True)
                 )
-                if feature.lower_bound is not None:
-                    errors |= (numbers < feature.lower_bound).fill_null(False)
-                if feature.upper_bound is not None:
-                    errors |= (numbers > feature.upper_bound).fill_null(False)
+                if feature.config.lower_bound is not None:
+                    errors |= (numbers < feature.config.lower_bound).fill_null(False)
+                if feature.config.upper_bound is not None:
+                    errors |= (numbers > feature.config.upper_bound).fill_null(False)
                 interval_levels = feature.levels[: len(feature.boundaries) + 1]
                 regular = pl.lit(interval_levels[-1])
                 for index in reversed(range(len(feature.boundaries))):
@@ -263,7 +254,7 @@ class LevelTransformer:
                 .then(pl.lit(ERROR_LEVEL))
                 .otherwise(regular)
                 .cast(pl.Categorical)
-                .alias(feature.name)
+                .alias(feature.config.name)
             )
             expressions.append(expression)
 

@@ -5,12 +5,12 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from ..config import PostFitEvaluationConfig, ReportingConfig
+from ..config import PredictionEvaluationConfig, ReportingConfig
 from ..metrics import Metric
 from ..models.base import Model
 from ..tracking import runs as tracking
 from ..types import FloatArray
-from .contracts import DatasetSplit, PostFitEvaluator, Pool, TrainingStage
+from .contracts import DatasetSplit, PredictionEvaluator, Pool, TrainingStage
 from .reporting import report_custom_evaluation, report_diagnostics
 
 logger = logging.getLogger(__name__)
@@ -23,20 +23,20 @@ class EvaluationResult:
 
 
 @dataclass(frozen=True)
-class PreparedPostFit:
-    evaluators: tuple[PostFitEvaluator, ...]
+class PreparedPredictionEvaluation:
+    evaluators: tuple[PredictionEvaluator, ...]
     calls: frozenset[tuple[TrainingStage, DatasetSplit]]
     write_artifacts: bool
 
 
-def prepare_post_fit(
+def prepare_prediction_evaluation(
     data: Pool,
-    evaluator: PostFitEvaluator | list[PostFitEvaluator] | None,
-    policy: PostFitEvaluationConfig | None,
+    evaluator: PredictionEvaluator | list[PredictionEvaluator] | None,
+    policy: PredictionEvaluationConfig | None,
     *,
     tuning: bool,
     has_test: bool,
-) -> PreparedPostFit | None:
+) -> PreparedPredictionEvaluation | None:
     if evaluator is None:
         return None
     evaluators = tuple(evaluator) if isinstance(evaluator, list) else (evaluator,)
@@ -48,7 +48,7 @@ def prepare_post_fit(
         names.add(name)
     if not evaluators:
         return None
-    policy = PostFitEvaluationConfig() if policy is None else policy
+    policy = PredictionEvaluationConfig() if policy is None else policy
     available: set[tuple[TrainingStage, DatasetSplit]] = {
         ("validation", DatasetSplit.TRAIN),
         ("validation", DatasetSplit.VAL),
@@ -68,8 +68,8 @@ def prepare_post_fit(
     if not calls:
         return None
     if data.object_id is None:
-        raise ValueError("object_id is required when post_fit_evaluator is supplied")
-    return PreparedPostFit(evaluators, calls, policy.write_artifacts)
+        raise ValueError("object_id is required when prediction_evaluators is supplied")
+    return PreparedPredictionEvaluation(evaluators, calls, policy.write_artifacts)
 
 
 def calculate_metrics(
@@ -90,7 +90,7 @@ def evaluate_model(
     heldout: Pool | None,
     metric: Metric,
     reporting: ReportingConfig,
-    post_fit: PreparedPostFit | None,
+    prediction_evaluation: PreparedPredictionEvaluation | None,
     *,
     stage: TrainingStage,
     name: str,
@@ -125,15 +125,18 @@ def evaluate_model(
             dataset_split.value,
             scores[dataset_split],
         )
-        if post_fit is not None and (stage, dataset_split) in post_fit.calls:
-            for evaluator in post_fit.evaluators:
+        if (
+            prediction_evaluation is not None
+            and (stage, dataset_split) in prediction_evaluation.calls
+        ):
+            for evaluator in prediction_evaluation.evaluators:
                 report_custom_evaluation(
                     evaluator=evaluator,
                     data=data,
                     prediction=prediction,
                     split=dataset_split,
                     name=name,
-                    write_artifacts=post_fit.write_artifacts,
+                    write_artifacts=prediction_evaluation.write_artifacts,
                 )
     if diagnostics and reporting.diagnostics is not None and heldout is not None:
         report_diagnostics(

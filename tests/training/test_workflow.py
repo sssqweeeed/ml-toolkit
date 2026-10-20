@@ -313,7 +313,7 @@ def test_test_reuses_reports_and_evaluator_independently_of_split_selection(tmp_
         model_factory=MeanModel,
         metric=mae,
         run_name="reports",
-        post_fit_evaluator=CallbackEvaluator(name="business", evaluate=evaluate),
+        prediction_evaluators=CallbackEvaluator(name="business", evaluate=evaluate),
         config=TrainingConfig(
             validation=TimeSeriesCVConfig(n_splits=2),
             test_size=4,

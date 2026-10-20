@@ -14,7 +14,7 @@ from .distributions import (
     time_level_distributions,
 )
 from ..types import TimePeriod
-from ..feature_levels import LevelConfig, LevelTransformer
+from ..feature_levels import FeatureLevels, LevelTransformer
 from .results import PSIResult
 from .score import psi
 
@@ -56,11 +56,11 @@ class PSIAnalysis:
     Examples
     --------
     >>> import polars as pl
-    >>> from ml_toolkit.feature_levels import FeatureLevelSpec
+    >>> from ml_toolkit.feature_levels import FeatureLevelConfig
     >>> from ml_toolkit.psi import PSIAnalysis, PSIConfig
     >>> reference = pl.DataFrame({"segment": ["a", "a", "b", "b"]})
     >>> current = pl.DataFrame({"segment": ["a", "b", "a", "b"]})
-    >>> analysis = PSIAnalysis(PSIConfig((FeatureLevelSpec("segment", "categorical"),)))
+    >>> analysis = PSIAnalysis(PSIConfig((FeatureLevelConfig("segment", "categorical"),)))
     >>> result = analysis.fit(reference).compare(current)
     >>> result.psi.get_column("psi").to_list()
     [0.0]
@@ -151,7 +151,7 @@ class PSIAnalysis:
             only one sample supplies time, or the reference time range does not
             strictly precede current. A split inside one period is allowed.
         """
-        if self.reference_levels is None or self.transformer.config is None:
+        if self.reference_levels is None or self.transformer.feature_levels is None:
             raise RuntimeError("PSIAnalysis must be fitted before compare")
         current_time = _resolve_time(current, time)
         if (self.reference_time is None) != (current_time is None):
@@ -168,7 +168,7 @@ class PSIAnalysis:
         return compare_psi(
             self.reference_levels,
             current_levels,
-            self.transformer.config,
+            self.transformer.feature_levels,
             epsilon=self.config.epsilon,
             period=self.config.period,
             reference_time=self.reference_time,
@@ -179,7 +179,7 @@ class PSIAnalysis:
 def compare_psi(
     reference_levels: pl.DataFrame,
     current_levels: pl.DataFrame,
-    level_config: LevelConfig,
+    feature_levels: tuple[FeatureLevels, ...],
     *,
     epsilon: float = 1e-6,
     period: TimePeriod = "month",
@@ -193,7 +193,7 @@ def compare_psi(
     reference_levels, current_levels : polars.DataFrame
         Nonempty frames with the configured columns transformed by the same
         LevelTransformer. Extra columns are ignored.
-    level_config : LevelConfig
+    feature_levels : tuple[FeatureLevels, ...]
         Fitted definitions, including the order of features and levels.
     period : TimePeriod, default "month"
         Calendar grouping in the input timezone. Both time zones must match;
@@ -220,7 +220,7 @@ def compare_psi(
     TypeError
         Feature columns are not Categorical or timestamps have an invalid dtype.
     """
-    if not level_config.features:
+    if not feature_levels:
         raise ValueError("Feature definitions must not be empty")
     if not 0 < epsilon < 1:
         raise ValueError("epsilon must be between 0 and 1")
@@ -228,39 +228,41 @@ def compare_psi(
         if frame.is_empty():
             raise ValueError("PSI frames must not be empty")
         missing = sorted(
-            {feature.name for feature in level_config.features} - set(frame.columns)
+            {feature.config.name for feature in feature_levels} - set(frame.columns)
         )
         if missing:
             raise ValueError(f"Features are missing from levels: {missing}")
-        for feature in level_config.features:
-            values = frame.get_column(feature.name)
+        for feature in feature_levels:
+            values = frame.get_column(feature.config.name)
             if values.dtype != pl.Categorical:
                 raise TypeError("PSI level columns must be Categorical")
             if (
                 values.null_count()
                 or not values.cast(pl.String).is_in(feature.levels).all()
             ):
-                raise ValueError(f"Feature {feature.name!r} contains undefined levels")
+                raise ValueError(
+                    f"Feature {feature.config.name!r} contains undefined levels"
+                )
     reference_time = _resolve_time(reference_levels, reference_time)
     current_time = _resolve_time(current_levels, current_time)
     if (reference_time is None) != (current_time is None):
         raise ValueError("Both samples must provide time for time-based distributions")
     feature_scores = pl.DataFrame(
         {
-            "feature": [feature.name for feature in level_config.features],
+            "feature": [feature.config.name for feature in feature_levels],
             "psi": [
                 psi(
-                    reference_levels.get_column(feature.name),
-                    current_levels.get_column(feature.name),
+                    reference_levels.get_column(feature.config.name),
+                    current_levels.get_column(feature.config.name),
                     epsilon=epsilon,
                 )
-                for feature in level_config.features
+                for feature in feature_levels
             ],
         },
         schema={"feature": pl.String, "psi": pl.Float64},
     )
     level_distribution = level_distributions(
-        reference_levels, current_levels, level_config
+        reference_levels, current_levels, feature_levels
     )
     time_distribution = pl.DataFrame(schema=TIME_SCHEMA)
     if reference_time is not None and current_time is not None:
@@ -269,14 +271,14 @@ def compare_psi(
             reference_time,
             current_levels,
             current_time,
-            level_config,
+            feature_levels,
             period=period,
         )
     result = PSIResult(
         psi=feature_scores,
         level_distribution=level_distribution,
         time_distribution=time_distribution,
-        level_config=level_config,
+        feature_levels=feature_levels,
     )
     logger.debug("Completed PSI comparison: %s feature scores", len(feature_scores))
     return result

@@ -240,18 +240,18 @@ def test_loading_rejects_wrong_state_version_or_policy(data, tmp_path, update):
 
 def test_optional_lightgbm_models_from_code(data, tmp_path, inference_python):
     lightgbm = pytest.importorskip("lightgbm")
-    from ml_toolkit.models.lightgbm import LightGBMWrapper
+    from ml_toolkit.models.lightgbm import LightGBMServingModel
 
     setup_mlflow(tmp_path)
     frame = data.X.select("noise", "signal").to_pandas()
     estimator = lightgbm.LGBMRegressor(n_estimators=3, verbosity=-1, n_jobs=1).fit(
         frame, data.y.to_numpy()
     )
-    model = LightGBMWrapper(estimator, numerical_features=list(frame.columns))
+    model = LightGBMServingModel(estimator, numerical_features=list(frame.columns))
     with mlflow.start_run():
         info = model.log(data)
     loaded = mlflow.pyfunc.load_model(info.model_uri)
-    assert type(loaded.unwrap_python_model()).__name__ == "LightGBMWrapper"
+    assert type(loaded.unwrap_python_model()).__name__ == "LightGBMServingModel"
     np.testing.assert_allclose(loaded.predict(frame), model.predict(None, frame))
     directory = Path(mlflow.artifacts.download_artifacts(info.model_uri))
     check_bundled_inference(
@@ -260,5 +260,5 @@ def test_optional_lightgbm_models_from_code(data, tmp_path, inference_python):
         directory,
         frame,
         model.predict(None, frame),
-        "LightGBMWrapper",
+        "LightGBMServingModel",
     )

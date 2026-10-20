@@ -3,7 +3,12 @@
 import numpy as np
 import pytest
 
-from ml_toolkit.metrics import metrics_frequency, metrics_severity
+from ml_toolkit.metrics import MetricsFrequency, metrics_frequency, metrics_severity
+
+
+def test_frequency_definitions_have_canonical_names():
+    assert MetricsFrequency.__name__ == "MetricsFrequency"
+    assert metrics_frequency.__name__ == "metrics_frequency"
 
 
 @pytest.mark.parametrize("kind", ["frequency", "severity"])

@@ -134,7 +134,7 @@ artifact naming, registration, and the example size.
 ## Optional LightGBM integration
 
 Install the `lightgbm` extra. Fit LightGBM with its own training API, then wrap
-the fitted estimator for logging and inference. `LightGBMWrapper` is not a
+the fitted estimator for logging and inference. `LightGBMServingModel` is not a
 `train_model` factory. Continue with `data` from the data example:
 
 <!-- example: models-lightgbm -->
@@ -144,7 +144,7 @@ import lightgbm as lgb
 import mlflow
 import numpy as np
 
-from ml_toolkit.models.lightgbm import LightGBMWrapper
+from ml_toolkit.models.lightgbm import LightGBMServingModel
 
 native = lgb.LGBMRegressor(
     n_estimators=10,
@@ -156,7 +156,7 @@ native = lgb.LGBMRegressor(
 features = data.to_model_input()
 features["region"] = features["region"].astype("category")
 native.fit(features, data.y.to_numpy(), sample_weight=data.weight.to_numpy())
-wrapper = LightGBMWrapper(
+wrapper = LightGBMServingModel(
     native,
     numerical_features=data.numerical_features,
     cat_features=data.cat_features,
@@ -267,8 +267,9 @@ Import the CatBoost adapters, `InflationAdjustedModel`, and `Model` from
         - feature_importances
         - get_refit_params
 
-::: ml_toolkit.models.lightgbm.LightGBMWrapper
+::: ml_toolkit.models.lightgbm.LightGBMServingModel
     options:
+      merge_init_into_class: true
       members:
         - predict
         - log

@@ -18,7 +18,7 @@ from ..config import (
     PUPlotsConfig,
     RegressionPlotsConfig,
 )
-from ..feature_levels import FeatureLevelSpec, LevelTransformer
+from ..feature_levels import FeatureLevelConfig, LevelTransformer
 from ..metrics.ranking import ranking_metrics
 from ..models.base import Model
 from ..plots import (
@@ -34,7 +34,7 @@ from ..tracking.mlflow import log_polars_table
 from ..types import FloatArray
 from .contracts import (
     DatasetSplit,
-    PostFitEvaluator,
+    PredictionEvaluator,
     Pool,
 )
 
@@ -56,7 +56,7 @@ def _feature_filename(index: int, feature: str) -> str:
 
 def report_custom_evaluation(
     *,
-    evaluator: PostFitEvaluator,
+    evaluator: PredictionEvaluator,
     data: Pool,
     prediction: FloatArray,
     split: DatasetSplit,
@@ -66,7 +66,7 @@ def report_custom_evaluation(
     try:
         if data.object_id is None:
             raise ValueError(
-                "object_id is required when post_fit_evaluator is supplied"
+                "object_id is required when prediction_evaluators is supplied"
             )
         inputs: EvaluationInputs = {
             "object_id": data.object_id,
@@ -82,10 +82,10 @@ def report_custom_evaluation(
                 or not key.strip()
                 or any(part in ("", ".", "..") for part in key.split("/"))
             ):
-                raise ValueError(f"Invalid post-fit metric name: {key!r}")
+                raise ValueError(f"Invalid prediction evaluation metric name: {key!r}")
             numeric = float(value)
             if not np.isfinite(numeric):
-                raise ValueError(f"Post-fit metric {key!r} must be finite")
+                raise ValueError(f"Prediction evaluation metric {key!r} must be finite")
             metrics[f"{split.value}/{evaluator.name}/{key}"] = numeric
         if metrics:
             tracking.log_metrics(metrics)
@@ -96,15 +96,16 @@ def report_custom_evaluation(
             report_custom_artifacts(evaluator, inputs)
     except Exception as exc:
         exc.add_note(
-            f"Post-fit evaluation evaluator={evaluator.name}, stage={name}, split={split}"
+            f"Prediction evaluation evaluator={evaluator.name}, "
+            f"stage={name}, split={split}"
         )
         raise
 
 
 def report_custom_artifacts(
-    evaluator: PostFitEvaluator, inputs: EvaluationInputs
+    evaluator: PredictionEvaluator, inputs: EvaluationInputs
 ) -> None:
-    with TemporaryDirectory(prefix="ml-toolkit-post-fit-") as directory:
+    with TemporaryDirectory(prefix="ml-toolkit-prediction-evaluation-") as directory:
         root = Path(directory).resolve()
         paths = evaluator.write_artifacts(**inputs, artifact_dir=root)
         files: list[Path] = []
@@ -145,7 +146,9 @@ def report_custom_artifacts(
             if parent != ".":
                 artifact_path += f"/{parent}"
             tracking.log_artifact(image, artifact_path=artifact_path)
-            logger.debug("Logged post-fit artifact %s to %s", relative, artifact_path)
+            logger.debug(
+                "Logged prediction evaluation artifact %s to %s", relative, artifact_path
+            )
 
 
 def report_diagnostics(
@@ -197,7 +200,7 @@ def report_diagnostics(
             if features is None:
                 categorical = set(train.cat_features)
                 features = tuple(
-                    FeatureLevelSpec(
+                    FeatureLevelConfig(
                         feature,
                         (
                             "categorical"
@@ -214,13 +217,13 @@ def report_diagnostics(
                 )
                 reference_levels = transformer.transform(train.X)
                 current_levels = transformer.transform(validation.X)
-                level_config = transformer.config
-                assert level_config is not None
+                feature_levels = transformer.feature_levels
+                assert feature_levels is not None
                 if common.psi:
                     psi_result = compare_psi(
                         reference_levels,
                         current_levels,
-                        level_config,
+                        feature_levels,
                         epsilon=common.epsilon,
                         period=common.period,
                         reference_time=train.time,
@@ -244,31 +247,31 @@ def report_diagnostics(
                         psi_result.psi,
                     )
                     if not psi_result.time_distribution.is_empty():
-                        for index, feature in enumerate(level_config.features):
+                        for index, feature in enumerate(feature_levels):
                             emit(
                                 "figures/psi/time_by_feature/"
-                                f"{_feature_filename(index, feature.name)}",
+                                f"{_feature_filename(index, feature.config.name)}",
                                 psi_plots.time_psi_level_distribution,
                                 psi_result.time_distribution,
-                                feature.name,
+                                feature.config.name,
                                 period=common.period,
                             )
                 if common.observed_fitted:
-                    for index, feature in enumerate(level_config.features):
+                    for index, feature in enumerate(feature_levels):
                         emit(
                             "figures/observed_fitted/by_feature/"
-                            f"{_feature_filename(index, feature.name)}",
+                            f"{_feature_filename(index, feature.config.name)}",
                             regression.observed_fitted_by_level,
-                            reference_levels.get_column(feature.name),
+                            reference_levels.get_column(feature.config.name),
                             train_y,
                             train_prediction,
-                            current_levels.get_column(feature.name),
+                            current_levels.get_column(feature.config.name),
                             val_y,
                             validation_prediction,
                             level_order=feature.levels,
                             reference_weight=train_weight,
                             current_weight=val_weight,
-                            feature_name=feature.name,
+                            feature_name=feature.config.name,
                             current_label=(
                                 "Test" if split == DatasetSplit.TEST else "Validation"
                             ),

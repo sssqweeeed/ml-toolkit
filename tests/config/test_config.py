@@ -14,7 +14,7 @@ from ml_toolkit.config import (
     FigureConfig,
     HoldoutConfig,
     NumericalFeatureDistributionConfig,
-    PostFitEvaluationConfig,
+    PredictionEvaluationConfig,
     PUDiagnosticsConfig,
     PUPlotsConfig,
     ReportingConfig,
@@ -40,7 +40,7 @@ from ml_toolkit.config import (
         lambda: ReportingConfig(validation_splits=()),
         lambda: ReportingConfig(validation_splits=(0,)),
         lambda: NumericalFeatureDistributionConfig(quantile_bands=((0.9, 0.1),)),
-        lambda: PostFitEvaluationConfig(stages=("validation", "validation")),
+        lambda: PredictionEvaluationConfig(stages=("validation", "validation")),
         lambda: TrainingConfig(
             validation=TimeSeriesCVConfig(n_splits=3, skip_splits=1),
             reporting=ReportingConfig(
@@ -52,7 +52,7 @@ from ml_toolkit.config import (
         "too-few-splits", "skip-all-splits", "negative-gap", "empty-objective",
         "zero-timeout", "zero-smoothing", "zero-bins", "zero-figure-width",
         "duplicate-shap-features", "no-report-splits", "zero-report-split",
-        "reversed-quantiles", "duplicate-post-fit-stages", "skipped-report-split",
+        "reversed-quantiles", "duplicate-prediction-evaluation-stages", "skipped-report-split",
     ],
 )
 def test_invalid_ranges_fail_on_construction(factory):
@@ -133,11 +133,11 @@ def test_disabled_diagnostics_allow_unavailable_split_indices(
         )
 
 
-def test_post_fit_policy_is_optional_without_changing_explicit_settings():
-    assert ReportingConfig().post_fit is None
-    assert ReportingConfig(post_fit=None).post_fit is None
-    policy = PostFitEvaluationConfig(stages=())
-    assert ReportingConfig(post_fit=policy).post_fit is policy
+def test_prediction_evaluation_policy_is_optional_without_changing_explicit_settings():
+    assert ReportingConfig().prediction_evaluation is None
+    assert ReportingConfig(prediction_evaluation=None).prediction_evaluation is None
+    policy = PredictionEvaluationConfig(stages=())
+    assert ReportingConfig(prediction_evaluation=policy).prediction_evaluation is policy
 
 
 def test_exact_test_start_time_is_rejected():

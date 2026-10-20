@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 import polars as pl
 
-from ..feature_levels import LevelConfig
+from ..feature_levels import FeatureLevels
 
 
 @dataclass(frozen=True)
@@ -23,7 +23,7 @@ class PSIResult:
         Columns feature, sample, and level (String), period_start (Datetime), and share
         (Float64). Contains every fitted level in each observed sample period;
         preserves the input timezone. Empty with naive Datetime when time was omitted.
-    level_config : LevelConfig
+    feature_levels : tuple[FeatureLevels, ...]
         Reference-fitted categories, interval boundaries, and special level
         definitions.
     """
@@ -31,4 +31,4 @@ class PSIResult:
     psi: pl.DataFrame
     level_distribution: pl.DataFrame
     time_distribution: pl.DataFrame
-    level_config: LevelConfig
+    feature_levels: tuple[FeatureLevels, ...]

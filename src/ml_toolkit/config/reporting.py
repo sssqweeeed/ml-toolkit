@@ -1,11 +1,11 @@
-"""Task-specific diagnostics and custom post-fit reporting policies."""
+"""Task-specific diagnostics and prediction evaluation policies."""
 
 from dataclasses import dataclass, field
 from math import isfinite
 from typing import Literal
 
 from .._time import PERIOD_INTERVALS
-from ..feature_levels import FeatureLevelSpec
+from ..feature_levels import FeatureLevelConfig
 from ..types import TimePeriod
 
 
@@ -122,7 +122,7 @@ class CommonPlotsConfig:
 
     Parameters
     ----------
-    features : tuple[FeatureLevelSpec, ...] or None, default None
+    features : tuple[FeatureLevelConfig, ...] or None, default None
         Shared feature definitions for PSI and observed/fitted. None selects all
         input features using categorical declarations and dtype; an empty tuple
         disables both feature diagnostics. Explicit names must exist after
@@ -159,7 +159,7 @@ class CommonPlotsConfig:
     Examples
     --------
     >>> common = CommonPlotsConfig(
-    ...     features=(FeatureLevelSpec("age", "numerical", lower_bound=0),),
+    ...     features=(FeatureLevelConfig("age", "numerical", lower_bound=0),),
     ...     psi=False,
     ...     observed_fitted=True,
     ... )
@@ -167,7 +167,7 @@ class CommonPlotsConfig:
     10
     """
 
-    features: tuple[FeatureLevelSpec, ...] | None = None
+    features: tuple[FeatureLevelConfig, ...] | None = None
     psi: bool = True
     observed_fitted: bool = True
     period: TimePeriod = "month"
@@ -365,8 +365,8 @@ DiagnosticsConfig = (
 
 
 @dataclass(frozen=True, kw_only=True, slots=True)
-class PostFitEvaluationConfig:
-    """Control calls to separately supplied custom post-fit evaluators.
+class PredictionEvaluationConfig:
+    """Control calls to separately supplied custom prediction evaluators.
 
     Parameters
     ----------
@@ -397,7 +397,7 @@ class PostFitEvaluationConfig:
         if len(set(self.stages)) != len(self.stages) or len(set(self.splits)) != len(
             self.splits
         ):
-            raise ValueError("post-fit stages and splits must be unique")
+            raise ValueError("prediction evaluation stages and splits must be unique")
 
 
 @dataclass(frozen=True, kw_only=True, slots=True)
@@ -414,7 +414,7 @@ class ReportingConfig:
         custom evaluation. Built-in diagnostics do not run during tuning.
         Split availability is checked only when diagnostics and their plots
         are enabled.
-    post_fit : PostFitEvaluationConfig or None, default None
+    prediction_evaluation : PredictionEvaluationConfig or None, default None
         Custom evaluator stage, split and artifact policy. None uses the standard
         policy only when an evaluator is supplied: validation and final stages,
         including test when available. Without an evaluator no calls run.
@@ -423,7 +423,7 @@ class ReportingConfig:
 
     diagnostics: DiagnosticsConfig | None = None
     validation_splits: Literal["all", "last"] | tuple[int, ...] = "last"
-    post_fit: PostFitEvaluationConfig | None = None
+    prediction_evaluation: PredictionEvaluationConfig | None = None
 
     def __post_init__(self) -> None:
         if isinstance(self.validation_splits, tuple) and (

@@ -113,7 +113,7 @@ model against the adapter, so a missing transformation fails immediately.
 The current `Model.native_model` annotation supports CatBoost and LightGBM
 Boosters. A generic scikit-learn estimator does not satisfy that backend contract;
 this guide does not promise that it can be passed directly to `train_model`.
-`LightGBMWrapper` packages an already trained model and does not implement the
+`LightGBMServingModel` packages an already trained model and does not implement the
 complete training adapter interface.
 
 Shared diagnostics such as observed/fitted use `predict_pool` and see original

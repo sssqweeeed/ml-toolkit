@@ -241,15 +241,15 @@ hundreds of recorded hours rather than isolated examples.
 
 <!-- example: plots-observed-fitted-levels -->
 ```python
-from ml_toolkit.config import FeatureLevelSpec
+from ml_toolkit.config import FeatureLevelConfig
 from ml_toolkit.feature_levels import LevelTransformer
 
 levels = LevelTransformer(
-    (FeatureLevelSpec("temperature", "numerical"),), n_bins=10
+    (FeatureLevelConfig("temperature", "numerical"),), n_bins=10
 ).fit(reference)
 reference_levels = levels.transform(reference)
 current_levels = levels.transform(current)
-assert levels.config is not None
+assert levels.feature_levels is not None
 by_level = regression.observed_fitted_by_level(
     reference_levels["temperature"],
     reference_y,
@@ -258,7 +258,7 @@ by_level = regression.observed_fitted_by_level(
     current_y,
     current_prediction,
     output / "observed-fitted-levels.png",
-    level_order=levels.config.features[0].levels,
+    level_order=levels.feature_levels[0].levels,
     feature_name="Normalized temperature",
     reference_label="Jul–Dec 2011",
     current_label="2012",
@@ -442,7 +442,7 @@ from ml_toolkit.plots import psi
 
 analysis = PSIAnalysis(
     PSIConfig(
-        features=tuple(FeatureLevelSpec(name, "numerical") for name in reference.columns),
+        features=tuple(FeatureLevelConfig(name, "numerical") for name in reference.columns),
         n_bins=10,
     )
 ).fit(reference, time=bikes.reference.time)

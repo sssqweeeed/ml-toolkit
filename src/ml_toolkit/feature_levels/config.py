@@ -19,7 +19,7 @@ UNSEEN_LEVEL = "__UNSEEN__"
 
 
 @dataclass(frozen=True)
-class FeatureLevelSpec:
+class FeatureLevelConfig:
     """Configure how one feature is assigned to diagnostic levels.
 
     Parameters
@@ -48,8 +48,8 @@ class FeatureLevelSpec:
 
     Examples
     --------
-    >>> from ml_toolkit.feature_levels import FeatureLevelSpec
-    >>> feature = FeatureLevelSpec("age", "numerical", lower_bound=0)
+    >>> from ml_toolkit.feature_levels import FeatureLevelConfig
+    >>> feature = FeatureLevelConfig("age", "numerical", lower_bound=0)
     >>> feature.name, feature.lower_bound
     ('age', 0)
     """
@@ -92,15 +92,13 @@ class FeatureLevelSpec:
 
 
 @dataclass(frozen=True)
-class FeatureLevelConfig:
-    """Store learned levels for one feature.
+class FeatureLevels:
+    """Store categories and intervals determined from reference data.
 
     Attributes
     ----------
-    name : str
-        Original feature name.
-    ftype : {'categorical', 'numerical'}
-        Feature interpretation used during transformation.
+    config : FeatureLevelConfig
+        Immutable rules used to determine and apply these levels.
     levels : tuple[str, ...]
         Ordered interval or category labels followed by applicable special
         levels.
@@ -110,35 +108,9 @@ class FeatureLevelConfig:
     categories : tuple[FeatureScalar, ...]
         Reference categories in first-occurrence order; empty for numerical
         features.
-    error_level : FeatureScalar or None
-        Configured error sentinel.
-    null_level : FeatureScalar or None
-        Configured missing-value sentinel.
-    lower_bound : float or None
-        Inclusive numerical lower bound.
-    upper_bound : float or None
-        Inclusive numerical upper bound.
     """
 
-    name: str
-    ftype: FeatureType
+    config: FeatureLevelConfig
     levels: tuple[str, ...]
     boundaries: tuple[float, ...] = ()
     categories: tuple[FeatureScalar, ...] = ()
-    error_level: FeatureScalar | None = None
-    null_level: FeatureScalar | None = None
-    lower_bound: float | None = None
-    upper_bound: float | None = None
-
-
-@dataclass(frozen=True)
-class LevelConfig:
-    """Store fitted diagnostic level definitions in feature order.
-
-    Attributes
-    ----------
-    features : tuple[FeatureLevelConfig, ...]
-        Learned levels and transformation settings for each feature.
-    """
-
-    features: tuple[FeatureLevelConfig, ...]

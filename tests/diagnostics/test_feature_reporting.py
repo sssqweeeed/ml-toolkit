@@ -8,7 +8,7 @@ from ml_toolkit.config import (
     ClassificationDiagnosticsConfig,
     ClassificationPlotsConfig,
     CommonPlotsConfig,
-    FeatureLevelSpec,
+    FeatureLevelConfig,
     PUDiagnosticsConfig,
     PUPlotsConfig,
     RegressionDiagnosticsConfig,
@@ -97,8 +97,8 @@ def test_shared_diagnostics_switches_and_single_reference_fit(
     )
     common = CommonPlotsConfig(
         features=(
-            FeatureLevelSpec("unused", "categorical"),
-            FeatureLevelSpec("x", "numerical"),
+            FeatureLevelConfig("unused", "categorical"),
+            FeatureLevelConfig("x", "numerical"),
         ),
         psi=psi,
         observed_fitted=observed_fitted,
@@ -210,7 +210,7 @@ def test_default_feature_inference_and_missing_feature(monkeypatch):
         ("x", "numerical"),
         ("unused", "categorical"),
     ]
-    missing = replace(common, features=(FeatureLevelSpec("missing", "numerical"),))
+    missing = replace(common, features=(FeatureLevelConfig("missing", "numerical"),))
     with pytest.raises(ValueError, match="missing"):
         reporting.report_diagnostics(
             MeanModel({}),
@@ -227,7 +227,7 @@ def test_shared_config_rejects_duplicate_features():
     with pytest.raises(ValueError, match="unique"):
         CommonPlotsConfig(
             features=(
-                FeatureLevelSpec("x", "numerical"),
-                FeatureLevelSpec("x", "categorical"),
+                FeatureLevelConfig("x", "numerical"),
+                FeatureLevelConfig("x", "categorical"),
             )
         )
