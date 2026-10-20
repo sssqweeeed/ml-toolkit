@@ -106,8 +106,34 @@ print(adjusted_model.predict_frame(future).shape)  # (1,)
 Pool predictions use each row's observation date. Frame predictions require
 the `prediction_date` column, whose name can be configured on the adapter.
 With `ManualInflation`, all training, reference, and prediction months must
-fall within the supplied index range. See the [model reference](models.md)
-for logging and loading the fitted adapter.
+fall within the supplied index range.
+
+## Log and reload for serving
+
+Continuing with `adjusted_model`, `split`, and `future` above, configure a local
+MLflow store and save both artifacts. `log()` returns the native model first and
+the inflation-adjusted serving model second. Load the second artifact to retain
+date-dependent predictions:
+
+<!-- example: inflation-serving -->
+
+```python
+import mlflow
+
+mlflow.set_tracking_uri("sqlite:///mlflow.db")
+mlflow.set_experiment("ml-toolkit-inflation")
+with mlflow.start_run():
+    native_info, adjusted_info = adjusted_model.log(split.train)
+
+loaded = mlflow.pyfunc.load_model(adjusted_info.model_uri)
+np.testing.assert_allclose(
+    loaded.predict(future.to_pandas()),
+    adjusted_model.predict_frame(future),
+)
+```
+
+This writes a local tracking database and model artifacts. The assertion checks
+that the reloaded model preserves the predictions for the supplied price dates.
 
 ## API reference
 

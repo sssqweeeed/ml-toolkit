@@ -20,8 +20,8 @@ class Model(Protocol):
     Notes
     -----
     Factories receive a parameter dictionary. fit returns the adapter;
-    predict_pool returns one finite prediction per row. Models may use any
-    native backend.
+    predict_pool returns one finite prediction per row. The native_model
+    property exposes a fitted CatBoost model or LightGBM Booster.
     """
 
     @property

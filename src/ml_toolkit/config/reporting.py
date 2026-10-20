@@ -376,8 +376,8 @@ class PostFitEvaluationConfig:
         Enabled splits. Final fitting evaluates train and optional test. Empty
         disables all calls; unavailable splits are skipped.
     write_artifacts : bool, default True
-        Call the evaluator's optional image writer after scalar evaluation.
-        False disables images while retaining enabled scalar metrics.
+        Call the evaluator's optional artifact writer after scalar evaluation.
+        False disables all artifact files while retaining enabled scalar metrics.
 
     Notes
     -----
@@ -412,7 +412,7 @@ class ReportingConfig:
         one-based original indices before skipping. Does not restrict test or
         custom evaluation. Built-in diagnostics do not run during tuning.
     post_fit : PostFitEvaluationConfig
-        Custom evaluator stage, split and image policy; defaults to evaluation
+        Custom evaluator stage, split and artifact policy; defaults to evaluation
         on validation and final stages, including test when available.
     """
 

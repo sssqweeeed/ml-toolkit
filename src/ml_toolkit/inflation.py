@@ -103,13 +103,13 @@ class InflationAdjuster(ABC):
         from_dates: pl.Series,
         to_dates: pl.Series,
     ) -> FloatArray:
-        """Apply price-level factors to scalar or row-aligned monetary values.
+        """Apply price-level factors to monetary value arrays.
 
         Parameters
         ----------
-        values : numpy.ndarray or float
-            Values at from_dates. A scalar is broadcast to all dates; other inputs
-            must contain exactly one value per date.
+        values : numpy.ndarray
+            Float values at from_dates. A zero-dimensional array is broadcast to
+            all dates; other arrays must contain exactly one value per date.
         from_dates : polars.Series
             Non-null Date/Datetime values representing original price dates.
         to_dates : polars.Series
@@ -174,10 +174,11 @@ class ConstantRateInflation(InflationAdjuster):
     Examples
     --------
     >>> from datetime import date
+    >>> import numpy as np
     >>> import polars as pl
     >>> from ml_toolkit.inflation import ConstantRateInflation
     >>> dates = pl.Series([date(2026, 1, 1)])
-    >>> ConstantRateInflation(0.08).adjust(100.0, dates, dates).tolist()
+    >>> ConstantRateInflation(0.08).adjust(np.array([100.0]), dates, dates).tolist()
     [100.0]
     """
 

@@ -274,7 +274,7 @@ def render(check: bool = False) -> None:
     check : bool, default False
         Render figures in a temporary directory and fail on stale captured
         output or missing checked-in images. False updates both API pages and
-        the 17 gallery PNGs in docs/assets/plots.
+        the 18 gallery PNGs in docs/assets/plots.
     """
     try:
         importlib.import_module("shap")

@@ -78,7 +78,7 @@ class TrainingConfig:
     Examples
     --------
     >>> config = TrainingConfig(validation=HoldoutConfig(), test_size=0.2)
-    >>> config.feature_selection is None
+    >>> config.tuning is None
     True
     >>> config = TrainingConfig(validation=HoldoutConfig(), test_size="2025-01-01")
     >>> config.test_size

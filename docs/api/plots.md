@@ -21,7 +21,8 @@ All temporal functions accept `period="month"` by default. Supported values
 are `minute`, `hour`, `day`, `week`, `month`, `quarter`, and `year`. They group in
 the input timezone; both samples must have matching timezones. Weeks begin on
 Monday and quarters are calendar quarters. Minute/hour require `Datetime`, not
-`Date`. Returned `period_start` values preserve timezone and time-of-day.
+`Date`. Returned `period_start` values preserve the timezone and are truncated
+to the start of the selected period.
 Points are drawn at period starts. Entirely missing periods have no computed
 values or markers; lines simply connect neighboring observed periods.
 
@@ -649,7 +650,7 @@ python -m examples.render_plots
 The first run downloads and caches UCI Bike Sharing and the LINQS Cora archive;
 later runs reuse both caches.
 This command executes the documented recipes, refreshes their captured output
-and all 17 PNGs, and verifies sample sizes, populated bins, numerical summaries,
+and all 18 PNGs, and verifies sample sizes, populated bins, numerical summaries,
 and figure cleanup. `--check` verifies output and renders temporary figures
 without changing the checked-in gallery. The integration test skips when the
 public-data cache is absent, so running tests never downloads it implicitly.
