@@ -2,6 +2,8 @@
 
 Configurations are immutable, keyword-only dataclasses. Start with shared
 settings, then choose a model, metric, and diagnostic family for your target.
+Each task includes a compact recipe using `base_config` and a standalone full
+configuration with every active constructor field written explicitly.
 Use `dataclasses.replace` to change settings without modifying the original.
 The [configuration reference](api/configuration.md) lists every field and default.
 
@@ -17,8 +19,16 @@ The [configuration reference](api/configuration.md) lists every field and defaul
 
 ## Imports and shared behavior
 
-Run this block first, then choose one task block below. Each task defines
-`config`, `model_factory`, `params`, and `metric` for the same training call.
+Run this block first when using a compact recipe. Full configuration blocks
+include their own imports and do not require this setup. Choose either version
+of one task; both define `config`, `model_factory`, `params`, and `metric` for
+the same training call and produce equivalent settings.
+
+Full configurations explicitly disable tuning and SHAP with `None`. To enable
+these optional features, see the [tuning recipe](api/training.md) and
+[SHAP configuration](#shared-psi-and-observedfitted-diagnostics). Feature
+selection is supplied to `train_model` as `feature_selector`, not as a
+`TrainingConfig` field.
 
 <!-- example: configuration-shared -->
 
@@ -97,6 +107,8 @@ configuration are always logged to MLflow. Set
 Use a pool whose targets contain confirmed `0` and `1` labels. Include both
 classes in evaluated splits for finite ROC AUC; single-class splits return NaN.
 
+### Using the base configuration
+
 <!-- example: configuration-classification -->
 
 ```python
@@ -114,6 +126,101 @@ params = {**base_params, "loss_function": "Logloss"}
 metric = metrics_classification
 ```
 
+### Full configuration
+
+<!-- example: configuration-classification-full -->
+
+```python
+from ml_toolkit.config import (
+    ClassificationDiagnosticsConfig,
+    ClassificationPlotsConfig,
+    CommonPlotsConfig,
+    FigureConfig,
+    NumericalFeatureDistributionConfig,
+    PostFitEvaluationConfig,
+    ReportingConfig,
+    TimeSeriesCVConfig,
+    TrackingConfig,
+    TrainingConfig,
+)
+from ml_toolkit.metrics import metrics_classification
+from ml_toolkit.models import CatBoostClassificationModel
+
+classification_config = TrainingConfig(
+    validation=TimeSeriesCVConfig(
+        n_splits=3,
+        val_size=None,
+        gap=0,
+        max_train_size=None,
+        skip_splits=0,
+    ),
+    test_size=0.2,
+    tuning=None,
+    reporting=ReportingConfig(
+        diagnostics=ClassificationDiagnosticsConfig(
+            plots=ClassificationPlotsConfig(
+                common=CommonPlotsConfig(
+                    figure=FigureConfig(
+                        figsize=None,
+                        dpi=150,
+                        format="png",
+                    ),
+                    features=None,
+                    psi=True,
+                    observed_fitted=True,
+                    period="month",
+                    n_bins=10,
+                    epsilon=1e-6,
+                    numerical_distributions=NumericalFeatureDistributionConfig(
+                        features=None,
+                        quantile_bands=((0.05, 0.95), (0.25, 0.75)),
+                        show_mean=True,
+                        show_median=True,
+                    ),
+                    shap=None,
+                ),
+                precision_recall=True,
+                f1_threshold=True,
+                calibration=True,
+                gains=True,
+                lift=True,
+                time_observed_fitted=True,
+                max_curve_points=1000,
+                calibration_bins=10,
+                histogram_bins=30,
+            ),
+        ),
+        validation_splits="last",
+        post_fit=PostFitEvaluationConfig(
+            stages=("validation", "final"),
+            splits=("train", "val", "test"),
+            write_artifacts=True,
+        ),
+    ),
+    tracking=TrackingConfig(
+        log_trial_models=False,
+        log_validation_models=False,
+        log_final_model=False,
+        input_example_rows=5,
+        model_name="model",
+        registered_model_name=None,
+        conda_env=None,
+    ),
+)
+config = classification_config
+model_factory = CatBoostClassificationModel
+params = {
+    "iterations": 20,
+    "depth": 2,
+    "random_seed": 42,
+    "thread_count": 2,
+    "verbose": False,
+    "allow_writing_files": False,
+    "loss_function": "Logloss",
+}
+metric = metrics_classification
+```
+
 The reports include precision-recall, F1, calibration, gains/lift, temporal means,
 and the shared feature diagnostics.
 
@@ -121,6 +228,8 @@ and the shared feature diagnostics.
 
 Ordinary regression supports signed targets. Define a three-argument metric
 returning named scores; this example uses exposure-weighted absolute error.
+
+### Using the base configuration
 
 <!-- example: configuration-regression -->
 
@@ -147,6 +256,105 @@ params = {**base_params, "loss_function": "RMSE"}
 metric = weighted_mae
 ```
 
+### Full configuration
+
+<!-- example: configuration-regression-full -->
+
+```python
+from ml_toolkit.config import (
+    CommonPlotsConfig,
+    FigureConfig,
+    NumericalFeatureDistributionConfig,
+    PostFitEvaluationConfig,
+    RegressionDiagnosticsConfig,
+    RegressionPlotsConfig,
+    ReportingConfig,
+    TimeSeriesCVConfig,
+    TrackingConfig,
+    TrainingConfig,
+)
+from ml_toolkit.metrics import MetricScores
+from ml_toolkit.models import CatBoostRegressionModel
+from ml_toolkit.types import FloatArray
+
+def weighted_mae(
+    observed: FloatArray, prediction: FloatArray, weight: FloatArray
+) -> MetricScores:
+    return MetricScores(
+        {"mae": float((abs(observed - prediction) * weight).sum() / weight.sum())}
+    )
+
+
+regression_config = TrainingConfig(
+    validation=TimeSeriesCVConfig(
+        n_splits=3,
+        val_size=None,
+        gap=0,
+        max_train_size=None,
+        skip_splits=0,
+    ),
+    test_size=0.2,
+    tuning=None,
+    reporting=ReportingConfig(
+        diagnostics=RegressionDiagnosticsConfig(
+            task="regression",
+            plots=RegressionPlotsConfig(
+                common=CommonPlotsConfig(
+                    figure=FigureConfig(
+                        figsize=None,
+                        dpi=150,
+                        format="png",
+                    ),
+                    features=None,
+                    psi=True,
+                    observed_fitted=True,
+                    period="month",
+                    n_bins=10,
+                    epsilon=1e-6,
+                    numerical_distributions=NumericalFeatureDistributionConfig(
+                        features=None,
+                        quantile_bands=((0.05, 0.95), (0.25, 0.75)),
+                        show_mean=True,
+                        show_median=True,
+                    ),
+                    shap=None,
+                ),
+                gains=False,
+                lift=False,
+                time_observed_fitted=True,
+            ),
+        ),
+        validation_splits="last",
+        post_fit=PostFitEvaluationConfig(
+            stages=("validation", "final"),
+            splits=("train", "val", "test"),
+            write_artifacts=True,
+        ),
+    ),
+    tracking=TrackingConfig(
+        log_trial_models=False,
+        log_validation_models=False,
+        log_final_model=False,
+        input_example_rows=5,
+        model_name="model",
+        registered_model_name=None,
+        conda_env=None,
+    ),
+)
+config = regression_config
+model_factory = CatBoostRegressionModel
+params = {
+    "iterations": 20,
+    "depth": 2,
+    "random_seed": 42,
+    "thread_count": 2,
+    "verbose": False,
+    "allow_writing_files": False,
+    "loss_function": "RMSE",
+}
+metric = weighted_mae
+```
+
 Gains and lift stay off because they require nonnegative targets with a positive
 weighted total. Shared feature diagnostics and time observed/fitted remain on.
 
@@ -154,6 +362,8 @@ weighted total. Shared feature diagnostics and time observed/fitted remain on.
 
 Use nonnegative targets with a positive weighted total in every evaluated split.
 The log-link adapter fits a training-only baseline and returns positive rates.
+
+### Using the base configuration
 
 <!-- example: configuration-frequency -->
 
@@ -173,11 +383,103 @@ params = {**base_params, "loss_function": "Poisson"}
 metric = metrics_frequency
 ```
 
+### Full configuration
+
+<!-- example: configuration-frequency-full -->
+
+```python
+from ml_toolkit.config import (
+    CommonPlotsConfig,
+    FigureConfig,
+    NumericalFeatureDistributionConfig,
+    PostFitEvaluationConfig,
+    RegressionDiagnosticsConfig,
+    RegressionPlotsConfig,
+    ReportingConfig,
+    TimeSeriesCVConfig,
+    TrackingConfig,
+    TrainingConfig,
+)
+from ml_toolkit.metrics import metrics_frequency
+from ml_toolkit.models import CatBoostLogLinkRegressionModel
+
+frequency_config = TrainingConfig(
+    validation=TimeSeriesCVConfig(
+        n_splits=3,
+        val_size=None,
+        gap=0,
+        max_train_size=None,
+        skip_splits=0,
+    ),
+    test_size=0.2,
+    tuning=None,
+    reporting=ReportingConfig(
+        diagnostics=RegressionDiagnosticsConfig(
+            task="frequency",
+            plots=RegressionPlotsConfig(
+                common=CommonPlotsConfig(
+                    figure=FigureConfig(
+                        figsize=None,
+                        dpi=150,
+                        format="png",
+                    ),
+                    features=None,
+                    psi=True,
+                    observed_fitted=True,
+                    period="month",
+                    n_bins=10,
+                    epsilon=1e-6,
+                    numerical_distributions=NumericalFeatureDistributionConfig(
+                        features=None,
+                        quantile_bands=((0.05, 0.95), (0.25, 0.75)),
+                        show_mean=True,
+                        show_median=True,
+                    ),
+                    shap=None,
+                ),
+                gains=True,
+                lift=True,
+                time_observed_fitted=True,
+            ),
+        ),
+        validation_splits="last",
+        post_fit=PostFitEvaluationConfig(
+            stages=("validation", "final"),
+            splits=("train", "val", "test"),
+            write_artifacts=True,
+        ),
+    ),
+    tracking=TrackingConfig(
+        log_trial_models=False,
+        log_validation_models=False,
+        log_final_model=False,
+        input_example_rows=5,
+        model_name="model",
+        registered_model_name=None,
+        conda_env=None,
+    ),
+)
+config = frequency_config
+model_factory = CatBoostLogLinkRegressionModel
+params = {
+    "iterations": 20,
+    "depth": 2,
+    "random_seed": 42,
+    "thread_count": 2,
+    "verbose": False,
+    "allow_writing_files": False,
+    "loss_function": "Poisson",
+}
+metric = metrics_frequency
+```
+
 ## Severity
 
 Use a Tweedie power consistent with the model loss and metric. Here `power=1.5`
 allows zero targets and requires positive predictions and positive weighted
 observed totals. Gamma deviance (`power=2`) requires strictly positive targets.
+
+### Using the base configuration
 
 <!-- example: configuration-severity -->
 
@@ -203,12 +505,111 @@ params = {**base_params, "loss_function": "Tweedie:variance_power=1.5"}
 metric = severity_metric
 ```
 
+### Full configuration
+
+<!-- example: configuration-severity-full -->
+
+```python
+from ml_toolkit.config import (
+    CommonPlotsConfig,
+    FigureConfig,
+    NumericalFeatureDistributionConfig,
+    PostFitEvaluationConfig,
+    RegressionDiagnosticsConfig,
+    RegressionPlotsConfig,
+    ReportingConfig,
+    TimeSeriesCVConfig,
+    TrackingConfig,
+    TrainingConfig,
+)
+from ml_toolkit.metrics import MetricsSeverity, metrics_severity
+from ml_toolkit.models import CatBoostLogLinkRegressionModel
+from ml_toolkit.types import FloatArray
+
+def severity_metric(
+    observed: FloatArray, prediction: FloatArray, weight: FloatArray
+) -> MetricsSeverity:
+    return metrics_severity(observed, prediction, weight, power=1.5)
+
+
+severity_config = TrainingConfig(
+    validation=TimeSeriesCVConfig(
+        n_splits=3,
+        val_size=None,
+        gap=0,
+        max_train_size=None,
+        skip_splits=0,
+    ),
+    test_size=0.2,
+    tuning=None,
+    reporting=ReportingConfig(
+        diagnostics=RegressionDiagnosticsConfig(
+            task="severity",
+            plots=RegressionPlotsConfig(
+                common=CommonPlotsConfig(
+                    figure=FigureConfig(
+                        figsize=None,
+                        dpi=150,
+                        format="png",
+                    ),
+                    features=None,
+                    psi=True,
+                    observed_fitted=True,
+                    period="month",
+                    n_bins=10,
+                    epsilon=1e-6,
+                    numerical_distributions=NumericalFeatureDistributionConfig(
+                        features=None,
+                        quantile_bands=((0.05, 0.95), (0.25, 0.75)),
+                        show_mean=True,
+                        show_median=True,
+                    ),
+                    shap=None,
+                ),
+                gains=True,
+                lift=True,
+                time_observed_fitted=True,
+            ),
+        ),
+        validation_splits="last",
+        post_fit=PostFitEvaluationConfig(
+            stages=("validation", "final"),
+            splits=("train", "val", "test"),
+            write_artifacts=True,
+        ),
+    ),
+    tracking=TrackingConfig(
+        log_trial_models=False,
+        log_validation_models=False,
+        log_final_model=False,
+        input_example_rows=5,
+        model_name="model",
+        registered_model_name=None,
+        conda_env=None,
+    ),
+)
+config = severity_config
+model_factory = CatBoostLogLinkRegressionModel
+params = {
+    "iterations": 20,
+    "depth": 2,
+    "random_seed": 42,
+    "thread_count": 2,
+    "verbose": False,
+    "allow_writing_files": False,
+    "loss_function": "Tweedie:variance_power=1.5",
+}
+metric = severity_metric
+```
+
 ## Positive–unlabeled classification
 
 Targets use `1` for known positives and `0` for unlabeled observations. Each
 training and evaluated sample needs positive weight in both groups. The prior
 is the expected positive fraction in the population, not the labeled fraction.
 Use the same prior in the model and metric.
+
+### Using the base configuration
 
 <!-- example: configuration-pu -->
 
@@ -224,6 +625,95 @@ pu_classification_config = replace(
 config = pu_classification_config
 model_factory = CatBoostPUClassificationModel
 params = {**base_params, "loss": "uPU", "pu_prior": 0.2}
+metric = PUMetric(0.2, loss="uPU")
+```
+
+### Full configuration
+
+<!-- example: configuration-pu-full -->
+
+```python
+from ml_toolkit.config import (
+    CommonPlotsConfig,
+    FigureConfig,
+    NumericalFeatureDistributionConfig,
+    PUDiagnosticsConfig,
+    PUPlotsConfig,
+    PostFitEvaluationConfig,
+    ReportingConfig,
+    TimeSeriesCVConfig,
+    TrackingConfig,
+    TrainingConfig,
+)
+from ml_toolkit.metrics import PUMetric
+from ml_toolkit.models import CatBoostPUClassificationModel
+
+pu_classification_config = TrainingConfig(
+    validation=TimeSeriesCVConfig(
+        n_splits=3,
+        val_size=None,
+        gap=0,
+        max_train_size=None,
+        skip_splits=0,
+    ),
+    test_size=0.2,
+    tuning=None,
+    reporting=ReportingConfig(
+        diagnostics=PUDiagnosticsConfig(
+            plots=PUPlotsConfig(
+                common=CommonPlotsConfig(
+                    figure=FigureConfig(
+                        figsize=None,
+                        dpi=150,
+                        format="png",
+                    ),
+                    features=None,
+                    psi=True,
+                    observed_fitted=True,
+                    period="month",
+                    n_bins=10,
+                    epsilon=1e-6,
+                    numerical_distributions=NumericalFeatureDistributionConfig(
+                        features=None,
+                        quantile_bands=((0.05, 0.95), (0.25, 0.75)),
+                        show_mean=True,
+                        show_median=True,
+                    ),
+                    shap=None,
+                ),
+                score_distribution=True,
+                positive_capture=True,
+                histogram_bins=30,
+            ),
+        ),
+        validation_splits="last",
+        post_fit=PostFitEvaluationConfig(
+            stages=("validation", "final"),
+            splits=("train", "val", "test"),
+            write_artifacts=True,
+        ),
+    ),
+    tracking=TrackingConfig(
+        log_trial_models=False,
+        log_validation_models=False,
+        log_final_model=False,
+        input_example_rows=5,
+        model_name="model",
+        registered_model_name=None,
+        conda_env=None,
+    ),
+)
+config = pu_classification_config
+model_factory = CatBoostPUClassificationModel
+params = {
+    "iterations": 20,
+    "depth": 2,
+    "random_seed": 42,
+    "thread_count": 2,
+    "verbose": False,
+    "allow_writing_files": False,
+    "loss": "uPU", "pu_prior": 0.2,
+}
 metric = PUMetric(0.2, loss="uPU")
 ```
 
