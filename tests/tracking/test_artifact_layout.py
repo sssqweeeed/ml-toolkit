@@ -96,24 +96,28 @@ def test_diagnostic_layout_preserves_all_images_and_tables(
 
     suffix = f".{format}"
     expected_images = {
-        f"figures/psi/{split.value}/scores{suffix}",
+        f"figures/psi/scores{suffix}",
         f"figures/shap/{split.value}/importance{suffix}",
         f"figures/shap/{split.value}/beeswarm{suffix}",
     }
-    collections = ("psi", "observed_fitted", "feature_distributions", "shap")
-    directories = ("time_by_feature", "by_feature", "time_by_feature", "dependence")
-    for category, directory in zip(collections, directories, strict=True):
+    feature_directories = (
+        "figures/psi/time_by_feature",
+        "figures/observed_fitted/by_feature",
+        "figures/feature_distributions/time_by_feature",
+        f"figures/shap/{split.value}/dependence",
+    )
+    for directory in feature_directories:
         expected_images.update(
-            f"figures/{category}/{split.value}/{directory}/{feature}{suffix}"
+            f"{directory}/{feature}{suffix}"
             for feature in ("000_x", "001_unused")
         )
     expected_images.update(
         f"figures/performance/{split.value}/{name}{suffix}" for name in performance
     )
     if task != "pu":
-        expected_images.add(f"figures/observed_fitted/{split.value}/time{suffix}")
+        expected_images.add(f"figures/observed_fitted/time{suffix}")
     expected_tables = {
-        f"tables/psi/{split.value}/{name}.json"
+        f"tables/psi/{name}.json"
         for name in ("scores", "level_distribution", "time_distribution")
     }
     client = mlflow.MlflowClient()
@@ -135,10 +139,10 @@ def test_diagnostic_layout_preserves_all_images_and_tables(
     # The same feature filename must retain a distinct image in each category.
     assert len(
         {
-            images[f"figures/{category}/{split.value}/{directory}/000_x{suffix}"]
-            for category, directory in zip(collections, directories, strict=True)
+            images[f"{directory}/000_x{suffix}"]
+            for directory in feature_directories
         }
-    ) == len(collections)
+    ) == len(feature_directories)
     assert set(tables) == expected_tables
     for path in expected_tables:
         assert tables[path]
@@ -174,6 +178,6 @@ def test_feature_filenames_preserve_order_and_disambiguate_sanitized_names(
         "filenames",
     )
     assert images == [
-        f"figures/observed_fitted/val/by_feature/{filename}.png"
+        f"figures/observed_fitted/by_feature/{filename}.png"
         for filename in ("000_x_value", "001_x_value", "002_feature", "003_" + "x" * 60)
     ]

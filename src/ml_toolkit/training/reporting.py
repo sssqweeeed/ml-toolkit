@@ -225,26 +225,26 @@ def report_diagnostics(
                         current_time=validation.time,
                     )
                     log_polars_table(
-                        psi_result.psi, f"tables/psi/{split.value}/scores.json"
+                        psi_result.psi, "tables/psi/scores.json"
                     )
                     log_polars_table(
                         psi_result.level_distribution,
-                        f"tables/psi/{split.value}/level_distribution.json",
+                        "tables/psi/level_distribution.json",
                     )
                     if not psi_result.time_distribution.is_empty():
                         log_polars_table(
                             psi_result.time_distribution,
-                            f"tables/psi/{split.value}/time_distribution.json",
+                            "tables/psi/time_distribution.json",
                         )
                     emit(
-                        f"figures/psi/{split.value}/scores.png",
+                        "figures/psi/scores.png",
                         psi_plots.feature_psi_plot,
                         psi_result.psi,
                     )
                     if not psi_result.time_distribution.is_empty():
                         for index, feature in enumerate(level_config.features):
                             emit(
-                                f"figures/psi/{split.value}/time_by_feature/"
+                                "figures/psi/time_by_feature/"
                                 f"{_feature_filename(index, feature.name)}",
                                 psi_plots.time_psi_level_distribution,
                                 psi_result.time_distribution,
@@ -254,7 +254,7 @@ def report_diagnostics(
                 if common.observed_fitted:
                     for index, feature in enumerate(level_config.features):
                         emit(
-                            f"figures/observed_fitted/{split.value}/by_feature/"
+                            "figures/observed_fitted/by_feature/"
                             f"{_feature_filename(index, feature.name)}",
                             regression.observed_fitted_by_level,
                             reference_levels.get_column(feature.name),
@@ -275,7 +275,7 @@ def report_diagnostics(
         if isinstance(plots, (ClassificationPlotsConfig, RegressionPlotsConfig)):
             if plots.time_observed_fitted:
                 emit(
-                    f"figures/observed_fitted/{split.value}/time.png",
+                    "figures/observed_fitted/time.png",
                     regression.time_observed_fitted,
                     train.time.to_list(),
                     train_y,
@@ -366,7 +366,7 @@ def report_diagnostics(
                 ):
                     raise ValueError(f"Feature {feature!r} is missing or not numerical")
                 emit(
-                    f"figures/feature_distributions/{split.value}/time_by_feature/"
+                    "figures/feature_distributions/time_by_feature/"
                     f"{_feature_filename(index, feature)}",
                     monitoring.time_feature_distribution,
                     reference,

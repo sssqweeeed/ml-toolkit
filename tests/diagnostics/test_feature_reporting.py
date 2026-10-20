@@ -122,20 +122,20 @@ def test_shared_diagnostics_switches_and_single_reference_fit(
         assert not fits and not transforms
     assert bool(tables) == psi
     if psi:
-        assert tables["tables/psi/test/scores.json"]["feature"].to_list() == [
+        assert tables["tables/psi/scores.json"]["feature"].to_list() == [
             "unused",
             "x",
         ]
         assert comparisons[0][0] is transforms[0]
         assert comparisons[0][1] is transforms[1]
-        assert "figures/psi/test/time_by_feature/000_unused.png" in artifacts
-        assert "figures/psi/test/time_by_feature/001_x.png" in artifacts
+        assert "figures/psi/time_by_feature/000_unused.png" in artifacts
+        assert "figures/psi/time_by_feature/001_x.png" in artifacts
     else:
         assert not comparisons
     assert len(summaries) == (2 if observed_fitted else 0)
     if observed_fitted:
-        assert "figures/observed_fitted/test/by_feature/000_unused.png" in artifacts
-        assert "figures/observed_fitted/test/by_feature/001_x.png" in artifacts
+        assert "figures/observed_fitted/by_feature/000_unused.png" in artifacts
+        assert "figures/observed_fitted/by_feature/001_x.png" in artifacts
         for args, kwargs, summary in summaries:
             name = kwargs["feature_name"]
             assert args[0].equals(transforms[0][name])

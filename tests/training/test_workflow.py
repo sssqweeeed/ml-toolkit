@@ -341,12 +341,12 @@ def test_test_reuses_reports_and_evaluator_independently_of_split_selection(tmp_
         artifacts = list_all_artifacts(client, run.info.run_id)
         name = run.data.tags["mlflow.runName"]
         if name == "validation/split_1":
-            assert "tables/psi/val/scores.json" in artifacts
+            assert "tables/psi/scores.json" in artifacts
         elif name == "validation/split_2":
             assert not artifacts
         elif name == "final_fit":
-            assert "tables/psi/test/scores.json" in artifacts
-            assert "figures/observed_fitted/test/by_feature/000_x.png" in artifacts
+            assert "tables/psi/scores.json" in artifacts
+            assert "figures/observed_fitted/by_feature/000_x.png" in artifacts
             assert "test/custom/rows" in run.data.metrics
             assert "test/mae" in run.data.metrics
             assert "val/mae" not in run.data.metrics

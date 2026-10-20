@@ -334,6 +334,12 @@ with weighted train and validation/test means and volume bars. Missing or
 zero-weight groups have no mean and break the curve. Each validation split fits
 its own levels; test uses the final training sample as reference.
 
+Within each MLflow run, train-versus-validation/test comparisons are grouped under
+`figures/observed_fitted/`, `figures/feature_distributions/`, and `figures/psi/`,
+with PSI tables under `tables/psi/`. These shared artifacts have no `val` or `test`
+subfolder. Performance and SHAP figures describe only the evaluated dataset and
+retain that subfolder under `figures/performance/` and `figures/shap/`.
+
 Both flags default to `True` and work independently for every task. The separate
 `time_observed_fitted` flag controls time-based target/prediction charts. Setting
 the enclosing `plots=None` disables all built-in figures and PSI tables.

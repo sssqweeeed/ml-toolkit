@@ -224,16 +224,16 @@ def test_training_logs_psi_and_plots(tmp_path, caplog):
     for fold in folds:
         artifacts = list_all_artifacts(mlflow.MlflowClient(), fold.info.run_id)
         assert set(artifacts) == {
-            "tables/psi/val/scores.json",
-            "tables/psi/val/level_distribution.json",
-            "tables/psi/val/time_distribution.json",
-            "figures/psi/val/scores.png",
-            "figures/psi/val/time_by_feature/000_x.png",
-            "figures/psi/val/time_by_feature/001_unused.png",
-            "figures/observed_fitted/val/time.png",
-            "figures/observed_fitted/val/by_feature/000_x.png",
-            "figures/observed_fitted/val/by_feature/001_unused.png",
-            "figures/feature_distributions/val/time_by_feature/000_x.png",
+            "tables/psi/scores.json",
+            "tables/psi/level_distribution.json",
+            "tables/psi/time_distribution.json",
+            "figures/psi/scores.png",
+            "figures/psi/time_by_feature/000_x.png",
+            "figures/psi/time_by_feature/001_unused.png",
+            "figures/observed_fitted/time.png",
+            "figures/observed_fitted/by_feature/000_x.png",
+            "figures/observed_fitted/by_feature/001_unused.png",
+            "figures/feature_distributions/time_by_feature/000_x.png",
         }
     messages = [
         record.getMessage()
@@ -245,7 +245,7 @@ def test_training_logs_psi_and_plots(tmp_path, caplog):
         for message in messages
     )
     assert (
-        "Logged diagnostic figure figures/psi/val/scores.png for validation/split_1"
+        "Logged diagnostic figure figures/psi/scores.png for validation/split_1"
         in messages
     )
 
@@ -327,7 +327,11 @@ def test_bundled_classifier_and_classification_diagnostics(tmp_path):
     artifacts = list_all_artifacts(mlflow.MlflowClient(), fold.info.run_id)
     assert "figures/performance/val/precision_recall.png" in artifacts
     assert "figures/performance/val/calibration.png" in artifacts
-    assert all(path.split("/")[2] == "val" for path in artifacts)
+    for path in artifacts:
+        if path.startswith("figures/performance/"):
+            assert path.split("/")[2] == "val"
+        else:
+            assert path.split("/")[2] not in {"val", "test"}
     final = next(
         run for run in runs if run.data.tags.get("mlflow.runName") == "final_fit"
     )
