@@ -28,6 +28,8 @@ from sklearn.model_selection import train_test_split
 
 from ml_toolkit.types import FloatArray, IntArray
 
+from examples.project_pool import ProjectPool
+
 
 BIKE_URL = "https://archive.ics.uci.edu/static/public/275/bike+sharing+dataset.zip"
 DEFAULT_DATA_HOME = Path(__file__).resolve().parents[1] / ".cache/uci-bike-sharing"
@@ -207,6 +209,39 @@ def _digits_gallery() -> DigitsGallery:
         train_indices=train,
         test_indices=test,
         native_model=classifier,
+    )
+
+
+def load_bike_pool(
+    *, data_home: Path | None = None, download_if_missing: bool = True
+) -> ProjectPool:
+    """Load the original hourly records for a chronological training example.
+
+    Parameters
+    ----------
+    data_home : pathlib.Path or None, default None
+        Cache containing hour.csv; None uses the gallery's repository cache.
+    download_if_missing : bool, default True
+        Download the official UCI archive when absent. False fails without
+        downloading. The loader does not fit any model or sample any rows.
+
+    Returns
+    -------
+    ProjectPool
+        All 17,379 recorded hours in timestamp order, with eleven weather and
+        calendar features, rental counts as targets, and unit hourly weights.
+        Counts revealing the target (casual and registered) are excluded.
+    """
+    directory = DEFAULT_DATA_HOME if data_home is None else data_home
+    records = _bike_records(directory, download_if_missing)
+    features = records.select(*BIKE_FEATURES).rename(BIKE_FEATURES)
+    return ProjectPool(
+        X=features,
+        y=records["cnt"].cast(pl.Float64),
+        time=records["timestamp"],
+        weight=pl.Series("weight", np.ones(len(records), dtype=np.float64)),
+        cat_features=(),
+        numerical_features=tuple(features.columns),
     )
 
 

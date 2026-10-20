@@ -3,7 +3,9 @@
 Configurations are immutable, keyword-only dataclasses. Start with shared
 settings, then choose a model, metric, and diagnostic family for your target.
 Each task includes a compact recipe using `base_config` and a standalone full
-configuration with every active constructor field written explicitly.
+configuration with feature selection, parameter tuning, SHAP, and final-model
+packaging enabled. The full recipes spell out the nested settings and the
+callbacks passed separately to training.
 Use `dataclasses.replace` to change settings without modifying the original.
 The [configuration reference](api/configuration.md) lists every field and default.
 
@@ -22,13 +24,36 @@ The [configuration reference](api/configuration.md) lists every field and defaul
 Run this block first when using a compact recipe. Full configuration blocks
 include their own imports and do not require this setup. Choose either version
 of one task; both define `config`, `model_factory`, `params`, and `metric` for
-the same training call and produce equivalent settings.
+the same training call. Full recipes also define `feature_selector` and
+`param_space`; compact recipes set these to `None`.
 
-Full configurations explicitly disable tuning and SHAP with `None`. To enable
-these optional features, see the [tuning recipe](api/training.md) and
-[SHAP configuration](#shared-psi-and-observedfitted-diagnostics). Feature
-selection is supplied to `train_model` as `feature_selector`, not as a
-`TrainingConfig` field.
+Full recipes require the `shap` extra (`pip install 'ml-toolkit[shap]'`) and
+at least two input features to exercise elimination. Each validation split
+compares up to two RFE subsets, then runs two Optuna trials on the selected
+features. These small budgets keep the examples quick; increase `max_fits`,
+`n_trials`, and the model's `iterations` for your experiment. `min_features=1`
+is a lower bound, not a promise to select exactly one feature.
+
+Feature selection is configured in `RFESelector` and passed as
+`feature_selector`; it is not a `TrainingConfig` field. `TuningConfig` supplies
+the search budget and objective, while the separate `param_space` callback
+supplies the parameters to search. Both selection and tuning use the named
+score returned by the task's metric. Final fitting reuses the last split's
+selected features and settings; test rows never participate in either search.
+
+| Capability | Compact recipe | Full recipe |
+| --- | --- | --- |
+| Feature selection | All input features | RFE with native feature importance |
+| Parameter tuning | Off | Per-split Optuna search for depth and learning rate |
+| SHAP | Off | Importance and beeswarm on validation/test |
+| Final-model packaging | Off | Saved in MLflow with the selected input schema |
+| Custom evaluation | No callback | No callback; see [custom evaluation](api/training.md#add-custom-evaluation) |
+
+Custom evaluation needs a project-specific `PostFitEvaluator` and aligned
+`data.object_id`. `post_fit_evaluator=None` is explicit in both recipes;
+`PostFitEvaluationConfig` alone does not create an evaluator. Built-in metrics,
+PSI, and figures need no custom evaluator. See [selector alternatives](api/training.md#choose-a-selector)
+for Top-K, forward selection, and SHAP ranking.
 
 <!-- example: configuration-shared -->
 
@@ -82,7 +107,7 @@ base_params = {
 common = CommonPlotsConfig()
 ```
 
-These examples keep feature selection, tuning, SHAP, and model packaging off.
+The compact recipes keep feature selection, tuning, SHAP, and model packaging off.
 Built-in diagnostics run on the last validation split and on test. Metrics and
 configuration are always logged to MLflow. Set
 `TrackingConfig(log_final_model=True)` to also package the final model.
@@ -124,6 +149,9 @@ config = classification_config
 model_factory = CatBoostClassificationModel
 params = {**base_params, "loss_function": "Logloss"}
 metric = metrics_classification
+feature_selector = None
+param_space = None
+post_fit_evaluator = None
 ```
 
 ### Full configuration
@@ -131,6 +159,8 @@ metric = metrics_classification
 <!-- example: configuration-classification-full -->
 
 ```python
+from optuna import Trial
+
 from ml_toolkit.config import (
     ClassificationDiagnosticsConfig,
     ClassificationPlotsConfig,
@@ -139,12 +169,17 @@ from ml_toolkit.config import (
     NumericalFeatureDistributionConfig,
     PostFitEvaluationConfig,
     ReportingConfig,
+    ShapConfig,
     TimeSeriesCVConfig,
     TrackingConfig,
     TrainingConfig,
+    TuningConfig,
 )
+from ml_toolkit.feature_selection import RFESelector
 from ml_toolkit.metrics import metrics_classification
 from ml_toolkit.models import CatBoostClassificationModel
+from ml_toolkit.training import importance_ranker
+from ml_toolkit.types import ModelParams
 
 classification_config = TrainingConfig(
     validation=TimeSeriesCVConfig(
@@ -155,7 +190,13 @@ classification_config = TrainingConfig(
         skip_splits=0,
     ),
     test_size=0.2,
-    tuning=None,
+    tuning=TuningConfig(
+        metric="log_loss",
+        direction="minimize",
+        n_trials=2,
+        timeout_seconds=None,
+        seed=42,
+    ),
     reporting=ReportingConfig(
         diagnostics=ClassificationDiagnosticsConfig(
             plots=ClassificationPlotsConfig(
@@ -177,7 +218,12 @@ classification_config = TrainingConfig(
                         show_mean=True,
                         show_median=True,
                     ),
-                    shap=None,
+                    shap=ShapConfig(
+                        max_samples=500,
+                        seed=42,
+                        max_display=10,
+                        dependence_features=(),
+                    ),
                 ),
                 precision_recall=True,
                 f1_threshold=True,
@@ -200,7 +246,7 @@ classification_config = TrainingConfig(
     tracking=TrackingConfig(
         log_trial_models=False,
         log_validation_models=False,
-        log_final_model=False,
+        log_final_model=True,
         input_example_rows=5,
         model_name="model",
         registered_model_name=None,
@@ -219,6 +265,25 @@ params = {
     "loss_function": "Logloss",
 }
 metric = metrics_classification
+feature_selector = RFESelector(
+    min_features=1,
+    metric="log_loss",
+    direction="minimize",
+    ranker=importance_ranker,
+    max_fits=2,
+    score_tolerance=0.0,
+    protected_features=(),
+)
+
+
+def param_space(trial: Trial) -> ModelParams:
+    return {
+        "depth": trial.suggest_int("depth", 1, 3),
+        "learning_rate": trial.suggest_float("learning_rate", 0.03, 0.1, log=True),
+    }
+
+
+post_fit_evaluator = None
 ```
 
 The reports include precision-recall, F1, calibration, gains/lift, temporal means,
@@ -254,6 +319,9 @@ config = regression_config
 model_factory = CatBoostRegressionModel
 params = {**base_params, "loss_function": "RMSE"}
 metric = weighted_mae
+feature_selector = None
+param_space = None
+post_fit_evaluator = None
 ```
 
 ### Full configuration
@@ -261,6 +329,8 @@ metric = weighted_mae
 <!-- example: configuration-regression-full -->
 
 ```python
+from optuna import Trial
+
 from ml_toolkit.config import (
     CommonPlotsConfig,
     FigureConfig,
@@ -269,13 +339,18 @@ from ml_toolkit.config import (
     RegressionDiagnosticsConfig,
     RegressionPlotsConfig,
     ReportingConfig,
+    ShapConfig,
     TimeSeriesCVConfig,
     TrackingConfig,
     TrainingConfig,
+    TuningConfig,
 )
+from ml_toolkit.feature_selection import RFESelector
 from ml_toolkit.metrics import MetricScores
 from ml_toolkit.models import CatBoostRegressionModel
-from ml_toolkit.types import FloatArray
+from ml_toolkit.training import importance_ranker
+from ml_toolkit.types import FloatArray, ModelParams
+
 
 def weighted_mae(
     observed: FloatArray, prediction: FloatArray, weight: FloatArray
@@ -294,7 +369,13 @@ regression_config = TrainingConfig(
         skip_splits=0,
     ),
     test_size=0.2,
-    tuning=None,
+    tuning=TuningConfig(
+        metric="mae",
+        direction="minimize",
+        n_trials=2,
+        timeout_seconds=None,
+        seed=42,
+    ),
     reporting=ReportingConfig(
         diagnostics=RegressionDiagnosticsConfig(
             task="regression",
@@ -317,7 +398,12 @@ regression_config = TrainingConfig(
                         show_mean=True,
                         show_median=True,
                     ),
-                    shap=None,
+                    shap=ShapConfig(
+                        max_samples=500,
+                        seed=42,
+                        max_display=10,
+                        dependence_features=(),
+                    ),
                 ),
                 gains=False,
                 lift=False,
@@ -334,7 +420,7 @@ regression_config = TrainingConfig(
     tracking=TrackingConfig(
         log_trial_models=False,
         log_validation_models=False,
-        log_final_model=False,
+        log_final_model=True,
         input_example_rows=5,
         model_name="model",
         registered_model_name=None,
@@ -353,6 +439,25 @@ params = {
     "loss_function": "RMSE",
 }
 metric = weighted_mae
+feature_selector = RFESelector(
+    min_features=1,
+    metric="mae",
+    direction="minimize",
+    ranker=importance_ranker,
+    max_fits=2,
+    score_tolerance=0.0,
+    protected_features=(),
+)
+
+
+def param_space(trial: Trial) -> ModelParams:
+    return {
+        "depth": trial.suggest_int("depth", 1, 3),
+        "learning_rate": trial.suggest_float("learning_rate", 0.03, 0.1, log=True),
+    }
+
+
+post_fit_evaluator = None
 ```
 
 Gains and lift stay off because they require nonnegative targets with a positive
@@ -381,6 +486,9 @@ config = frequency_config
 model_factory = CatBoostLogLinkRegressionModel
 params = {**base_params, "loss_function": "Poisson"}
 metric = metrics_frequency
+feature_selector = None
+param_space = None
+post_fit_evaluator = None
 ```
 
 ### Full configuration
@@ -388,6 +496,8 @@ metric = metrics_frequency
 <!-- example: configuration-frequency-full -->
 
 ```python
+from optuna import Trial
+
 from ml_toolkit.config import (
     CommonPlotsConfig,
     FigureConfig,
@@ -396,12 +506,17 @@ from ml_toolkit.config import (
     RegressionDiagnosticsConfig,
     RegressionPlotsConfig,
     ReportingConfig,
+    ShapConfig,
     TimeSeriesCVConfig,
     TrackingConfig,
     TrainingConfig,
+    TuningConfig,
 )
+from ml_toolkit.feature_selection import RFESelector
 from ml_toolkit.metrics import metrics_frequency
 from ml_toolkit.models import CatBoostLogLinkRegressionModel
+from ml_toolkit.training import importance_ranker
+from ml_toolkit.types import ModelParams
 
 frequency_config = TrainingConfig(
     validation=TimeSeriesCVConfig(
@@ -412,7 +527,13 @@ frequency_config = TrainingConfig(
         skip_splits=0,
     ),
     test_size=0.2,
-    tuning=None,
+    tuning=TuningConfig(
+        metric="mean_poisson_deviance",
+        direction="minimize",
+        n_trials=2,
+        timeout_seconds=None,
+        seed=42,
+    ),
     reporting=ReportingConfig(
         diagnostics=RegressionDiagnosticsConfig(
             task="frequency",
@@ -435,7 +556,12 @@ frequency_config = TrainingConfig(
                         show_mean=True,
                         show_median=True,
                     ),
-                    shap=None,
+                    shap=ShapConfig(
+                        max_samples=500,
+                        seed=42,
+                        max_display=10,
+                        dependence_features=(),
+                    ),
                 ),
                 gains=True,
                 lift=True,
@@ -452,7 +578,7 @@ frequency_config = TrainingConfig(
     tracking=TrackingConfig(
         log_trial_models=False,
         log_validation_models=False,
-        log_final_model=False,
+        log_final_model=True,
         input_example_rows=5,
         model_name="model",
         registered_model_name=None,
@@ -471,6 +597,25 @@ params = {
     "loss_function": "Poisson",
 }
 metric = metrics_frequency
+feature_selector = RFESelector(
+    min_features=1,
+    metric="mean_poisson_deviance",
+    direction="minimize",
+    ranker=importance_ranker,
+    max_fits=2,
+    score_tolerance=0.0,
+    protected_features=(),
+)
+
+
+def param_space(trial: Trial) -> ModelParams:
+    return {
+        "depth": trial.suggest_int("depth", 1, 3),
+        "learning_rate": trial.suggest_float("learning_rate", 0.03, 0.1, log=True),
+    }
+
+
+post_fit_evaluator = None
 ```
 
 ## Severity
@@ -503,6 +648,9 @@ config = severity_config
 model_factory = CatBoostLogLinkRegressionModel
 params = {**base_params, "loss_function": "Tweedie:variance_power=1.5"}
 metric = severity_metric
+feature_selector = None
+param_space = None
+post_fit_evaluator = None
 ```
 
 ### Full configuration
@@ -510,6 +658,8 @@ metric = severity_metric
 <!-- example: configuration-severity-full -->
 
 ```python
+from optuna import Trial
+
 from ml_toolkit.config import (
     CommonPlotsConfig,
     FigureConfig,
@@ -518,13 +668,18 @@ from ml_toolkit.config import (
     RegressionDiagnosticsConfig,
     RegressionPlotsConfig,
     ReportingConfig,
+    ShapConfig,
     TimeSeriesCVConfig,
     TrackingConfig,
     TrainingConfig,
+    TuningConfig,
 )
+from ml_toolkit.feature_selection import RFESelector
 from ml_toolkit.metrics import MetricsSeverity, metrics_severity
 from ml_toolkit.models import CatBoostLogLinkRegressionModel
-from ml_toolkit.types import FloatArray
+from ml_toolkit.training import importance_ranker
+from ml_toolkit.types import FloatArray, ModelParams
+
 
 def severity_metric(
     observed: FloatArray, prediction: FloatArray, weight: FloatArray
@@ -541,7 +696,13 @@ severity_config = TrainingConfig(
         skip_splits=0,
     ),
     test_size=0.2,
-    tuning=None,
+    tuning=TuningConfig(
+        metric="mean_tweedie_deviance",
+        direction="minimize",
+        n_trials=2,
+        timeout_seconds=None,
+        seed=42,
+    ),
     reporting=ReportingConfig(
         diagnostics=RegressionDiagnosticsConfig(
             task="severity",
@@ -564,7 +725,12 @@ severity_config = TrainingConfig(
                         show_mean=True,
                         show_median=True,
                     ),
-                    shap=None,
+                    shap=ShapConfig(
+                        max_samples=500,
+                        seed=42,
+                        max_display=10,
+                        dependence_features=(),
+                    ),
                 ),
                 gains=True,
                 lift=True,
@@ -581,7 +747,7 @@ severity_config = TrainingConfig(
     tracking=TrackingConfig(
         log_trial_models=False,
         log_validation_models=False,
-        log_final_model=False,
+        log_final_model=True,
         input_example_rows=5,
         model_name="model",
         registered_model_name=None,
@@ -600,6 +766,25 @@ params = {
     "loss_function": "Tweedie:variance_power=1.5",
 }
 metric = severity_metric
+feature_selector = RFESelector(
+    min_features=1,
+    metric="mean_tweedie_deviance",
+    direction="minimize",
+    ranker=importance_ranker,
+    max_fits=2,
+    score_tolerance=0.0,
+    protected_features=(),
+)
+
+
+def param_space(trial: Trial) -> ModelParams:
+    return {
+        "depth": trial.suggest_int("depth", 1, 3),
+        "learning_rate": trial.suggest_float("learning_rate", 0.03, 0.1, log=True),
+    }
+
+
+post_fit_evaluator = None
 ```
 
 ## Positive–unlabeled classification
@@ -626,6 +811,9 @@ config = pu_classification_config
 model_factory = CatBoostPUClassificationModel
 params = {**base_params, "loss": "uPU", "pu_prior": 0.2}
 metric = PUMetric(0.2, loss="uPU")
+feature_selector = None
+param_space = None
+post_fit_evaluator = None
 ```
 
 ### Full configuration
@@ -633,6 +821,8 @@ metric = PUMetric(0.2, loss="uPU")
 <!-- example: configuration-pu-full -->
 
 ```python
+from optuna import Trial
+
 from ml_toolkit.config import (
     CommonPlotsConfig,
     FigureConfig,
@@ -641,12 +831,17 @@ from ml_toolkit.config import (
     PUPlotsConfig,
     PostFitEvaluationConfig,
     ReportingConfig,
+    ShapConfig,
     TimeSeriesCVConfig,
     TrackingConfig,
     TrainingConfig,
+    TuningConfig,
 )
+from ml_toolkit.feature_selection import RFESelector
 from ml_toolkit.metrics import PUMetric
 from ml_toolkit.models import CatBoostPUClassificationModel
+from ml_toolkit.training import importance_ranker
+from ml_toolkit.types import ModelParams
 
 pu_classification_config = TrainingConfig(
     validation=TimeSeriesCVConfig(
@@ -657,7 +852,13 @@ pu_classification_config = TrainingConfig(
         skip_splits=0,
     ),
     test_size=0.2,
-    tuning=None,
+    tuning=TuningConfig(
+        metric="pu_risk",
+        direction="minimize",
+        n_trials=2,
+        timeout_seconds=None,
+        seed=42,
+    ),
     reporting=ReportingConfig(
         diagnostics=PUDiagnosticsConfig(
             plots=PUPlotsConfig(
@@ -679,7 +880,12 @@ pu_classification_config = TrainingConfig(
                         show_mean=True,
                         show_median=True,
                     ),
-                    shap=None,
+                    shap=ShapConfig(
+                        max_samples=500,
+                        seed=42,
+                        max_display=10,
+                        dependence_features=(),
+                    ),
                 ),
                 score_distribution=True,
                 positive_capture=True,
@@ -696,7 +902,7 @@ pu_classification_config = TrainingConfig(
     tracking=TrackingConfig(
         log_trial_models=False,
         log_validation_models=False,
-        log_final_model=False,
+        log_final_model=True,
         input_example_rows=5,
         model_name="model",
         registered_model_name=None,
@@ -712,9 +918,29 @@ params = {
     "thread_count": 2,
     "verbose": False,
     "allow_writing_files": False,
-    "loss": "uPU", "pu_prior": 0.2,
+    "loss": "uPU",
+    "pu_prior": 0.2,
 }
 metric = PUMetric(0.2, loss="uPU")
+feature_selector = RFESelector(
+    min_features=1,
+    metric="pu_risk",
+    direction="minimize",
+    ranker=importance_ranker,
+    max_fits=2,
+    score_tolerance=0.0,
+    protected_features=(),
+)
+
+
+def param_space(trial: Trial) -> ModelParams:
+    return {
+        "depth": trial.suggest_int("depth", 1, 3),
+        "learning_rate": trial.suggest_float("learning_rate", 0.03, 0.1, log=True),
+    }
+
+
+post_fit_evaluator = None
 ```
 
 PU reports show score distributions and positive capture. They do not treat
@@ -745,6 +971,9 @@ result = train_model(
     metric=metric,
     run_name="task-example",
     config=config,
+    feature_selector=feature_selector,
+    param_space=param_space,
+    post_fit_evaluator=post_fit_evaluator,
 )
 print({name: round(value, 4) for name, value in result.validation.mean_metrics.items()})
 assert result.test_metrics is not None
@@ -758,20 +987,121 @@ print({name: round(value, 4) for name, value in result.test_metrics.items()})
 ```
 <!-- /output -->
 
-The output shown below the example uses the Frequency recipe and the data
+The output shown below the example uses the compact Frequency recipe and the data
 example. Choose your task block before running this shared call; its metric
 names and values will differ for other tasks.
 
 The call creates a local `mlflow.db` and logs metrics, configuration, tables,
-and figures. See the [training guide](api/training.md) to add feature selection,
-an Optuna search space, or a custom evaluator. Pass those callbacks as explicit
-arguments to `train_model`, alongside their configuration.
+and figures. Full recipes also log RFE history, Optuna trials, SHAP figures,
+and the final model. `result.features`, `result.feature_selection`, and
+`result.tuning` describe the last split's selected settings. Use
+`data.select_features(result.features)` when predicting with `result.model`;
+the selected model expects its fitted input schema. The model saved in MLflow
+can be reloaded for serving as shown in the
+[packaging example](api/training.md#implement-a-selector). The
+[training guide](api/training.md) explains alternative selectors, search spaces,
+and custom evaluators.
+
+## Inspect a complete run
+
+Run the **Frequency → Full configuration** block, then this example from a
+source checkout with the `shap` extra installed. It uses all 17,379 hourly records
+from the [UCI Bike Sharing dataset](https://archive.ics.uci.edu/dataset/275/bike+sharing+dataset),
+with recorded dates and hours from 2011–2012, eleven weather/calendar features,
+rental counts as targets, and unit weights per recorded hour. The loader caches
+the official archive in `.cache/uci-bike-sharing` on first use. No dates, targets,
+or distribution shifts are synthesized; no rows are sampled before splitting.
+
+The full configuration reserves the latest 20% of rows for test and performs
+three expanding chronological validation splits on the preceding rows.
+Selection and tuning are repeated independently in each split. SHAP uses at
+most 500 actual test rows, sampled with seed 42, and explains the final model's
+raw log-rate output. The preview below is generated by this exact run.
+
+<!-- example: configuration-full-run -->
+
+```python
+from pathlib import Path
+
+import mlflow
+
+from examples.gallery_data import load_bike_pool
+from ml_toolkit import train_model
+from ml_toolkit.explainability import calculate_shap_values
+from ml_toolkit.plots.explainability import shap_importance
+from ml_toolkit.training import split_holdout
+from ml_toolkit.config import HoldoutConfig
+
+data = load_bike_pool()
+mlflow.set_tracking_uri("sqlite:///mlflow.db")
+mlflow.set_experiment("ml-toolkit-task-recipes")
+result = train_model(
+    data=data,
+    params=params,
+    model_factory=model_factory,
+    metric=metric,
+    run_name="frequency-full-example",
+    config=config,
+    feature_selector=feature_selector,
+    param_space=param_space,
+    post_fit_evaluator=post_fit_evaluator,
+)
+assert result.feature_selection is not None
+assert result.tuning is not None
+assert result.test_metrics is not None
+print("Selected features:", result.features)
+print("Visited subset sizes:", [
+    len(step.features) for step in result.feature_selection.steps
+])
+print("Best trial:", result.tuning.best_trial)
+print("Test Poisson deviance:", round(result.test_metrics["mean_poisson_deviance"], 4))
+
+test = split_holdout(data, HoldoutConfig(val_size=config.test_size)).val
+selected_test = test.select_features(result.features)
+shap_config = config.reporting.diagnostics.plots.common.shap
+explanation = calculate_shap_values(
+    result.model.native_model, selected_test.X, config=shap_config
+)
+shap_importance(explanation, Path("frequency-full-shap.png"), config=shap_config)
+```
+
+<!-- output: configuration-full-run -->
+```text
+Selected features: ('temperature', 'feels_like_temperature', 'humidity', 'wind_speed', 'hour', 'working_day', 'weekday', 'holiday', 'season', 'weather', 'month')
+Visited subset sizes: [11, 1]
+Best trial: 0
+Test Poisson deviance: 114.3487
+```
+<!-- /output -->
+
+![Test SHAP importance from the full frequency recipe](assets/plots/frequency-full-shap.png)
+
+`steps` contains every subset evaluated in the last RFE search. A winning subset
+may contain more than `min_features`; RFE retains the best validation score,
+preferring a smaller subset only within `score_tolerance`. `best_trial` is
+zero-based. This small search demonstrates the workflow, not a tuned benchmark.
+The test deviance describes only the untouched future tail.
+
+The MLflow experiment contains all split histories under `selection/history.json`,
+per-trial runs under each split's `tuning` run, final diagnostics under
+`final_fit`, and the packaged final model with its selected input schema.
+SHAP importance and beeswarm figures are under `figures/shap/val/` and
+`figures/shap/test/` in the corresponding runs. `frequency-full-shap.png` is a
+local preview of the final test importance plot.
+
+Regenerate the captured output and preview with
+`python -m examples.render_examples --page docs/configuration.md`; add `--check`
+to execute the examples and detect stale output or a missing/changed figure.
 
 ## Switching validation strategies
 
 <!-- example: configuration-splits -->
 
 ```python
+from dataclasses import replace
+
+from ml_toolkit.config import HoldoutConfig
+
 holdout_config = replace(regression_config, validation=HoldoutConfig(val_size=0.2))
 no_test_config = replace(holdout_config, test_size=None)
 date_test_config = replace(holdout_config, test_size="2025-01-20")
@@ -792,6 +1122,10 @@ bounds. The following example replaces the regression reports:
 <!-- example: configuration-features -->
 
 ```python
+from dataclasses import replace
+
+from ml_toolkit.config import FeatureLevelSpec
+
 feature_common = CommonPlotsConfig(
     features=(
         FeatureLevelSpec("age", "numerical", lower_bound=0, upper_bound=120),
@@ -814,9 +1148,12 @@ feature_config = replace(
 `features=None` selects every eligible model feature; `features=()` disables
 both feature-level diagnostics. Explicit names must remain after feature
 selection. Raw numerical distributions are independently configured through
-`numerical_distributions`; set it to `None` to disable them. SHAP defaults off;
-set `shap=ShapConfig()` (imported from `ml_toolkit.config`) and install the `shap`
-extra to enable it.
+`numerical_distributions`; set it to `None` to disable them. SHAP defaults off
+in the compact recipes; the full recipes enable it with `ShapConfig`.
+Set `shap=None` to disable it. Empty `dependence_features` disables
+only dependence plots; importance and beeswarm remain enabled. If you name a
+dependence feature, keep it in `protected_features` so selection cannot remove
+it. The same constraint applies to explicit diagnostic feature lists.
 
 `psi=True` writes score and level-distribution tables, a PSI score figure, and
 time-based level distributions. `observed_fitted=True` writes one figure per feature

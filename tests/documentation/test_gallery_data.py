@@ -14,6 +14,7 @@ from examples.gallery_data import (
     BIKE_FEATURES,
     DEFAULT_DATA_HOME,
     bike_cache_available,
+    load_bike_pool,
     load_gallery_data,
 )
 
@@ -33,7 +34,25 @@ def test_missing_cache_never_downloads_when_disabled(tmp_path, monkeypatch):
     assert not bike_cache_available(tmp_path)
     with pytest.raises(FileNotFoundError, match="Bike Sharing data is not cached"):
         load_gallery_data(data_home=tmp_path, download_if_missing=False)
+    with pytest.raises(FileNotFoundError, match="Bike Sharing data is not cached"):
+        load_bike_pool(data_home=tmp_path, download_if_missing=False)
     assert list(tmp_path.iterdir()) == []
+
+
+def test_training_pool_retains_original_bike_rows_and_timestamps():
+    if not bike_cache_available():
+        pytest.skip("The full frequency example needs cached UCI Bike Sharing data")
+    data = load_bike_pool(download_if_missing=False)
+    source = pl.read_csv(DEFAULT_DATA_HOME / "hour.csv")
+    assert len(data) == len(source) == 17379
+    assert_frame_equal(data.X, source.select(*BIKE_FEATURES).rename(BIKE_FEATURES))
+    np.testing.assert_array_equal(data.y, source["cnt"])
+    expected_time = source.select(
+        pl.col("dteday").str.to_datetime("%Y-%m-%d") + pl.duration(hours=pl.col("hr"))
+    ).to_series()
+    np.testing.assert_array_equal(data.time, expected_time)
+    np.testing.assert_array_equal(data.weight, np.ones(len(source)))
+    assert data.numerical_features == tuple(data.X.columns)
 
 
 def test_digits_have_a_stratified_source_holdout_and_real_model_probabilities(gallery):

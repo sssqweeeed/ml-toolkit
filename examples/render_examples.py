@@ -13,6 +13,7 @@ import contextlib
 import io
 import os
 import re
+import shutil
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -77,13 +78,34 @@ def render_page(path: Path, *, check: bool) -> None:
     if relative == 'docs/api/tracking.md':
         prepare_model(namespace)
     outputs: dict[str, str] = {}
-    frequency: dict[str, object] = {}
+    frequency: dict[str, dict[str, object]] = {}
     for recipe in recipes(path):
         if recipe.name == 'configuration-run':
-            namespace.update(frequency)
+            namespace.update(frequency['configuration-frequency'])
+        elif recipe.name == 'configuration-full-run':
+            namespace.update(frequency['configuration-frequency-full'])
         outputs[recipe.name] = execute(recipe, namespace)
-        if recipe.name == 'configuration-frequency':
-            frequency = {name: namespace[name] for name in ('config','params','metric','model_factory')}
+        if recipe.name in {'configuration-frequency', 'configuration-frequency-full'}:
+            frequency[recipe.name] = {
+                name: namespace[name]
+                for name in (
+                    'config', 'params', 'metric', 'model_factory',
+                    'feature_selector', 'param_space', 'post_fit_evaluator',
+                )
+            }
+        if recipe.name == 'configuration-full-run':
+            from matplotlib.testing.compare import compare_images
+
+            generated = Path('frequency-full-shap.png')
+            asset = ROOT / 'docs/assets/plots/frequency-full-shap.png'
+            assert generated.is_file(), 'Full frequency recipe did not create its figure'
+            if check:
+                assert asset.is_file(), 'Missing full frequency SHAP figure'
+                assert compare_images(str(asset), str(generated), tol=1) is None, (
+                    'Stale full frequency SHAP figure; regenerate the configuration page'
+                )
+            else:
+                shutil.copyfile(generated, asset)
 
     def replace_output(match: re.Match[str]) -> str:
         printed = outputs[match['name']]
@@ -128,10 +150,15 @@ def render(*, check: bool = False, pages: tuple[str, ...] = PAGES) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--check', action='store_true', help='execute recipes and fail if captured output is stale')
+    parser.add_argument(
+        '--page', action='append', choices=PAGES,
+        help='render only the selected page (repeat for multiple pages)',
+    )
     arguments = parser.parse_args()
-    render(check=arguments.check)
-    from examples.render_plots import render as render_plots
-    render_plots(check=arguments.check)
+    render(check=arguments.check, pages=tuple(arguments.page) if arguments.page else PAGES)
+    if not arguments.page:
+        from examples.render_plots import render as render_plots
+        render_plots(check=arguments.check)
 
 
 if __name__ == '__main__':
