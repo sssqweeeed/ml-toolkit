@@ -1,18 +1,17 @@
-"""Interfaces for project-owned data containers and training extensions."""
+"""Shared data contract and interfaces for training extensions."""
 
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from enum import StrEnum
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal, Protocol, Self
+from typing import TYPE_CHECKING, Literal, Protocol
 
-import catboost
-import pandas as pd
 import polars as pl
 
-from ..types import FloatArray, IntArray
+from ..data import Pool as Pool
+from ..types import FloatArray
 
 if TYPE_CHECKING:
     from ..models.base import Model
@@ -158,168 +157,6 @@ class PostFitEvaluator(ABC):
         with evaluation stage and split context.
         """
         return []
-
-
-class Pool(Protocol):
-    """Describe project-owned data accepted by training and model adapters.
-
-    Implement this structural interface in your project. Pool is a protocol
-    for type annotations and cannot be instantiated. Explicit inheritance is
-    unnecessary; a compatible container supplies these attributes and methods.
-    Represent unused optional metadata with None.
-
-    Attributes
-    ----------
-    X : polars.DataFrame
-        Feature columns with one row per observation.
-    y : polars.Series
-        Finite numeric target values aligned with X.
-    time : polars.Series
-        Non-null ascending Date or Datetime observations aligned with X.
-    weight : polars.Series
-        Finite, nonnegative row weights with positive total.
-    cat_features : tuple[str, ...]
-        Names of categorical columns in X.
-    numerical_features : tuple[str, ...]
-        Declared numerical columns; may describe a subset of X.
-    object_id : polars.Series or None
-        Optional aligned, non-null string or integer IDs for custom evaluation;
-        repeated IDs are allowed.
-    business_type : polars.Series or None
-        Optional aligned groups for temporal diagnostics.
-
-    Notes
-    -----
-    Row operations must keep features, target, timestamps, and weights aligned.
-    Optional business_type values are used for grouped time plots. Attribute
-    access is read-only here so frozen and mutable project containers can both
-    satisfy the protocol. Row and feature operations preserve the concrete
-    container type and all associated row metadata.
-    """
-
-    @property
-    def X(self) -> pl.DataFrame:
-        """Return aligned feature columns."""
-        ...
-
-    @property
-    def y(self) -> pl.Series:
-        """Return aligned target values."""
-        ...
-
-    @property
-    def time(self) -> pl.Series:
-        """Return aligned observation timestamps."""
-        ...
-
-    @property
-    def weight(self) -> pl.Series:
-        """Return aligned row weights."""
-        ...
-
-    @property
-    def cat_features(self) -> tuple[str, ...]:
-        """Return categorical feature names."""
-        ...
-
-    @property
-    def numerical_features(self) -> tuple[str, ...]:
-        """Return declared numerical feature names."""
-        ...
-
-    @property
-    def object_id(self) -> pl.Series | None:
-        """Return aligned IDs, or None when custom evaluation is unavailable."""
-        ...
-
-    @property
-    def business_type(self) -> pl.Series | None:
-        """Return aligned diagnostic groups, or None."""
-        ...
-
-    def __len__(self) -> int:
-        """Return the number of aligned observations."""
-        ...
-
-    def take(self, indices: Sequence[int] | IntArray) -> Self:
-        """Return aligned rows at positional indices.
-
-        Parameters
-        ----------
-        indices : Sequence[int] or numpy.ndarray
-            Row positions to retain, in the requested order.
-
-        Returns
-        -------
-        Self
-            Project data containing the selected rows and their metadata.
-        """
-        ...
-
-    def select_features(self, feature_names: Sequence[str]) -> Self:
-        """Return data restricted to the requested feature columns.
-
-        Parameters
-        ----------
-        feature_names : Sequence[str]
-            Names and order of retained feature columns.
-
-        Returns
-        -------
-        Self
-            Data with unchanged rows, targets, timestamps, and weights; categorical
-            metadata must reflect the retained features.
-        """
-        ...
-
-    def with_target(self, target: pl.Series | FloatArray) -> Self:
-        """Return data with a replacement target and unchanged feature rows.
-
-        Parameters
-        ----------
-        target : polars.Series or numpy.ndarray
-            Replacement values aligned one-to-one with the existing rows.
-
-        Returns
-        -------
-        Self
-            Project data containing the new target.
-        """
-        ...
-
-    def to_catboost(self, baseline: float | FloatArray | None = None) -> catboost.Pool:
-        """Convert data to a CatBoost Pool for the bundled model adapters.
-
-        Parameters
-        ----------
-        baseline : float, numpy.ndarray, or None, default None
-            Optional raw prediction baseline, broadcast or aligned per row by the
-            project implementation.
-
-        Returns
-        -------
-        catboost.Pool
-            Pool containing features, labels, weights, categorical metadata, and
-            the optional baseline.
-        """
-        ...
-
-    def to_model_input(self, n_rows: int | None = None) -> pd.DataFrame:
-        """Convert feature rows to a pandas serving input frame.
-
-        Parameters
-        ----------
-        n_rows : int or None, default None
-            Optional limit on the number of rows in the serving example. The
-            selected rows must preserve timestamp alignment.
-
-        Returns
-        -------
-        pandas.DataFrame
-            Model input with named feature columns; categorical values must be
-            compatible with the native model.
-        """
-        ...
 
 
 TrainingStage = Literal["tuning", "validation", "final"]

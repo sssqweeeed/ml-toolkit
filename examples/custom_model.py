@@ -224,11 +224,9 @@ def demo() -> None:
     Uses a temporary local MLflow store; removes artifacts after checking the
     logged model. Run from the repository with python -m examples.custom_model.
     """
-    from examples.project_pool import ProjectPool
-
     rows = 40
     x = np.linspace(0.0, 1.0, rows)
-    data = ProjectPool(
+    data = Pool(
         X=pl.DataFrame({"x": x, "region": ["north", "south"] * (rows // 2)}),
         y=pl.Series("target", 1000.0 * (2.0 + x)),
         time=pl.Series("date", [date(2025, 1, 1) + timedelta(days=i) for i in range(rows)]),

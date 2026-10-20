@@ -288,7 +288,7 @@ from pathlib import Path
 import numpy as np
 import polars as pl
 
-from examples.project_pool import ProjectPool
+from ml_toolkit.data import Pool
 from ml_toolkit.training import DatasetSplit, PostFitEvaluator
 from ml_toolkit.types import FloatArray
 
@@ -320,7 +320,7 @@ class ExtraMetrics(PostFitEvaluator):
         return paths
 
 
-identified = ProjectPool(
+identified = Pool(
     X=data.X,
     y=data.y,
     time=data.time,

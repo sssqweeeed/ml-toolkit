@@ -7,8 +7,7 @@ built-in model and preserves that transformation when logging to MLflow.
 
 The complete runnable files are `examples/custom_model.py` and
 `examples/custom_model_serving.py` in the repository checkout. They use the
-example [`ProjectPool`](api/data.md#prepare-a-pool); your own data class only
-needs to satisfy the public `Pool` protocol.
+built-in [`Pool`](api/data.md#prepare-a-pool) to hold prepared data.
 
 ## Run the complete example
 

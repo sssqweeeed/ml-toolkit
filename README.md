@@ -31,7 +31,7 @@ from datetime import date
 import mlflow
 import polars as pl
 
-from examples.project_pool import ProjectPool
+from ml_toolkit.data import Pool
 from ml_toolkit import train_model
 from ml_toolkit.config import HoldoutConfig, TrackingConfig, TrainingConfig
 from ml_toolkit.metrics import metrics_frequency
@@ -42,7 +42,7 @@ frame = pl.DataFrame({
     "target": [float(i % 3) for i in range(40)],
     "date": pl.date_range(date(2025, 1, 1), date(2025, 2, 9), eager=True),
 })
-data = ProjectPool(
+data = Pool(
     X=frame.select("feature"),
     y=frame["target"],
     time=frame["date"],
@@ -79,9 +79,8 @@ Test deviance: 1.0407
 ```
 <!-- /output -->
 
-`ProjectPool` is a project-owned example in this checkout. The package exports
-the `Pool` protocol for your own data container; see the data guide in the
-documentation for its required fields and operations.
+`Pool` is the package's ready-to-use data container; see the data guide in the
+documentation for its fields and operations.
 
 The example logs metrics and configuration to a local MLflow store using
 `mlflow.db`. See the [documentation](https://sssqweeeed.github.io/ml-toolkit/)

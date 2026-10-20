@@ -28,7 +28,7 @@ from sklearn.model_selection import train_test_split
 
 from ml_toolkit.types import FloatArray, IntArray
 
-from examples.project_pool import ProjectPool
+from ml_toolkit.data import Pool
 
 
 BIKE_URL = "https://archive.ics.uci.edu/static/public/275/bike+sharing+dataset.zip"
@@ -214,7 +214,7 @@ def _digits_gallery() -> DigitsGallery:
 
 def load_bike_pool(
     *, data_home: Path | None = None, download_if_missing: bool = True
-) -> ProjectPool:
+) -> Pool:
     """Load the original hourly records for a chronological training example.
 
     Parameters
@@ -227,7 +227,7 @@ def load_bike_pool(
 
     Returns
     -------
-    ProjectPool
+    Pool
         All 17,379 recorded hours in timestamp order, with eleven weather and
         calendar features, rental counts as targets, and unit hourly weights.
         Counts revealing the target (casual and registered) are excluded.
@@ -235,7 +235,7 @@ def load_bike_pool(
     directory = DEFAULT_DATA_HOME if data_home is None else data_home
     records = _bike_records(directory, download_if_missing)
     features = records.select(*BIKE_FEATURES).rename(BIKE_FEATURES)
-    return ProjectPool(
+    return Pool(
         X=features,
         y=records["cnt"].cast(pl.Float64),
         time=records["timestamp"],

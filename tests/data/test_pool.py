@@ -33,10 +33,9 @@ def pool():
     )
 
 
-def test_public_pool_is_one_non_instantiable_protocol():
-    assert PublicPool is TrainingPool is ContractPool
-    with pytest.raises(TypeError, match="Protocols cannot be instantiated"):
-        PublicPool()
+def test_public_pool_is_one_shared_container(pool):
+    assert PublicPool is TrainingPool is ContractPool is Pool
+    assert type(pool) is PublicPool
 
 
 def test_project_pool_preserves_frozen_fields(pool):

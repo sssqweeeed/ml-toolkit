@@ -40,7 +40,7 @@ import mlflow
 import numpy as np
 import polars as pl
 
-from examples.project_pool import ProjectPool
+from ml_toolkit.data import Pool
 from ml_toolkit import train_model
 from ml_toolkit.config import HoldoutConfig, TrackingConfig, TrainingConfig
 from ml_toolkit.metrics import metrics_frequency
@@ -60,7 +60,7 @@ frame = pl.DataFrame(
         "weight": np.ones(n_rows),
     }
 )
-data = ProjectPool(
+data = Pool(
     X=frame.select("age", "region"),
     y=frame["target"],
     time=frame["date"],
@@ -108,10 +108,8 @@ Test deviance: 1.3690
 ```
 <!-- /output -->
 
-`ProjectPool` is the runnable data implementation in this repository's
-`examples/project_pool.py`. It is outside the installed package. Copy it into
-your project or implement the [Pool interface](api/data.md) on your existing
-container; inheritance is unnecessary.
+`Pool` is included in the installed package. Pass your prepared data to its
+constructor; see the [data guide](api/data.md) for fields and operations.
 
 The example creates a local `mlflow.db` and logs metrics and configuration.
 Model packaging is disabled to keep the example small; set

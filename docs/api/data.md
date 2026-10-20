@@ -1,14 +1,12 @@
 # Data
 
-`Pool` is the interface between your project's data container and the toolkit.
-It describes aligned Polars features, targets, dates, weights, and row operations.
-The package provides the protocol, while your project supplies the implementation.
-Do not instantiate `Pool` itself.
+`Pool` is the toolkit's ready-to-use data container for aligned Polars features,
+targets, dates, weights, and row metadata. Instantiate it with your prepared
+data; row operations and backend conversions are included in the package.
 
 ## Prepare a pool
 
-The repository includes `examples/project_pool.py`, a concrete `ProjectPool`
-implementation for the examples. From the cloned repository, run:
+After installing the package, create a pool directly:
 
 <!-- example: data-prepare -->
 
@@ -17,7 +15,7 @@ from datetime import date, timedelta
 
 import polars as pl
 
-from examples.project_pool import ProjectPool
+from ml_toolkit.data import Pool
 
 n_rows = 24
 frame = pl.DataFrame(
@@ -29,7 +27,7 @@ frame = pl.DataFrame(
         "weight": [1.0] * n_rows,
     }
 ).sort("date")
-data = ProjectPool(
+data = Pool(
     X=frame.select("age", "region"),
     y=frame["target"],
     time=frame["date"],
@@ -42,8 +40,7 @@ data = ProjectPool(
 There are 24 rows and two model features. This `data` is reused by the
 [training](training.md) and [model](models.md) examples. Targets, timestamps,
 weights, IDs, and reporting groups stay outside `X` unless they are intentional
-model features. `ProjectPool` is example code outside the installed package;
-copy it into your project or implement the interface on your existing container.
+model features. No project-specific container implementation is required.
 
 ## Slice without losing alignment
 
@@ -68,7 +65,7 @@ print(len(data))
 
 These operations return new containers and carry targets, dates, weights, IDs,
 and groups together. `with_target` replaces only the target. `to_model_input()`
-produces a pandas feature frame; the example implementation converts categorical
+produces a pandas feature frame; the container converts categorical
 columns to strings and fills missing categories with `"unknown"`.
 
 Training reserves the literal category `"unknown"` for missing values. Raw
@@ -77,10 +74,10 @@ that value after string conversion, even when they have no missing values.
 Training reports the offending column. Prepared model inputs, prediction and
 serving continue to accept `"unknown"`; ordinary missing values are still filled.
 
-## Implement your own container
+## Use the shared container
 
-Import the protocol for annotations or static checking; explicit inheritance
-is unnecessary:
+The same class is available from `ml_toolkit` and `ml_toolkit.data` for
+construction and type annotations:
 
 <!-- example: data-protocol -->
 
@@ -107,9 +104,9 @@ print(len(rows))
 | `business_type` | Aligned diagnostic groups or `None` |
 
 Training validates ascending non-null Date/Datetime timestamps, finite targets,
-and finite nonnegative weights with a positive total. Optional attributes must
-exist even when their value is `None`. Read-only properties or ordinary dataclass
-fields can satisfy the protocol.
+and finite nonnegative weights with a positive total. Optional metadata defaults
+to `None`. Fields cannot be reassigned; contained frames and series are not
+deeply immutable.
 
 ### Row and feature operations
 
@@ -117,7 +114,7 @@ fields can satisfy the protocol.
 `select_features` preserves all row metadata and filters feature declarations.
 `with_target` preserves rows and their metadata. Each method returns the same
 concrete container type, so chronological splitting and selection retain your
-project's data representation.
+container type.
 
 ### Backend conversion
 
@@ -125,15 +122,6 @@ The bundled CatBoost adapters call `to_catboost` for fitting and
 `to_model_input` for named feature frames and serving examples. Preserve fitted
 feature names and categorical handling in both conversions. A scalar baseline
 must be broadcast across rows; array baselines must stay aligned.
-
-??? example "Complete project-owned implementation"
-
-    This is the runnable source used by the examples and tests. It is not
-    installed as part of `ml_toolkit`.
-
-    ```python
-    --8<-- "examples/project_pool.py"
-    ```
 
 ## Array types
 
@@ -143,22 +131,22 @@ the required shape. `ModelParams` is the backend parameter dictionary.
 
 ## API reference
 
-### Data interface
+### Data container
 
-::: ml_toolkit.Pool
+::: ml_toolkit.data.Pool
     options:
       members: false
 
 ### Row and feature operations
 
-::: ml_toolkit.Pool.take
+::: ml_toolkit.data.Pool.take
 
-::: ml_toolkit.Pool.select_features
+::: ml_toolkit.data.Pool.select_features
 
-::: ml_toolkit.Pool.with_target
+::: ml_toolkit.data.Pool.with_target
 
 ### Backend conversion
 
-::: ml_toolkit.Pool.to_model_input
+::: ml_toolkit.data.Pool.to_model_input
 
-::: ml_toolkit.Pool.to_catboost
+::: ml_toolkit.data.Pool.to_catboost
