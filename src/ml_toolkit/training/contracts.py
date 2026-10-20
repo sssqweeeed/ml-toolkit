@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from abc import ABC, abstractmethod
 from collections.abc import Mapping
 from enum import StrEnum
@@ -68,17 +69,43 @@ class DatasetSplit(StrEnum):
 class PostFitEvaluator(ABC):
     """Describe a user-owned evaluator called after each evaluated model fit.
 
+    Parameters
+    ----------
+    name : str
+        Required namespace for metrics and artifacts. Start with an ASCII letter
+        or digit; remaining characters may also be underscores, hyphens or dots.
+        Names must be unique without regard to case within one training call.
+
+    Attributes
+    ----------
+    name : str
+        Read-only namespace, preserved across calls.
+
     Notes
     -----
-    Initialization and helper methods are unrestricted; the default artifact writer does
-    nothing. The same instance is reused for splits, tuning trials, post-tuning
-    evaluation, and final fitting, without copying or resetting its state.
+    Subclasses with a constructor must call ``super().__init__(name=name)``.
+    The default artifact writer does nothing. The same instance is reused for
+    splits, tuning trials, post-tuning evaluation, and final fitting, without
+    copying or resetting its state.
     Reference data and caches may be stored internally, but returned metrics
     should describe the supplied rows rather than accumulate unrelated fits.
     Intermediate feature-selection fits do not invoke this evaluator.
     Subclass this evaluator and implement evaluate. Override write_artifacts
     to save files; its default implementation returns an empty list.
     """
+
+    def __init__(self, *, name: str) -> None:
+        if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", name) is None:
+            raise ValueError(
+                "Evaluator name must start with an ASCII letter or digit and "
+                "contain only ASCII letters, digits, underscores, hyphens or dots"
+            )
+        self._name = name
+
+    @property
+    def name(self) -> str:
+        """Return the read-only namespace used for this evaluator's results."""
+        return self._name
 
     @abstractmethod
     def evaluate(
@@ -109,7 +136,7 @@ class PostFitEvaluator(ABC):
             Finite Python or NumPy floating scalars keyed by nonempty metric
             names. Names may contain word characters, spaces, periods, dashes,
             and slashes, but no relative path segments. The toolkit adds the
-            "<split>/custom/" prefix and logs to the current MLflow run. An
+            ``<split>/<name>/`` prefix and logs to the current MLflow run. An
             empty dictionary skips logging. Results are excluded from ordinary
             CV metrics and optimization. Inputs must not be mutated.
         """
@@ -143,7 +170,7 @@ class PostFitEvaluator(ABC):
         Returns
         -------
         list[pathlib.Path]
-            Existing files to upload under custom/<split>/ in the
+            Existing files to upload under ``<name>/<split>/`` in the
             current MLflow run. Paths may be absolute or relative to artifact_dir.
             An empty list skips upload. Only returned files are logged; PNG,
             JPEG, SVG, WebP, GIF, TIFF, BMP, CSV, Parquet, JSON, and HTML extensions are accepted. The directory is removed after the call and
@@ -154,7 +181,7 @@ class PostFitEvaluator(ABC):
         Invoked wherever scalar evaluation runs, including Optuna trials and
         final fitting, subject to PostFitEvaluationConfig. Choose whether to
         render inside this method. Inputs must not be mutated. Errors propagate
-        with evaluation stage and split context.
+        with evaluator name, evaluation stage and split context.
         """
         return []
 

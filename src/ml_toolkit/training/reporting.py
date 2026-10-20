@@ -86,7 +86,7 @@ def report_custom_evaluation(
             numeric = float(value)
             if not np.isfinite(numeric):
                 raise ValueError(f"Post-fit metric {key!r} must be finite")
-            metrics[f"{split.value}/custom/{key}"] = numeric
+            metrics[f"{split.value}/{evaluator.name}/{key}"] = numeric
         if metrics:
             tracking.log_metrics(metrics)
             logger.debug(
@@ -95,7 +95,9 @@ def report_custom_evaluation(
         if write_artifacts:
             report_custom_artifacts(evaluator, inputs)
     except Exception as exc:
-        exc.add_note(f"Post-fit evaluation stage={name}, split={split}")
+        exc.add_note(
+            f"Post-fit evaluation evaluator={evaluator.name}, stage={name}, split={split}"
+        )
         raise
 
 
@@ -139,7 +141,7 @@ def report_custom_artifacts(
         for image in files:
             relative = image.relative_to(root)
             parent = relative.parent.as_posix()
-            artifact_path = f"custom/{inputs['split'].value}"
+            artifact_path = f"{evaluator.name}/{inputs['split'].value}"
             if parent != ".":
                 artifact_path += f"/{parent}"
             tracking.log_artifact(image, artifact_path=artifact_path)

@@ -148,6 +148,75 @@ def test_supervised_prevalence_and_population_prior_are_distinct(data):
         CatBoostClassificationModel({**PARAMS, "loss": "uPU"}).fit(data)
 
 
+@pytest.mark.parametrize("with_validation", [False, True])
+@pytest.mark.parametrize("threshold", [None, 0.8])
+def test_cross_entropy_soft_targets_keep_default_or_explicit_threshold(
+    data, with_validation, threshold
+):
+    soft = data.with_target(np.linspace(0.1, 0.9, len(data)))
+    train, validation = soft.take(range(32)), soft.take(range(32, 48))
+    params = {**PARAMS, "loss": "CrossEntropy"}
+    if threshold is not None:
+        params["decision_threshold"] = threshold
+    model = CatBoostClassificationModel(params).fit(
+        train, validation if with_validation else None
+    )
+    expected = 0.5 if threshold is None else threshold
+    probabilities = model.predict_pool(validation)
+    assert np.isfinite(probabilities).all()
+    assert ((probabilities >= 0) & (probabilities <= 1)).all()
+    assert model.threshold == expected
+    assert model.validation_f1 is None
+    np.testing.assert_array_equal(
+        model.predict_labels_pool(validation), probabilities >= expected
+    )
+    refitted = CatBoostClassificationModel(model.get_refit_params()).fit(soft)
+    assert refitted.threshold == expected
+    assert refitted.validation_f1 is None
+
+
+def test_soft_validation_resets_previous_binary_f1_state(data):
+    binary = data.with_target(pl.Series("target", [1, 0, 0] * 16))
+    model = CatBoostClassificationModel({**PARAMS, "loss": "CrossEntropy"})
+    model.fit(binary.take(range(32)), binary.take(range(32, 48)))
+    assert model.validation_f1 is not None
+    soft = data.with_target(np.linspace(0.1, 0.9, len(data)))
+    model.fit(soft.take(range(32)), soft.take(range(32, 48)))
+    assert model.validation_f1 is None
+    assert model.threshold == 0.5
+
+
+@pytest.mark.parametrize("loss", ["Logloss", "CrossEntropy"])
+@pytest.mark.parametrize("threshold", [None, 0.8])
+@pytest.mark.parametrize("invalid", [float("nan"), float("inf"), -0.1, 1.1])
+def test_invalid_validation_targets_fail_before_native_fit(
+    data, loss, threshold, invalid, monkeypatch
+):
+    binary = data.with_target(pl.Series("target", [1, 0, 0] * 16))
+    validation = binary.take(range(32, 48))
+    targets = validation.y.to_numpy().astype(float)
+    targets[0] = invalid
+    validation = validation.with_target(targets)
+    params = {**PARAMS, "loss": loss}
+    if threshold is not None:
+        params["decision_threshold"] = threshold
+    monkeypatch.setattr(
+        "ml_toolkit.models.catboost_classification.native_fit",
+        lambda *args, **kwargs: pytest.fail("Invalid labels reached native training"),
+    )
+    with pytest.raises(ValueError, match="validation targets must be between 0 and 1"):
+        CatBoostClassificationModel(params).fit(binary.take(range(32)), validation)
+
+
+def test_logloss_rejects_soft_validation_targets(data):
+    binary = data.with_target(pl.Series("target", [1, 0, 0] * 16))
+    validation = binary.take(range(32, 48)).with_target(np.full(16, 0.2))
+    with pytest.raises(ValueError, match="Logloss validation targets must be binary"):
+        CatBoostClassificationModel({**PARAMS, "loss": "Logloss"}).fit(
+            binary.take(range(32)), validation
+        )
+
+
 @pytest.mark.parametrize("loss", ["Logloss", "CrossEntropy"])
 def test_supervised_threshold_policy_and_refit_reset(data, loss):
     binary = data.with_target(pl.Series("target", [1, 0, 0] * 16))

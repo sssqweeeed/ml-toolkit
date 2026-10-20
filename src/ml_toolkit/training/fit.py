@@ -11,10 +11,10 @@ from ..metrics import Metric
 from ..models.base import Model
 from ..tracking import runs as tracking
 from ..types import ModelParams
-from .contracts import PostFitEvaluator, Pool
+from .contracts import Pool
 from ..feature_selection import FeatureSelector
 from ..data import validate_training_categories
-from .evaluation import evaluate_model
+from .evaluation import PreparedPostFit, evaluate_model
 from .results import SplitResult
 from .tuning import tune_optuna
 
@@ -30,7 +30,7 @@ def fit_split(
     metric: Metric,
     config: TrainingConfig,
     feature_selector: FeatureSelector | None,
-    post_fit_evaluator: PostFitEvaluator | None,
+    post_fit: PreparedPostFit | None,
     param_space: Callable[[Trial], ModelParams] | None,
     index: int,
     diagnostics: bool,
@@ -104,7 +104,7 @@ def fit_split(
                     validation,
                     metric,
                     config.reporting,
-                    post_fit_evaluator,
+                    post_fit,
                     stage="tuning",
                     name=f"validation/split_{index}/tuning",
                 )
@@ -127,7 +127,7 @@ def fit_split(
             validation,
             metric,
             config.reporting,
-            post_fit_evaluator,
+            post_fit,
             stage="validation",
             name=f"validation/split_{index}",
             diagnostics=diagnostics,

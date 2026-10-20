@@ -18,7 +18,13 @@ import polars as pl
 from examples.project_pool import ProjectPool
 from examples.custom_model import model_factory
 from ml_toolkit import Pool, TrainingResult, train_model
-from ml_toolkit.config import HoldoutConfig, TimeSeriesCVConfig, TrainingConfig
+from ml_toolkit.config import (
+    HoldoutConfig,
+    PostFitEvaluationConfig,
+    ReportingConfig,
+    TimeSeriesCVConfig,
+    TrainingConfig,
+)
 from ml_toolkit.metrics import (
     Metric,
     MetricScores,
@@ -72,6 +78,26 @@ def severity_metric(
 
 
 def contracts(data: Pool) -> None:
+    reporting = ReportingConfig(post_fit=None)
+    assert_type(reporting.post_fit, PostFitEvaluationConfig | None)
+    ReportingConfig(post_fit=PostFitEvaluationConfig(stages=()))
+    evaluators: list[PostFitEvaluator] = [
+        BusinessEvaluator(name="business"), BusinessEvaluator(name="quality")
+    ]
+    assert_type(evaluators[0].name, str)
+    inputs: tuple[PostFitEvaluator | list[PostFitEvaluator] | None, ...] = (
+        None, evaluators[0], evaluators, []
+    )
+    for evaluator in inputs:
+        train_model(
+            data=data,
+            params={},
+            model_factory=CatBoostRegressionModel,
+            metric=dictionary_metric,
+            run_name="named-evaluators",
+            config=TrainingConfig(validation=HoldoutConfig()),
+            post_fit_evaluator=evaluator,
+        )
     assert_type(
         train_model(
             data=data,

@@ -2,7 +2,8 @@ from ml_toolkit.training import PostFitEvaluator
 
 
 class CallbackEvaluator(PostFitEvaluator):
-    def __init__(self, *, evaluate, write_artifacts=None):
+    def __init__(self, *, name, evaluate, write_artifacts=None):
+        super().__init__(name=name)
         self.callback = evaluate
         self.writer = write_artifacts
 

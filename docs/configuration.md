@@ -49,11 +49,22 @@ selected features and settings; test rows never participate in either search.
 | Final-model packaging | Off | Saved in MLflow with the selected input schema |
 | Custom evaluation | No callback | No callback; see [custom evaluation](api/training.md#add-custom-evaluation) |
 
-Custom evaluation needs a project-specific `PostFitEvaluator` and aligned
-`data.object_id`. `post_fit_evaluator=None` is explicit in both recipes;
-`PostFitEvaluationConfig` alone does not create an evaluator. Built-in metrics,
-PSI, and figures need no custom evaluator. See [selector alternatives](api/training.md#choose-a-selector)
+Custom evaluation uses a named project-specific `PostFitEvaluator`, or a list
+of evaluators with names unique without regard to case.
+`ReportingConfig.post_fit` defaults to `None`: supplying an evaluator activates
+the standard policy on validation and final stages, while omitting the evaluator
+disables custom evaluation. Pass `PostFitEvaluationConfig` only to override this
+policy; empty stages or splits disable calls. Aligned `data.object_id` is required
+before training only when the selected stages and available splits permit a call.
+An empty list also disables evaluation. Each evaluator stores artifacts under
+`<name>/<split>/` and metrics under `<split>/<name>/`.
+Both recipes leave `post_fit_evaluator=None`. Built-in metrics, PSI, and figures
+need no custom evaluator. See [selector alternatives](api/training.md#choose-a-selector)
 for Top-K, forward selection, and SHAP ranking.
+
+Diagnostic split indices are checked against the validation strategy only when
+diagnostics and their plots are enabled. Disabling either lets you reuse those
+indices with another strategy; indices must still be positive and unique.
 
 <!-- example: configuration-shared -->
 
@@ -167,7 +178,6 @@ from ml_toolkit.config import (
     CommonPlotsConfig,
     FigureConfig,
     NumericalFeatureDistributionConfig,
-    PostFitEvaluationConfig,
     ReportingConfig,
     ShapConfig,
     TimeSeriesCVConfig,
@@ -237,11 +247,6 @@ classification_config = TrainingConfig(
             ),
         ),
         validation_splits="last",
-        post_fit=PostFitEvaluationConfig(
-            stages=("validation", "final"),
-            splits=("train", "val", "test"),
-            write_artifacts=True,
-        ),
     ),
     tracking=TrackingConfig(
         log_trial_models=False,
@@ -335,7 +340,6 @@ from ml_toolkit.config import (
     CommonPlotsConfig,
     FigureConfig,
     NumericalFeatureDistributionConfig,
-    PostFitEvaluationConfig,
     RegressionDiagnosticsConfig,
     RegressionPlotsConfig,
     ReportingConfig,
@@ -411,11 +415,6 @@ regression_config = TrainingConfig(
             ),
         ),
         validation_splits="last",
-        post_fit=PostFitEvaluationConfig(
-            stages=("validation", "final"),
-            splits=("train", "val", "test"),
-            write_artifacts=True,
-        ),
     ),
     tracking=TrackingConfig(
         log_trial_models=False,
@@ -502,7 +501,6 @@ from ml_toolkit.config import (
     CommonPlotsConfig,
     FigureConfig,
     NumericalFeatureDistributionConfig,
-    PostFitEvaluationConfig,
     RegressionDiagnosticsConfig,
     RegressionPlotsConfig,
     ReportingConfig,
@@ -569,11 +567,6 @@ frequency_config = TrainingConfig(
             ),
         ),
         validation_splits="last",
-        post_fit=PostFitEvaluationConfig(
-            stages=("validation", "final"),
-            splits=("train", "val", "test"),
-            write_artifacts=True,
-        ),
     ),
     tracking=TrackingConfig(
         log_trial_models=False,
@@ -664,7 +657,6 @@ from ml_toolkit.config import (
     CommonPlotsConfig,
     FigureConfig,
     NumericalFeatureDistributionConfig,
-    PostFitEvaluationConfig,
     RegressionDiagnosticsConfig,
     RegressionPlotsConfig,
     ReportingConfig,
@@ -738,11 +730,6 @@ severity_config = TrainingConfig(
             ),
         ),
         validation_splits="last",
-        post_fit=PostFitEvaluationConfig(
-            stages=("validation", "final"),
-            splits=("train", "val", "test"),
-            write_artifacts=True,
-        ),
     ),
     tracking=TrackingConfig(
         log_trial_models=False,
@@ -829,7 +816,6 @@ from ml_toolkit.config import (
     NumericalFeatureDistributionConfig,
     PUDiagnosticsConfig,
     PUPlotsConfig,
-    PostFitEvaluationConfig,
     ReportingConfig,
     ShapConfig,
     TimeSeriesCVConfig,
@@ -893,11 +879,6 @@ pu_classification_config = TrainingConfig(
             ),
         ),
         validation_splits="last",
-        post_fit=PostFitEvaluationConfig(
-            stages=("validation", "final"),
-            splits=("train", "val", "test"),
-            write_artifacts=True,
-        ),
     ),
     tracking=TrackingConfig(
         log_trial_models=False,

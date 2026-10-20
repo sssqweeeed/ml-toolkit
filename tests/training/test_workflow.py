@@ -313,7 +313,7 @@ def test_test_reuses_reports_and_evaluator_independently_of_split_selection(tmp_
         model_factory=MeanModel,
         metric=mae,
         run_name="reports",
-        post_fit_evaluator=CallbackEvaluator(evaluate=evaluate),
+        post_fit_evaluator=CallbackEvaluator(name="business", evaluate=evaluate),
         config=TrainingConfig(
             validation=TimeSeriesCVConfig(n_splits=2),
             test_size=4,
@@ -347,7 +347,7 @@ def test_test_reuses_reports_and_evaluator_independently_of_split_selection(tmp_
         elif name == "final_fit":
             assert "tables/psi/scores.json" in artifacts
             assert "figures/observed_fitted/by_feature/000_x.png" in artifacts
-            assert "test/custom/rows" in run.data.metrics
+            assert "test/business/rows" in run.data.metrics
             assert "test/mae" in run.data.metrics
             assert "val/mae" not in run.data.metrics
             assert run.data.metrics["test/mae"] == result.test_metrics["mae"]

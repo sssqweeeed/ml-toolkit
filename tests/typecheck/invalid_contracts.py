@@ -6,10 +6,12 @@ from typing import Callable
 
 import polars as pl
 
-from ml_toolkit import Pool, TrainingResult
+from ml_toolkit import Pool, TrainingResult, train_model
+from ml_toolkit.models import CatBoostRegressionModel
 from ml_toolkit.config import (
     PUPlotsConfig,
     RegressionDiagnosticsConfig,
+    ReportingConfig,
     TrainingConfig,
     TuningConfig,
 )
@@ -20,6 +22,8 @@ from ml_toolkit.types import FloatArray, ModelParams
 TrainingConfig(validation={"n_splits": 3})  # expected-type-error
 TuningConfig(metric="mae", direction="invalid")  # expected-type-error
 RegressionDiagnosticsConfig(plots=PUPlotsConfig())  # expected-type-error
+ReportingConfig(post_fit=False)  # expected-type-error
+ReportingConfig(post_fit={"stages": ()})  # expected-type-error
 MetricScores({"mae": "1"})  # expected-type-error
 result: TrainingResult = {}  # expected-type-error
 
@@ -54,6 +58,24 @@ class WrongWriter(PostFitEvaluator):
         artifact_dir: Path,
     ) -> list[Path]:
         return ["figure.png"]  # expected-type-error
+
+
+WrongWriter()  # expected-type-error
+WrongWriter(name=1)  # expected-type-error
+wrong_evaluator = WrongWriter(name="business")
+wrong_evaluator.name = "quality"  # expected-type-error
+
+
+def invalid_evaluator_list(data: Pool, metric: Metric) -> None:
+    train_model(
+        data=data,
+        params={},
+        model_factory=CatBoostRegressionModel,
+        metric=metric,
+        run_name="invalid-evaluators",
+        config=TrainingConfig(validation=TimeSeriesCVConfig(n_splits=2)),
+        post_fit_evaluator=["business"],  # expected-type-error
+    )
 
 
 score: Callable[[ModelParams], float] = lambda params: {"mae": 1.0}  # expected-type-error

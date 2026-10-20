@@ -19,7 +19,7 @@ from .contracts import (
     PostFitEvaluator,
     Pool,
 )
-from .evaluation import evaluate_model
+from .evaluation import evaluate_model, prepare_post_fit
 from .fit import fit_final_model, fit_split
 from .results import SplitResult, TrainingResult, ValidationResult
 from .splits import make_validation_splits, split_holdout
@@ -37,7 +37,7 @@ def train_model(
     config: TrainingConfig,
     feature_selector: FeatureSelector | None = None,
     param_space: Callable[[Trial], ModelParams] | None = None,
-    post_fit_evaluator: PostFitEvaluator | None = None,
+    post_fit_evaluator: PostFitEvaluator | list[PostFitEvaluator] | None = None,
 ) -> TrainingResult:
     """Tune, validate, refit and optionally test a complete training workflow.
 
@@ -65,8 +65,13 @@ def train_model(
         all columns. The selector owns its settings and must not retain fitted state.
     param_space : Callable or None, default None
         Optuna trial overrides; required when tuning is enabled.
-    post_fit_evaluator : PostFitEvaluator or None, default None
-        Reused custom evaluator; enabled calls require aligned object IDs.
+    post_fit_evaluator : PostFitEvaluator, list[PostFitEvaluator], or None, default None
+        Reused named evaluators, called in list order with shared predictions.
+        Names must be unique without regard to case, even when calls are disabled.
+        None or an empty list disables custom evaluation.
+        Without an explicit post-fit policy, uses
+        validation and final stages on available splits. Aligned object IDs
+        are required before training only when at least one call is scheduled.
 
     Returns
     -------
@@ -107,14 +112,13 @@ def train_model(
     splits = make_validation_splits(train, config.validation)
     if config.tuning is not None and param_space is None:
         raise ValueError("param_space is required when tuning is enabled")
-    policy = config.reporting.post_fit
-    if (
-        post_fit_evaluator is not None
-        and policy.stages
-        and policy.splits
-        and data.object_id is None
-    ):
-        raise ValueError("object_id is required when post_fit_evaluator is supplied")
+    post_fit = prepare_post_fit(
+        data,
+        post_fit_evaluator,
+        config.reporting.post_fit,
+        tuning=config.tuning is not None,
+        has_test=test is not None,
+    )
 
     logger.info("Starting training run %s", run_name)
     logger.debug(
@@ -142,7 +146,7 @@ def train_model(
                         metric=metric,
                         config=config,
                         feature_selector=feature_selector,
-                        post_fit_evaluator=post_fit_evaluator,
+                        post_fit=post_fit,
                         param_space=param_space,
                         index=part.index,
                         diagnostics=part.index in diagnosed_indices,
@@ -177,7 +181,7 @@ def train_model(
                 final_test,
                 metric,
                 config.reporting,
-                post_fit_evaluator,
+                post_fit,
                 stage="final",
                 name="final_fit",
                 split=DatasetSplit.TEST,

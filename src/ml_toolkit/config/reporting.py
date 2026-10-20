@@ -366,7 +366,7 @@ DiagnosticsConfig = (
 
 @dataclass(frozen=True, kw_only=True, slots=True)
 class PostFitEvaluationConfig:
-    """Control calls to a separately supplied custom post-fit evaluator.
+    """Control calls to separately supplied custom post-fit evaluators.
 
     Parameters
     ----------
@@ -381,8 +381,9 @@ class PostFitEvaluationConfig:
 
     Notes
     -----
-    The evaluator is not copied or reset. Custom scores are logged separately
-    and do not become validation averages or optimization objectives.
+    The policy applies to every supplied evaluator, in list order. Instances
+    are not copied or reset. Custom scores are logged separately by evaluator
+    name and do not become validation averages or optimization objectives.
     """
 
     stages: tuple[Literal["tuning", "validation", "final"], ...] = (
@@ -411,14 +412,18 @@ class ReportingConfig:
         Validation splits to diagnose. Explicit indices are positive, unique,
         one-based original indices before skipping. Does not restrict test or
         custom evaluation. Built-in diagnostics do not run during tuning.
-    post_fit : PostFitEvaluationConfig
-        Custom evaluator stage, split and artifact policy; defaults to evaluation
-        on validation and final stages, including test when available.
+        Split availability is checked only when diagnostics and their plots
+        are enabled.
+    post_fit : PostFitEvaluationConfig or None, default None
+        Custom evaluator stage, split and artifact policy. None uses the standard
+        policy only when an evaluator is supplied: validation and final stages,
+        including test when available. Without an evaluator no calls run.
+        Empty stages or splits explicitly disable calls.
     """
 
     diagnostics: DiagnosticsConfig | None = None
     validation_splits: Literal["all", "last"] | tuple[int, ...] = "last"
-    post_fit: PostFitEvaluationConfig = field(default_factory=PostFitEvaluationConfig)
+    post_fit: PostFitEvaluationConfig | None = None
 
     def __post_init__(self) -> None:
         if isinstance(self.validation_splits, tuple) and (

@@ -183,7 +183,8 @@ class CatBoostClassificationModel(PythonModel):
     params : dict or None, default None
         Copied CatBoost parameters; loss accepts Logloss or CrossEntropy.
         ``decision_threshold`` fixes the label cutoff and disables F1 tuning.
-        Otherwise validation tunes weighted F1, or the cutoff defaults to 0.5.
+        Otherwise binary validation labels tune weighted F1. Without validation,
+        or with soft CrossEntropy validation labels in [0, 1], the cutoff is 0.5.
     """
 
     def __init__(self, params: ModelParams | None = None) -> None:
@@ -217,8 +218,8 @@ class CatBoostClassificationModel(PythonModel):
         Returns
         -------
         float
-            Supervised F1-selected cutoff, 0.5 without validation, or explicitly
-            supplied decision_threshold.
+            Supervised F1-selected cutoff, 0.5 without binary validation labels,
+            or explicitly supplied decision_threshold.
 
         Raises
         ------
@@ -239,8 +240,8 @@ class CatBoostClassificationModel(PythonModel):
 
         Notes
         -----
-        None for PU models, supervised fits without validation, and fits with
-        an explicit decision_threshold.
+        None for PU models, supervised fits without validation or with soft
+        validation labels, and fits with an explicit decision_threshold.
         """
         return self._validation_f1
 
@@ -328,7 +329,9 @@ class CatBoostClassificationModel(PythonModel):
             Aligned features, labels and exposure weights.
         validation : Pool or None, default None
             Subject to the same reserved-category check as training.
-            Optional holdout for early stopping and supervised F1 tuning.
+            Optional holdout for early stopping. Binary labels also enable
+            supervised F1 tuning unless decision_threshold is explicit;
+            soft CrossEntropy labels retain the default cutoff of 0.5.
 
         Returns
         -------
@@ -358,7 +361,7 @@ class CatBoostClassificationModel(PythonModel):
                 )
         self._validation_f1 = None
         self._best_iteration = None
-        self._validate_params(params, train)
+        self._validate_params(params, train, validation)
         baseline = self._calculate_baseline(train)
         params["boost_from_average"] = False
         self._model = self._fit_backend(train, validation, baseline, params)
@@ -371,7 +374,9 @@ class CatBoostClassificationModel(PythonModel):
         )
         return self
 
-    def _validate_params(self, params: ModelParams, train: Pool) -> None:
+    def _validate_params(
+        self, params: ModelParams, train: Pool, validation: Pool | None
+    ) -> None:
         loss = params.setdefault("loss_function", "Logloss")
         if not isinstance(loss, str) or loss.split(":", 1)[0] not in (
             "Logloss",
@@ -380,11 +385,16 @@ class CatBoostClassificationModel(PythonModel):
             raise ValueError("Binary classification requires Logloss or CrossEntropy")
         if "pu_prior" in params:
             raise ValueError("pu_prior requires CatBoostPUClassificationModel")
-        y = train.y.to_numpy()
-        if not np.isfinite(y).all() or (y < 0).any() or (y > 1).any():
-            raise ValueError("Binary classification targets must be between 0 and 1")
-        if loss.split(":", 1)[0] == "Logloss" and not np.isin(y, [0, 1]).all():
-            raise ValueError("Logloss targets must be binary")
+        for name, data in (("targets", train), ("validation targets", validation)):
+            if data is None:
+                continue
+            y = data.y.to_numpy()
+            if not np.isfinite(y).all() or (y < 0).any() or (y > 1).any():
+                raise ValueError(
+                    f"Binary classification {name} must be between 0 and 1"
+                )
+            if loss.split(":", 1)[0] == "Logloss" and not np.isin(y, [0, 1]).all():
+                raise ValueError(f"Logloss {name} must be binary")
 
     def _fit_backend(
         self,
@@ -404,7 +414,11 @@ class CatBoostClassificationModel(PythonModel):
         self, validation: Pool | None, threshold: float | None
     ) -> None:
         self._threshold = 0.5 if threshold is None else threshold
-        if validation is not None and threshold is None:
+        if (
+            validation is not None
+            and threshold is None
+            and np.isin(validation.y.to_numpy(), [0, 1]).all()
+        ):
             self._threshold, self._validation_f1 = self._select_threshold(
                 validation.y.to_numpy(),
                 self.predict_pool(validation),
@@ -705,7 +719,9 @@ class CatBoostPUClassificationModel(CatBoostClassificationModel):
         assert self._pu_prior is not None
         return self._pu_prior
 
-    def _validate_params(self, params: ModelParams, train: Pool) -> None:
+    def _validate_params(
+        self, params: ModelParams, train: Pool, validation: Pool | None
+    ) -> None:
         loss = params.pop("loss_function", "uPU")
         if loss not in ("uPU", "nnPU"):
             raise ValueError("PU classification requires uPU or nnPU loss")

@@ -105,7 +105,12 @@ class TrainingConfig:
         elif isinstance(self.test_size, (int, float)):
             HoldoutConfig(val_size=self.test_size)
         selected = self.reporting.validation_splits
-        if isinstance(selected, tuple):
+        diagnostics = self.reporting.diagnostics
+        if (
+            diagnostics is not None
+            and diagnostics.plots is not None
+            and isinstance(selected, tuple)
+        ):
             first, last = 1, 1
             if isinstance(self.validation, TimeSeriesCVConfig):
                 first = self.validation.skip_splits + 1

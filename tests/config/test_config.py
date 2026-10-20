@@ -104,6 +104,42 @@ def test_invalid_test_start_date_fails_at_configuration(cutoff):
         TrainingConfig(validation=HoldoutConfig(), test_size=cutoff)
 
 
+@pytest.mark.parametrize(
+    "diagnostics", [None, ClassificationDiagnosticsConfig(plots=None)]
+)
+@pytest.mark.parametrize(
+    "validation, selected",
+    [
+        (HoldoutConfig(), (2,)),
+        (TimeSeriesCVConfig(n_splits=3, skip_splits=1), (1,)),
+    ],
+)
+def test_disabled_diagnostics_allow_unavailable_split_indices(
+    diagnostics, validation, selected
+):
+    config = TrainingConfig(
+        validation=validation,
+        reporting=ReportingConfig(
+            diagnostics=diagnostics, validation_splits=selected
+        ),
+    )
+    assert config.reporting.validation_splits == selected
+    with pytest.raises(ValueError, match="evaluated validation split indices"):
+        replace(
+            config,
+            reporting=replace(
+                config.reporting, diagnostics=ClassificationDiagnosticsConfig()
+            ),
+        )
+
+
+def test_post_fit_policy_is_optional_without_changing_explicit_settings():
+    assert ReportingConfig().post_fit is None
+    assert ReportingConfig(post_fit=None).post_fit is None
+    policy = PostFitEvaluationConfig(stages=())
+    assert ReportingConfig(post_fit=policy).post_fit is policy
+
+
 def test_exact_test_start_time_is_rejected():
     with pytest.raises(ValueError, match="calendar date without a time"):
         TrainingConfig(validation=HoldoutConfig(), test_size=datetime(2025, 1, 1))

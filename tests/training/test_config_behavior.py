@@ -214,7 +214,7 @@ def test_post_fit_stage_split_and_image_policies(
         written.append(kwargs["split"].value)
         return []
 
-    evaluator = CallbackEvaluator(evaluate=evaluate, write_artifacts=writer)
+    evaluator = CallbackEvaluator(name="business", evaluate=evaluate, write_artifacts=writer)
     train_model(
         data=data,
         params={},
@@ -239,7 +239,7 @@ def test_post_fit_stage_split_and_image_policies(
 
 def test_disabled_post_fit_does_not_require_ids(tmp_path):
     setup_mlflow(tmp_path)
-    evaluator = CallbackEvaluator(
+    evaluator = CallbackEvaluator(name="business",
         evaluate=lambda **kwargs: pytest.fail("disabled evaluator")
     )
     train_model(

@@ -278,8 +278,10 @@ Selected model predictions preserved after reload
 ## Add custom evaluation
 
 Custom evaluation needs aligned IDs in `Pool.object_id`. Continue with `data`,
-`params`, and `config` from the holdout example. The evaluator below reports
-unweighted MAE and writes a table in four supported formats.
+`params`, and `config` from the holdout example. Each evaluator needs a unique
+name, used for its metric and artifact namespace. The example passes two
+instances that both report unweighted MAE and write the same filenames;
+their results are stored separately.
 
 <!-- example: training-custom-evaluation -->
 
@@ -336,22 +338,46 @@ evaluated = train_model(
     metric=metrics_frequency,
     run_name="frequency-custom-evaluation",
     config=config,
-    post_fit_evaluator=ExtraMetrics(),
+    post_fit_evaluator=[
+        ExtraMetrics(name="business"),
+        ExtraMetrics(name="quality"),
+    ],
 )
 ```
 
-The default policy evaluates available train, validation, and test rows during
-validation and final fitting. Custom scores appear in MLflow under
-`<split>/custom/mae`; they do not enter validation averages or the tuning
-objective. The same evaluator instance is reused, so return scores for the
-supplied rows and keep inputs unchanged.
+With `ReportingConfig.post_fit=None`, supplying an evaluator uses the default
+policy: available train, validation, and test rows during validation and final
+fitting. Pass one evaluator directly, a list, or `None`; an empty list also
+disables custom evaluation. All evaluators share the policy and run in list
+order using the same predictions. Custom scores appear in MLflow under
+`<split>/<name>/<metric>`, such as `val/business/mae` and `val/quality/mae`;
+they do not enter validation averages or the tuning objective. Each instance
+is reused, so return scores for the supplied rows and keep inputs unchanged.
+
+Names start with an ASCII letter or digit and contain only ASCII letters,
+digits, underscores, hyphens or dots. Names are checked for uniqueness without
+regard to case before training, including when evaluation is disabled.
+The `name` property is read-only. Subclasses with their own constructor must
+call `super().__init__(name=name)`.
 
 Use `ReportingConfig(post_fit=PostFitEvaluationConfig(...))` to choose stages
-and splits. To log images, CSV, Parquet, JSON, or HTML, override `write_artifacts`, save them inside the
+and splits, or empty stages/splits to disable calls. The workflow resolves these
+calls before training and requires IDs only if a call is scheduled. For example,
+a test-only policy needs no IDs when `test_size=None`, and a tuning-only policy
+needs none when tuning is disabled.
+
+To log images, CSV, Parquet, JSON, or HTML, override `write_artifacts`, save them inside the
 supplied temporary `artifact_dir`, and return their paths. The method's reference
 below describes supported files and directory lifetime. Files are stored under
-`custom/<split>/`, preserving your relative subdirectories. Every returned path
-is validated before any upload.
+`<name>/<split>/`, preserving your relative subdirectories. For example, both
+`business/val/tables/predictions.csv` and `quality/val/tables/predictions.csv`
+are retained. Each call receives its own temporary directory, and every returned
+path is validated before any upload. An evaluator error stops the workflow with
+its name, stage and split attached; earlier logged results remain available.
+
+Existing evaluator implementations must now supply a name. Update consumers of
+the previous `custom` paths and metric prefixes to use that name; historical
+MLflow runs are unchanged.
 
 ## API reference
 
@@ -423,5 +449,8 @@ feature coverage and returned importance values.
 ### Custom evaluation
 
 ::: ml_toolkit.training.PostFitEvaluator
+    options:
+      merge_init_into_class: true
+      members: [name, evaluate, write_artifacts]
 
 ::: ml_toolkit.training.DatasetSplit
