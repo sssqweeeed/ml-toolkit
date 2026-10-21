@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import logging
-import math
-from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Self, cast
 
@@ -26,153 +24,18 @@ from ._catboost import (
     read_state,
     refit_parameters,
 )
+from .losses.pu.common import (
+    UPUMetric as UPUMetric,
+    NNPUMetric as NNPUMetric,
+    PULogisticObjective,
+    pu_risks,
+)
 
 if TYPE_CHECKING:
     from ..config import TrackingConfig
     from ..training.contracts import Pool
 
 logger = logging.getLogger("ml_toolkit.models.catboost_classification")
-
-
-def _pu_risks(
-    logits: FloatArray,
-    labels: FloatArray,
-    weights: FloatArray,
-    prior: float,
-) -> tuple[float, float]:
-    """Return the positive and estimated negative logistic PU risks."""
-    from ..metrics._pu import risk_components
-
-    logits = np.asarray(logits, dtype=float).reshape(-1)
-    labels = np.asarray(labels).reshape(-1)
-    weights = np.asarray(weights, dtype=float).reshape(-1)
-    if not (logits.shape == labels.shape == weights.shape):
-        raise ValueError("PU logits, labels, and weights must have equal lengths")
-    if not np.isin(labels, [0, 1]).all():
-        raise ValueError("PU labels must be 1 (labeled positive) or 0 (unlabeled)")
-    if not np.isfinite(logits).all() or not np.isfinite(weights).all():
-        raise ValueError("PU logits and weights must be finite")
-    if (weights < 0).any():
-        raise ValueError("PU weights must be non-negative")
-    if not 0 < prior < 1:
-        raise ValueError("pu_prior must be strictly between 0 and 1")
-    positive = labels == 1
-    unlabeled = ~positive
-    if weights[positive].sum() <= 0 or weights[unlabeled].sum() <= 0:
-        raise ValueError("PU training needs positive-weight rows in both groups")
-
-    return risk_components(
-        np.logaddexp(0.0, -logits), np.logaddexp(0.0, logits), labels, weights, prior
-    )
-
-
-class _PURiskMetric:
-    def __init__(self, prior: float, *, non_negative: bool) -> None:
-        self.prior = prior
-        self.non_negative = non_negative
-
-    def is_max_optimal(self) -> bool:
-        return False
-
-    def get_final_error(self, error: float, weight: float) -> float:
-        return error / weight
-
-    def evaluate(
-        self,
-        approxes: Sequence[Sequence[float]],
-        target: Sequence[float],
-        weight: Sequence[float] | None,
-    ) -> tuple[float, float]:
-        if len(approxes) != 1:
-            raise ValueError("PU risk requires one-dimensional raw predictions")
-        weights = np.ones(len(target)) if weight is None else weight
-        positive_risk, negative_risk = _pu_risks(
-            np.asarray(approxes[0]), np.asarray(target), np.asarray(weights), self.prior
-        )
-        risk = positive_risk + (
-            max(0.0, negative_risk) if self.non_negative else negative_risk
-        )
-        return risk, 1.0
-
-
-class UPUMetric(_PURiskMetric):
-    no_jit = True
-
-    def __init__(self, prior: float) -> None:
-        super().__init__(prior, non_negative=False)
-
-    def evaluate(
-        self,
-        approxes: Sequence[Sequence[float]],
-        target: Sequence[float],
-        weight: Sequence[float] | None,
-    ) -> tuple[float, float]:
-        from ._catboost_upu import upu_risk
-
-        if len(approxes) != 1:
-            raise ValueError("PU risk requires one-dimensional raw predictions")
-        risk = upu_risk(
-            np.asarray(approxes[0], dtype=np.float64),
-            np.asarray(target),
-            None if weight is None else np.asarray(weight),
-            self.prior,
-        )
-        return risk, 1.0
-
-
-class NNPUMetric(_PURiskMetric):
-    def __init__(self, prior: float) -> None:
-        super().__init__(prior, non_negative=True)
-
-
-class _PULogisticObjective:
-    def __init__(
-        self,
-        prior: float,
-        positive_scale: float,
-        unlabeled_scale: float,
-        *,
-        reverse_negative_risk: bool = False,
-    ) -> None:
-        self.prior = prior
-        self.positive_scale = positive_scale
-        self.unlabeled_scale = unlabeled_scale
-        self.reverse_negative_risk = reverse_negative_risk
-
-    def calc_ders_range(
-        self,
-        approxes: Sequence[float],
-        targets: Sequence[float],
-        weights: Sequence[float] | None,
-    ) -> list[tuple[float, float]]:
-        result: list[tuple[float, float]] = []
-        for index in range(len(targets)):
-            logit = float(approxes[index])
-            if logit >= 0:
-                probability = 1.0 / (1.0 + math.exp(-logit))
-            else:
-                exp_logit = math.exp(logit)
-                probability = exp_logit / (1.0 + exp_logit)
-            weight = 1.0 if weights is None else float(weights[index])
-            curvature = probability * (1.0 - probability)
-
-            if targets[index] == 1:
-                if self.reverse_negative_risk:
-                    # -R_negative has derivative +prior * sigmoid(logit).
-                    der1 = -self.positive_scale * probability
-                    der2 = -self.positive_scale * curvature
-                else:
-                    # Logistic uPU: loss_+(logit) - loss_-(logit) = -logit.
-                    der1 = self.positive_scale
-                    der2 = 0.0
-            elif targets[index] == 0:
-                direction = 1.0 if self.reverse_negative_risk else -1.0
-                der1 = direction * self.unlabeled_scale * probability
-                der2 = direction * self.unlabeled_scale * curvature
-            else:
-                raise ValueError("PU labels must be 1 or 0")
-            result.append((weight * der1, weight * der2))
-        return result
 
 
 class CatBoostClassificationModel(PythonModel):
@@ -748,7 +611,7 @@ class CatBoostPUClassificationModel(CatBoostClassificationModel):
             if name in params:
                 raise ValueError(f"{name} is incompatible with PU loss")
         self._pu_loss, self._pu_prior = loss, prior
-        _pu_risks(
+        pu_risks(
             np.zeros(len(train)),
             train.y.to_numpy(),
             train.weight.to_numpy(),
@@ -783,14 +646,14 @@ class CatBoostPUClassificationModel(CatBoostClassificationModel):
             metric_class = UPUMetric if metric == "uPU" else NNPUMetric
             params["eval_metric"] = metric_class(self._pu_prior)
         if validation is not None:
-            _pu_risks(
+            pu_risks(
                 np.full(len(validation), baseline),
                 validation.y.to_numpy(),
                 validation.weight.to_numpy(),
                 self._pu_prior,
             )
         if self._pu_loss == "nnPU":
-            objective = _PULogisticObjective(
+            objective = PULogisticObjective(
                 self._pu_prior, positive_scale, unlabeled_scale
             )
             model, self._best_iteration = self._fit_nnpu(
@@ -804,13 +667,13 @@ class CatBoostPUClassificationModel(CatBoostClassificationModel):
             )
             return model
         if params["task_type"] == "GPU":
-            from ._catboost_upu_cuda import make_upu_gpu_objective
+            from .losses.pu.cuda import make_upu_gpu_objective
 
             params["loss_function"] = make_upu_gpu_objective(
                 positive_scale, unlabeled_scale
             )
         else:
-            from ._catboost_upu import UPUObjective
+            from .losses.pu.cpu import UPUObjective
 
             params["loss_function"] = UPUObjective(positive_scale, unlabeled_scale)
         if validation is not None:
@@ -830,7 +693,7 @@ class CatBoostPUClassificationModel(CatBoostClassificationModel):
         train_data: catboost.Pool,
         baseline: float,
         prior: float,
-        objective: _PULogisticObjective,
+        objective: PULogisticObjective,
         params: ModelParams,
     ) -> tuple[catboost.CatBoostClassifier, int | None]:
         """Update full-training-set nnPU before each tree (beta=0, gamma=1)."""
@@ -858,7 +721,7 @@ class CatBoostPUClassificationModel(CatBoostClassificationModel):
             None if validation is None else validation.to_catboost(baseline=baseline)
         )
         if validation is not None:
-            _pu_risks(
+            pu_risks(
                 np.full(len(validation.y), baseline),
                 validation.y.to_numpy(),
                 validation.weight.to_numpy(),
@@ -882,7 +745,7 @@ class CatBoostPUClassificationModel(CatBoostClassificationModel):
                     dtype=float,
                 ).reshape(-1)
             )
-            _, negative_risk = _pu_risks(logits, train_labels, train_weights, prior)
+            _, negative_risk = pu_risks(logits, train_labels, train_weights, prior)
             objective.reverse_negative_risk = negative_risk < 0.0
             tree_params = {**params, "loss_function": objective}
             next_model = catboost.CatBoostClassifier(**tree_params)
@@ -903,7 +766,7 @@ class CatBoostPUClassificationModel(CatBoostClassificationModel):
                     model.predict(validation_data, prediction_type="RawFormulaVal"),
                     dtype=float,
                 ).reshape(-1)
-                positive_risk, negative_risk = _pu_risks(
+                positive_risk, negative_risk = pu_risks(
                     validation_logits,
                     validation.y.to_numpy(),
                     validation.weight.to_numpy(),

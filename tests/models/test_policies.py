@@ -268,7 +268,7 @@ def test_nnpu_correction_branch_early_stopping_and_best_tree(monkeypatch, data):
 
     binary = data.with_target(pl.Series("target", [0, 1] * 24))
     calls, risks = [], iter([3.0, 2.0, 4.0, 5.0])
-    original_risks = module._pu_risks
+    original_risks = module.pu_risks
     # Control training versus validation separately; retain the actual native fits.
     train, val = binary.take(range(32)), binary.take(range(32, 48))
 
@@ -287,7 +287,7 @@ def test_nnpu_correction_branch_early_stopping_and_best_tree(monkeypatch, data):
         calls.append(objective.reverse_negative_risk)
         return fit(self, *args, **kwargs)
 
-    monkeypatch.setattr(module, "_pu_risks", risk)
+    monkeypatch.setattr(module, "pu_risks", risk)
     monkeypatch.setattr(catboost.CatBoostClassifier, "fit", record)
     model = CatBoostPUClassificationModel(
         {
@@ -333,15 +333,15 @@ def test_pu_constraints_are_local_to_pu(data, extra, message):
 
 
 def test_pu_objective_derivatives_and_risks_are_stable():
-    from ml_toolkit.models.catboost_classification import (
-        _pu_risks,
-        _PULogisticObjective,
+    from ml_toolkit.models.losses.pu.common import (
+        pu_risks,
+        PULogisticObjective,
     )
 
     logits = np.array([-1000.0, 1000.0, -1000.0, 1000.0])
     labels = np.array([1, 1, 0, 0])
     weights = np.ones(4)
-    objective = _PULogisticObjective(0.5, positive_scale=2.0, unlabeled_scale=3.0)
+    objective = PULogisticObjective(0.5, positive_scale=2.0, unlabeled_scale=3.0)
     np.testing.assert_allclose(
         objective.calc_ders_range(logits, labels, weights),
         [[2.0, 0.0], [2.0, 0.0], [0.0, 0.0], [-3.0, 0.0]],
@@ -351,4 +351,4 @@ def test_pu_objective_derivatives_and_risks_are_stable():
         objective.calc_ders_range(logits, labels, weights),
         [[0.0, 0.0], [-2.0, 0.0], [0.0, 0.0], [3.0, 0.0]],
     )
-    assert np.isfinite(_pu_risks(logits, labels, weights, 0.5)).all()
+    assert np.isfinite(pu_risks(logits, labels, weights, 0.5)).all()

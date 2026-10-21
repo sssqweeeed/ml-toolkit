@@ -39,3 +39,14 @@ Optional backend tests skip when their dependency is absent. Real-data gallery
 checks require locally cached UCI Bike Sharing and LINQS Cora sources and never
 download them implicitly. CUDA simulation runs on CPU; tests marked `gpu` require
 a real CUDA device and compatible toolkit. Skip reasons appear in the summary.
+
+## Gamma and PU loss checks
+
+`tests/models/test_gamma.py` checks Gamma derivatives, deviance, input validation,
+training equivalence, prediction modes and native persistence. The serving tests
+also load Gamma and inflation-adjusted Gamma models without Numba or CUDA.
+`tests/gamma_cuda_check.py` exercises the actual CUDA kernel under Numba's
+simulator, while the type-inference test catches unsupported CUDA operations.
+The `gpu` integration test requires a real compatible CUDA device; simulator
+success does not replace that hardware check. PU tests cover the existing
+objectives after their move into `models.losses.pu`.

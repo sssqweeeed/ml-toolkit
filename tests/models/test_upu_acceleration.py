@@ -15,12 +15,12 @@ import pytest
 
 from examples.project_pool import ProjectPool as Pool
 from ml_toolkit.models import CatBoostPUClassificationModel
-from ml_toolkit.models._catboost_upu import UPUObjective, upu_derivatives, upu_risk
-from ml_toolkit.models.catboost_classification import (
+from ml_toolkit.models.losses.pu.cpu import UPUObjective, upu_derivatives, upu_risk
+from ml_toolkit.models.losses.pu.common import (
     UPUMetric,
-    _PULogisticObjective,
-    _PURiskMetric,
-    _pu_risks,
+    PULogisticObjective,
+    PURiskMetric,
+    pu_risks,
 )
 
 
@@ -61,7 +61,7 @@ def test_compiled_cpu_derivatives_match_reference_and_finite_differences(
         if array is not None:
             array.setflags(write=False)
     result = upu_derivatives(logits, labels, weights, positive_scale, unlabeled_scale)
-    reference = _PULogisticObjective(0.2, positive_scale, unlabeled_scale)
+    reference = PULogisticObjective(0.2, positive_scale, unlabeled_scale)
     np.testing.assert_allclose(
         result, reference.calc_ders_range(logits, labels, weights), atol=1e-15
     )
@@ -108,7 +108,7 @@ def test_compiled_risk_uses_each_pool_group_normalization(weighted, size, prior)
     labels = (np.arange(size) % 3 == 0).astype(np.float32)
     weights = rng.uniform(0.1, 2, size).astype(np.float32) if weighted else None
     expected = sum(
-        _pu_risks(
+        pu_risks(
             logits, labels, np.ones(size) if weights is None else weights, prior
         )
     )
@@ -154,7 +154,7 @@ def test_compiled_cpu_fit_preserves_predictions_validation_and_baseline(pu_data)
         accelerated.native_model.get_params()["loss_function"], UPUObjective
     )
     y, w = train.y.to_numpy(), train.weight.to_numpy()
-    objective = _PULogisticObjective(
+    objective = PULogisticObjective(
         prior,
         float(prior * w.sum() / w[y == 1].sum()),
         float(w.sum() / w[y == 0].sum()),
@@ -162,7 +162,7 @@ def test_compiled_cpu_fit_preserves_predictions_validation_and_baseline(pu_data)
     reference = catboost.CatBoostClassifier(
         **params,
         loss_function=objective,
-        eval_metric=_PURiskMetric(prior, non_negative=False),
+        eval_metric=PURiskMetric(prior, non_negative=False),
         leaf_estimation_method="Gradient",
         leaf_estimation_iterations=1,
         boosting_type="Plain",
@@ -192,7 +192,7 @@ def test_compiled_cpu_fit_preserves_predictions_validation_and_baseline(pu_data)
     for split in ("learn", "validation"):
         np.testing.assert_allclose(
             accelerated.native_model.get_evals_result()[split]["UPUMetric"],
-            reference.get_evals_result()[split]["_PURiskMetric"],
+            reference.get_evals_result()[split]["PURiskMetric"],
             rtol=1e-12,
             atol=1e-12,
         )
@@ -227,7 +227,7 @@ def test_cuda_kernel_type_inference_without_device(monkeypatch):
     from numba.core.typed_passes import type_inference_stage
     from numba.cuda.descriptor import cuda_target
 
-    from ml_toolkit.models._catboost_upu_cuda import make_upu_gpu_objective
+    from ml_toolkit.models.losses.pu.cuda import make_upu_gpu_objective
 
     # Exercise the actual CUDA type checker; the simulator runs Python and
     # cannot detect unsupported overloads such as the variadic max(a, b).

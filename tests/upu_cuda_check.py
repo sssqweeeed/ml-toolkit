@@ -5,8 +5,8 @@ import inspect
 import numpy as np
 from numba import cuda
 
-from ml_toolkit.models._catboost_upu import upu_derivatives
-from ml_toolkit.models._catboost_upu_cuda import make_upu_gpu_objective
+from ml_toolkit.models.losses.pu.cpu import upu_derivatives
+from ml_toolkit.models.losses.pu.cuda import make_upu_gpu_objective
 
 positive_scale, unlabeled_scale = 0.71, 1.37
 objective = make_upu_gpu_objective(positive_scale, unlabeled_scale)

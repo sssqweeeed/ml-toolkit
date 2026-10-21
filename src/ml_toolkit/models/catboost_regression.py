@@ -39,8 +39,10 @@ class CatBoostRegressionModel(PythonModel):
     params : dict or None, default None
         Copied native parameters. ``loss`` is an alias for ``loss_function``;
         native and custom objectives are accepted without a toolkit whitelist.
+        ``Gamma`` selects the toolkit's compiled positive-target objective.
     prediction_type : str or None, default None
-        Native output type; None preserves CatBoost's loss-dependent default.
+        Native output type; None preserves CatBoost's loss-dependent default,
+        or selects Exponent for the toolkit's Gamma objective.
 
     Attributes
     ----------
@@ -57,6 +59,7 @@ class CatBoostRegressionModel(PythonModel):
     ) -> None:
         self.params = {} if params is None else params.copy()
         self.prediction_type = prediction_type
+        self._effective_prediction_type = prediction_type
         self._model = None
         self._baseline = None
 
@@ -170,6 +173,14 @@ class CatBoostRegressionModel(PythonModel):
             validate_training_categories(validation)
         params = normalize_loss(self.params)
         self._validate_params(params)
+        loss = params.get("loss_function")
+        is_gamma = isinstance(loss, str) and loss == "Gamma"
+        if is_gamma:
+            from .losses.gamma.config import configure_gamma
+
+            configure_gamma(
+                params, train, validation, log_link=self.baseline_mode == "native_bias"
+            )
         baseline = self._calculate_baseline(train)
         if baseline is not None:
             params["boost_from_average"] = False
@@ -182,7 +193,24 @@ class CatBoostRegressionModel(PythonModel):
         if baseline is not None:
             scale, bias = model.get_scale_and_bias()
             model.set_scale_and_bias(scale, float(bias) + baseline)
+        if is_gamma:
+            for split in (train, validation):
+                if split is not None:
+                    values = np.asarray(
+                        model.predict(
+                            split.to_model_input(), prediction_type="Exponent"
+                        )
+                    )
+                    if not np.isfinite(values).all() or (values <= 0).any():
+                        raise ValueError(
+                            "Gamma training produced non-finite or non-positive means"
+                        )
         self._model, self._baseline = model, baseline
+        self._effective_prediction_type = (
+            "Exponent"
+            if is_gamma and self.prediction_type is None
+            else self.prediction_type
+        )
         logger.debug("Fitted CatBoost regressor with baseline %s", baseline)
         return self
 
@@ -210,8 +238,8 @@ class CatBoostRegressionModel(PythonModel):
         frame = prepare_frame(data, self.feature_names, self.cat_features)
         options = (
             {}
-            if self.prediction_type is None
-            else {"prediction_type": self.prediction_type}
+            if self._effective_prediction_type is None
+            else {"prediction_type": self._effective_prediction_type}
         )
         return np.asarray(self.native_model.predict(frame, **options), dtype=float)
 
@@ -340,6 +368,7 @@ class CatBoostRegressionModel(PythonModel):
             "version": 1,
             "model_type": type(self).__name__,
             "prediction_type": self.prediction_type,
+            "effective_prediction_type": self._effective_prediction_type,
             "baseline": self.baseline,
             "baseline_mode": self.baseline_mode,
             "training_params": self.params.copy(),
@@ -350,6 +379,9 @@ class CatBoostRegressionModel(PythonModel):
         self._model.load_model(model_path)
         self.params = state["training_params"]
         self.prediction_type = state["prediction_type"]
+        self._effective_prediction_type = state.get(
+            "effective_prediction_type", self.prediction_type
+        )
         self._baseline = state["baseline"]
 
     def load_context(self, context: Any) -> None:
@@ -362,14 +394,17 @@ class CatBoostRegressionModel(PythonModel):
 
 
 class CatBoostLogLinkRegressionModel(CatBoostRegressionModel):
-    """Initialize Poisson/Tweedie regression with log(weighted target mean).
+    """Initialize Poisson/Tweedie/Gamma regression with log(weighted target mean).
 
     Parameters
     ----------
     params : dict or None, default None
-        Native parameters; loss must be Poisson or Tweedie. Defaults to Poisson.
+        Native parameters; loss is Poisson, Tweedie or Gamma. Defaults to Poisson.
+        Gamma requires finite, strictly positive targets and supports CPU or
+        one CUDA GPU. Its metric is Gamma deviance unless explicitly overridden.
     prediction_type : str or None, default None
         Native output type, inheriting the loss-dependent default when omitted.
+        Gamma defaults to Exponent; RawFormulaVal explicitly returns log means.
 
     Notes
     -----
@@ -384,8 +419,11 @@ class CatBoostLogLinkRegressionModel(CatBoostRegressionModel):
         if not isinstance(loss, str) or loss.split(":", 1)[0] not in (
             "Poisson",
             "Tweedie",
+            "Gamma",
         ):
-            raise ValueError("Log-link regression requires Poisson or Tweedie loss")
+            raise ValueError(
+                "Log-link regression requires Poisson or Tweedie or Gamma loss"
+            )
 
     def _calculate_baseline(self, train: Pool) -> float:
         mean = float(

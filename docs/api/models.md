@@ -10,10 +10,78 @@ The optional LightGBM wrapper packages an already fitted native regressor.
 | Adapter | Use it for |
 | --- | --- |
 | `CatBoostRegressionModel` | General regression with CatBoost's native loss and initialization |
-| `CatBoostLogLinkRegressionModel` | Poisson or Tweedie regression with a fitted log-mean baseline |
+| `CatBoostLogLinkRegressionModel` | Poisson, Tweedie or Gamma regression with a fitted log-mean baseline |
 | `CatBoostClassificationModel` | Binary classification with probability and label predictions |
 | `CatBoostPUClassificationModel` | Positive-unlabeled learning with an explicit population prior |
 | `InflationAdjustedModel` | A regressor composed with an inflation strategy |
+
+## Gamma regression
+
+Use `loss_function="Gamma"` (or `loss="Gamma"`) for a strictly positive target,
+such as claim severity conditional on a claim. Both regression adapters accept
+it. Prefer `CatBoostLogLinkRegressionModel` for its fitted initial log mean:
+
+```python
+from ml_toolkit.models import CatBoostLogLinkRegressionModel
+
+gamma = CatBoostLogLinkRegressionModel(
+    {
+        "loss_function": "Gamma",
+        "task_type": "CPU",
+        "iterations": 200,
+        "learning_rate": 0.05,
+        "depth": 6,
+        "verbose": False,
+    }
+)
+# train and validation must contain finite, strictly positive targets.
+gamma.fit(train, validation)
+predicted_means = gamma.predict_pool(validation)
+```
+
+Gamma minimizes `log(mu) + y / mu`. The toolkit creates its custom objective
+only for training; constructor and refit parameters retain the string `"Gamma"`.
+CPU derivatives and deviance are compiled with Numba. Defaults are Plain boosting,
+Newton leaf estimation and one leaf estimation iteration. Explicit compatible
+parameters override these defaults.
+
+Targets must remain finite and strictly positive after CatBoost's float32
+conversion, even for zero-weight rows. Weights must be finite, nonnegative and
+have a positive total after conversion. Values are not clipped to satisfy these
+requirements. Use Tweedie with `1 < variance_power < 2` when zero targets belong
+in the problem.
+
+The default `eval_metric` (also selected by `eval_metric="Gamma"`) is weighted
+Gamma deviance. Early stopping and best-iteration selection use this metric.
+An explicitly supplied alternative metric receives the raw log means, following
+CatBoost's custom-objective convention. For toolkit validation/reporting, use
+`functools.partial(metrics_severity, power=2.0)` from `ml_toolkit.metrics`.
+
+Predictions default to positive means, with the log-link baseline applied once.
+Set the adapter's `prediction_type="RawFormulaVal"` to request log means instead;
+`prediction_type="Exponent"` explicitly requests means. A raw native CatBoost
+model with this custom objective defaults to raw scores: when calling
+`gamma.native_model.predict` directly, pass `prediction_type="Exponent"` for means.
+The general `CatBoostRegressionModel` uses native initialization and rejects
+`boost_from_average=True` for Gamma; use the log-link adapter for mean initialization.
+
+For one CUDA GPU, change the training parameters to:
+
+```python
+gpu_gamma = CatBoostLogLinkRegressionModel(
+    {"loss_function": "Gamma", "task_type": "GPU", "devices": "0"}
+)
+```
+
+GPU derivatives run in a CUDA kernel. Gamma deviance is evaluated on CPU and
+requires transferring predictions from GPU. Install the `cuda` extra and use a
+compatible CUDA toolkit and driver, as for uPU. Multiple devices and automatic
+CPU fallback are not supported.
+
+Native `.cbm` plus toolkit state, MLflow models, and `InflationAdjustedModel`
+preserve the prediction mode. Bundled inference does not require Numba or CUDA.
+Older version-1 model states remain loadable; refitting a restored Gamma model
+recreates the training objective from its saved string parameters.
 
 ## Fit and predict directly
 

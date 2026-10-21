@@ -100,12 +100,16 @@ def check_bundled_inference(
         "regression",
         "custom",
         "log_link",
+        "gamma_native",
+        "gamma_log_link",
+        "gamma_raw",
         "classification",
         "classification_auto",
         "uPU",
         "nnPU",
         "inflation_native",
         "inflation_log_link",
+        "inflation_gamma",
     ],
 )
 def test_models_from_code_roundtrip_outside_repository(
@@ -127,6 +131,16 @@ def test_models_from_code_roundtrip_outside_repository(
         )
     elif kind == "log_link":
         model = CatBoostLogLinkRegressionModel(PARAMS)
+    elif kind.startswith("gamma_"):
+        factory = (
+            CatBoostRegressionModel
+            if kind == "gamma_native"
+            else CatBoostLogLinkRegressionModel
+        )
+        model = factory(
+            {**PARAMS, "loss_function": "Gamma"},
+            prediction_type="RawFormulaVal" if kind == "gamma_raw" else None,
+        )
     elif kind == "classification":
         model = CatBoostClassificationModel({**PARAMS, "decision_threshold": 0.4})
     elif kind == "classification_auto":
@@ -141,7 +155,9 @@ def test_models_from_code_roundtrip_outside_repository(
             if kind == "inflation_native"
             else CatBoostLogLinkRegressionModel
         )
-        regressor = regressor_factory(PARAMS)
+        regressor = regressor_factory(
+            {**PARAMS, "loss_function": "Gamma"} if kind == "inflation_gamma" else PARAMS
+        )
         inflation = (
             ConstantRateInflation(0.03)
             if kind == "inflation_native"
