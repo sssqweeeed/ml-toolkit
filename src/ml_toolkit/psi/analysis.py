@@ -92,7 +92,7 @@ class PSIAnalysis:
         time : polars.Series, str, or None, default None
             Optional non-null Date/Datetime Series aligned with rows, or the name
             of a timestamp column. Provide time for both samples or neither.
-            Current timestamps must all be strictly later than the latest
+            Current timestamps must all be at or after the latest
             reference timestamp; a split inside one grouping period is allowed.
 
         Returns
@@ -148,8 +148,9 @@ class PSIAnalysis:
             The analysis has not been fitted.
         ValueError
             Data is empty, required features are missing, timestamps are invalid,
-            only one sample supplies time, or the reference time range does not
-            strictly precede current. A split inside one period is allowed.
+            only one sample supplies time, or max(reference_time) exceeds
+            min(current_time). Shared endpoints and a split inside one period
+            are allowed.
         """
         if self.reference_levels is None or self.transformer.feature_levels is None:
             raise RuntimeError("PSIAnalysis must be fitted before compare")
@@ -202,8 +203,8 @@ def compare_psi(
         Share floor strictly between zero and one for PSI logarithms.
     reference_time, current_time : polars.Series or None, default None
         Aligned, non-null Date/Datetime values. Supply both to include time-based
-        distributions, or neither. max(reference_time) must be strictly less
-        than min(current_time); a split inside one grouping period is allowed.
+        distributions, or neither. max(reference_time) must be less than or equal
+        to min(current_time); a split inside one grouping period is allowed.
 
     Returns
     -------
@@ -215,8 +216,8 @@ def compare_psi(
     ------
     ValueError
         Frames or feature definitions are empty, configured columns or levels
-        are missing or invalid, timestamps are misaligned, time ranges overlap
-        or are not ordered reference before current, or epsilon is invalid.
+        are missing or invalid, timestamps are misaligned, max(reference_time)
+        exceeds min(current_time), or epsilon is invalid.
     TypeError
         Feature columns are not Categorical or timestamps have an invalid dtype.
     """
