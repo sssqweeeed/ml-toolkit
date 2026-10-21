@@ -34,7 +34,7 @@ def time_feature_distribution(
         Reference frame containing feature and timestamp columns.
     current : polars.DataFrame
         Current frame containing the same required columns. Its earliest
-        timestamp must be strictly later than the latest reference timestamp.
+        timestamp must be at or after the latest reference timestamp.
         The split may fall inside one grouping period.
     feature : str
         Numerical feature to summarize.
@@ -61,8 +61,8 @@ def time_feature_distribution(
     Raises
     ------
     ValueError
-        Required columns are missing, timezones differ, or time ranges overlap
-        or are not ordered reference before current.
+        Required columns are missing, timezones differ, or the latest reference
+        timestamp exceeds the earliest current timestamp.
     TypeError
         Feature is not numerical or timestamp is not Date/Datetime.
 

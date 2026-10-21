@@ -26,9 +26,10 @@ to the start of the selected period.
 Points are drawn at period starts. Entirely missing periods have no computed
 values or markers; lines simply connect neighboring observed periods.
 
-Time ranges must be ordered and strictly separated:
-`max(reference_timestamp) < min(current_timestamp)`. Overlapping ranges,
-equal endpoints, and reversed samples raise `ValueError`. This check uses the
+Time ranges must satisfy
+`max(reference_timestamp) <= min(current_timestamp)`. Equal endpoints are
+allowed; overlap beyond the shared endpoint and reversed samples raise
+`ValueError`. This check uses the
 original timestamps, so a split inside a month (or any other grouping period)
 is allowed. Line plots retain separate reference/current points at that
 period's start.

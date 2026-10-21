@@ -1,6 +1,6 @@
 """Chronological sample boundaries in temporal diagnostics."""
 
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import matplotlib.pyplot as plt
@@ -18,13 +18,12 @@ from ml_toolkit.psi import PSIAnalysis, PSIConfig, compare_psi
     [
         # Ranges overlap even though the individual timestamps are distinct.
         ([1, 3], [2, 4]),
-        ([1, 2], [2, 3]),
         ([3, 4], [1, 2]),
         ([1, 4], [2, 3]),
     ],
 )
 @pytest.mark.parametrize("report", ["psi", "observed_fitted", "feature"])
-def test_temporal_reports_reject_overlapping_equal_or_reversed_ranges(
+def test_temporal_reports_reject_overlapping_or_reversed_ranges(
     reference, current, report, tmp_path
 ):
     def sample(days):
@@ -34,7 +33,7 @@ def test_temporal_reports_reject_overlapping_equal_or_reversed_ranges(
 
     before, after = sample(reference), sample(current)
     output = tmp_path / "invalid.png"
-    with pytest.raises(ValueError, match=r"max\(reference\) < min\(current\)"):
+    with pytest.raises(ValueError, match=r"max\(reference\) <= min\(current\)"):
         if report == "psi":
             PSIAnalysis(PSIConfig(features=(FeatureLevelConfig("x", "numerical"),))).fit(
                 before, time="time"
@@ -52,6 +51,76 @@ def test_temporal_reports_reject_overlapping_equal_or_reversed_ranges(
         else:
             monitoring.time_feature_distribution(before, after, "x", "time", output)
     assert not output.exists()
+
+
+@pytest.mark.parametrize("kind", ["date", "datetime", "zoned"])
+@pytest.mark.parametrize("single_day", [False, True])
+def test_shared_endpoint_keeps_samples_separate_in_every_report(
+    kind, single_day, monkeypatch, tmp_path
+):
+    def timestamp(day):
+        if kind == "date":
+            return date(2025, 1, day)
+        zone = ZoneInfo("Europe/Moscow") if kind == "zoned" else None
+        return datetime(2025, 1, day, tzinfo=zone)
+
+    # Unsorted input; even samples entirely on the same date are valid.
+    before = pl.DataFrame(
+        {"x": [3.0, 1.0], "time": [timestamp(2), timestamp(2 if single_day else 1)]}
+    )
+    after = pl.DataFrame(
+        {"x": [7.0, 5.0], "time": [timestamp(2 if single_day else 3), timestamp(2)]}
+    )
+    figures = []
+    for module in (psi, monitoring, regression):
+        monkeypatch.setattr(
+            module, "save_figure", lambda fig, *a, **k: figures.append(fig)
+        )
+    try:
+        result = (
+            PSIAnalysis(
+                PSIConfig(features=(FeatureLevelConfig("x", "numerical"),), period="day")
+            )
+            .fit(before, time="time")
+            .compare(after, time="time")
+        )
+        table = monitoring.time_feature_distribution(
+            before, after, "x", "time", tmp_path / "feature.png", period="day"
+        )
+        fitted = regression.time_observed_fitted(
+            before["time"].to_list(),
+            [3, 1],
+            [3, 1],
+            after["time"].to_list(),
+            [7, 5],
+            [7, 5],
+            tmp_path / "fitted.png",
+            period="day",
+        )
+        expected = [2.0, 6.0] if single_day else [1.0, 3.0, 5.0, 7.0]
+        assert table["mean"].to_list() == expected
+        assert fitted.observed.to_list() == expected
+        assert fitted.fitted.to_list() == expected
+        shares = result.time_distribution.group_by("sample", "period_start").agg(
+            pl.col("share").sum()
+        )
+        assert shares.height == len(expected)
+        assert shares["share"].to_list() == pytest.approx([1.0] * len(expected))
+        psi.time_psi_level_distribution(
+            result.time_distribution, "x", tmp_path / "psi.png", period="day"
+        )
+        ax = figures[-1].axes[0]
+        # The two bars for the shared date touch, with each sample's own shares.
+        bars = ax.patches[: len(expected)]
+        split = len(expected) // 2
+        left, right = bars[split - 1 : split + 1]
+        boundary = ax.lines[0].get_xdata()[0]
+        assert left.get_x() + left.get_width() == pytest.approx(boundary)
+        assert right.get_x() == pytest.approx(boundary)
+        assert all(bar.get_width() > 0 for bar in bars)
+    finally:
+        for fig in figures:
+            plt.close(fig)
 
 
 @pytest.mark.parametrize(
@@ -127,7 +196,7 @@ def test_range_check_uses_original_instants_across_dst():
     current = pl.Series([datetime(2025, 10, 26, 2, 10, tzinfo=zone, fold=1)])
     first, second = paired_period_starts(reference, current, "day")
     assert first.equals(second)
-    with pytest.raises(ValueError, match="strictly precede"):
+    with pytest.raises(ValueError, match="must precede or equal"):
         paired_period_starts(current, reference, "day")
 
 
@@ -138,7 +207,7 @@ def test_range_check_preserves_nanosecond_order():
     current = pl.select(current).to_series()
     first, second = paired_period_starts(reference, current, "minute")
     assert first.equals(second)
-    with pytest.raises(ValueError, match="strictly precede"):
+    with pytest.raises(ValueError, match="must precede or equal"):
         paired_period_starts(current, reference, "minute")
 
 
@@ -152,7 +221,7 @@ def test_compare_psi_validates_times_only_when_requested():
     assert config is not None
     levels = analysis.transformer.transform(frame)
     reference = pl.Series([datetime(2025, 1, 1), datetime(2025, 1, 3)])
-    with pytest.raises(ValueError, match="strictly precede"):
+    with pytest.raises(ValueError, match="must precede or equal"):
         compare_psi(
             levels,
             levels,

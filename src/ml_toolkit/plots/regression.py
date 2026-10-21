@@ -302,7 +302,7 @@ def time_observed_fitted(
         Finite reference predictions aligned with targets.
     current_timestamp : Sequence[date | datetime]
         Dates or datetimes aligned with current observations. Their minimum
-        must be strictly greater than the maximum reference timestamp. A split
+        must be greater than or equal to the maximum reference timestamp. A split
         inside one grouping period is allowed.
     current_observed : array-like
         Nonempty finite current targets.
@@ -338,8 +338,8 @@ def time_observed_fitted(
     Raises
     ------
     ValueError
-        Timezones differ, or time ranges overlap or are not ordered reference
-        before current.
+        Timezones differ, or the latest reference timestamp exceeds the earliest
+        current timestamp.
     PlotError
         Vectors are misaligned, timestamps are missing, or numeric values and
         weights are invalid.

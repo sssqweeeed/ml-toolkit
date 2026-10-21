@@ -42,13 +42,14 @@ def paired_period_starts(
             "Reference and current timestamps must have matching time zones"
         )
     # Compare original instants, not rounded period starts. A split may fall
-    # inside one period; equal endpoints or interleaved samples are not allowed.
-    strictly_ordered: bool | None = pl.select(
-        pl.lit(reference).max() < pl.lit(current).min()
+    # inside one period; shared endpoints are allowed, interleaved samples are not.
+    ordered: bool | None = pl.select(
+        pl.lit(reference).max() <= pl.lit(current).min()
     ).item()
-    if strictly_ordered is False:
+    if ordered is False:
         raise ValueError(
-            "Reference timestamps must strictly precede current timestamps: "
-            "max(reference) < min(current). Time ranges must not overlap."
+            "Reference timestamps must precede or equal current timestamps: "
+            "max(reference) <= min(current). "
+            "Time ranges may share an endpoint but must not otherwise overlap."
         )
     return reference_start, current_start

@@ -136,8 +136,8 @@ class CommonPlotsConfig:
     period : TimePeriod, default "month"
         Calendar grouping for all temporal diagnostics in the input timezone.
         Minute/hour require Datetime values; weeks start on Monday.
-        Reference timestamps must strictly precede current timestamps; a split
-        inside one grouping period is allowed.
+        Reference timestamps must precede or equal current timestamps; shared
+        endpoints and a split inside one grouping period are allowed.
     n_bins : int, default 10
         Positive requested number of reference quantile bins for both diagnostics.
     epsilon : float, default 1e-6

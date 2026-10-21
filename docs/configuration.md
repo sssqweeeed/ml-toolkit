@@ -1157,6 +1157,7 @@ The default is `"month"`; `"minute"`, `"hour"`, `"day"`, `"quarter"`, and `"year
 are also supported. Week boundaries are Mondays, and all calendar boundaries
 use the data's timezone. Minute/hour grouping requires `Datetime` inputs.
 Independent PSI analysis accepts the same option in `PSIConfig(period=...)`.
-Temporal diagnostics require the latest reference timestamp to be strictly
-earlier than the earliest current timestamp. Overlap or equal endpoints raise
-`ValueError`; splitting inside a grouping period is allowed.
+Temporal diagnostics require the latest reference timestamp to be at or before
+the earliest current timestamp. Equal endpoints are allowed; overlap beyond
+that endpoint or reversed ranges raise `ValueError`. Splitting inside a grouping
+period is allowed.

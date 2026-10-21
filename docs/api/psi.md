@@ -50,8 +50,9 @@ Call `analysis.compare(next_sample)` for later batches. Re-fitting on each batch
 would change the reference. For temporal distributions, set `PSIConfig(period="week")` (default `"month"`)
 and provide aligned
 `Date`/`Datetime` timestamps with `time=` in both `fit` and `compare`.
-The original ranges must satisfy `max(reference_time) < min(current_time)`;
-overlap, equal endpoints, and reversed ranges raise `ValueError`. The split
+The original ranges must satisfy `max(reference_time) <= min(current_time)`.
+Equal endpoints are allowed; overlap beyond the shared endpoint and reversed
+ranges raise `ValueError`. The split
 may fall inside one grouping period. Comparisons without timestamps do not
 have this restriction.
 
