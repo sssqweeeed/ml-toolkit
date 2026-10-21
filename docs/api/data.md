@@ -6,7 +6,8 @@ data; row operations and backend conversions are included in the package.
 
 ## Prepare a pool
 
-After installing the package, create a pool directly:
+After installing the package, create a pool directly. This small constructed
+fixture demonstrates container operations; it is not an evaluation dataset:
 
 <!-- example: data-prepare -->
 
@@ -50,23 +51,93 @@ model features. No project-specific container implementation is required.
 first_week = data.take(range(7))
 age_only = first_week.select_features(["age"])
 
-print(len(age_only))
-print(age_only.X.columns)
-print(len(data))
+print("Selected rows and features:", len(age_only), age_only.X.columns)
+reordered = data.take([2, 0, 2])
+print("Aligned (age, target, date):")
+for age, target, time in zip(reordered.X["age"], reordered.y, reordered.time):
+    print(age, target, time)
+print("Original rows:", len(data))
 ```
 
 <!-- output: data-slice -->
 ```text
-7
-['age']
-24
+Selected rows and features: 7 ['age']
+Aligned (age, target, date):
+22 2.0 2025-01-03
+20 0.0 2025-01-01
+22 2.0 2025-01-03
+Original rows: 24
 ```
 <!-- /output -->
 
-These operations return new containers and carry targets, dates, weights, IDs,
-and groups together. `with_target` replaces only the target. `to_model_input()`
-produces a pandas feature frame; the container converts categorical
-columns to strings and fills missing categories with `"unknown"`.
+The selection repeats row 2 around row 0; their ages, targets, and dates move
+together. Weights and optional IDs and reporting groups follow the same order.
+Feature selection filters feature declarations as well as `X`. Both operations
+return new containers, leaving the original 24 rows intact. Reordered data is
+useful for inspection; training still requires ascending timestamps.
+
+## Replace a target without changing rows
+
+For example, prepare a log-transformed target while keeping original counts
+available for comparison:
+
+<!-- example: data-target -->
+
+```python
+transformed = data.with_target(data.y.cast(pl.Float64).log1p())
+print("Original targets:", data.y.head(3).to_list())
+print("Log1p targets:", transformed.y.head(3).round(4).to_list())
+print("Dates preserved:", transformed.time.equals(data.time))
+```
+
+<!-- output: data-target -->
+```text
+Original targets: [0.0, 1.0, 2.0]
+Log1p targets: [0.0, 0.6931, 1.0986]
+Dates preserved: True
+```
+<!-- /output -->
+
+A model fitted to this transformed target predicts on the transformed scale;
+convert predictions back before comparing them with original counts. The
+original pool remains available with unchanged targets.
+
+## Convert features and baseline for a backend
+
+This conversion example includes a missing category. Use a small copy of the
+prepared pool so the shared `data` keeps its original values:
+
+<!-- example: data-conversion -->
+
+```python
+from dataclasses import replace
+
+with_missing = replace(
+    data.take([0, 1, 2]),
+    X=data.X.head(3).with_columns(pl.Series("region", ["north", None, "south"])),
+)
+model_input = with_missing.to_model_input()
+print("Backend categories:", model_input["region"].tolist())
+print("Source categories:", with_missing.X["region"].to_list())
+native = with_missing.to_catboost(baseline=0.25)
+print("Backend features:", native.get_feature_names())
+print("Raw-score baseline:", native.get_baseline().reshape(-1).tolist())
+```
+
+<!-- output: data-conversion -->
+```text
+Backend categories: ['north', 'unknown', 'south']
+Source categories: ['north', None, 'south']
+Backend features: ['age', 'region']
+Raw-score baseline: [0.25, 0.25, 0.25]
+```
+<!-- /output -->
+
+`to_model_input()` returns pandas feature columns, converts categorical values
+to strings, and fills missing values with `"unknown"`. `to_catboost()` also
+carries targets, weights, and timestamps, broadcasting a scalar baseline to
+every row. The baseline is a raw model score, not a prediction on the response
+scale; a log-link model interprets 0.25 on the log scale.
 
 Training reserves the literal category `"unknown"` for missing values. Raw
 categorical columns in training and validation inputs must not already contain
@@ -79,20 +150,11 @@ serving continue to accept `"unknown"`; ordinary missing values are still filled
 The same class is available from `ml_toolkit` and `ml_toolkit.data` for
 construction and type annotations:
 
-<!-- example: data-protocol -->
+<!-- example: data-import-alias -->
 
 ```python
 from ml_toolkit import Pool
-
-rows: Pool = data
-print(len(rows))
 ```
-
-<!-- output: data-protocol -->
-```text
-24
-```
-<!-- /output -->
 
 ### Row fields
 

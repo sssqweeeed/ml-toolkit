@@ -19,6 +19,25 @@ The [configuration reference](api/configuration.md) lists every field and defaul
 | Nonnegative severity targets | `CatBoostLogLinkRegressionModel` | Tweedie metric with fixed power | [Severity](#severity) |
 | Known positives mixed with unlabeled observations | `CatBoostPUClassificationModel` | `PUMetric` | [Positive-unlabeled classification](#positiveunlabeled-classification) |
 
+## Prepare source data
+
+Run from an installed repository checkout after `python -m examples.prepare_data`.
+The recipes below load cached source observations explicitly; they never invent
+timestamps or relabel confirmed negatives as unlabeled records.
+
+| Recipe | Observations and target | Evaluation |
+| --- | --- | --- |
+| Regression, frequency | All 17,379 UCI Bike Sharing hours; recorded rentals per hour | Chronological CV followed by the last 20% of hours |
+| Binary classification | The same hours; high demand means at least 100 recorded rentals | The same chronological partitions; target counts are excluded from inputs |
+| Severity | Fixed 10% sample of complete UCI Online Retail invoices; positive unit price in GBP | Train before September 2011, validate in September, test in October–November |
+| Positive–unlabeled | Caller-supplied known-positive and unlabeled observations | Requires genuine timestamps and an externally justified population prior |
+
+The [Bike setup](api/models.md#prepare-real-observations) documents its features
+and units. The [retail setup](api/inflation.md#prepare-recorded-retail-prices)
+documents sampling and exclusions. Retail prices illustrate positive monetary
+regression; they are not insurance claim severities. The PU blocks illustrate
+configuration only and are not run on either of these supervised targets.
+
 ## Imports and shared behavior
 
 Run this block first when using a compact recipe. Full configuration blocks
@@ -140,14 +159,22 @@ configuration are always logged to MLflow. Set
 
 ## Binary classification
 
-Use a pool whose targets contain confirmed `0` and `1` labels. Include both
-classes in evaluated splits for finite ROC AUC; single-class splits return NaN.
+The example labels an observed hour as high demand when its recorded rental
+count is at least 100. This fixed operational threshold is chosen before
+splitting; the count and its components are excluded from features. Include
+both classes in evaluated splits for finite ROC AUC; single-class splits return NaN.
 
 ### Using the base configuration
 
 <!-- example: configuration-classification -->
 
 ```python
+from examples.gallery_data import load_bike_pool
+import polars as pl
+
+data = load_bike_pool(download_if_missing=False)
+data = data.with_target((data.y >= 100).cast(pl.Float64))
+
 classification_config = replace(
     base_config,
     reporting=ReportingConfig(
@@ -170,6 +197,12 @@ prediction_evaluators = None
 <!-- example: configuration-classification-full -->
 
 ```python
+from examples.gallery_data import load_bike_pool
+import polars as pl
+
+data = load_bike_pool(download_if_missing=False)
+data = data.with_target((data.y >= 100).cast(pl.Float64))
+
 from optuna import Trial
 
 from ml_toolkit.config import (
@@ -304,6 +337,10 @@ returning named scores; this example uses exposure-weighted absolute error.
 <!-- example: configuration-regression -->
 
 ```python
+from examples.gallery_data import load_bike_pool
+
+data = load_bike_pool(download_if_missing=False)
+
 def weighted_mae(
     observed: FloatArray, prediction: FloatArray, weight: FloatArray
 ) -> MetricScores:
@@ -334,6 +371,10 @@ prediction_evaluators = None
 <!-- example: configuration-regression-full -->
 
 ```python
+from examples.gallery_data import load_bike_pool
+
+data = load_bike_pool(download_if_missing=False)
+
 from optuna import Trial
 
 from ml_toolkit.config import (
@@ -472,6 +513,10 @@ The log-link adapter fits a training-only baseline and returns positive rates.
 <!-- example: configuration-frequency -->
 
 ```python
+from examples.gallery_data import load_bike_pool
+
+data = load_bike_pool(download_if_missing=False)
+
 frequency_config = replace(
     base_config,
     reporting=ReportingConfig(
@@ -495,6 +540,10 @@ prediction_evaluators = None
 <!-- example: configuration-frequency-full -->
 
 ```python
+from examples.gallery_data import load_bike_pool
+
+data = load_bike_pool(download_if_missing=False)
+
 from optuna import Trial
 
 from ml_toolkit.config import (
@@ -613,6 +662,13 @@ prediction_evaluators = None
 
 ## Severity
 
+Use the recorded positive retail unit prices as monetary targets, with
+`stock_code`, `country` and `quantity` as inputs. The test starts on 1 October
+2011; the holdout uses September for validation and earlier invoices for
+training. The validation row count comes from the canonical calendar split,
+so whole invoices stay together. Shared feature diagnostics focus on
+quantity rather than drawing thousands of product categories.
+
 Use a Tweedie power consistent with the model loss and metric. Here `power=1.5`
 allows zero targets and requires positive predictions and positive weighted
 observed totals. Gamma deviance (`power=2`) requires strictly positive targets.
@@ -628,6 +684,11 @@ configuration, predictions, validation requirements and saving models.
 <!-- example: configuration-severity -->
 
 ```python
+from examples.retail_data import load_retail_pool, load_retail_splits
+
+data = load_retail_pool(download_if_missing=False)
+retail_splits = load_retail_splits(download_if_missing=False)
+
 def severity_metric(
     observed: FloatArray, prediction: FloatArray, weight: FloatArray
 ) -> MetricsSeverity:
@@ -636,10 +697,12 @@ def severity_metric(
 
 severity_config = replace(
     base_config,
+    validation=HoldoutConfig(val_size=len(retail_splits.validation)),    test_size="2011-10-01",
     reporting=ReportingConfig(
         diagnostics=RegressionDiagnosticsConfig(
             task="severity",
-            plots=RegressionPlotsConfig(common=common, gains=True, lift=True),
+            plots=RegressionPlotsConfig(common=replace(common, features=(FeatureLevelConfig("quantity", "numerical"),)),
+                gains=True, lift=True),
         ),
     ),
 )
@@ -657,17 +720,23 @@ prediction_evaluators = None
 <!-- example: configuration-severity-full -->
 
 ```python
+from examples.retail_data import load_retail_pool, load_retail_splits
+
+data = load_retail_pool(download_if_missing=False)
+retail_splits = load_retail_splits(download_if_missing=False)
+
 from optuna import Trial
 
 from ml_toolkit.config import (
     CommonPlotsConfig,
     FigureConfig,
+    FeatureLevelConfig,
     NumericalFeatureDistributionConfig,
     RegressionDiagnosticsConfig,
     RegressionPlotsConfig,
     ReportingConfig,
     ShapConfig,
-    TimeSeriesCVConfig,
+    HoldoutConfig,
     TrackingConfig,
     TrainingConfig,
     TuningConfig,
@@ -686,14 +755,8 @@ def severity_metric(
 
 
 severity_config = TrainingConfig(
-    validation=TimeSeriesCVConfig(
-        n_splits=3,
-        val_size=None,
-        gap=0,
-        max_train_size=None,
-        skip_splits=0,
-    ),
-    test_size=0.2,
+    validation=HoldoutConfig(val_size=len(retail_splits.validation)),
+    test_size="2011-10-01",
     tuning=TuningConfig(
         metric="mean_tweedie_deviance",
         direction="minimize",
@@ -711,7 +774,7 @@ severity_config = TrainingConfig(
                         dpi=150,
                         format="png",
                     ),
-                    features=None,
+                    features=(FeatureLevelConfig("quantity", "numerical"),),
                     psi=True,
                     observed_fitted=True,
                     period="month",
@@ -766,7 +829,7 @@ feature_selector = RFESelector(
     ranker=importance_ranker,
     max_fits=2,
     score_tolerance=0.0,
-    protected_features=(),
+    protected_features=("quantity",),
 )
 
 
@@ -785,7 +848,11 @@ prediction_evaluators = None
 Targets use `1` for known positives and `0` for unlabeled observations. Each
 training and evaluated sample needs positive weight in both groups. The prior
 is the expected positive fraction in the population, not the labeled fraction.
-Use the same prior in the model and metric.
+Use the same prior in the model and metric. The `0.2` below is an explicit
+configuration assumption, not an estimate from Bike, Retail, or the proportion
+of labeled examples. Replace it with a defensible population prior before
+fitting. These blocks intentionally do not create `data`: provide genuine PU
+observations and recorded timestamps before using the shared training call.
 
 ### Using the base configuration
 
@@ -796,7 +863,7 @@ pu_classification_config = replace(
     base_config,
     reporting=ReportingConfig(
         diagnostics=PUDiagnosticsConfig(
-            plots=PUPlotsConfig(common=common),
+            plots=PUPlotsConfig(common=replace(common, observed_fitted=False)),
         ),
     ),
 )
@@ -862,7 +929,7 @@ pu_classification_config = TrainingConfig(
                     ),
                     features=None,
                     psi=True,
-                    observed_fitted=True,
+                    observed_fitted=False,
                     period="month",
                     n_bins=10,
                     epsilon=1e-6,
@@ -938,9 +1005,10 @@ to omit those charts.
 
 ## Run the chosen recipe
 
-Prepare a `data` pool with targets appropriate to the selected task. The
-[data example](api/data.md#prepare-a-pool) works for regression, frequency, and
-the severity recipe above. Configure MLflow, then run:
+Run exactly one compact or full recipe above: it prepares task-appropriate
+`data` and settings. PU instead requires your own real PU pool and justified
+prior. Then configure MLflow and call training. The captured output below uses
+the compact Frequency recipe on recorded Bike observations:
 
 <!-- example: configuration-run -->
 
@@ -969,13 +1037,12 @@ print({name: round(value, 4) for name, value in result.test_metrics.items()})
 
 <!-- output: configuration-run -->
 ```text
-{'mean_poisson_deviance': 0.9547, 'd2_poisson_score': -0.0823, 'mean_absolute_error': 0.707, 'root_mean_squared_error': 0.8303, 'prediction_over_observed': 0.9742, 'lift_at_10': 0.3333, 'gain_at_10': 0.0333, 'normalized_gini': -0.5079}
-{'mean_poisson_deviance': 0.733, 'd2_poisson_score': -0.0916, 'mean_absolute_error': 0.631, 'root_mean_squared_error': 0.7895, 'prediction_over_observed': 0.7903, 'lift_at_10': 1.6667, 'gain_at_10': 0.1667, 'normalized_gini': 0.2}
+{'mean_poisson_deviance': 120.7394, 'd2_poisson_score': 0.1843, 'mean_absolute_error': 111.9625, 'root_mean_squared_error': 155.9688, 'prediction_over_observed': 0.7438, 'lift_at_10': 1.6123, 'gain_at_10': 0.1612, 'normalized_gini': 0.6381}
+{'mean_poisson_deviance': 159.3838, 'd2_poisson_score': 0.1984, 'mean_absolute_error': 144.2219, 'root_mean_squared_error': 205.547, 'prediction_over_observed': 0.6959, 'lift_at_10': 1.7831, 'gain_at_10': 0.1783, 'normalized_gini': 0.7351}
 ```
 <!-- /output -->
 
-The output shown below the example uses the compact Frequency recipe and the data
-example. Choose your task block before running this shared call; its metric
+The output shown below the example uses the compact Frequency recipe. Choose your task block before running this shared call; its metric
 names and values will differ for other tasks.
 
 The call creates a local `mlflow.db` and logs metrics, configuration, tables,
@@ -995,8 +1062,9 @@ Run the **Frequency → Full configuration** block, then this example from a
 source checkout with the `shap` extra installed. It uses all 17,379 hourly records
 from the [UCI Bike Sharing dataset](https://archive.ics.uci.edu/dataset/275/bike+sharing+dataset),
 with recorded dates and hours from 2011–2012, eleven weather/calendar features,
-rental counts as targets, and unit weights per recorded hour. The loader caches
-the official archive in `.cache/uci-bike-sharing` on first use. No dates, targets,
+rental counts as targets, and unit weights per recorded hour. The preparation command caches
+the official archive in `.cache/uci-bike-sharing`; example execution requires
+that cache and does not download data. No dates, targets,
 or distribution shifts are synthesized; no rows are sampled before splitting.
 
 The full configuration reserves the latest 20% of rows for test and performs
@@ -1019,7 +1087,7 @@ from ml_toolkit.plots.explainability import shap_importance
 from ml_toolkit.training import split_holdout
 from ml_toolkit.config import HoldoutConfig
 
-data = load_bike_pool()
+data = load_bike_pool(download_if_missing=False)
 mlflow.set_tracking_uri("sqlite:///mlflow.db")
 mlflow.set_experiment("ml-toolkit-task-recipes")
 result = train_model(
@@ -1091,7 +1159,7 @@ from ml_toolkit.config import HoldoutConfig
 
 holdout_config = replace(regression_config, validation=HoldoutConfig(val_size=0.2))
 no_test_config = replace(holdout_config, test_size=None)
-date_test_config = replace(holdout_config, test_size="2025-01-20")
+date_test_config = replace(holdout_config, test_size="2012-10-01")
 ```
 
 Run the regression configuration block first. `test_size=None` disables test;
@@ -1115,8 +1183,8 @@ from ml_toolkit.config import FeatureLevelConfig
 
 feature_common = CommonPlotsConfig(
     features=(
-        FeatureLevelConfig("age", "numerical", lower_bound=0, upper_bound=120),
-        FeatureLevelConfig("region", "categorical", null_level="unknown"),
+        FeatureLevelConfig("humidity", "numerical", lower_bound=0, upper_bound=1),
+        FeatureLevelConfig("weather", "categorical", null_level="unknown"),
     ),
     psi=True,
     observed_fitted=True,

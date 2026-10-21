@@ -163,8 +163,10 @@ class CommonPlotsConfig:
     ...     psi=False,
     ...     observed_fitted=True,
     ... )
-    >>> common.n_bins
-    10
+    >>> common.psi, common.observed_fitted
+    (False, True)
+    >>> common.features[0].name, common.features[0].lower_bound
+    ('age', 0)
     """
 
     features: tuple[FeatureLevelConfig, ...] | None = None

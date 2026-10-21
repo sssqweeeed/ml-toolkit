@@ -29,6 +29,7 @@ PAGES = (
     "README.md",
     "docs/getting-started.md",
     "docs/api/data.md",
+    "docs/api/metrics.md",
     "docs/configuration.md",
     "docs/api/psi.md",
     "docs/api/inflation.md",
@@ -48,7 +49,15 @@ class Recipe:
 
 def recipes(path: Path) -> list[Recipe]:
     """Read named executable snippets, excluding source-file includes."""
-    return [Recipe(match['name'], match['code']) for match in RECIPE.finditer(path.read_text())]
+    document = path.read_text()
+    matches = list(RECIPE.finditer(document))
+    blocks = list(re.finditer(r"^```python\n.*?\n```", document, re.MULTILINE | re.DOTALL))
+    if len(matches) != len(blocks):
+        raise ValueError(f"Every top-level Python block in {path.name} needs an example marker")
+    names = [match["name"] for match in matches]
+    if len(names) != len(set(names)):
+        raise ValueError(f"Duplicate example markers in {path.name}")
+    return [Recipe(match["name"], match["code"]) for match in matches]
 
 
 def execute(recipe: Recipe, namespace: dict[str, object]) -> str:
@@ -59,13 +68,11 @@ def execute(recipe: Recipe, namespace: dict[str, object]) -> str:
     return stream.getvalue().strip()
 
 
-def prepare_data(namespace: dict[str, object]) -> None:
-    execute(recipes(ROOT / 'docs/api/data.md')[0], namespace)
-
-
 def prepare_model(namespace: dict[str, object]) -> None:
-    prepare_data(namespace)
-    execute(recipes(ROOT / 'docs/api/models.md')[0], namespace)
+    # This cross-page prerequisite is linked explicitly by the tracking guide.
+    by_name = {recipe.name: recipe for recipe in recipes(ROOT / 'docs/api/models.md')}
+    for name in ('models-data', 'models-regression'):
+        execute(by_name[name], namespace)
 
 
 def render_page(path: Path, *, check: bool) -> None:
@@ -73,8 +80,6 @@ def render_page(path: Path, *, check: bool) -> None:
     relative = path.relative_to(ROOT).as_posix()
     source = path.read_text()
     namespace: dict[str, object] = {'__name__': '__documentation__'}
-    if relative in {'docs/api/models.md','docs/api/training.md','docs/api/inflation.md','docs/configuration.md','docs/custom-model.md'}:
-        prepare_data(namespace)
     if relative == 'docs/api/tracking.md':
         prepare_model(namespace)
     outputs: dict[str, str] = {}
@@ -89,7 +94,7 @@ def render_page(path: Path, *, check: bool) -> None:
             frequency[recipe.name] = {
                 name: namespace[name]
                 for name in (
-                    'config', 'params', 'metric', 'model_factory',
+                    'data', 'config', 'params', 'metric', 'model_factory',
                     'feature_selector', 'param_space', 'prediction_evaluators',
                 )
             }

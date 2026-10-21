@@ -28,94 +28,108 @@ not require CUDA, and the `all` extra does not include it.
 
 ## Train a model
 
-This example creates synthetic frequency data, reserves the latest 20% for
-testing, and uses one chronological holdout for validation.
+Predict hourly rental counts from the original [UCI Bike Sharing dataset](https://archive.ics.uci.edu/dataset/275/bike+sharing+dataset).
+Run from the installed checkout above: the reusable loader lives in `examples/`,
+not in the installed package. Explicitly download the source once:
+
+```bash
+python -m examples.prepare_data --dataset bike
+```
+
+The loader caches `hour.csv` under `.cache/uci-bike-sharing`. It keeps all 17,379
+recorded hours from 2011–2012 with their original timestamps and rental counts.
+Weather and calendar fields are predictors; `casual` and `registered` are excluded
+because their sum reveals the target. Each hour has weight one.
+
+July–December 2012 is held out for testing. The last 20% of earlier observations
+forms validation; the final model refits on all pre-test hours. No test observations
+are used to choose training iterations.
 
 <!-- example: getting-started-train -->
 
 ```python
-from datetime import date, timedelta
+from datetime import datetime
 
-import mlflow
 import numpy as np
-import polars as pl
+import mlflow
 
-from ml_toolkit.data import Pool
+from examples.gallery_data import load_bike_pool
 from ml_toolkit import train_model
 from ml_toolkit.config import HoldoutConfig, TrackingConfig, TrainingConfig
 from ml_toolkit.metrics import metrics_frequency
 from ml_toolkit.models import CatBoostLogLinkRegressionModel
 
-rng = np.random.default_rng(42)
-n_rows = 240
-age = rng.integers(18, 80, size=n_rows)
-region = rng.choice(["north", "south"], size=n_rows)
-rate = np.exp(-0.5 + 0.015 * (age - 40) + 0.2 * (region == "north"))
-frame = pl.DataFrame(
-    {
-        "age": age,
-        "region": region,
-        "target": rng.poisson(rate),
-        "date": [date(2025, 1, 1) + timedelta(days=i) for i in range(n_rows)],
-        "weight": np.ones(n_rows),
-    }
-)
-data = Pool(
-    X=frame.select("age", "region"),
-    y=frame["target"],
-    time=frame["date"],
-    weight=frame["weight"],
-    cat_features=("region",),
-    numerical_features=("age",),
-)
-
+# Run the explicit preparation command above once before reading the cache.
+data = load_bike_pool(download_if_missing=False)
 mlflow.set_tracking_uri("sqlite:///mlflow.db")
 mlflow.set_experiment("ml-toolkit-quickstart")
 
 result = train_model(
     data=data,
     params={
-        "iterations": 40,
-        "depth": 4,
-        "loss_function": "Poisson",
-        "random_seed": 42,
-        "thread_count": 2,
-        "verbose": False,
+        "iterations": 100, "depth": 5, "loss_function": "Poisson",
+        "random_seed": 42, "thread_count": 2, "verbose": False,
         "allow_writing_files": False,
     },
     model_factory=CatBoostLogLinkRegressionModel,
     metric=metrics_frequency,
-    run_name="frequency-holdout",
+    run_name="hourly-rentals",
     config=TrainingConfig(
         validation=HoldoutConfig(val_size=0.2),
-        test_size=0.2,
+        test_size="2012-07-01",
         tracking=TrackingConfig(log_final_model=False),
     ),
 )
-
-print(f"Validation deviance: {result.validation.mean_metrics['mean_poisson_deviance']:.4f}")
+print(f"Validation deviance: {result.validation.mean_metrics['mean_poisson_deviance']:.2f}")
 assert result.test_metrics is not None
-print(f"Test deviance: {result.test_metrics['mean_poisson_deviance']:.4f}")
-predictions = result.model.predict_pool(data)
-print(predictions[:5].round(4).tolist())
+print(f"Test deviance: {result.test_metrics['mean_poisson_deviance']:.2f}")
+test = data.take(np.flatnonzero((data.time >= datetime(2012, 7, 1)).to_numpy()))
+predictions = result.model.predict_pool(test)
+print("Observed rentals:", test.y.head(5).to_list())
+print("Predicted rentals:", predictions[:5].round(1).tolist())
 ```
 
 <!-- output: getting-started-train -->
 ```text
-Validation deviance: 1.2006
-Test deviance: 1.3690
-[0.6797, 0.7921, 0.7012, 0.6933, 0.6933]
+Validation deviance: 70.59
+Test deviance: 72.23
+Observed rentals: [149.0, 93.0, 90.0, 33.0, 4.0]
+Predicted rentals: [48.7, 48.0, 47.8, 47.2, 47.5]
 ```
 <!-- /output -->
 
-`Pool` is included in the installed package. Pass your prepared data to its
-constructor; see the [data guide](api/data.md) for fields and operations.
+Poisson deviance summarizes count prediction error; lower is better. The first
+five predictions are genuine future-period observations, in rentals per hour.
+Validation and test cover different seasons, so their scores need not match.
+This small model demonstrates the workflow; it is not a tuned demand forecast.
 
+`Pool` is included in the installed package. Pass your own prepared data to its
+constructor; see the [data guide](api/data.md) for fields and operations.
 The example creates a local `mlflow.db` and logs metrics and configuration.
-Model packaging is disabled to keep the example small; set
-`TrackingConfig(log_final_model=True)` to also log the final model and its
-inference dependencies. Predictions at the end include training rows and are
-an inference example; use `result.test_metrics` for held-out evaluation.
+Model packaging is disabled here; `TrackingConfig(log_final_model=True)` also
+saves the final model and its inference dependencies.
+
+## Reproduce the other examples
+
+From the checkout, install optional integrations and the example-only Excel
+reader, then prepare the remaining sources explicitly:
+
+```bash
+python -m pip install -e '.[all]' -r requirements-examples.txt
+python -m examples.prepare_data
+```
+
+Bike Sharing supports count and demand-classification workflows; the gallery
+also uses bundled handwritten digits and original Cora citation records.
+[UCI Online Retail](https://archive.ics.uci.edu/dataset/352/online%2Bretail)
+(CC BY 4.0; Daqing Chen, 2015) provides recorded invoice timestamps and item
+prices in sterling for [monetary and inflation examples](api/inflation.md).
+Its source workbook is approximately 23 MB. `openpyxl` is required only to read
+that workbook; it is not a package runtime dependency.
+
+`python -m examples.render_examples --check` executes the recipes and checks
+captured results and figures. Dataset caches stay local; recipe execution does
+not implicitly download missing sources. Remove `--check` to regenerate output.
 
 ## Prepare your own data
 

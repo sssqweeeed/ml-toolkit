@@ -47,12 +47,15 @@ def binary_curves(
 
     Examples
     --------
+    This small calculation shows the precision/recall tradeoff: lowering the
+    threshold from 0.9 to 0.6 finds the second positive and one false positive.
+
     >>> from ml_toolkit.plots.classification import binary_curves
-    >>> curve = binary_curves([0, 1], [0.2, 0.8])
-    >>> curve["threshold"].tolist()
-    [0.8, 0.2]
-    >>> float(curve["f1"].iloc[0])
-    1.0
+    >>> curve = binary_curves([1, 0, 1, 0], [0.9, 0.8, 0.6, 0.2])
+    >>> print(curve.iloc[[0, 2]].round(3).to_string(index=False))
+     threshold  precision  recall    f1
+           0.9      1.000     0.5 0.667
+           0.6      0.667     1.0 0.800
     """
     y = numeric_vector(observed, "observed")
     p = numeric_vector(probabilities, "probabilities", probability=True)

@@ -1,8 +1,8 @@
 # Build a model adapter
 
 Implement `Model` when your project needs its own fitting or prediction policy.
-The example below trains a CatBoost RMSE model in thousands of target units and
-returns predictions in the original units. It composes a new adapter around a
+The example below trains a CatBoost RMSE model in thousands of hourly bike
+rentals and returns predictions in rentals per hour. It composes a new adapter around a
 built-in model and preserves that transformation when logging to MLflow.
 
 The complete runnable files are `examples/custom_model.py` and
@@ -11,7 +11,8 @@ built-in [`Pool`](api/data.md#prepare-a-pool) to hold prepared data.
 
 ## Run the complete example
 
-From the installed repository checkout:
+From the installed repository checkout, download the source data once with
+`python -m examples.prepare_data`, then run:
 
 ```bash
 python -m examples.custom_model
@@ -29,15 +30,22 @@ demo()
 
 <!-- output: custom-model-demo -->
 ```text
-prediction shape: (40,)
-validation MAE: 163.646
-test MAE: 175.198
+native predictions (thousands): [0.1959, 0.1918, 0.1883, 0.2361, 0.2308]
+observed rentals: [283.0, 253.0, 261.0, 306.0, 445.0]
+predicted rentals: [195.9, 191.8, 188.3, 236.1, 230.8]
+validation MAE: 92.736
+test MAE: 91.174
 serving predictions match: True
 ```
 <!-- /output -->
 
-The example creates deterministic data, validates on a chronological holdout,
-refits, logs the complete adapter, reloads it, and checks prediction equality.
+The example uses all 17,379 original UCI Bike Sharing hours from 2011–2012,
+with weather/calendar features, recorded rental counts and timestamps, and
+unit weights. It reserves the latest 20% for test and validates on the last
+25% of the remaining rows. The normal workflow refits on non-test observations;
+the example logs that exact final adapter, reloads it, and checks prediction
+equality on the untouched test tail. The displayed test MAE and serving predictions
+therefore describe the same fitted adapter.
 MLflow uses a temporary local database and artifact directory that are removed
 after the check. No remote tracking service or registry is required.
 

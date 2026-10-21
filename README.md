@@ -20,62 +20,56 @@ The Python import is `ml_toolkit`.
 
 ## Quickstart
 
-Train a frequency model on synthetic data with chronological validation and a
-future test split:
+From the checkout, cache the original [UCI Bike Sharing data](https://archive.ics.uci.edu/dataset/275/bike+sharing+dataset), then predict hourly rental counts using recorded weather and calendar features:
+
+```bash
+python -m examples.prepare_data --dataset bike
+```
+
+The loader excludes counts that reveal the target. Training and validation use
+hours before July 2012; July–December 2012 is the future test period.
 
 <!-- example: readme-quickstart -->
 
 ```python
-from datetime import date
-
 import mlflow
-import polars as pl
 
-from ml_toolkit.data import Pool
+from examples.gallery_data import load_bike_pool
 from ml_toolkit import train_model
 from ml_toolkit.config import HoldoutConfig, TrackingConfig, TrainingConfig
 from ml_toolkit.metrics import metrics_frequency
 from ml_toolkit.models import CatBoostLogLinkRegressionModel
 
-frame = pl.DataFrame({
-    "feature": [i % 10 for i in range(40)],
-    "target": [float(i % 3) for i in range(40)],
-    "date": pl.date_range(date(2025, 1, 1), date(2025, 2, 9), eager=True),
-})
-data = Pool(
-    X=frame.select("feature"),
-    y=frame["target"],
-    time=frame["date"],
-    weight=pl.Series([1.0] * len(frame)),
-    numerical_features=("feature",),
-)
+# Run the explicit preparation command above once before reading the cache.
+data = load_bike_pool(download_if_missing=False)
 mlflow.set_tracking_uri("sqlite:///mlflow.db")
 mlflow.set_experiment("ml-toolkit-quickstart")
 
 result = train_model(
     data=data,
     params={
-        "iterations": 20, "depth": 2, "loss_function": "Poisson", "random_seed": 42,
-        "thread_count": 2, "verbose": False, "allow_writing_files": False,
+        "iterations": 100, "depth": 5, "loss_function": "Poisson",
+        "random_seed": 42, "thread_count": 2, "verbose": False,
+        "allow_writing_files": False,
     },
     model_factory=CatBoostLogLinkRegressionModel,
     metric=metrics_frequency,
-    run_name="frequency",
+    run_name="hourly-rentals",
     config=TrainingConfig(
         validation=HoldoutConfig(val_size=0.2),
-        test_size=0.2,
+        test_size="2012-07-01",
         tracking=TrackingConfig(log_final_model=False),
     ),
 )
-print(f"Validation deviance: {result.validation.mean_metrics['mean_poisson_deviance']:.4f}")
+print(f"Validation deviance: {result.validation.mean_metrics['mean_poisson_deviance']:.2f}")
 assert result.test_metrics is not None
-print(f"Test deviance: {result.test_metrics['mean_poisson_deviance']:.4f}")
+print(f"Test deviance: {result.test_metrics['mean_poisson_deviance']:.2f}")
 ```
 
 <!-- output: readme-quickstart -->
 ```text
-Validation deviance: 0.7952
-Test deviance: 1.0407
+Validation deviance: 70.59
+Test deviance: 72.23
 ```
 <!-- /output -->
 

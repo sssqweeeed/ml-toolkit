@@ -1,6 +1,7 @@
 # Metrics
 
-Metrics evaluate aligned targets, predictions, and weights. Use them directly
+Metrics evaluate aligned targets, predictions, and weights. The small arrays
+below illustrate calculations, not model performance on a real dataset. Use them directly
 for existing predictions or pass a compatible callable to training. Numerical
 `FloatArray` parameters mean one-dimensional NumPy `float64` arrays; use
 `np.array([...], dtype=float)` when preparing inputs.
@@ -24,40 +25,36 @@ result with `to_dict()`.
 ## Evaluate binary probabilities
 
 <!-- example: metrics-classification -->
-```python
-from pprint import pprint
 
+```python
 import numpy as np
 
 from ml_toolkit.metrics import confusion_matrix, metrics_classification
 
 observed = np.array([0.0, 0.0, 1.0, 1.0])
-probabilities = np.array([0.1, 0.6, 0.7, 0.9])
-weight = np.ones(4)
-scores = metrics_classification(observed, probabilities, threshold=0.5)
-print(f"precision={scores.precision:.3f}, recall={scores.recall:.3f}")
-pprint({name: round(value, 4) for name, value in scores.to_dict().items()}, sort_dicts=False)
-labels = (probabilities >= 0.5).astype(float)
-print(confusion_matrix(observed, labels, sample_weight=weight))
+probabilities = np.array([0.1, 0.6, 0.4, 0.9])
+weight = np.array([1.0, 2.0, 1.0, 2.0])
+for cutoff in (0.3, 0.7):
+    scores = metrics_classification(
+        observed, probabilities, threshold=cutoff, sample_weight=weight,
+    )
+    print(f"cutoff={cutoff}: precision={scores.precision:.3f}, recall={scores.recall:.3f}")
+labels = (probabilities >= 0.7).astype(float)
+print("Weighted (TN, FP, FN, TP):", confusion_matrix(observed, labels, sample_weight=weight))
 ```
 
 <!-- output: metrics-classification -->
 ```text
-precision=0.667, recall=1.000
-{'accuracy': 0.75,
- 'precision': 0.6667,
- 'recall': 1.0,
- 'f1': 0.8,
- 'roc_auc': 1.0,
- 'average_precision': 1.0,
- 'log_loss': 0.3709}
-(1.0, 1.0, 0.0, 2.0)
+cutoff=0.3: precision=0.600, recall=1.000
+cutoff=0.7: precision=1.000, recall=0.667
+Weighted (TN, FP, FN, TP): (3.0, 0.0, 1.0, 2.0)
 ```
 <!-- /output -->
 
-Three rows reach the cutoff and two of them are positive, so precision is
-`2 / 3`. Both positives are captured, so recall is `1.0`. Changing the cutoff
-changes threshold-based scores; ROC AUC, average precision, and log loss use
+At cutoff 0.3, predicted positives have total weight 5 and positive weight 3,
+so precision is `3 / 5`; all positive weight is captured. Raising the cutoff
+to 0.7 removes the false positive but misses positive weight 1 out of 3.
+Weights affect counts, precision, and recall. ROC AUC, average precision, and log loss use
 probabilities directly. `confusion_matrix` requires predicted labels instead
 of probabilities. Pass finite, nonnegative weights with positive total for
 weighted scores. ROC AUC is NaN when only one target class is present.
@@ -69,44 +66,45 @@ rates; exposure supplies row weights and ranking capacity. Do not multiply the
 rates by exposure before calling the metric.
 
 <!-- example: metrics-frequency-severity -->
+
 ```python
 from ml_toolkit.metrics import metrics_frequency, metrics_severity
 
-frequency = metrics_frequency(
-    np.array([0.0, 1.0, 2.0]),
-    np.array([0.2, 1.0, 1.8]),
-    np.ones(3),
-)
-pprint({name: round(value, 4) for name, value in frequency.to_dict().items()}, sort_dicts=False)
-severity = metrics_severity(
-    np.array([100.0, 200.0, 300.0]),
-    np.array([110.0, 190.0, 300.0]),
-    np.ones(3),
-    power=2.0,
-)
-pprint({name: round(value, 4) for name, value in severity.to_dict().items()}, sort_dicts=False)
+# Annual claim rates and policy-year exposure, not claim counts.
+frequency_observed = np.array([0.0, 1.0, 2.0])
+frequency_prediction = np.array([0.2, 1.2, 1.5])
+exposure = np.array([0.5, 1.0, 2.0])
+frequency = metrics_frequency(frequency_observed, frequency_prediction, exposure)
+print(f"Frequency MAE: {frequency.mean_absolute_error:.4f} claims per policy-year")
+print(f"Poisson deviance: {frequency.mean_poisson_deviance:.4f}")
+print(f"Predicted / observed claims: {frequency.prediction_over_observed:.4f}")
+
+# Average claim amounts in dollars, weighted by claim counts.
+severity_observed = np.array([100.0, 200.0, 300.0])
+severity_prediction = np.array([120.0, 180.0, 240.0])
+claim_count = np.array([1.0, 2.0, 3.0])
+severity = metrics_severity(severity_observed, severity_prediction, claim_count, power=2.0)
+print(f"Severity MAE: ${severity.mean_absolute_error:.2f} per claim")
+print(f"Gamma deviance: {severity.mean_tweedie_deviance:.4f}")
+print(f"Predicted / observed cost: {severity.prediction_over_observed:.4f}")
 ```
 
 <!-- output: metrics-frequency-severity -->
 ```text
-{'mean_poisson_deviance': 0.1405,
- 'd2_poisson_score': 0.848,
- 'mean_absolute_error': 0.1333,
- 'root_mean_squared_error': 0.1633,
- 'prediction_over_observed': 1.0,
- 'lift_at_10': 2.0,
- 'gain_at_10': 0.2,
- 'normalized_gini': 1.0}
-{'mean_tweedie_deviance': 0.0038,
- 'd2_tweedie_score': 0.98,
- 'mean_absolute_error': 6.6667,
- 'root_mean_squared_error': 8.165,
- 'prediction_over_observed': 1.0,
- 'lift_at_10': 1.5,
- 'gain_at_10': 0.15,
- 'normalized_gini': 1.0}
+Frequency MAE: 0.3714 claims per policy-year
+Poisson deviance: 0.1534
+Predicted / observed claims: 0.8600
+Severity MAE: $40.00 per claim
+Gamma deviance: 0.0359
+Predicted / observed cost: 0.8571
 ```
 <!-- /output -->
+
+The frequency totals are 4.3 predicted and 5.0 observed claims, hence 14%
+underprediction. Weighting gives more influence to the final row's rate error.
+Severity predicts $1,200 versus $1,400 observed, with $40 weighted absolute
+error per claim. Gamma deviance is dimensionless. Export the complete named
+score dictionary with `frequency.to_dict()` or `severity.to_dict()`.
 
 Frequency predictions must be strictly positive and targets nonnegative.
 Severity inputs must satisfy the chosen Tweedie power; `power=2.0` uses Gamma
@@ -118,21 +116,18 @@ exposure; normalized Gini is NaN when perfect-ranking Gini is close to zero.
 Bind the extra severity argument before passing it to training:
 
 <!-- example: metrics-severity-callback -->
+
 ```python
 from functools import partial
 
 severity_metric = partial(metrics_severity, power=2.0)
-bound_scores = severity_metric(
-    np.array([100.0, 200.0, 300.0]),
-    np.array([110.0, 190.0, 300.0]),
-    np.ones(3),
-)
+bound_scores = severity_metric(severity_observed, severity_prediction, claim_count)
 print(round(bound_scores.mean_tweedie_deviance, 4))
 ```
 
 <!-- output: metrics-severity-callback -->
 ```text
-0.0038
+0.0359
 ```
 <!-- /output -->
 
@@ -140,26 +135,37 @@ print(round(bound_scores.mean_tweedie_deviance, 4))
 ## Inspect gains, lift, and Gini
 
 <!-- example: metrics-ranking -->
+
 ```python
 from ml_toolkit.metrics import ranking_metrics
 
 ranking = ranking_metrics(
-    observed, probabilities, weight, selected_percents=(25.0, 50.0)
+    np.array([1.0, 4.0, 2.0, 3.0]),
+    np.array([0.1, 0.8, 0.9, 0.5]),
+    np.array([1.0, 2.0, 1.0, 2.0]),
+    selected_percents=(25.0, 50.0),
 )
-print(ranking.normalized_gini)
-print([(point.percent, point.gain, point.lift) for point in ranking.selected_points])
-print(ranking.cumulative_exposure)
-print(ranking.cumulative_observed)
+print(f"Normalized Gini: {ranking.normalized_gini:.4f}")
+for point in ranking.selected_points:
+    print(f"Exposure={point.percent:.0f}%: gain={point.gain:.4f}, lift={point.lift:.4f}")
+print("Cumulative exposure:", ranking.cumulative_exposure.round(4).tolist())
+print("Cumulative observed:", ranking.cumulative_observed.round(4).tolist())
 ```
 
 <!-- output: metrics-ranking -->
 ```text
-1.0
-[(25.0, 0.5, 2.0), (50.0, 1.0, 2.0)]
-[0.   0.25 0.5  0.75 1.  ]
-[0.  0.5 1.  1.  1. ]
+Normalized Gini: 0.4286
+Exposure=25%: gain=0.2353, lift=0.9412
+Exposure=50%: gain=0.5882, lift=1.1765
+Cumulative exposure: [0.0, 0.1667, 0.5, 0.8333, 1.0]
+Cumulative observed: [0.0, 0.1176, 0.5882, 0.9412, 1.0]
 ```
 <!-- /output -->
+
+The score puts the row with observed rate 2 above the row with rate 4, so
+ranking is imperfect. Half of the exposure captures `10 / 17` of the observed
+amount: 58.82%, or 1.1765 times uniform selection. At 25% exposure, capture is
+slightly worse than uniform selection; the point interpolates within a row.
 
 Each selected point exposes `percent`, `gain`, and `lift`. Gain is the fraction
 of total exposure-weighted observed outcome captured; lift divides gain by the
@@ -171,6 +177,7 @@ These are supervised outcomes; use PU metrics for positive/unlabeled labels.
 ## Evaluate positive-unlabeled predictions
 
 <!-- example: metrics-pu -->
+
 ```python
 from ml_toolkit.metrics import PUMetric, positive_capture_curve
 
@@ -178,7 +185,9 @@ pu_labels = np.array([1.0, 0.0, 1.0, 0.0])
 pu_probabilities = np.array([0.9, 0.8, 0.4, 0.2])
 pu_metric = PUMetric(prior=0.1, loss="nnPU")
 pu_scores = pu_metric(pu_labels, pu_probabilities)
-print(pu_scores.to_dict()["known_positive_capture_at_10pct"])
+pu_values = pu_scores.to_dict()
+print("Known-positive capture:", pu_values["known_positive_capture_at_10pct"])
+print("Actual unlabeled fraction flagged:", pu_values["unlabeled_flagged_at_10pct"])
 capacity, capture = positive_capture_curve(pu_labels, pu_probabilities)
 print(capacity.tolist())
 print(capture.tolist())
@@ -186,11 +195,16 @@ print(capture.tolist())
 
 <!-- output: metrics-pu -->
 ```text
-0.5
+Known-positive capture: 0.5
+Actual unlabeled fraction flagged: 0.5
 [0.0, 0.0, 0.5, 0.5, 1.0]
 [0.0, 0.5, 0.5, 1.0, 1.0]
 ```
 <!-- /output -->
+
+With only two unlabeled rows, reaching the requested 10% requires flagging
+one whole row: actual capacity is 50%, and the same cutoff captures 50% of
+known positives. Always inspect actual flagged capacity alongside capture.
 
 Here `1` means known positive and `0` means unlabeled. The prior is population
 positive prevalence, not the labeled fraction; match it and the loss to the
@@ -205,6 +219,7 @@ estimates recall only if labeled positives represent the positive population.
 ## Supply a custom training metric
 
 <!-- example: metrics-custom -->
+
 ```python
 from ml_toolkit.metrics import Metric, MetricScores
 from ml_toolkit.types import FloatArray
@@ -219,12 +234,12 @@ def weighted_mae(
 
 
 metric: Metric = weighted_mae
-print(metric(observed, probabilities, weight).to_dict())
+print({name: round(value, 4) for name, value in metric(observed, probabilities, weight).to_dict().items()})
 ```
 
 <!-- output: metrics-custom -->
 ```text
-{'mae': 0.275}
+{'mae': 0.35}
 ```
 <!-- /output -->
 

@@ -109,11 +109,19 @@ def metrics_severity(
     >>> gamma_metric = partial(metrics_severity, power=2.0)
     >>> scores = gamma_metric(
     ...     np.array([100.0, 200.0, 300.0]),
-    ...     np.array([110.0, 190.0, 300.0]),
-    ...     np.ones(3),
+    ...     np.array([120.0, 180.0, 240.0]),
+    ...     np.array([1.0, 2.0, 3.0]),
     ... )
-    >>> round(scores.prediction_over_observed, 2)
-    1.0
+    >>> scores.mean_absolute_error
+    40.0
+    >>> round(scores.mean_tweedie_deviance, 4)
+    0.0359
+    >>> round(scores.prediction_over_observed, 4)
+    0.8571
+
+    In this calculation example, amounts are dollars and weights are claim
+    counts. The weighted absolute error is $40 per claim; total predicted
+    cost is about 14.3% below observed cost. Gamma deviance is dimensionless.
     """
     observed = np.sum(y_target * exposure)
     predicted = np.sum(y_pred * exposure)

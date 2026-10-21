@@ -5,26 +5,30 @@ tuning, a final fit, and MLflow reporting in one call.
 
 ## Run a holdout experiment
 
-Continue with the `data` pool from the [data example](data.md#prepare-a-pool).
-The [getting started](../getting-started.md) page contains a standalone version
-with a larger synthetic dataset.
+Run from an installed source checkout after `python -m examples.prepare_data`.
+The example uses all 17,379 hourly [UCI Bike Sharing observations](https://archive.ics.uci.edu/dataset/275/bike+sharing+dataset),
+with original 2011–2012 timestamps, eleven weather/calendar features, rental
+counts as targets and unit weights per recorded hour. Count components that
+would reveal the target are excluded from the inputs.
 
 <!-- example: training-holdout -->
 
 ```python
 import mlflow
 
+from examples.gallery_data import load_bike_pool
 from ml_toolkit import train_model
 from ml_toolkit.config import HoldoutConfig, TrackingConfig, TrainingConfig
 from ml_toolkit.metrics import metrics_frequency
 from ml_toolkit.models import CatBoostLogLinkRegressionModel
 
+data = load_bike_pool(download_if_missing=False)
 mlflow.set_tracking_uri("sqlite:///mlflow.db")
 mlflow.set_experiment("ml-toolkit-examples")
 
 params = {
-    "iterations": 20,
-    "depth": 2,
+    "iterations": 40,
+    "depth": 4,
     "loss_function": "Poisson",
     "random_seed": 42,
     "thread_count": 2,
@@ -44,21 +48,22 @@ result = train_model(
     run_name="frequency-holdout",
     config=config,
 )
-print(result.validation.mean_metrics)
-print(result.test_metrics)
+print("Validation Poisson deviance:", round(result.validation.mean_metrics["mean_poisson_deviance"], 4))
+assert result.test_metrics is not None
+print("Test Poisson deviance:", round(result.test_metrics["mean_poisson_deviance"], 4))
 ```
 
 <!-- output: training-holdout -->
 ```text
-{'mean_poisson_deviance': 1.1157166906742346, 'd2_poisson_score': -0.006024335420477422, 'mean_absolute_error': 0.8147537483416682, 'root_mean_squared_error': 0.8979581325982117, 'prediction_over_observed': 0.9288441980216964, 'lift_at_10': 0.0, 'gain_at_10': 0.0, 'normalized_gini': -0.3333333333333334}
-{'mean_poisson_deviance': 0.7329916919680924, 'd2_poisson_score': -0.09163255520540625, 'mean_absolute_error': 0.6309718855189681, 'root_mean_squared_error': 0.7894992039293456, 'prediction_over_observed': 0.7902734633982873, 'lift_at_10': 1.6666666666666665, 'gain_at_10': 0.16666666666666666, 'normalized_gini': 0.1999999999999992}
+Validation Poisson deviance: 118.8938
+Test Poisson deviance: 111.7045
 ```
 <!-- /output -->
 
-Of the 24 rows, the latest 5 become test. Of the remaining 19, the latest 5
-become validation and the first 14 become training. Fractions round upward.
-After validation, the final model fits all 19 non-test rows and evaluates the
-5 test rows. The call creates a local `mlflow.db` and logs metrics and
+The latest 20% of observations are reserved for test. The last 25% of the
+remaining observations form validation; fractions round upward. After
+validation, the final model fits all non-test rows and evaluates the future
+test tail. Neither selection nor tuning sees test rows. The call creates a local `mlflow.db` and logs metrics and
 configuration; model packaging is disabled in this example.
 
 ## Use the result
@@ -77,8 +82,9 @@ settings.
 ## Select features and tune parameters
 
 Continue after the holdout example. RFE selection needs a ranker and tuning needs
-an Optuna search-space callback. This small example visits the two-feature and
-one-feature subsets, then compares two parameter trials on the selected subset.
+an Optuna search-space callback. This example compares all eleven features
+against a three-feature subset, then runs two parameter trials. Small search
+budgets demonstrate the workflow rather than a tuned benchmark.
 
 <!-- example: training-search -->
 
@@ -114,21 +120,25 @@ searched = train_model(
     run_name="frequency-search",
     config=search_config,
     feature_selector=RFESelector(
-        min_features=1, metric="mean_poisson_deviance", direction="minimize",
+        min_features=3, metric="mean_poisson_deviance", direction="minimize",
         max_fits=2, ranker=importance_ranker,
     ),
     param_space=param_space,
 )
-print(searched.features)
-print(searched.feature_selection.selected_step)
-print(searched.tuning.best_params)
+assert searched.feature_selection is not None and searched.tuning is not None
+assert searched.test_metrics is not None
+print("Selected features:", searched.features)
+print("Visited subset sizes:", [len(step.features) for step in searched.feature_selection.steps])
+print("Best depth:", searched.tuning.best_params["depth"])
+print("Independent test deviance:", round(searched.test_metrics["mean_poisson_deviance"], 4))
 ```
 
 <!-- output: training-search -->
 ```text
-('region',)
-1
-{'iterations': 20, 'depth': 2, 'loss_function': 'Poisson', 'random_seed': 42, 'thread_count': 2, 'verbose': False, 'allow_writing_files': False}
+Selected features: ('temperature', 'feels_like_temperature', 'humidity', 'wind_speed', 'hour', 'working_day', 'weekday', 'holiday', 'season', 'weather', 'month')
+Visited subset sizes: [11, 3]
+Best depth: 3
+Independent test deviance: 121.16
 ```
 <!-- /output -->
 
@@ -144,6 +154,45 @@ For an explicit train/validation pair, use `split_holdout` and
 them with `data.select_features(selection.features)` before your own fit.
 `tune_optuna` also works independently when supplied a scalar `score` callback.
 
+## Tune outside the workflow
+
+This standalone callback fits each trial on earlier development rows and
+returns only its validation score. The reserved test tail is not passed in.
+
+<!-- example: training-standalone-tuning -->
+
+```python
+from ml_toolkit.training import split_holdout, tune_optuna
+
+development = split_holdout(data, HoldoutConfig(val_size=0.2))
+partition = split_holdout(development.train, HoldoutConfig(val_size=0.25))
+
+
+def score(candidate_params: ModelParams) -> float:
+    candidate = CatBoostLogLinkRegressionModel(candidate_params).fit(
+        partition.train, partition.val
+    )
+    return metrics_frequency(
+        partition.val.y.to_numpy(), candidate.predict_pool(partition.val),
+        partition.val.weight.to_numpy(),
+    ).mean_poisson_deviance
+
+
+tuned = tune_optuna(
+    base_params=params, param_space=param_space, score=score,
+    config=TuningConfig(metric="mean_poisson_deviance", direction="minimize", n_trials=2, seed=42),
+)
+print("Best depth:", tuned.best_params["depth"])
+print("Validation deviance:", round(tuned.best_score, 4))
+```
+
+<!-- output: training-standalone-tuning -->
+```text
+Best depth: 3
+Validation deviance: 129.3511
+```
+<!-- /output -->
+
 ## Choose a selector
 
 All selectors below work with the prepared `data`, `params`, model factory,
@@ -157,13 +206,14 @@ reuses the last window's selected columns.
 ```python
 from ml_toolkit.training import split_holdout
 
-partition = split_holdout(data, HoldoutConfig(val_size=0.25))
+development = split_holdout(data, HoldoutConfig(val_size=0.2))
+partition = split_holdout(development.train, HoldoutConfig(val_size=0.25))
 selectors = (
-    RFESelector(min_features=1, metric="mean_poisson_deviance", direction="minimize",
+    RFESelector(min_features=3, metric="mean_poisson_deviance", direction="minimize",
                 ranker=importance_ranker, max_fits=2),
-    TopKSelector(k=1, ranker=importance_ranker),
+    TopKSelector(k=3, ranker=importance_ranker),
     ForwardSelector(metric="mean_poisson_deviance", direction="minimize",
-                    max_features=2, max_fits=3),
+                    max_features=2, max_fits=21),
 )
 for selector in selectors:
     selection = selector.select(
@@ -175,9 +225,9 @@ for selector in selectors:
 
 <!-- output: training-selectors -->
 ```text
-RFESelector ('age', 'region') 2
-TopKSelector ('age',) 2
-ForwardSelector ('region',) 3
+RFESelector ('temperature', 'feels_like_temperature', 'humidity', 'wind_speed', 'hour', 'working_day', 'weekday', 'holiday', 'season', 'weather', 'month') 2
+TopKSelector ('temperature', 'feels_like_temperature', 'hour') 2
+ForwardSelector ('feels_like_temperature', 'hour') 21
 ```
 <!-- /output -->
 
@@ -229,16 +279,17 @@ from examples.custom_selector import FixedFeatureSelector
 custom_selection = train_model(
     data=data, params=params, model_factory=CatBoostLogLinkRegressionModel,
     metric=metrics_frequency, run_name="custom-selector", config=config,
-    feature_selector=FixedFeatureSelector(("age",)),
+    feature_selector=FixedFeatureSelector(("temperature", "hour")),
 )
 print(custom_selection.features)
+assert custom_selection.feature_selection is not None
 print(custom_selection.feature_selection.settings)
 ```
 
 <!-- output: training-custom-selector -->
 ```text
-('age',)
-{'selector': 'fixed', 'features': ('age',)}
+('temperature', 'hour')
+{'selector': 'fixed', 'features': ('temperature', 'hour')}
 ```
 <!-- /output -->
 
@@ -259,13 +310,14 @@ artifact and verifies its reloaded predictions on the selected input schema.
 ```python
 import numpy as np
 
-selected_data = data.select_features(custom_selection.features)
-expected = custom_selection.model.predict_pool(selected_data)
+selected_train = development.train.select_features(custom_selection.features)
+selected_test = development.val.select_features(custom_selection.features)
+expected = custom_selection.model.predict_pool(selected_test)
 with mlflow.start_run():
-    logged = custom_selection.model.log(selected_data)
+    logged = custom_selection.model.log(selected_train)
 model_info = logged[1] if isinstance(logged, tuple) else logged
 reloaded = mlflow.pyfunc.load_model(model_info.model_uri)
-np.testing.assert_allclose(reloaded.predict(selected_data.to_model_input()), expected)
+np.testing.assert_allclose(reloaded.predict(selected_test.to_model_input()), expected)
 print("Selected model predictions preserved after reload")
 ```
 
@@ -343,7 +395,27 @@ evaluated = train_model(
         ExtraMetrics(name="quality"),
     ],
 )
+client = mlflow.MlflowClient()
+parent_run = client.search_runs(
+    [mlflow.get_experiment_by_name("ml-toolkit-examples").experiment_id],
+    "tags.mlflow.runName = 'frequency-custom-evaluation'",
+)[0]
+children = client.search_runs(
+    [parent_run.info.experiment_id],
+    f"tags.mlflow.parentRunId = '{parent_run.info.run_id}'",
+)
+final_run = next(run for run in children if run.data.tags["mlflow.runName"] == "final_fit")
+print("Custom test MAE:", round(final_run.data.metrics["test/business/mae"], 3))
+artifacts = client.list_artifacts(final_run.info.run_id, "business/test/tables")
+print("Saved prediction files:", [Path(item.path).name for item in artifacts])
 ```
+
+<!-- output: training-custom-evaluation -->
+```text
+Custom test MAE: 121.534
+Saved prediction files: ['predictions.csv', 'predictions.html', 'predictions.json', 'predictions.parquet']
+```
+<!-- /output -->
 
 With `ReportingConfig.prediction_evaluation=None`, supplying an evaluator uses the default
 policy: available train, validation, and test rows during validation and final

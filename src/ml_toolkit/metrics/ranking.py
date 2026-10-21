@@ -248,12 +248,20 @@ def ranking_metrics(
     >>> import numpy as np
     >>> from ml_toolkit.metrics import ranking_metrics
     >>> result = ranking_metrics(
-    ...     np.array([0.0, 1.0, 2.0]),
-    ...     np.array([0.1, 0.5, 0.9]),
-    ...     np.ones(3),
+    ...     np.array([1.0, 4.0, 2.0, 3.0]),
+    ...     np.array([0.1, 0.8, 0.9, 0.5]),
+    ...     np.array([1.0, 2.0, 1.0, 2.0]),
+    ...     selected_percents=(50.0,),
     ... )
-    >>> round(result.normalized_gini, 2)
-    1.0
+    >>> round(result.normalized_gini, 4)
+    0.4286
+    >>> point = result.selected_points[0]
+    >>> round(point.gain, 4), round(point.lift, 4)
+    (0.5882, 1.1765)
+
+    This calculation example deliberately ranks rate 2 above rate 4. The
+    highest-scored half of exposure captures 58.82% of observed amounts,
+    giving 1.1765 times the capture of uniform selection.
     """
     model_curve = _cumulative_curve(
         y_target=y_target,

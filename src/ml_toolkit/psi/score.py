@@ -42,12 +42,14 @@ def psi(
 
     Examples
     --------
+    Compare category shares: north falls from 75% to 25%, while south rises.
+
     >>> import polars as pl
     >>> from ml_toolkit.psi import psi
-    >>> reference = pl.Series(["a", "b"], dtype=pl.Categorical)
-    >>> current = pl.Series(["b", "a"], dtype=pl.Categorical)
-    >>> psi(reference, current)
-    0.0
+    >>> reference = pl.Series(["north"] * 3 + ["south"], dtype=pl.Categorical)
+    >>> current = pl.Series(["north"] + ["south"] * 3, dtype=pl.Categorical)
+    >>> round(psi(reference, current), 4)
+    1.0986
     """
     if reference.is_empty() or current.is_empty():
         raise ValueError("PSI input series must not be empty")

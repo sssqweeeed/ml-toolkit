@@ -1,0 +1,2 @@
+# Validation of documentation examples; not package runtime dependencies.
+openpyxl==3.1.5

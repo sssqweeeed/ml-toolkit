@@ -109,9 +109,19 @@ def metrics_classification(
     --------
     >>> import numpy as np
     >>> from ml_toolkit.metrics import metrics_classification
-    >>> scores = metrics_classification(np.array([0.0, 1.0]), np.array([0.2, 0.8]))
-    >>> scores.accuracy, scores.f1
-    (1.0, 1.0)
+    >>> observed = np.array([0.0, 0.0, 1.0, 1.0])
+    >>> probability = np.array([0.1, 0.6, 0.4, 0.9])
+    >>> weight = np.array([1.0, 2.0, 1.0, 2.0])
+    >>> for cutoff in (0.3, 0.7):
+    ...     scores = metrics_classification(
+    ...         observed, probability, threshold=cutoff, sample_weight=weight,
+    ...     )
+    ...     print(f"{cutoff}: precision={scores.precision:.3f}, recall={scores.recall:.3f}")
+    0.3: precision=0.600, recall=1.000
+    0.7: precision=1.000, recall=0.667
+
+    In this small calculation example, increasing the cutoff removes false
+    positives but also misses one third of the positive weight.
     """
     target = np.asarray(y_target).reshape(-1)
     probability = np.asarray(y_prob, dtype=float).reshape(-1)

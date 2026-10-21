@@ -111,8 +111,13 @@ class PUMetric:
     --------
     >>> from ml_toolkit.metrics import PUMetric
     >>> scores = PUMetric(prior=0.1)([1, 0, 1, 0], [0.9, 0.8, 0.4, 0.2])
-    >>> scores.to_dict()["known_positive_capture_at_10pct"]
-    0.5
+    >>> values = scores.to_dict()
+    >>> values["known_positive_capture_at_10pct"], values["unlabeled_flagged_at_10pct"]
+    (0.5, 0.5)
+
+    This tiny calculation has only two unlabeled rows. Reaching the requested
+    10% capacity requires selecting one whole row, so actual capacity is 50%;
+    the same score cutoff captures one of the two known positives.
     """
 
     prior: float

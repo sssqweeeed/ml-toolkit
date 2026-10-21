@@ -87,14 +87,16 @@ def train_model(
     all rows before test, without repeated selection or validation. Test only
     receives predictions after fitting. MLflow URI and experiment are caller-owned.
 
+    See Also
+    --------
+    ml_toolkit.training.split_holdout : Prepare chronological train/validation rows.
+
     Examples
     --------
-    >>> from ml_toolkit.config import HoldoutConfig, TrainingConfig
-    >>> config = TrainingConfig(validation=HoldoutConfig(), test_size=0.2)
-    >>> result = train_model(  # doctest: +SKIP
-    ...     data=data, params=params, model_factory=factory, metric=metric,
-    ...     run_name="experiment", config=config,
-    ... )
+    For executable data preparation, configuration, fitting and interpretation
+    of held-out scores, see the documentation's Training guide, "Run a holdout
+    experiment". Its Bike Sharing example also covers selection, tuning and
+    custom evaluation using the same explicitly prepared data.
     """
     validate_training_data(data)
     train, test = data, None

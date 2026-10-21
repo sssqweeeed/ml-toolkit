@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import json
-from datetime import date, timedelta
 from importlib.metadata import version
 from math import isfinite
 from pathlib import Path
@@ -23,6 +22,7 @@ from ml_toolkit.config import HoldoutConfig, TrackingConfig, TrainingConfig
 from ml_toolkit.metrics import MetricScores
 from ml_toolkit.models import CatBoostRegressionModel
 from ml_toolkit.types import FloatArray, ModelParams
+from ml_toolkit.training import split_holdout
 
 
 class TargetScaledRegressor:
@@ -221,22 +221,19 @@ def demo() -> None:
 
     Notes
     -----
-    Uses a temporary local MLflow store; removes artifacts after checking the
-    logged model. Run from the repository with python -m examples.custom_model.
+    Uses cached UCI Bike Sharing observations and a temporary local MLflow
+    store. Prepare the cache with python -m examples.prepare_data, then run
+    python -m examples.custom_model. The model fitted without test rows is
+    logged and checked on the untouched future test tail; artifacts are removed
+    after the check.
     """
-    rows = 40
-    x = np.linspace(0.0, 1.0, rows)
-    data = Pool(
-        X=pl.DataFrame({"x": x, "region": ["north", "south"] * (rows // 2)}),
-        y=pl.Series("target", 1000.0 * (2.0 + x)),
-        time=pl.Series("date", [date(2025, 1, 1) + timedelta(days=i) for i in range(rows)]),
-        weight=pl.Series("weight", np.ones(rows)),
-        cat_features=("region",),
-        numerical_features=("x",),
-    )
+    from examples.gallery_data import load_bike_pool
+
+    data = load_bike_pool(download_if_missing=False)
+    partition = split_holdout(data, HoldoutConfig(val_size=0.2))
     params: ModelParams = {
-        "iterations": 12,
-        "depth": 2,
+        "iterations": 40,
+        "depth": 4,
         "loss_function": "RMSE",
         "random_seed": 42,
         "thread_count": 2,
@@ -262,13 +259,18 @@ def demo() -> None:
                 tracking=TrackingConfig(log_final_model=False),
             ),
         )
-        fitted = model_factory(result.params).fit(data.select_features(result.features))
+        fitted = result.model
         with mlflow.start_run(run_name="serving-parity"):
-            info = fitted.log(data)
+            logged = fitted.log(partition.train)
+        info = logged[1] if isinstance(logged, tuple) else logged
         served = mlflow.pyfunc.load_model(info.model_uri)
-        expected = fitted.predict_pool(data)
-        np.testing.assert_allclose(served.predict(data.to_model_input()), expected)
-        print(f"prediction shape: {expected.shape}")
+        expected = fitted.predict_pool(partition.val)
+        np.testing.assert_allclose(served.predict(partition.val.to_model_input()), expected)
+        native_predictions = fitted.native_model.predict(partition.val.to_model_input())
+        np.testing.assert_allclose(expected, native_predictions * 1000.0)
+        print("native predictions (thousands):", native_predictions[:5].round(4).tolist())
+        print("observed rentals:", partition.val.y.head(5).to_list())
+        print("predicted rentals:", expected[:5].round(1).tolist())
         print(f"validation MAE: {result.validation.mean_metrics['mae']:.3f}")
         assert result.test_metrics is not None
         print(f"test MAE: {result.test_metrics['mae']:.3f}")

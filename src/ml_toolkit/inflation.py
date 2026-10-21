@@ -173,13 +173,24 @@ class ConstantRateInflation(InflationAdjuster):
 
     Examples
     --------
+    Express 100 monetary units at a later price level, then reverse the conversion.
+    These small amounts illustrate the calculation, not an observed price index.
+
     >>> from datetime import date
     >>> import numpy as np
     >>> import polars as pl
     >>> from ml_toolkit.inflation import ConstantRateInflation
-    >>> dates = pl.Series([date(2026, 1, 1)])
-    >>> ConstantRateInflation(0.08).adjust(np.array([100.0]), dates, dates).tolist()
+    >>> from_dates = pl.Series([date(2025, 1, 1)])
+    >>> to_dates = pl.Series([date(2026, 1, 1)])
+    >>> inflation = ConstantRateInflation(annual_rate=0.08)
+    >>> later = inflation.adjust(np.array([100.0]), from_dates, to_dates)
+    >>> later.round(2).tolist()
+    [107.99]
+    >>> inflation.adjust(later, to_dates, from_dates).round(2).tolist()
     [100.0]
+
+    The forward value is slightly below 108 because these dates are 365 days
+    apart and the annual compounding convention uses 365.25 days.
     """
 
     def __init__(

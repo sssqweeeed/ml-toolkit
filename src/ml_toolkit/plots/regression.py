@@ -96,20 +96,17 @@ def observed_fitted(
     ValueError
         n_bins is nonpositive.
 
+    See Also
+    --------
+    observed_fitted_by_level : Compare samples on shared reference-fitted levels.
+
     Notes
     -----
     Creates parent directories for save_fig and closes the figure after saving.
-
-    Examples
-    --------
-    >>> from pathlib import Path
-    >>> from tempfile import TemporaryDirectory
-    >>> from ml_toolkit.plots.regression import observed_fitted
-    >>> with TemporaryDirectory() as directory:
-    ...     path = Path(directory) / "observed.png"
-    ...     table = observed_fitted(["a", "a"], [1.0, 3.0], [2.0, 2.0], path)
-    ...     print(table["observed"].tolist(), path.is_file())
-    [2.0] True
+    For a complete held-out bike-rental example, its aggregated table, and the
+    saved figure, see the documentation's
+    [Observed versus fitted](https://sssqweeeed.github.io/ml-toolkit/api/plots/#observed-versus-fitted)
+    gallery recipe.
     """
     y, prediction = numeric_vector(observed, "observed"), numeric_vector(
         fitted, "fitted"

@@ -15,29 +15,88 @@ The optional LightGBM wrapper packages an already fitted native regressor.
 | `CatBoostPUClassificationModel` | Positive-unlabeled learning with an explicit population prior |
 | `InflationAdjustedModel` | A regressor composed with an inflation strategy |
 
+## Prepare real observations
+
+Run these examples from an installed source checkout after
+`python -m examples.prepare_data`. The regression and classification examples
+use all 17,379 recorded hourly observations from the
+[UCI Bike Sharing dataset](https://archive.ics.uci.edu/dataset/275/bike+sharing+dataset).
+Targets are rentals per recorded hour; weights are one per hour. The eleven
+weather/calendar features exclude counts that reveal the target. Timestamps
+come from the original date and hour columns.
+
+<!-- example: models-data -->
+
+```python
+from examples.gallery_data import load_bike_pool
+from ml_toolkit.config import HoldoutConfig
+from ml_toolkit.training import split_holdout
+
+data = load_bike_pool(download_if_missing=False)
+development = split_holdout(data, HoldoutConfig(val_size=0.2))
+split = split_holdout(development.train, HoldoutConfig(val_size=0.25))
+test = development.val
+```
+
+The last 20% of hours are untouched test rows. The preceding observations are
+split chronologically into training and validation. The following examples
+show predictions on those test rows; validation chooses fitting settings.
+
 ## Gamma regression
 
 Use `loss_function="Gamma"` (or `loss="Gamma"`) for a strictly positive target,
 such as claim severity conditional on a claim. Both regression adapters accept
 it. Prefer `CatBoostLogLinkRegressionModel` for its fitted initial log mean:
 
+<!-- example: models-gamma -->
+
 ```python
+import numpy as np
+
+from examples.retail_data import load_retail_splits
+from ml_toolkit.metrics import metrics_severity
 from ml_toolkit.models import CatBoostLogLinkRegressionModel
 
+retail = load_retail_splits(download_if_missing=False)
 gamma = CatBoostLogLinkRegressionModel(
     {
         "loss_function": "Gamma",
         "task_type": "CPU",
-        "iterations": 200,
+        "iterations": 40,
         "learning_rate": 0.05,
-        "depth": 6,
+        "depth": 3,
+        "random_seed": 42,
+        "thread_count": 2,
         "verbose": False,
+        "allow_writing_files": False,
     }
 )
-# train and validation must contain finite, strictly positive targets.
-gamma.fit(train, validation)
-predicted_means = gamma.predict_pool(validation)
+gamma.fit(retail.train, retail.validation)
+predicted_means = gamma.predict_pool(retail.test)
+scores = metrics_severity(
+    retail.test.y.to_numpy(), predicted_means, retail.test.weight.to_numpy(), power=2.0
+)
+print("Observed unit prices (GBP):", retail.test.y.head(5).round(2).to_list())
+print("Predicted unit prices (GBP):", predicted_means[:5].round(2).tolist())
+print("Test Gamma deviance:", round(scores.mean_tweedie_deviance, 4))
+assert np.isfinite(predicted_means).all() and (predicted_means > 0).all()
 ```
+
+<!-- output: models-gamma -->
+```text
+Observed unit prices (GBP): [0.85, 7.08, 4.95, 4.25, 4.95]
+Predicted unit prices (GBP): [1.33, 3.93, 4.58, 5.9, 5.9]
+Test Gamma deviance: 0.5101
+```
+<!-- /output -->
+
+The shared [retail preparation](inflation.md#prepare-recorded-retail-prices)
+uses recorded sterling unit prices and invoice timestamps. It keeps a deterministic
+approximately 10% sample of eligible invoice groups, excludes cancellations and nonpositive prices
+or quantities, trains before September 2011, validates in September, and tests
+in October–November. Stock code, country and quantity are inputs; price is
+excluded. This is positive price regression, not an insurance severity dataset.
+The model is evaluated only on future transactions.
 
 Gamma minimizes `log(mu) + y / mu`. The toolkit creates its custom objective
 only for training; constructor and refit parameters retain the string `"Gamma"`.
@@ -65,7 +124,10 @@ model with this custom objective defaults to raw scores: when calling
 The general `CatBoostRegressionModel` uses native initialization and rejects
 `boost_from_average=True` for Gamma; use the log-link adapter for mean initialization.
 
-For one CUDA GPU, change the training parameters to:
+For one CUDA GPU, use the following training parameters. This block only constructs
+an adapter; fitting it requires the GPU setup described below:
+
+<!-- example: models-gamma-gpu-config -->
 
 ```python
 gpu_gamma = CatBoostLogLinkRegressionModel(
@@ -85,39 +147,39 @@ recreates the training objective from its saved string parameters.
 
 ## Fit and predict directly
 
-Use `data` from the [data example](data.md#prepare-a-pool). This fits a general
-RMSE regressor and predicts two new rows without targets or timestamps.
+Continue with the Bike `split` and `test` prepared above. This fits an RMSE
+regressor and predicts held-out hours from features alone. Observed counts are
+shown beside the predictions in the same units.
 
 <!-- example: models-regression -->
 
 ```python
 import polars as pl
 
-from ml_toolkit.config import HoldoutConfig
 from ml_toolkit.models import CatBoostRegressionModel
-from ml_toolkit.training import split_holdout
 
-split = split_holdout(data, HoldoutConfig(val_size=0.25))
 model = CatBoostRegressionModel(
     {
-        "iterations": 20,
-        "depth": 2,
+        "iterations": 40,
+        "depth": 4,
         "loss_function": "RMSE",
         "random_seed": 42,
         "thread_count": 2,
         "verbose": False,
         "allow_writing_files": False,
     }
-)
-model.fit(split.train, split.val)
-future = pl.DataFrame({"age": [25, 35], "region": ["north", "south"]})
+).fit(split.train, split.val)
+preview = test.take([0, 8, 16, 24, 32])
+future = preview.X
 predictions = model.predict_frame(future)
-print(predictions.shape)  # (2,)
+print("Observed rentals:", preview.y.to_list())
+print("Predicted rentals:", predictions.round(1).tolist())
 ```
 
 <!-- output: models-regression -->
 ```text
-(2,)
+Observed rentals: [283.0, 448.0, 7.0, 280.0, 500.0]
+Predicted rentals: [197.3, 273.0, 14.1, 200.0, 293.3]
 ```
 <!-- /output -->
 
@@ -134,27 +196,35 @@ use `predict_labels_pool` for labels at the adapter's decision threshold.
 ```python
 from ml_toolkit.models import CatBoostClassificationModel
 
-binary = data.with_target((data.y > 0).cast(pl.Float64))
-binary_split = split_holdout(binary, HoldoutConfig(val_size=0.25))
+# A high-demand hour means at least 100 recorded rentals.
+binary_train = split.train.with_target((split.train.y >= 100).cast(pl.Float64))
+binary_validation = split.val.with_target((split.val.y >= 100).cast(pl.Float64))
 classifier = CatBoostClassificationModel(
     {
-        "iterations": 20,
-        "depth": 2,
+        "iterations": 40,
+        "depth": 4,
         "loss_function": "Logloss",
         "random_seed": 42,
         "thread_count": 2,
         "verbose": False,
         "allow_writing_files": False,
     }
-).fit(binary_split.train, binary_split.val)
+).fit(binary_train, binary_validation)
 probabilities = classifier.predict_frame(future)
 labels = classifier.predict_labels(future)
-print(probabilities.shape, labels.shape)  # (2,) (2,)
+print("Observed high demand:", (preview.y >= 100).cast(pl.Int64).to_list())
+print("Probabilities:", probabilities.round(3).tolist())
+print("Decision threshold:", round(classifier.threshold, 3))
+print("Predicted labels:", labels.tolist())
+assert (labels == (probabilities >= classifier.threshold)).all()
 ```
 
 <!-- output: models-classification -->
 ```text
-(2,) (2,)
+Observed high demand: [1, 1, 0, 1, 1]
+Probabilities: [0.963, 0.969, 0.053, 0.962, 0.978]
+Decision threshold: 0.171
+Predicted labels: [1, 1, 0, 1, 1]
 ```
 <!-- /output -->
 
@@ -203,7 +273,7 @@ artifact naming, registration, and the example size.
 
 Install the `lightgbm` extra. Fit LightGBM with its own training API, then wrap
 the fitted estimator for logging and inference. `LightGBMServingModel` is not a
-`train_model` factory. Continue with `data` from the data example:
+`train_model` factory. Continue with the Bike training and test split above:
 
 <!-- example: models-lightgbm -->
 
@@ -221,25 +291,33 @@ native = lgb.LGBMRegressor(
     n_jobs=2,
     verbosity=-1,
 )
-features = data.to_model_input()
-features["region"] = features["region"].astype("category")
-native.fit(features, data.y.to_numpy(), sample_weight=data.weight.to_numpy())
+features = split.train.to_model_input()
+for column in split.train.cat_features:
+    features[column] = features[column].astype("category")
+native.fit(features, split.train.y.to_numpy(), sample_weight=split.train.weight.to_numpy())
 wrapper = LightGBMServingModel(
     native,
-    numerical_features=data.numerical_features,
-    cat_features=data.cat_features,
+    numerical_features=split.train.numerical_features,
+    cat_features=split.train.cat_features,
 )
-predictions = wrapper.predict(None, features)
+serving_input = test.to_model_input()
+predictions = wrapper.predict(None, serving_input)
 
 mlflow.set_tracking_uri("sqlite:///mlflow.db")
 mlflow.set_experiment("ml-toolkit-model-examples")
 with mlflow.start_run(run_name="lightgbm-regression"):
-    lightgbm_info = wrapper.log(data)
+    lightgbm_info = wrapper.log(split.train)
 
 loaded = mlflow.pyfunc.load_model(lightgbm_info.model_uri)
-serving_input = data.to_model_input()
 np.testing.assert_allclose(loaded.predict(serving_input), predictions)
+print("Held-out predictions preserved:", predictions[:5].round(1).tolist())
 ```
+
+<!-- output: models-lightgbm -->
+```text
+Held-out predictions preserved: [164.2, 164.2, 164.2, 164.2, 245.6]
+```
+<!-- /output -->
 
 Numerical and categorical feature names must partition the native model's
 features exactly. The wrapper restores feature order and converts configured

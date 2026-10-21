@@ -39,7 +39,7 @@ FIGURE_NAMES = (
     "shap-temperature.png",
 )
 EXAMPLE = re.compile(
-    r"(?P<example><!-- example: (?P<name>[\w-]+) -->\n"
+    r"(?P<example><!-- example: (?P<name>[\w-]+) -->\n+"
     r"```python\n(?P<code>.*?)\n```)"
     r"(?:\n\n<!-- output: (?P=name) -->\n```text\n.*?\n```\n<!-- /output -->)?",
     re.DOTALL,
@@ -225,6 +225,19 @@ def _validate_gallery_assets(directory: Path) -> None:
         assert np.ptp(pixels[..., :3]) > 0.5, f"Figure has no visible content: {name}"
 
 
+def _compare_gallery_assets(expected: Path, generated: Path) -> None:
+    from matplotlib.testing.compare import compare_images
+
+    for name in FIGURE_NAMES:
+        difference = compare_images(
+            str(expected / name), str(generated / name), tol=1
+        )
+        if difference is not None:
+            raise AssertionError(
+                f"Stale gallery figure: {name}; run python -m examples.render_plots"
+            )
+
+
 def _validate_metric_results(namespace: dict[str, object]) -> None:
     import numpy as np
 
@@ -237,12 +250,18 @@ def _validate_metric_results(namespace: dict[str, object]) -> None:
         RankingMetrics,
     )
 
-    assert cast(MetricsClassification, namespace["scores"]).recall == 1.0
-    assert (
-        cast(MetricsFrequency, namespace["frequency"]).prediction_over_observed == 1.0
+    np.testing.assert_allclose(
+        cast(MetricsClassification, namespace["scores"]).recall, 2 / 3
     )
-    assert cast(MetricsSeverity, namespace["severity"]).prediction_over_observed == 1.0
-    assert cast(RankingMetrics, namespace["ranking"]).normalized_gini == 1.0
+    np.testing.assert_allclose(
+        cast(MetricsFrequency, namespace["frequency"]).prediction_over_observed, 0.86
+    )
+    np.testing.assert_allclose(
+        cast(MetricsSeverity, namespace["severity"]).prediction_over_observed, 6 / 7
+    )
+    np.testing.assert_allclose(
+        cast(RankingMetrics, namespace["ranking"]).normalized_gini, 3 / 7
+    )
     assert (
         cast(MetricScores, namespace["pu_scores"]).to_dict()[
             "known_positive_capture_at_10pct"
@@ -259,11 +278,14 @@ def _validate_metric_results(namespace: dict[str, object]) -> None:
     )
     metric = cast(Metric, namespace["metric"])
 
-    assert metric(
-        cast(FloatArray, namespace["observed"]),
-        cast(FloatArray, namespace["probabilities"]),
-        cast(FloatArray, namespace["weight"]),
-    ).to_dict() == {"mae": 0.275}
+    np.testing.assert_allclose(
+        metric(
+            cast(FloatArray, namespace["observed"]),
+            cast(FloatArray, namespace["probabilities"]),
+            cast(FloatArray, namespace["weight"]),
+        ).to_dict()["mae"],
+        0.35,
+    )
 
 
 def render(check: bool = False) -> None:
@@ -315,6 +337,7 @@ def render(check: bool = False) -> None:
                 page.write_text(document)
         if check:
             _validate_gallery_assets(asset_directory)
+            _compare_gallery_assets(asset_directory, figure_directory)
         print(
             f"Verified {len(EXAMPLE.findall(plot_document))} plot examples, {len(FIGURE_NAMES)} gallery figures, and every metric family."
         )

@@ -5,26 +5,34 @@ MLflow experiment. These helpers can also be used outside `train_model`.
 
 ## Explain a fitted model
 
-Continue with `model` and `data` from the [model example](models.md#fit-and-predict-directly).
+Continue with the fitted `model` and held-out Bike `test` from the
+[model example](models.md#fit-and-predict-directly).
 Pass the fitted native backend and a Polars feature frame to the explanation
 helper.
 
 <!-- example: tracking-native -->
 
 ```python
+import numpy as np
+
 from ml_toolkit.explainability import shap_contributions
 
-names, features, contributions = shap_contributions(model.native_model, data.X)
-print(names)                 # ['age', 'region']
-print(contributions.shape)   # (24, 3)
+names, features, contributions = shap_contributions(model.native_model, test.X.head(3))
 feature_effects = contributions[:, :-1]
 base_values = contributions[:, -1]
+reconstructed = base_values + feature_effects.sum(axis=1)
+predicted = model.predict_frame(test.X.head(3))
+np.testing.assert_allclose(reconstructed, predicted)
+print("Base rental count:", base_values.round(2).tolist())
+print("Total feature effect:", feature_effects.sum(axis=1).round(2).tolist())
+print("Reconstructed predictions:", reconstructed.round(2).tolist())
 ```
 
 <!-- output: tracking-native -->
 ```text
-['age', 'region']
-(24, 3)
+Base rental count: [144.82, 144.82, 144.82]
+Total feature effect: [52.53, 43.56, 45.34]
+Reconstructed predictions: [197.35, 188.38, 190.15]
 ```
 <!-- /output -->
 
@@ -44,15 +52,16 @@ from ml_toolkit.config import ShapConfig
 from ml_toolkit.explainability import calculate_shap_values, top_shap_features
 
 explanation = calculate_shap_values(
-    model.native_model, data.X, config=ShapConfig(max_samples=24, seed=0)
+    model.native_model, test.X, config=ShapConfig(max_samples=500, seed=0)
 )
-important_features = top_shap_features(explanation, top_n=2)
-print(len(important_features))  # 2
+important_features = top_shap_features(explanation, top_n=3)
+print("Three most influential features:", important_features)
+assert 0 < len(important_features) < test.X.width
 ```
 
 <!-- output: tracking-shap -->
 ```text
-2
+Three most influential features: ['hour', 'temperature', 'working_day']
 ```
 <!-- /output -->
 
@@ -73,7 +82,14 @@ from ml_toolkit.tracking import log_polars_table
 
 mlflow.set_tracking_uri("sqlite:///mlflow.db")
 mlflow.set_experiment("ml-toolkit-examples")
-table = pl.DataFrame({"segment": ["north", "south"], "mae": [0.2, 0.3]})
+predictions = model.predict_pool(test)
+table = (
+    test.X.select("working_day")
+    .with_columns(pl.Series("absolute_error", np.abs(test.y.to_numpy() - predictions)))
+    .group_by("working_day")
+    .agg(pl.col("absolute_error").mean().round(3).alias("mae"), pl.len().alias("hours"))
+    .sort("working_day")
+)
 with mlflow.start_run(run_name="segment-metrics") as run:
     log_polars_table(table, "tables/segment-metrics.json")
     saved = mlflow.artifacts.load_dict(
@@ -84,10 +100,12 @@ with mlflow.start_run(run_name="segment-metrics") as run:
 
 <!-- output: tracking-table -->
 ```text
-{'rows': [{'segment': 'north', 'mae': 0.2}, {'segment': 'south', 'mae': 0.3}]}
+{'rows': [{'working_day': 0, 'mae': 89.048, 'hours': 1127}, {'working_day': 1, 'mae': 101.836, 'hours': 2349}]}
 ```
 <!-- /output -->
 
+The table summarizes held-out absolute error in rentals per hour by the
+recorded working-day flag, alongside the number of hours in each group.
 The call creates a local MLflow database if needed and writes a JSON artifact
 containing the table's rows under the active run. The example reads back the
 saved payload to verify its contents. Model adapters expose their

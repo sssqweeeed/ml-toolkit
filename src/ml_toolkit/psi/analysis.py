@@ -55,15 +55,21 @@ class PSIAnalysis:
 
     Examples
     --------
+    In this small calculation, the north share falls from 75% to 25%.
+
     >>> import polars as pl
     >>> from ml_toolkit.feature_levels import FeatureLevelConfig
     >>> from ml_toolkit.psi import PSIAnalysis, PSIConfig
-    >>> reference = pl.DataFrame({"segment": ["a", "a", "b", "b"]})
-    >>> current = pl.DataFrame({"segment": ["a", "b", "a", "b"]})
+    >>> reference = pl.DataFrame({"segment": ["north"] * 3 + ["south"]})
+    >>> current = pl.DataFrame({"segment": ["north"] + ["south"] * 3})
     >>> analysis = PSIAnalysis(PSIConfig((FeatureLevelConfig("segment", "categorical"),)))
     >>> result = analysis.fit(reference).compare(current)
-    >>> result.psi.get_column("psi").to_list()
-    [0.0]
+    >>> result.psi.select(pl.col("psi").round(4)).to_dicts()
+    [{'psi': 1.0986}]
+    >>> result.level_distribution.filter(pl.col("level") == "north").select(
+    ...     "sample", "share"
+    ... ).to_dicts()
+    [{'sample': 'reference', 'share': 0.75}, {'sample': 'current', 'share': 0.25}]
     """
 
     config: PSIConfig

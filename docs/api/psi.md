@@ -6,6 +6,10 @@ bins on the reference once, then reuse them for every comparison.
 
 ## Compare two samples
 
+This small calculation makes the level counts easy to inspect; four rows per
+sample are not enough to establish population drift. For monitoring real
+observations, see the [bike-sharing gallery](plots.md#psi-scores-and-temporal-level-shares).
+
 <!-- example: psi-compare -->
 
 ```python
@@ -30,21 +34,32 @@ analysis = PSIAnalysis(
     )
 ).fit(reference)
 comparison = analysis.compare(current)
-print(comparison.psi.sort("feature").with_columns(pl.col("psi").round(4)).to_dicts())
-print(comparison.level_distribution.select("feature", "sample", "level", "rows").sort("feature", "sample", "level").to_dicts())
+print(comparison.psi.sort("feature").with_columns(pl.col("psi").round(4)).write_csv(), end="")
+region_shares = comparison.level_distribution.filter(
+    (pl.col("feature") == "region") & (pl.col("level") != "__NULL__")
+).select("level", "sample", "share").pivot(on="sample", index="level", values="share")
+print(region_shares.write_csv(), end="")
 ```
 
 <!-- output: psi-compare -->
 ```text
-[{'feature': 'age', 'psi': 6.9077}, {'feature': 'region', 'psi': 6.9077}]
-[{'feature': 'age', 'sample': 'current', 'level': '[0, 35)', 'rows': 0}, {'feature': 'age', 'sample': 'current', 'level': '[35, inf)', 'rows': 4}, {'feature': 'age', 'sample': 'current', 'level': '__ERROR__', 'rows': 0}, {'feature': 'age', 'sample': 'current', 'level': '__NULL__', 'rows': 0}, {'feature': 'age', 'sample': 'reference', 'level': '[0, 35)', 'rows': 2}, {'feature': 'age', 'sample': 'reference', 'level': '[35, inf)', 'rows': 2}, {'feature': 'age', 'sample': 'reference', 'level': '__ERROR__', 'rows': 0}, {'feature': 'age', 'sample': 'reference', 'level': '__NULL__', 'rows': 0}, {'feature': 'region', 'sample': 'current', 'level': '__NULL__', 'rows': 0}, {'feature': 'region', 'sample': 'current', 'level': '__UNSEEN__', 'rows': 2}, {'feature': 'region', 'sample': 'current', 'level': 'north', 'rows': 1}, {'feature': 'region', 'sample': 'current', 'level': 'south', 'rows': 1}, {'feature': 'region', 'sample': 'reference', 'level': '__NULL__', 'rows': 0}, {'feature': 'region', 'sample': 'reference', 'level': '__UNSEEN__', 'rows': 0}, {'feature': 'region', 'sample': 'reference', 'level': 'north', 'rows': 2}, {'feature': 'region', 'sample': 'reference', 'level': 'south', 'rows': 2}]
+feature,psi
+age,6.9077
+region,6.9077
+level,reference,current
+north,0.5,0.25
+south,0.5,0.25
+__UNSEEN__,0.0,0.5
 ```
 <!-- /output -->
 
 `comparison.psi` has one score per feature. Larger values mean a greater change
 in fitted-level shares. `level_distribution` shows the reference/current counts
 and shares behind each score. The new `"west"` category uses the fitted unseen
-level; numerical bins retain the reference boundaries.
+level; numerical bins retain the reference boundaries. Here north and south
+each fall from 50% to 25%, and unseen categories account for 50% of current
+rows. Empty levels make the score sensitive to the configured `epsilon` share
+floor; this value is an arithmetic demonstration, not a universal alert threshold.
 
 Call `analysis.compare(next_sample)` for later batches. Re-fitting on each batch
 would change the reference. For temporal distributions, set `PSIConfig(period="week")` (default `"month"`)
@@ -82,15 +97,16 @@ assert levels.feature_levels is not None
 level_comparison = compare_psi(
     reference_levels, current_levels, feature_levels=levels.feature_levels
 )
-assert level_comparison.feature_levels is levels.feature_levels
-assert levels.feature_levels[0].config is analysis.config.features[0]
-print(current_levels["region"].cast(pl.String).to_list())
-# ['north', 'south', '__UNSEEN__', '__UNSEEN__']
+print("Age boundaries:", levels.feature_levels[0].boundaries)
+print("Current region levels:", current_levels["region"].cast(pl.String).to_list())
+print("Same PSI scores:", level_comparison.psi.equals(comparison.psi))
 ```
 
 <!-- output: psi-levels -->
 ```text
-['north', 'south', '__UNSEEN__', '__UNSEEN__']
+Age boundaries: (35.0,)
+Current region levels: ['north', 'south', '__UNSEEN__', '__UNSEEN__']
+Same PSI scores: True
 ```
 <!-- /output -->
 

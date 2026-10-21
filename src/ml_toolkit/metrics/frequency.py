@@ -108,11 +108,17 @@ def metrics_frequency(
     >>> from ml_toolkit.metrics import metrics_frequency
     >>> scores = metrics_frequency(
     ...     np.array([0.0, 1.0, 2.0]),
-    ...     np.array([0.2, 1.0, 1.8]),
-    ...     np.ones(3),
+    ...     np.array([0.2, 1.2, 1.5]),
+    ...     np.array([0.5, 1.0, 2.0]),
     ... )
+    >>> round(scores.mean_absolute_error, 4)
+    0.3714
     >>> round(scores.prediction_over_observed, 2)
-    1.0
+    0.86
+
+    These small calculation inputs represent annual rates and policy-year
+    exposures. Predicted claims total 4.3 versus 5.0 observed: 14% too low.
+    The weighted absolute rate error is 0.3714 claims per policy-year.
     """
     ranking = ranking_metrics(
         y_target=y_target, y_pred=y_pred, exposure=exposure, selected_percents=(10.0,)

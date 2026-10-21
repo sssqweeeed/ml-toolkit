@@ -15,3 +15,23 @@ def test_documented_gallery_and_metric_results():
     from examples.render_plots import render
 
     render(check=True)
+
+
+def test_gallery_check_detects_stale_populated_image(tmp_path, monkeypatch):
+    import matplotlib.pyplot as plt
+    from examples import render_plots
+
+    expected = tmp_path / "expected"
+    generated = tmp_path / "generated"
+    expected.mkdir()
+    generated.mkdir()
+    monkeypatch.setattr(render_plots, "FIGURE_NAMES", ("plot.png",))
+    for directory, values in ((expected, [1, 2, 3]), (generated, [3, 2, 1])):
+        figure, axis = plt.subplots()
+        axis.plot(values)
+        figure.savefig(directory / "plot.png")
+        plt.close(figure)
+    with pytest.raises(AssertionError, match="Stale gallery figure: plot.png"):
+        render_plots._compare_gallery_assets(expected, generated)
+    (expected / "plot.png").write_bytes((generated / "plot.png").read_bytes())
+    render_plots._compare_gallery_assets(expected, generated)

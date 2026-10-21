@@ -58,9 +58,10 @@ the monthly figures show actual calendar periods. The target is hourly `cnt`;
 `casual` and `registered`, whose sum reveals the target, are excluded from
 features. Temperature and humidity retain the source dataset's normalized scales.
 
-From a source checkout, load the shared data and fitted models once. The first
-run downloads UCI's archive into `.cache/uci-bike-sharing`; subsequent runs
-reuse it. The canonical loader below contains the exact splits and model settings.
+From an installed source checkout, run `python -m examples.prepare_data` once
+to cache the original sources. Then load the shared data and fitted models below.
+Recipe execution requires those caches and never downloads missing data. The
+canonical loader contains the exact splits and model settings.
 
 <!-- example: plots-setup -->
 ```python
@@ -72,7 +73,7 @@ import polars as pl
 from examples.gallery_data import load_gallery_data
 from ml_toolkit.config import FigureConfig
 
-digits, bikes = load_gallery_data()
+digits, bikes = load_gallery_data(download_if_missing=False)
 observed, probabilities = digits.observed, digits.probabilities
 reference, current = bikes.reference.features, bikes.current.features
 reference_y, current_y = bikes.reference.observed, bikes.current.observed
@@ -389,7 +390,7 @@ from examples.citation_data import load_citation_gallery
 from ml_toolkit.config import PUPlotsConfig
 from ml_toolkit.plots import pu
 
-citations = load_citation_gallery()
+citations = load_citation_gallery(download_if_missing=False)
 pu_labels, pu_scores = citations.labels, citations.scores
 pu.score_distribution(
     pu_labels,
@@ -432,18 +433,24 @@ all real citations. Both axes show percentages; tied scores enter together.
 
 ## PSI scores and temporal level shares
 
-Fit up to ten quantile bins for each of the eleven covariates on July–December
-2011, then compare their distributions with 2012. Calendar changes can be
-expected: for example, the reference period contains only six months.
+Fit up to ten quantile bins for continuous weather measurements on July–December
+2011, then compare their distributions with 2012. Keep calendar and weather
+codes as categories: their integer codes do not represent continuous distances.
+Calendar changes can be expected: the reference period contains only six months,
+so January–June month categories in 2012 use the unseen level.
 
 <!-- example: plots-psi-scores -->
 ```python
 from ml_toolkit.psi import PSIAnalysis, PSIConfig
 from ml_toolkit.plots import psi
 
+categorical_features = {"hour", "working_day", "weekday", "holiday", "season", "weather", "month"}
 analysis = PSIAnalysis(
     PSIConfig(
-        features=tuple(FeatureLevelConfig(name, "numerical") for name in reference.columns),
+        features=tuple(
+            FeatureLevelConfig(name, "categorical" if name in categorical_features else "numerical")
+            for name in reference.columns
+        ),
         n_bins=10,
     )
 ).fit(reference, time=bikes.reference.time)
@@ -455,8 +462,8 @@ print(comparison.psi.sort("psi", descending=True).head(5).with_columns(pl.col("p
 <!-- output: plots-psi-scores -->
 ```text
 feature,psi
-season,1.224
-month,0.801
+month,6.892
+season,3.698
 humidity,0.125
 feels_like_temperature,0.081
 temperature,0.059
@@ -648,11 +655,12 @@ From a source checkout with the `shap` extra installed, run:
 python -m examples.render_plots
 ```
 
-The first run downloads and caches UCI Bike Sharing and the LINQS Cora archive;
-later runs reuse both caches.
+Prepare the UCI Bike Sharing and LINQS Cora source caches first with
+`python -m examples.prepare_data --dataset bike --dataset cora`.
 This command executes the documented recipes, refreshes their captured output
 and all 18 PNGs, and verifies sample sizes, populated bins, numerical summaries,
-and figure cleanup. `--check` verifies output and renders temporary figures
+and figure cleanup. `--check` verifies output and compares temporary figures
+with the checked-in PNGs (pixel RMS tolerance 1 on the 0–255 scale)
 without changing the checked-in gallery. The integration test skips when the
 public-data cache is absent, so running tests never downloads it implicitly.
 

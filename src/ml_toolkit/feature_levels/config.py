@@ -48,10 +48,17 @@ class FeatureLevelConfig:
 
     Examples
     --------
-    >>> from ml_toolkit.feature_levels import FeatureLevelConfig
+    Fit age intervals once, then keep invalid and missing values separate.
+
+    >>> import polars as pl
+    >>> from ml_toolkit.feature_levels import FeatureLevelConfig, LevelTransformer
     >>> feature = FeatureLevelConfig("age", "numerical", lower_bound=0)
-    >>> feature.name, feature.lower_bound
-    ('age', 0)
+    >>> levels = LevelTransformer((feature,), n_bins=2).fit(
+    ...     pl.DataFrame({"age": [20, 30, 40, 50]})
+    ... )
+    >>> current = pl.DataFrame({"age": [-1, None, 25, 45]})
+    >>> levels.transform(current)["age"].cast(pl.String).to_list()
+    ['__ERROR__', '__NULL__', '[0, 35)', '[35, inf)']
     """
 
     name: str

@@ -20,12 +20,16 @@ from_dates = pl.Series([date(2025, 1, 1)])
 to_dates = pl.Series([date(2026, 1, 1)])
 inflation = ConstantRateInflation(annual_rate=0.08)
 adjusted = inflation.adjust(np.array([100.0]), from_dates, to_dates)
-print(adjusted.round(2).tolist())  # [107.99]
+print("Later price level:", adjusted.round(2).tolist())
+restored = inflation.adjust(adjusted, to_dates, from_dates)
+print("Original price level:", restored.round(2).tolist())
+np.testing.assert_allclose(restored, [100.0])
 ```
 
 <!-- output: inflation-constant -->
 ```text
-[107.99]
+Later price level: [107.99]
+Original price level: [100.0]
 ```
 <!-- /output -->
 
@@ -48,7 +52,7 @@ adjusted = monthly.adjust(
     pl.Series([date(2025, 1, 15)]),
     pl.Series([date(2025, 2, 28)]),
 )
-print(adjusted.round(2).tolist())  # [110.0]
+print(adjusted.round(2).tolist())
 ```
 
 <!-- output: inflation-monthly -->
@@ -62,58 +66,113 @@ Every date within a month uses that month's level. Missing months between
 anchors are interpolated in log space; requested months must stay within the
 anchor range.
 
+## Prepare recorded retail prices
+
+Run from the installed repository checkout and prepare the source explicitly:
+
+```bash
+python -m pip install -r requirements-examples.txt
+python -m examples.prepare_data --dataset retail
+```
+
+The reusable loader reads [UCI Online Retail](https://archive.ics.uci.edu/dataset/352/online%2Bretail)
+(Daqing Chen, 2015; CC BY 4.0). `UnitPrice` is sterling per item and `InvoiceDate`
+is the recorded transaction time. The approximately 23 MB workbook and normalized
+records stay in `.cache/uci-online-retail`; reading Excel requires `openpyxl`, an
+example dependency rather than a package runtime dependency.
+
+We exclude cancelled invoices and lines with nonpositive quantity or price.
+A reproducible approximately 10% invoice sample retains all eligible lines of each
+selected invoice: the first eight bytes of its ID's SHA-256 digest, interpreted
+big-endian, must have remainder zero modulo ten. Original values and timestamps
+are retained. December 2011 is excluded because it is incomplete.
+Training ends before September 2011, validation covers September, and testing
+covers October–November. Invoice groups never cross those partitions.
+
+<!-- example: inflation-data -->
+
+```python
+from examples.retail_data import load_retail_splits
+
+retail = load_retail_splits(download_if_missing=False)
+print("Train / validation / test lines:",
+      len(retail.train), len(retail.validation), len(retail.test))
+print("First held-out prices (GBP/item):", retail.test.y.head(5).to_list())
+```
+
+<!-- output: inflation-data -->
+```text
+Train / validation / test lines: 29847 4282 15210
+First held-out prices (GBP/item): [0.85, 7.08, 4.95, 4.25, 4.95]
+```
+<!-- /output -->
+
+The three predictors are product code, country, and purchased quantity. Invoice
+IDs, customer IDs, timestamps, and target-derived amounts are excluded from model
+features. Each invoice line has weight one, so metrics describe line-level prices.
+This is a price-prediction demonstration, not an insurance-claims dataset.
+
 ## Fit an inflation-adjusted regressor
 
-Use `data` from the [data example](data.md#prepare-a-pool), treating its target
-as a monetary amount observed at `data.time`. Fit the underlying regressor at
-one reference price date:
+Continue with `retail` above and the NumPy, Polars, date, and inflation imports
+from the first calculation. Fit at a common reference price date, then predict
+held-out transaction prices at their recorded dates:
 
 <!-- example: inflation-model -->
 
 ```python
-from ml_toolkit.config import HoldoutConfig
 from ml_toolkit.models import CatBoostRegressionModel, InflationAdjustedModel
-from ml_toolkit.training import split_holdout
 
-split = split_holdout(data, HoldoutConfig(val_size=0.25))
 adjusted_model = InflationAdjustedModel(
     CatBoostRegressionModel(
         {
-            "iterations": 20, "depth": 2, "loss_function": "RMSE",
+            "iterations": 60, "depth": 4, "loss_function": "RMSE",
             "random_seed": 42, "thread_count": 2, "verbose": False,
             "allow_writing_files": False,
         }
     ),
     inflation=ConstantRateInflation(annual_rate=0.08),
-    reference_date=date(2025, 1, 1),
-).fit(split.train, split.val)
-predictions = adjusted_model.predict_pool(split.val)
-print(predictions.shape)  # (6,)
+    reference_date=date(2011, 9, 1),
+).fit(retail.train, retail.validation)
+predictions = adjusted_model.predict_pool(retail.test)
+print("Predicted prices (GBP/item):", predictions[:5].round(2).tolist())
+print("Held-out MAE (GBP/item):", round(float(
+    np.mean(np.abs(predictions - retail.test.y.to_numpy()))
+), 2))
 
-future = pl.DataFrame(
-    {"age": [25], "region": ["north"], "prediction_date": [date(2026, 1, 1)]}
-)
-print(adjusted_model.predict_frame(future).shape)  # (1,)
+# Hold product, country, and quantity fixed; vary only the requested price date.
+requested_dates = pl.Series("prediction_date", [date(2011, 9, 1), date(2012, 9, 1)])
+future = retail.test.X[[0, 0]].with_columns(requested_dates)
+date_predictions = adjusted_model.predict_frame(future)
+assert date_predictions[1] > date_predictions[0] > 0
+print("Same item at requested price dates:", date_predictions.round(2).tolist())
+conversion = adjusted_model.inflation.factor(requested_dates.head(1), requested_dates.tail(1))
+np.testing.assert_allclose(date_predictions[1:], date_predictions[:1] * conversion)
 ```
 
 <!-- output: inflation-model -->
 ```text
-(6,)
-(1,)
+Predicted prices (GBP/item): [1.42, 5.08, 4.87, 7.22, 9.98]
+Held-out MAE (GBP/item): 2.18
+Same item at requested price dates: [1.41, 1.52]
 ```
 <!-- /output -->
 
+The 8% rate is an **assumed conversion policy**, not an estimate of historical UK
+inflation. The date comparison demonstrates the adapter's behavior; it does not
+establish that the assumption improves predictive accuracy. The two requested
+serving dates do not replace any recorded training or evaluation timestamps.
+
 Pool predictions use each row's observation date. Frame predictions require
-the `prediction_date` column, whose name can be configured on the adapter.
-With `ManualInflation`, all training, reference, and prediction months must
-fall within the supplied index range.
+`prediction_date`, whose name can be configured on the adapter. With
+`ManualInflation`, all training, reference, and requested months must lie within
+the supplied index range.
 
 ## Log and reload for serving
 
-Continuing with `adjusted_model`, `split`, and `future` above, configure a local
-MLflow store and save both artifacts. `log()` returns the native model first and
-the inflation-adjusted serving model second. Load the second artifact to retain
-date-dependent predictions:
+Continue with the fitted `adjusted_model`, `retail`, and `future` above. `log()`
+returns the native model first and the adjusted serving model second. Load the
+second artifact to retain date-dependent predictions:
 
 <!-- example: inflation-serving -->
 
@@ -123,7 +182,7 @@ import mlflow
 mlflow.set_tracking_uri("sqlite:///mlflow.db")
 mlflow.set_experiment("ml-toolkit-inflation")
 with mlflow.start_run():
-    native_info, adjusted_info = adjusted_model.log(split.train)
+    native_info, adjusted_info = adjusted_model.log(retail.train)
 
 loaded = mlflow.pyfunc.load_model(adjusted_info.model_uri)
 np.testing.assert_allclose(
@@ -133,7 +192,7 @@ np.testing.assert_allclose(
 ```
 
 This writes a local tracking database and model artifacts. The assertion checks
-that the reloaded model preserves the predictions for the supplied price dates.
+that the reloaded model preserves both requested price-date predictions.
 
 ## API reference
 
