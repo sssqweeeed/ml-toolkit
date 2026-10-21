@@ -1,6 +1,6 @@
 """Schemas for persisted native-model serving state."""
 
-from typing import TypedDict
+from typing import NotRequired, TypedDict
 
 from ..inflation import InflationConfig
 from ..types import ModelParams
@@ -10,6 +10,7 @@ class RegressionState(TypedDict):
     version: int
     model_type: str
     prediction_type: str | None
+    effective_prediction_type: NotRequired[str | None]
     baseline: float | None
     baseline_mode: str
     training_params: ModelParams

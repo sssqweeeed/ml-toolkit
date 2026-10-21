@@ -617,6 +617,12 @@ Use a Tweedie power consistent with the model loss and metric. Here `power=1.5`
 allows zero targets and requires positive predictions and positive weighted
 observed totals. Gamma deviance (`power=2`) requires strictly positive targets.
 
+For strictly positive severity, set `loss_function="Gamma"` on the same
+`CatBoostLogLinkRegressionModel` and set the reporting metric's `power=2.0`.
+This trains the exact Gamma objective rather than approximating it with Tweedie
+near power 2. See [Gamma regression](api/models.md#gamma-regression) for CPU/GPU
+configuration, predictions, validation requirements and saving models.
+
 ### Using the base configuration
 
 <!-- example: configuration-severity -->

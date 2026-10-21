@@ -8,7 +8,7 @@ import numpy as np
 from numba import njit
 from numpy.typing import NDArray
 
-from ..types import FloatArray
+from ....types import FloatArray
 
 # CatBoost supplies float32 targets/weights and float64 CPU approximations.
 PoolArray: TypeAlias = NDArray[np.float32] | FloatArray

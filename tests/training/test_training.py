@@ -3,6 +3,7 @@
 import json
 import logging
 from datetime import date
+from functools import partial
 from pathlib import Path
 
 import mlflow
@@ -27,9 +28,10 @@ from ml_toolkit.config import (
 )
 from ml_toolkit.explainability import calculate_shap_values, top_shap_features
 from ml_toolkit.inflation import ConstantRateInflation
-from ml_toolkit.metrics import PUMetric, metrics_classification
+from ml_toolkit.metrics import PUMetric, metrics_classification, metrics_severity
 from ml_toolkit.models import (
     CatBoostClassificationModel,
+    CatBoostLogLinkRegressionModel,
     CatBoostPUClassificationModel,
     CatBoostRegressionModel,
     InflationAdjustedModel,
@@ -250,21 +252,26 @@ def test_training_logs_psi_and_plots(tmp_path, caplog):
     )
 
 
-def test_bundled_catboost_model_runs_through_training(tmp_path):
+@pytest.mark.parametrize("loss", ["Poisson", "Gamma"])
+def test_bundled_catboost_model_runs_through_training(tmp_path, loss):
     setup_mlflow(tmp_path)
     result = train_model(
         data=make_data(),
-        model_factory=CatBoostRegressionModel,
+        model_factory=(
+            CatBoostLogLinkRegressionModel
+            if loss == "Gamma"
+            else CatBoostRegressionModel
+        ),
         params={
             "iterations": 5,
             "thread_count": 1,
             "allow_writing_files": False,
-            "loss_function": "Poisson",
+            "loss_function": loss,
             "depth": 2,
             "learning_rate": 0.1,
             "verbose": False,
         },
-        metric=mae,
+        metric=partial(metrics_severity, power=2.0) if loss == "Gamma" else mae,
         run_name="catboost",
         config=TrainingConfig(validation=TimeSeriesCVConfig(n_splits=2)),
     )
