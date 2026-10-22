@@ -36,9 +36,48 @@ python -m pytest -n 2 --dist loadscope --cov --cov-report=term-missing
 ```
 
 Optional backend tests skip when their dependency is absent. Real-data gallery
-checks require locally cached UCI Bike Sharing and LINQS Cora sources and never
-download them implicitly. CUDA simulation runs on CPU; tests marked `gpu` require
-a real CUDA device and compatible toolkit. Skip reasons appear in the summary.
+checks require locally cached UCI Bike Sharing, UCI Online Retail, and LINQS Cora
+sources and never download them implicitly. CUDA simulation runs on CPU; tests
+marked `gpu` require a real CUDA device and compatible toolkit. Skip reasons
+appear in the summary.
+
+## Documentation
+
+Build the site with only the documentation dependencies; mkdocstrings reads
+`src/` statically, so building HTML needs neither the ML stack nor datasets:
+
+```bash
+python -m pip install -r requirements-docs.txt
+python -m mkdocs build --strict
+```
+
+To validate executable examples, captured output, and committed figures, install
+the ML dependencies and explicitly prepare the original source datasets first:
+
+```bash
+python -m pip install -e '.[test,all]' -r requirements-examples.txt
+python -m examples.prepare_data
+python -m pytest tests/documentation -n 2 --dist worksteal --durations=15
+```
+
+This suite includes every page and figure checked by
+`python -m examples.render_examples --check`; running both commands repeats model
+training, tuning, SHAP calculations, and figure generation. Use
+`python -m examples.render_examples` when intentionally updating example output
+and figures. The documentation suite uses `worksteal` to distribute individual
+recipes of different durations between workers, instead of keeping a whole
+module on one worker. The duration report highlights the remaining slow tests.
+
+The `Tests` workflow validates documentation in a dedicated Python 3.12 job on
+pull requests and manual runs. Its Python 3.11/3.12 test matrix excludes
+`tests/documentation`, so each PR revision executes the documentation suite only
+once. New commits cancel obsolete documentation checks for the same PR.
+
+The `Documentation` workflow only builds the site and publishes it from `main`.
+Merging a PR does not rerun the ML documentation checks; it builds and publishes
+the committed examples and figures. Use a manual run of `Tests` to revalidate
+examples on `main` when needed. Direct pushes to `main` also skip these checks;
+the automatic validation happens in PRs.
 
 ## Gamma and PU loss checks
 

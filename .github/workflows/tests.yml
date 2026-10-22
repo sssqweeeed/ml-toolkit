@@ -28,4 +28,40 @@ jobs:
       - name: Check package types
         run: python -m pyright
       - name: Run tests in parallel
-        run: python -m pytest -n 2 --dist loadscope
+        run: python -m pytest -n 2 --dist loadscope --ignore=tests/documentation
+
+  documentation:
+    # Validate recipes once per PR revision; merging only rebuilds the site.
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: documentation-tests-${{ github.event_name }}-${{ github.ref }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: |
+            requirements-examples.txt
+            pyproject.toml
+      - name: Install example and test dependencies
+        run: python -m pip install -e '.[test,all]' -r requirements-examples.txt
+      - name: Cache original example datasets
+        uses: actions/cache@v4
+        with:
+          path: |
+            .cache/uci-bike-sharing
+            .cache/uci-online-retail
+            .cache/linqs-cora
+          key: documentation-data-v1-${{ hashFiles('examples/gallery_data.py', 'examples/retail_data.py', 'examples/citation_data.py') }}
+          restore-keys: documentation-data-v1-
+      - name: Prepare original example datasets
+        run: python -m examples.prepare_data
+      # These tests also render every example page and compare every figure.
+      # Running render_examples --check separately would repeat the ML work.
+      - name: Check documented behavior, example output and figures
+        env:
+          MPLBACKEND: Agg
+        run: python -m pytest tests/documentation -n 2 --dist worksteal --durations=15
