@@ -88,7 +88,11 @@ def evaluate_model(
         evaluators or analyzers or reporting.psi or reporting.shap is not None
     ):
         data = _combine_pools(train, heldout)
-        prediction = np.concatenate([predictions[part] for part, _ in datasets])
+        prediction = (
+            predictions[DatasetSplit.TRAIN]
+            if heldout is None
+            else np.concatenate([predictions[part] for part, _ in datasets])
+        )
         labels = pl.concat(
             [
                 pl.repeat(part.value, len(pool), dtype=pl.String, eager=True)
@@ -124,13 +128,13 @@ def _combine_pools(train: Pool, heldout: Pool | None) -> Pool:
             return None
         if left is None or right is None:
             raise ValueError("Reporting pools must have matching optional fields")
-        return pl.concat([left, right])
+        return pl.concat([left, right], rechunk=False)
 
     return Pool(
-        X=pl.concat([train.X, heldout.X]),
-        y=pl.concat([train.y, heldout.y]),
-        time=pl.concat([train.time, heldout.time]),
-        weight=pl.concat([train.weight, heldout.weight]),
+        X=pl.concat([train.X, heldout.X], rechunk=False),
+        y=pl.concat([train.y, heldout.y], rechunk=False),
+        time=pl.concat([train.time, heldout.time], rechunk=False),
+        weight=pl.concat([train.weight, heldout.weight], rechunk=False),
         business_type=optional(train.business_type, heldout.business_type),
         object_id=optional(train.object_id, heldout.object_id),
         cat_features=train.cat_features,

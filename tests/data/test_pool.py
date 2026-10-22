@@ -109,6 +109,39 @@ def test_take_preserves_order_alignment_and_feature_metadata(pool, grouped, indi
     assert pool.X["x"].to_list() == [1.0, 2.0, 3.0]
 
 
+@pytest.mark.parametrize("indices", [range(1, 3), [1, 2], np.arange(1, 3)])
+def test_contiguous_take_shares_buffers_and_preserves_all_fields(pool, indices):
+    result = pool.take(indices)
+    assert_frame_equal(result.X, pool.X.slice(1, 2))
+    assert np.shares_memory(result.X["x"].to_numpy(), pool.X["x"].to_numpy())
+    for field in ("y", "time", "weight", "object_id", "business_type"):
+        assert_series_equal(getattr(result, field), getattr(pool, field).slice(1, 2))
+    for field in ("y", "time", "weight"):
+        # Arrow exposes Date's actual int32 buffer; NumPy widens it to int64.
+        original = getattr(pool, field).to_arrow().buffers()[1]
+        selected = getattr(result, field).to_arrow().buffers()[1]
+        assert selected.address == original.address
+    result.X[0, "x"] = 99.0
+    assert pool.X["x"].to_list() == [1.0, 2.0, 3.0]
+
+
+@pytest.mark.parametrize(
+    "indices", [[2, 1, 2], [0, 2], [-2, -1], [-1, 0], range(2, -1, -1)]
+)
+def test_take_fallback_matches_gather(pool, indices):
+    index = np.asarray(indices, dtype=np.int64)
+    result = pool.take(indices)
+    assert_frame_equal(result.X, pool.X[index])
+    for field in ("y", "time", "weight", "object_id", "business_type"):
+        assert_series_equal(getattr(result, field), getattr(pool, field).gather(index))
+
+
+@pytest.mark.parametrize("indices", [range(4), [1, 2, 3], [3]])
+def test_contiguous_take_does_not_silently_clip_invalid_indices(pool, indices):
+    with pytest.raises((IndexError, pl.exceptions.OutOfBoundsError)):
+        pool.take(indices)
+
+
 def test_select_features_preserves_rows_and_filters_both_feature_lists(pool):
     selected = pool.select_features(["category", "x"])
     assert selected.X.columns == ["category", "x"]

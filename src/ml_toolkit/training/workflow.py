@@ -107,9 +107,6 @@ def train_model(
     experiment". The Feature selection, Parameter tuning and Evaluation guides
     show how to extend that workflow with independently prepared examples.
     """
-    test = splitter.get_test()
-    if config.fit_on_test and test.heldout is None:
-        raise ValueError("fit_on_test=True requires a held-out test sample")
     splits = splitter.get_validation()
     part = next(splits, None)
     if part is None:
@@ -196,12 +193,16 @@ def train_model(
             },
             "configuration/resolved.json",
         )
+        test = splitter.get_test()
+        if config.fit_on_test and test.heldout is None:
+            raise ValueError("fit_on_test=True requires a held-out test sample")
         test_train = test.train.select_features(last.features)
         test_heldout = (
             None
             if test.heldout is None
             else test.heldout.select_features(last.features)
         )
+        del test
         stage = "final_fit" if test_heldout is None else "test"
         logger.info("Starting %s stage", stage)
         with tracking.run(stage):
@@ -235,16 +236,18 @@ def train_model(
                 )
                 model.log(test_train, config=main_tracking)
         logger.info("Completed %s stage", stage)
+        test_schema = (
+            test_train.X.schema,
+            test_train.cat_features,
+            test_train.numerical_features,
+        )
+        del test_train, test_heldout
         final_model = None
         if config.fit_on_test:
             full = splitter.get_final()
             validate_training_data(full)
             full = full.select_features(last.features)
-            if (
-                full.X.schema != test_train.X.schema
-                or full.cat_features != test_train.cat_features
-                or full.numerical_features != test_train.numerical_features
-            ):
+            if (full.X.schema, full.cat_features, full.numerical_features) != test_schema:
                 raise ValueError(
                     "Final-fit data must match the selected training schema"
                 )

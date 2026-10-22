@@ -25,6 +25,7 @@ from .data_analysis import (
     NumericalFeatureDistributions as _NumericalFeatureDistributions,
 )
 from ._time import PERIOD_INTERVALS
+from ._rows import row_indexer
 from .config import FigureConfig
 from .data import Pool
 from .feature_levels import FeatureLevelConfig, LevelTransformer
@@ -132,7 +133,7 @@ def _heldout(
     if not len(index):
         return None
     part = str(split[int(index[0])])
-    return part, data.take(index), prediction[index]
+    return part, data.take(index), prediction[row_indexer(index, len(data))]
 
 
 def comparison_pair(
@@ -144,7 +145,13 @@ def comparison_pair(
     if current is None or not len(index):
         return None
     part, heldout, current_prediction = current
-    return part, data.take(index), prediction[index], heldout, current_prediction
+    return (
+        part,
+        data.take(index),
+        prediction[row_indexer(index, len(data))],
+        heldout,
+        current_prediction,
+    )
 
 
 def _single(

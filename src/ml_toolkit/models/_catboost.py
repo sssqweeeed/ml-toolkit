@@ -45,7 +45,11 @@ def prepare_frame(
             )
             .to_pandas()
         )
-    frame = data.loc[:, names].copy()
+    # Construct a new column container without copying numeric buffers, also
+    # with pandas versions where selecting columns via .loc makes a deep copy.
+    frame = pd.DataFrame(
+        {name: data[name] for name in names}, index=data.index, copy=False
+    )
     for name in categorical:
         frame[name] = frame[name].astype("string").fillna("unknown").astype(str)
     return frame

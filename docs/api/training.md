@@ -58,23 +58,23 @@ round upward. The workflow logs metrics and configuration to MLflow.
 
 ## Understand the run
 
-1. Request `splitter.get_test()` once, then consume each validation pair in
-   the splitter's iterator order.
+1. Consume each validation pair in the splitter's iterator order.
 2. Select columns and tune parameters when those extensions are supplied.
 3. Fit the validation model and run enabled [prediction reports](../evaluation/index.md) and
    [data analysis](../data-analysis/index.md).
-4. Fit a fresh main model on `get_test().train`, including former validation
-   and gap rows, and evaluate its optional `heldout` as test. This stage is
-   `test` when heldout exists, otherwise `final_fit`.
+4. Request `splitter.get_test()` once and fit a fresh main model on its `train`,
+   including former validation and gap rows, and evaluate its optional `heldout`
+   as test. This stage is `test` when heldout exists, otherwise `final_fit`.
 5. With `fit_on_test=True`, request `splitter.get_final()` after test evaluation
    and fit a separate model on that full pool, including test.
 
 The last yielded validation split supplies the final features, parameters,
 iteration budget and classification threshold. The splitter determines final
 training rows; they need not match the last validation train. The workflow
-obtains the main training/test pair before fitting; your splitter owns sample
-separation. Requesting `fit_on_test=True` without test raises `ValueError` before
-any fit or MLflow run. [Reporting stage flags](configuration.md)
+obtains the main training/test pair after validation; your splitter owns sample
+separation. Requesting `fit_on_test=True` without test raises `ValueError` at that
+point, before the main fit. Validation fits and their MLflow runs have already
+completed. [Reporting stage flags](configuration.md)
 control additional reports; primary metrics always run.
 
 ## Use the result
@@ -106,7 +106,7 @@ Learned baselines and inflation state are fitted anew for each model.
 | Present | False | test | All non-test rows | None |
 | Present | True | test, then final_fit | All non-test rows | All eligible rows |
 | Absent | False | final_fit | All eligible rows | None |
-| Absent | True | ValueError before fitting or MLflow runs | — | — |
+| Absent | True | ValueError after validation, before the main fit | — | — |
 
 For example, reuse the holdout setup above:
 

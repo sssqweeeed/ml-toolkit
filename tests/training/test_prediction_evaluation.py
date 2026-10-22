@@ -19,7 +19,7 @@ from ml_toolkit.config import (
     TrainingConfig,
     TuningConfig,
 )
-from ml_toolkit.evaluation import PredictionEvaluator, Calibration
+from ml_toolkit.evaluation import PredictionEvaluator, Calibration, comparison_pair
 from ml_toolkit.feature_selection import RFESelector
 from ml_toolkit.training import train_model, importance_ranker
 from ml_toolkit.training.reporting import report_predictions, upload_artifacts
@@ -31,6 +31,39 @@ from tests.support.training import (
     list_all_artifacts,
 )
 from tests.support.evaluators import CallbackEvaluator, CallbackAnalyzer
+
+
+@pytest.mark.parametrize("interleaved", [False, True])
+def test_report_subsets_preserve_alignment_and_share_contiguous_buffers(interleaved):
+    from ml_toolkit.training.evaluation import _combine_pools
+
+    source = make_data()
+    source = Pool(source.X, source.y, source.time, source.weight)
+    train, heldout = source.take(range(16)), source.take(range(16, 24))
+    combined = _combine_pools(train, heldout)
+    predictions = np.arange(24, dtype=float)
+    labels = pl.Series(["train"] * 16 + ["val"] * 8)
+    if interleaved:
+        order = np.array(
+            [i for pair in zip(range(8), range(16, 24)) for i in pair]
+            + list(range(8, 16))
+        )
+        combined = combined.take(order)
+        predictions, labels = predictions[order], labels.gather(order)
+    part, actual_train, train_pred, actual_heldout, heldout_pred = comparison_pair(
+        combined, predictions, labels
+    )
+    assert part == "val"
+    for label, rows, values in (
+        ("train", actual_train, train_pred),
+        ("val", actual_heldout, heldout_pred),
+    ):
+        indices = np.flatnonzero((labels == label).to_numpy())
+        assert rows.X.equals(combined.X[indices])
+        np.testing.assert_array_equal(values, predictions[indices])
+        if not interleaved:
+            assert np.shares_memory(rows.X["x"].to_numpy(), source.X["x"].to_numpy())
+            assert np.shares_memory(values, predictions)
 
 
 @pytest.mark.parametrize(

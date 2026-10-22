@@ -306,7 +306,7 @@ class CatBoostClassificationModel(PythonModel):
         RuntimeError
             The model has not been fitted.
         """
-        return self.predict_frame(data.to_model_input())
+        return self.predict_frame(data.X)
 
     def predict_labels(self, data: pl.DataFrame | pd.DataFrame) -> IntArray:
         """Predict labels using probability >= the stored threshold.
@@ -346,7 +346,7 @@ class CatBoostClassificationModel(PythonModel):
         RuntimeError
             The model is unfitted or a PU model lacks decision_threshold.
         """
-        return self.predict_labels(data.to_model_input())
+        return self.predict_labels(data.X)
 
     @pyfunc
     def predict(

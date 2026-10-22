@@ -111,7 +111,11 @@ class LightGBMServingModel(PythonModel):
         """
         if self.model is None:
             raise RuntimeError("The LightGBM model has not been loaded.")
-        X = model_input.loc[:, self.feature_names].copy()
+        X = pd.DataFrame(
+            {name: model_input[name] for name in self.feature_names},
+            index=model_input.index,
+            copy=False,
+        )
         for feature in self.cat_features:
             X[feature] = X[feature].astype("category")
         logger.debug("Predicting with LightGBM serving model: %s rows", len(X))

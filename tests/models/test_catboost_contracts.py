@@ -9,6 +9,7 @@ from sklearn.metrics import f1_score, precision_score, recall_score
 
 from examples.project_pool import ProjectPool
 from ml_toolkit.models import CatBoostRegressionModel, CatBoostClassificationModel
+from ml_toolkit.models._catboost import prepare_frame
 from ml_toolkit.plots.classification import binary_curves
 
 
@@ -46,6 +47,57 @@ def test_reserved_categories_checked_only_at_fit(kind):
     with pytest.raises(ValueError, match="cat.*reserved"):
         kind(params).fit(data, invalid)
     assert np.isfinite(model.predict_frame(invalid.to_model_input())).all()
+
+
+def test_pandas_preparation_reuses_numeric_buffers_without_mutating_categories():
+    data = pd.DataFrame(
+        {"a": [1.0, 2.0, 3.0], "cat": [10, None, 20], "b": [4.0, 5.0, 6.0]},
+        index=[7, 8, 9],
+    )
+    original = data.copy(deep=True)
+    result = prepare_frame(data, ["b", "cat", "a"], ["cat"])
+    assert result.columns.to_list() == ["b", "cat", "a"]
+    pd.testing.assert_index_equal(result.index, data.index)
+    for name in ("a", "b"):
+        assert np.shares_memory(result[name].to_numpy(), data[name].to_numpy())
+    assert result["cat"].to_list() == ["10.0", "unknown", "20.0"]
+    pd.testing.assert_frame_equal(data, original)
+
+
+@pytest.mark.parametrize("kind", [CatBoostRegressionModel, CatBoostClassificationModel])
+def test_pool_prediction_prepares_only_model_columns_once(kind, monkeypatch):
+    data = replace(
+        pool(),
+        X=pool().X.with_columns(pl.Series("cat", [None, "north"] * 6)),
+        cat_features=("cat",),
+    )
+    model = kind(
+        {
+            "iterations": 2,
+            "thread_count": 1,
+            "verbose": False,
+            "allow_writing_files": False,
+        }
+    ).fit(data)
+    expected = model.predict_frame(data.to_model_input())
+    data = replace(data, X=data.X.with_columns(pl.lit("ignored").alias("extra")))
+    conversions = []
+    to_pandas = pl.DataFrame.to_pandas
+
+    def capture(frame, *args, **kwargs):
+        conversions.append(frame.columns)
+        return to_pandas(frame, *args, **kwargs)
+
+    monkeypatch.setattr(pl.DataFrame, "to_pandas", capture)
+    np.testing.assert_array_equal(model.predict_pool(data), expected)
+    assert conversions == [["a", "b", "c", "cat"]]
+    if isinstance(model, CatBoostClassificationModel):
+        conversions.clear()
+        np.testing.assert_array_equal(
+            model.predict_labels_pool(data),
+            (expected >= model.threshold).astype(np.int64),
+        )
+        assert conversions == [["a", "b", "c", "cat"]]
 
 
 def test_weighted_curves_match_metrics_and_ignore_zero_rows():

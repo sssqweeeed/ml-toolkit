@@ -261,7 +261,7 @@ class CatBoostRegressionModel(PythonModel):
         RuntimeError
             The model has not been fitted.
         """
-        return self.predict_frame(data.to_model_input())
+        return self.predict_frame(data.X)
 
     def predict(
         self, context: Any, model_input: pd.DataFrame, params: ModelParams | None = None
