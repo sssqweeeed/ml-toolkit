@@ -13,7 +13,7 @@ def prepare_training() -> tuple[Pool, ModelParams, TrainingConfig]:
 
     Run ``python -m examples.prepare_data --dataset bike`` first. This function
     performs no downloads. It uses ``mlflow.db`` in the working directory and
-    disables final model packaging; individual examples demonstrate packaging
+    disables automatic model packaging; individual examples demonstrate packaging
     explicitly when needed.
     """
     data = load_bike_pool(download_if_missing=False)
@@ -28,5 +28,7 @@ def prepare_training() -> tuple[Pool, ModelParams, TrainingConfig]:
         "verbose": False,
         "allow_writing_files": False,
     }
-    config = TrainingConfig(tracking=TrackingConfig(log_final_model=False))
+    config = TrainingConfig(
+        tracking=TrackingConfig(log_test_model=False, log_final_model=False)
+    )
     return data, params, config

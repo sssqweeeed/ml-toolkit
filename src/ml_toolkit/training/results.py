@@ -124,7 +124,8 @@ class TrainingResult:
     Attributes
     ----------
     model : Model
-        Fresh model fitted on the training pool returned by splitter.get_final().
+        Main model fitted on splitter.get_test().train, never on held-out test.
+        Without test this includes all eligible data.
     validation : ValidationResult
         Per-split selection, tuning and post-tuning evaluation results.
     params : ModelParams
@@ -136,7 +137,10 @@ class TrainingResult:
     tuning : TuningResult or None
         Last validation split's optional optimization result.
     test_metrics : dict[str, float] or None
-        Final model's test scores; None when the final split has no held-out sample.
+        Main model's independent test scores; None without a test sample.
+    final_model : Model or None
+        Additional model fitted including test only when fit_on_test=True.
+        Never replaces the main model or its test scores.
     """
 
     model: Model
@@ -146,3 +150,4 @@ class TrainingResult:
     feature_selection: FeatureSelectionResult | None = None
     tuning: TuningResult | None = None
     test_metrics: dict[str, float] | None = None
+    final_model: Model | None = None

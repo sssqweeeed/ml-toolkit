@@ -132,8 +132,8 @@ def test_workflow_levels_and_results(tmp_path, caplog, level):
         "Starting validation split 2",
         "Completed validation split 2",
         "Completed validation",
-        "Starting final fit",
-        "Completed final fit",
+        "Starting final_fit stage",
+        "Completed final_fit stage",
         "Completed training run logging",
     ):
         assert any(message.startswith(milestone) for message in messages)

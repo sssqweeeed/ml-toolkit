@@ -28,7 +28,7 @@ TrainingConfig(validation={'n_splits': 3})  # expected-type-error
 TuningConfig(metric='mae', direction='invalid')  # expected-type-error
 ReportingConfig(figure=False)  # expected-type-error
 ReportingConfig(on_tuning='yes')  # expected-type-error
-ReportingConfig(on_final=None)  # expected-type-error
+ReportingConfig(on_final_fit=None)  # expected-type-error
 MetricScores({'mae': '1'})  # expected-type-error
 result: TrainingResult = {}  # expected-type-error
 
@@ -147,7 +147,7 @@ class WrongSplitter(Splitter[Pool]):
     def get_validation(self) -> Iterator[Pool]:  # expected-type-error
         yield self.data
 
-    def get_final(self) -> Pool:  # expected-type-error
+    def get_test(self) -> Pool:  # expected-type-error
         return self.data
 
 
@@ -158,3 +158,15 @@ def invalid_splitter(data: Pool) -> None:
 
 
 metrics: Metric = lambda y, prediction, weight: MetricScores({"mae": 1.0})
+
+TrainingConfig(fit_on_test="yes")  # expected-type-error
+ReportingConfig(on_test=None)  # expected-type-error
+
+
+def invalid_time_gap(data: Pool) -> None:
+    Holdout(data, gap="7 days")  # expected-type-error
+
+
+class WrongFullPool(WrongSplitter):
+    def get_final(self) -> Split[Pool]:  # expected-type-error
+        return Split(self.data)

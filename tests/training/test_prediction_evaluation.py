@@ -91,11 +91,12 @@ def test_stage_flags_gate_whole_reporting_without_affecting_metrics(
             reporting=ReportingConfig(
                 on_tuning=flags[0],
                 on_validation=flags[1],
-                on_final=flags[2],
+                on_test=flags[2],
+                on_final_fit=flags[2],
                 psi=True,
                 shap=ShapConfig(),
             ),
-            tracking=TrackingConfig(log_final_model=False),
+            tracking=TrackingConfig(log_test_model=False, log_final_model=False),
         ),
     )
     expected = 2 * flags[0] + 2 * flags[1] + flags[2]
@@ -109,8 +110,8 @@ def test_stage_flags_gate_whole_reporting_without_affecting_metrics(
         assert inputs["prediction"] is output["prediction"]
         assert "stage" not in output
         parts = inputs["split"].unique(maintain_order=True).to_list()
-        assert parts == ["train", "test" if run == "final_fit" else "val"]
-        if run != "final_fit":
+        assert parts == ["train", "test" if run == "test" else "val"]
+        if run != "test":
             assert inputs["data"].X["x"].max() < 20
     runs = mlflow.search_runs(output_format="list")
     assert all(
@@ -166,7 +167,9 @@ def test_combined_alignment_shared_predictions_and_no_selection_calls(tmp_path):
         feature_selector=RFESelector(
             min_features=1, metric="mae", direction="minimize", ranker=importance_ranker
         ),
-        config=TrainingConfig(tracking=TrackingConfig(log_final_model=False)),
+        config=TrainingConfig(
+            tracking=TrackingConfig(log_test_model=False, log_final_model=False)
+        ),
     )
     assert len(calls) == 6
     for a, b in zip(calls[::2], calls[1::2]):
@@ -204,7 +207,9 @@ def test_names_checked_before_fit_even_with_disabled_stages(tmp_path, reporting,
             run_name="names",
             prediction_evaluators=[PredictionEvaluator(name=n) for n in names],
             config=TrainingConfig(
-                reporting=replace(reporting, on_validation=False, on_final=False)
+                reporting=replace(
+                    reporting, on_validation=False, on_test=False, on_final_fit=False
+                )
             ),
         )
     assert mlflow.search_runs(output_format="list") == []
@@ -234,7 +239,9 @@ def test_artifact_cleanup_namespaces_and_explicit_settings(tmp_path):
         metric=mae,
         run_name="artifacts",
         prediction_evaluators=evaluator,
-        config=TrainingConfig(tracking=TrackingConfig(log_final_model=False)),
+        config=TrainingConfig(
+            tracking=TrackingConfig(log_test_model=False, log_final_model=False)
+        ),
     )
     assert len(directories) == 2 and all(not p.exists() for p in directories)
     client = mlflow.MlflowClient()
@@ -330,7 +337,7 @@ def test_failure_stops_following_evaluators_and_cleans_files(tmp_path):
                 ),
             ),
             config=ReportingConfig(),
-            stage="final",
+            stage="final_fit",
         )
     assert caught.value is error and all(not p.exists() for p in roots)
 
@@ -359,5 +366,5 @@ def test_invalid_split_rejected_before_custom_code(split):
                 ),
             ),
             config=ReportingConfig(psi=True, shap=ShapConfig()),
-            stage="final",
+            stage="final_fit",
         )

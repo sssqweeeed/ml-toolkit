@@ -32,7 +32,7 @@ def test_test_and_validation_fractions_use_their_current_input_and_round_up():
     data = identified_data().take(range(11))
     splitter = Holdout(data, test_size=0.2, val_size=0.25, gap=1)
     split = next(splitter.get_validation())
-    final = splitter.get_final()
+    final = splitter.get_test()
     assert (len(final.train), len(final.heldout)) == (8, 3)
     assert (len(split.train), len(split.heldout)) == (5, 2)
     assert final.train.object_id.to_list() == list(range(8))
@@ -68,7 +68,7 @@ def test_cv_fraction_window_gap_and_original_indices():
     for split in splits:
         assert len(split.train) == 5 and len(split.heldout) == 4
         assert split.heldout.object_id[0] - split.train.object_id[-1] == 3
-    assert splitter.get_final().train.object_id.to_list() == list(range(20))
+    assert splitter.get_test().train.object_id.to_list() == list(range(20))
 
 
 @pytest.mark.parametrize("kwargs", [{"val_size": 5}, {"val_size": 0.8, "gap": 2}])
@@ -133,8 +133,8 @@ def test_train_only_final_and_repeated_ids_keep_metadata(factory):
         source, object_id=pl.Series("id", [i // 2 for i in range(len(source))])
     )
     splitter = factory(data)
-    assert splitter.get_final().train is data
-    assert splitter.get_final().heldout is None
+    assert splitter.get_test().train is data
+    assert splitter.get_test().heldout is None
     for split in splitter.get_validation():
         for part in (split.train, split.heldout):
             indices = part.X["x"].cast(pl.Int64)
@@ -161,7 +161,7 @@ def test_test_date_is_normalized_and_serializable(factory, cutoff):
     splitter = factory(data, test_size=cutoff)
     assert splitter.test_size == date(2024, 2, 29)
     assert splitter.parameters()["test_size"] == "2024-02-29"
-    assert splitter.get_final().heldout.time.min() == date(2024, 2, 29)
+    assert splitter.get_test().heldout.time.min() == date(2024, 2, 29)
 
 
 @pytest.mark.parametrize(

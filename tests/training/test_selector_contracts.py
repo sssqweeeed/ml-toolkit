@@ -187,7 +187,9 @@ def test_selectors_integrate_with_fresh_final_fit(selector, tmp_path):
         model_factory=quality_factory(quality, calls),
         metric=quality_metric,
         run_name="selection",
-        config=TrainingConfig(tracking=TrackingConfig(log_final_model=False)),
+        config=TrainingConfig(
+            tracking=TrackingConfig(log_test_model=False, log_final_model=False)
+        ),
         feature_selector=selector,
     )
     assert calls[-1][1] == result.features

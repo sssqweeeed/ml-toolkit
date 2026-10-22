@@ -147,7 +147,7 @@ def fit_split(
     return result
 
 
-def fit_final_model(
+def refit_model(
     *,
     data: Pool,
     last_split: SplitResult,
@@ -155,8 +155,8 @@ def fit_final_model(
 ) -> tuple[Model, ModelParams]:
     validate_training_categories(data)
     params = last_split.refit_params.copy()
-    logger.info("Starting final fit")
+    logger.info("Refitting model without validation")
     tracking.log_params(params)
-    logger.debug("Final fit selected iterations: %s", last_split.best_iteration)
+    logger.debug("Refit selected iterations: %s", last_split.best_iteration)
     model = model_factory(params.copy()).fit(data)
     return model, params

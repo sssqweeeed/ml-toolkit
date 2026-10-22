@@ -166,6 +166,7 @@ def test_tuning_budget_seed_and_trial_packaging(tmp_path, monkeypatch):
             ),
             tracking=TrackingConfig(
                 log_trial_models=True,
+                log_test_model=False,
                 log_final_model=False,
                 registered_model_name="final-only",
             ),

@@ -23,7 +23,7 @@ class ProjectSplitter(Splitter[Pool]):
             index=1,
         )
 
-    def get_final(self) -> Split[Pool]:
+    def get_test(self) -> Split[Pool]:
         return Split(
             self.data.take(range(self.test_start)),
             self.data.take(range(self.test_start, len(self.data))),

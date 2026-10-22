@@ -115,7 +115,9 @@ def test_workflow_refits_a_fresh_adapter_with_validation_iteration_budget(
         model_factory=factory,
         metric=weighted_mae,
         run_name="custom-model-refit",
-        config=TrainingConfig(tracking=TrackingConfig(log_final_model=False)),
+        config=TrainingConfig(
+            tracking=TrackingConfig(log_test_model=False, log_final_model=False)
+        ),
     )
     assert len(adapters) == 2
     validation_adapter, final_adapter = adapters

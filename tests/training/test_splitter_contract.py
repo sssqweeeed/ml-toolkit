@@ -51,9 +51,9 @@ def test_custom_splitter_controls_final_rows_and_execution_order(tmp_path):
             assert all(pool() is None for pool in pools)
             events.append("exhausted")
 
-        def get_final(self) -> Split[Pool]:
-            assert events == ["first", "second", "exhausted"]
-            events.append("final")
+        def get_test(self) -> Split[Pool]:
+            assert events == []
+            events.append("test")
             # Neither the last fold's train nor all non-test rows.
             return Split(self.data.take(range(4, 18)), self.data.take(range(20, 24)))
 
@@ -73,10 +73,12 @@ def test_custom_splitter_controls_final_rows_and_execution_order(tmp_path):
         model_factory=Model,
         metric=mae,
         run_name="custom-splitter",
-        config=TrainingConfig(tracking=TrackingConfig(log_final_model=False)),
+        config=TrainingConfig(
+            tracking=TrackingConfig(log_test_model=False, log_final_model=False)
+        ),
         prediction_evaluators=CallbackEvaluator(name="rows", evaluate=evaluate),
     )
-    assert events == ["first", "second", "exhausted", "final"]
+    assert events == ["test", "first", "second", "exhausted"]
     assert fits == [
         (list(range(8)), list(range(8, 12))),
         (list(range(12)), list(range(12, 16))),
@@ -99,7 +101,7 @@ def test_custom_splitter_controls_final_rows_and_execution_order(tmp_path):
     config = mlflow.artifacts.load_dict(
         f"runs:/{parent.info.run_id}/configuration/requested.json"
     )
-    assert set(config) == {"tuning", "reporting", "tracking"}
+    assert set(config) == {"tuning", "reporting", "tracking", "fit_on_test"}
 
 
 @pytest.mark.parametrize(
@@ -128,8 +130,8 @@ def test_invalid_validation_stops_before_affected_fit(tmp_path, case, expected_f
             if case == "duplicate":
                 yield Split(train, heldout, index=1)
 
-        def get_final(self):
-            pytest.fail("Final data requested after invalid validation")
+        def get_test(self):
+            return Split(self.data)
 
     class Model(MeanModel):
         def fit(self, train, validation=None):
@@ -143,7 +145,9 @@ def test_invalid_validation_stops_before_affected_fit(tmp_path, case, expected_f
             model_factory=Model,
             metric=mae,
             run_name="invalid-split",
-            config=TrainingConfig(tracking=TrackingConfig(log_final_model=False)),
+            config=TrainingConfig(
+                tracking=TrackingConfig(log_test_model=False, log_final_model=False)
+            ),
         )
     assert len(fits) == expected_fits
 
@@ -156,7 +160,7 @@ def test_final_schema_checked_before_final_fit(tmp_path):
         def get_validation(self):
             yield Split(self.data.take(range(8)), self.data.take(range(8, 12)), index=1)
 
-        def get_final(self):
+        def get_test(self):
             return Split(self.data.select_features(["x"]))
 
     class Model(MeanModel):
@@ -171,7 +175,9 @@ def test_final_schema_checked_before_final_fit(tmp_path):
             model_factory=Model,
             metric=mae,
             run_name="missing-final-feature",
-            config=TrainingConfig(tracking=TrackingConfig(log_final_model=False)),
+            config=TrainingConfig(
+                tracking=TrackingConfig(log_test_model=False, log_final_model=False)
+            ),
         )
     assert len(fits) == 1
 

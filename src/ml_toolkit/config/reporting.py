@@ -92,8 +92,10 @@ class ReportingConfig:
         Enable additional reports for Optuna trials.
     on_validation : bool, default True
         Enable additional reports for every completed validation fold.
-    on_final : bool, default True
-        Enable additional reports after final fitting.
+    on_test : bool, default True
+        Enable additional reports for the model evaluated on held-out test data.
+    on_final_fit : bool, default True
+        Enable applicable train-only reports after fitting all eligible data.
     psi : bool, default False
         Calculate population stability tables and figures.
     shap : ShapConfig or None, default None
@@ -112,7 +114,8 @@ class ReportingConfig:
 
     on_tuning: bool = False
     on_validation: bool = True
-    on_final: bool = True
+    on_test: bool = True
+    on_final_fit: bool = True
     psi: bool = False
     shap: ShapConfig | None = None
     features: tuple[FeatureLevelConfig, ...] | None = None

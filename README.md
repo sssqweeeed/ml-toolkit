@@ -60,7 +60,7 @@ result = train_model(
     model_factory=CatBoostLogLinkRegressionModel,
     metric=metrics_frequency,
     run_name="hourly-rentals",
-    config=TrainingConfig(tracking=TrackingConfig(log_final_model=False)),
+    config=TrainingConfig(tracking=TrackingConfig(log_test_model=False, log_final_model=False)),
 )
 print(
     f"Validation deviance: {result.validation.mean_metrics['mean_poisson_deviance']:.2f}"

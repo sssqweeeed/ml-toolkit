@@ -10,6 +10,7 @@ for existing predictions or pass a compatible callable to training. Numerical
 
 | Data and purpose | Entry point | Result |
 | --- | --- | --- |
+| General numeric targets, including signed values | `metrics_regression` | `MetricsRegression` |
 | Confirmed binary labels and probabilities | `metrics_classification` | `MetricsClassification` |
 | Binary labels after applying a cutoff | `confusion_matrix` | `(TN, FP, FN, TP)` weighted counts |
 | Poisson frequency rates with exposure | `metrics_frequency` | `MetricsFrequency` |
@@ -17,10 +18,48 @@ for existing predictions or pass a compatible callable to training. Numerical
 | Ranking outcomes by exposure capacity | `ranking_metrics` | `RankingMetrics` curves and selected points |
 | Known positive and unlabeled rows | `PUMetric`, `positive_capture_curve` | Named scores or two curve arrays |
 
-Classification, frequency, severity, and PU score objects expose `to_dict()`.
+Regression, classification, frequency, severity, and PU score objects expose `to_dict()`.
 `RankingMetrics` instead contains curves and attributes for inspection and
 [ranking plots](../evaluation/ranking.md); it is not itself a training metric
 result with `to_dict()`.
+
+## Evaluate general regression
+
+`metrics_regression` supports signed targets and uses equal weights when
+`sample_weight` is omitted. Frequency and severity results include these same
+five metrics alongside their specialized scores.
+
+<!-- example: metrics-regression -->
+
+```python
+import numpy as np
+from ml_toolkit.metrics import metrics_regression
+
+scores = metrics_regression(
+    np.array([-2.0, 0.0, 2.0]),
+    np.array([-1.0, -2.0, 3.0]),
+    np.array([1.0, 2.0, 1.0]),
+)
+assert scores.mean_absolute_error == 1.5
+assert scores.mean_squared_error == 2.5
+assert scores.root_mean_squared_error == np.sqrt(2.5)
+assert scores.r2_score == -0.25
+assert scores.mean_error == -0.5
+print("Weighted MAE:", scores.mean_absolute_error)
+```
+
+<!-- output: metrics-regression -->
+```text
+Weighted MAE: 1.5
+```
+<!-- /output -->
+
+Positive mean error means overprediction; negative means underprediction.
+R² is NaN with fewer than two positive-weight observations. For constant
+targets it is 1 for perfect predictions and 0 otherwise. Zero-weight rows
+contribute to neither errors nor the R² observation count. Inputs must be
+nonempty, finite, aligned one-dimensional arrays; weights must be finite and
+nonnegative with positive total.
 
 ## Evaluate binary probabilities
 
@@ -337,7 +376,7 @@ with TemporaryDirectory(prefix="custom-metric-") as directory:
             tuning=TuningConfig(
                 metric="mae", direction="minimize", n_trials=2, seed=42
             ),
-            tracking=TrackingConfig(log_final_model=False),
+            tracking=TrackingConfig(log_test_model=False, log_final_model=False),
         ),
     )
 mlflow.set_tracking_uri(previous_uri)
@@ -364,6 +403,12 @@ Import metrics and result types from `ml_toolkit.metrics`. References are
 grouped by task; call interfaces stay beside their callable classes. Selected
 ranking points are attributes of `RankingMetrics`, with their class available
 from `ml_toolkit.metrics.ranking`.
+
+### General regression
+
+::: ml_toolkit.metrics.metrics_regression
+
+::: ml_toolkit.metrics.MetricsRegression
 
 ### Classification
 
