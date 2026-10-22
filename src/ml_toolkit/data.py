@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 import polars as pl
 
+from ._rows import row_indexer
 from .types import FloatArray, IntArray
 
 
@@ -93,6 +94,9 @@ class Pool:
     def take(self, indices: Sequence[int] | IntArray) -> Self:
         """Return aligned rows at positional indices, in the requested order.
 
+        Contiguous nonnegative positions share the source buffers. Reordered,
+        repeated or noncontiguous positions gather rows into new buffers.
+
         Parameters
         ----------
         indices : sequence of int or IntArray
@@ -108,16 +112,16 @@ class Pool:
         ValueError
             The requested selection is empty.
         """
-        index = np.asarray(indices, dtype=np.int64)
+        index = row_indexer(indices, len(self))
         return replace(
             self,
             X=self.X[index],
-            y=self.y.gather(index),
-            time=self.time.gather(index),
-            weight=self.weight.gather(index),
-            object_id=None if self.object_id is None else self.object_id.gather(index),
+            y=self.y[index],
+            time=self.time[index],
+            weight=self.weight[index],
+            object_id=None if self.object_id is None else self.object_id[index],
             business_type=(
-                None if self.business_type is None else self.business_type.gather(index)
+                None if self.business_type is None else self.business_type[index]
             ),
         )
 

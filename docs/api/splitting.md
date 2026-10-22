@@ -176,7 +176,8 @@ Final test predictions: (3476,)
 
 Each `get_validation()` call creates a fresh iterator. Direct use leaves
 iteration, metrics and logging to the caller. `train_model` consumes one pair
-at a time and calls `get_test()` once before validation. With `fit_on_test=True`,
+at a time and calls `get_test()` once after validation, so test pools are not
+retained during validation. With `fit_on_test=True`,
 it calls `get_final()` after test evaluation for an additional full-data fit.
 
 ## Implement a splitter

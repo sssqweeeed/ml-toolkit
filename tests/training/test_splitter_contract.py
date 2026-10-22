@@ -52,7 +52,9 @@ def test_custom_splitter_controls_final_rows_and_execution_order(tmp_path):
             events.append("exhausted")
 
         def get_test(self) -> Split[Pool]:
-            assert events == []
+            assert events == ["first", "second", "exhausted"]
+            assert len(fits) == len(reports) == 2
+            assert all(pool() is None for pool in pools)
             events.append("test")
             # Neither the last fold's train nor all non-test rows.
             return Split(self.data.take(range(4, 18)), self.data.take(range(20, 24)))
@@ -78,7 +80,7 @@ def test_custom_splitter_controls_final_rows_and_execution_order(tmp_path):
         ),
         prediction_evaluators=CallbackEvaluator(name="rows", evaluate=evaluate),
     )
-    assert events == ["test", "first", "second", "exhausted"]
+    assert events == ["first", "second", "exhausted", "test"]
     assert fits == [
         (list(range(8)), list(range(8, 12))),
         (list(range(12)), list(range(12, 16))),

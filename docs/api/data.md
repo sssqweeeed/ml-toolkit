@@ -74,6 +74,11 @@ Feature selection filters feature declarations as well as `X`. Both operations
 return new containers, leaving the original 24 rows intact. Reordered data is
 useful for inspection; training still requires ascending timestamps.
 
+Contiguous nonnegative row selections, including ranges and arrays of consecutive
+indices, share the source buffers. Reordered, repeated or noncontiguous positions
+allocate gathered rows. Feature selection also shares column buffers. A small
+slice can therefore keep its larger source allocation alive.
+
 ## Replace a target without changing rows
 
 For example, prepare a log-transformed target while keeping original counts

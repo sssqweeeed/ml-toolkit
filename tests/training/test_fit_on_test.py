@@ -21,6 +21,7 @@ def test_fit_matrix_rows_models_scores_and_runs(tmp_path, has_test, fit_on_test)
 
     class Splitter(Holdout):
         def get_test(self):
+            assert [event[0] for event in events] == ["validation/split_1"]
             test_requests.append(1)
             return super().get_test()
 
@@ -73,8 +74,13 @@ def test_fit_matrix_rows_models_scores_and_runs(tmp_path, has_test, fit_on_test)
     if fit_on_test and not has_test:
         with pytest.raises(ValueError, match="fit_on_test.*test"):
             train_model(**kwargs)
-        assert events == [] and reports == [] and full_requests == []
-        assert mlflow.search_runs(output_format="list") == []
+        assert [event[0] for event in events] == ["validation/split_1"]
+        assert [report[0] for report in reports] == ["validation/split_1"]
+        assert full_requests == []
+        assert not any(
+            run.data.tags["mlflow.runName"] in ("test", "final_fit")
+            for run in mlflow.search_runs(output_format="list")
+        )
         assert test_requests == [1]
         return
 
