@@ -112,7 +112,9 @@ from dataclasses import replace
 
 with_missing = replace(
     data.take([0, 1, 2]),
-    X=data.X.head(3).with_columns(pl.Series("region", ["north", None, "south"])),
+    X=data.X.head(3).with_columns(
+        pl.Series("region", ["north", None, "south"])
+    ),
 )
 model_input = with_missing.to_model_input()
 print("Backend categories:", model_input["region"].tolist())

@@ -1,36 +1,48 @@
-"""Regenerate the documented plot gallery and metric example output.
+"""Regenerate the evaluation guides' captured output and real-data figures.
 
-Run ``python -m examples.render_plots`` from a source checkout with the shap
-extra installed. ``--check`` renders to a temporary directory and verifies the
-captured output and checked-in gallery without modifying them.
+Run ``python -m examples.render_plots`` after explicitly preparing the source
+caches. ``--check`` renders into temporary directories and detects stale outputs
+and figures without modifying the documented files.
 """
 
 from __future__ import annotations
 
 import argparse
-import importlib
 from contextlib import chdir, redirect_stdout
 from io import StringIO
 import os
 from pathlib import Path
 import re
+import shutil
 from tempfile import TemporaryDirectory
 from typing import cast
 
 ROOT = Path(__file__).resolve().parents[1]
+PAGES = (
+    "docs/evaluation/index.md",
+    "docs/evaluation/classification.md",
+    "docs/evaluation/observed-fitted.md",
+    "docs/evaluation/ranking.md",
+    "docs/evaluation/pu.md",
+    "docs/evaluation/distributions.md",
+    "docs/api/psi.md",
+    "docs/evaluation/explainability.md",
+    "docs/evaluation/custom.md",
+)
 FIGURE_NAMES = (
-    "precision-recall.png",
-    "f1-threshold.png",
-    "calibration.png",
+    "precision_recall/test/precision_recall.png",
+    "f1_threshold/test/f1_threshold.png",
+    "calibration/test/calibration.png",
+    "observed_fitted/000_temperature.png",
     "observed-fitted-levels.png",
-    "time-observed-fitted.png",
-    "gains.png",
-    "lift.png",
+    "time_observed_fitted/time.png",
+    "gains/test/gains.png",
+    "lift/test/lift.png",
     "pu-distribution.png",
     "pu-capture.png",
     "psi-scores.png",
     "psi-time.png",
-    "time-humidity.png",
+    "numerical_feature_distributions/000_humidity.png",
     "time-humidity-week.png",
     "feature-importance.png",
     "shap-importance.png",
@@ -46,13 +58,12 @@ EXAMPLE = re.compile(
 
 
 def _execute_examples(
-    page: Path,
-    namespace: dict[str, object],
-    figure_directory: Path | None = None,
+    page: Path, namespace: dict[str, object], figure_directory: Path
 ) -> str:
     document = page.read_text()
     examples = list(EXAMPLE.finditer(document))
-    if len(examples) != len(re.findall(r"^```python$", document, re.MULTILINE)):
+    blocks = re.findall(r"^```python\n(.*?)\n```", document, re.MULTILINE | re.DOTALL)
+    if len(examples) != sum("--8<--" not in code for code in blocks):
         raise ValueError(f"Every Python block in {page.name} needs an example marker")
     names = [example["name"] for example in examples]
     if len(names) != len(set(names)):
@@ -65,153 +76,144 @@ def _execute_examples(
                 compile(example["code"], f"{page.name}:{example['name']}", "exec"),
                 namespace,
             )
-        if example["name"] == "plots-setup":
+        if example["name"].endswith("-setup"):
             namespace["output"] = figure_directory
         replacement = example["example"]
         stdout = "\n".join(
             line.rstrip() for line in captured.getvalue().splitlines()
         ).rstrip("\n")
         if stdout:
-            replacement += (
-                f"\n\n<!-- output: {example['name']} -->\n```text\n"
-                f"{stdout}\n```\n<!-- /output -->"
-            )
+            replacement += f"\n\n<!-- output: {example['name']} -->\n```text\n{stdout}\n```\n<!-- /output -->"
         replacements.append((example.start(), example.end(), replacement))
     for start, end, replacement in reversed(replacements):
         document = document[:start] + replacement + document[end:]
-    return document
+    return document.rstrip() + "\n"
 
 
-def _validate_plot_results(namespace: dict[str, object]) -> None:
+def _validate_results(page: str, namespace: dict[str, object]) -> None:
     import matplotlib.pyplot as plt
     import numpy as np
     import pandas as pd
     import polars as pl
     import shap
 
-    from examples.gallery_data import BikeGallery, DigitsGallery
+    from examples.evaluation_data import BikeEvaluation
     from examples.citation_data import CitationGallery
     from ml_toolkit.metrics import RankingMetrics
     from ml_toolkit.psi import PSIResult
 
-    digits = cast(DigitsGallery, namespace["digits"])
-    bikes = cast(BikeGallery, namespace["bikes"])
-    assert len(digits.train_indices) + len(digits.test_indices) == 1797
-    assert len(digits.observed) == 719
-    assert np.intersect1d(digits.train_indices, digits.test_indices).size == 0
-    assert np.unique(digits.probabilities).size >= 500
-    assert len(bikes.train_indices) + len(bikes.test_indices) == 17379
-    assert np.intersect1d(bikes.train_indices, bikes.test_indices).size == 0
-    assert len(bikes.reference.observed) >= 4000
-    assert len(bikes.current.observed) >= 8000
-    assert bikes.reference.time.dt.year().unique().to_list() == [2011]
-    assert bikes.current.time.dt.year().unique().to_list() == [2012]
-
-    curve = cast(pd.DataFrame, namespace["curve"])
-    assert len(curve) >= 500
-    assert curve.equals(cast(pd.DataFrame, namespace["precision_recall_table"]))
-    assert curve.equals(cast(pd.DataFrame, namespace["f1_table"]))
-    assert curve["threshold"].is_monotonic_decreasing
-    for index in np.linspace(0, len(curve) - 1, 6, dtype=int):
-        threshold = float(curve["threshold"].iloc[int(index)])
-        selected = digits.probabilities >= threshold
-        positives = digits.observed[selected].sum()
+    if "example" in namespace:
+        example = cast(BikeEvaluation, namespace["example"])
+        assert len(example.data) == 17379
+        assert len(example.train) > 8000 and len(example.test) > 8000
+        assert example.train.time.dt.year().unique().to_list() == [2011]
+        assert example.test.time.dt.year().unique().to_list() == [2012]
         np.testing.assert_allclose(
-            float(curve["precision"].iloc[int(index)]), positives / selected.sum()
+            example.prediction[len(example.train) :],
+            example.model.predict_pool(example.test),
         )
+        assert example.split.to_list() == ["train"] * len(example.train) + [
+            "test"
+        ] * len(example.test)
+    if page.endswith("classification.md"):
+        curve = cast(pd.DataFrame, namespace["curve"])
+        assert len(curve) > 1000
+        assert curve.equals(cast(pd.DataFrame, namespace["precision_recall_table"]))
+        assert curve.equals(cast(pd.DataFrame, namespace["f1_table"]))
+        calibration = cast(pd.DataFrame, namespace["calibration_table"])
+        assert calibration["count"].sum() == len(example.test)
+        assert calibration["weight_sum"].sum() == example.test.weight.sum()
+        for index in np.linspace(0, len(curve) - 1, 6, dtype=int):
+            chosen = (
+                example.prediction[len(example.train) :]
+                >= curve["threshold"].iloc[int(index)]
+            )
+            labels = example.test.y.to_numpy()
+            np.testing.assert_allclose(
+                curve["precision"].iloc[int(index)], labels[chosen].mean()
+            )
+            np.testing.assert_allclose(
+                curve["recall"].iloc[int(index)], labels[chosen].sum() / labels.sum()
+            )
+    elif page.endswith("observed-fitted.md"):
+        by_level = cast(pd.DataFrame, namespace["by_level"])
+        for sample, pool in (("reference", example.train), ("current", example.test)):
+            part = by_level.loc[by_level["sample"] == sample]
+            assert part["volume"].sum() == len(pool)
+            populated = part.loc[part["volume"] > 0]
+            np.testing.assert_allclose(
+                np.average(populated["observed"], weights=populated["volume"]),
+                pool.y.mean(),
+            )
+        temporal = cast(pd.DataFrame, namespace["temporal"])
+        assert len(temporal) == 24
+        assert temporal.groupby("split").size().to_dict() == {
+            "current": 12,
+            "reference": 12,
+        }
+        assert temporal["volume"].min() > 500
+        assert temporal["volume"].sum() == len(example.data)
+    elif page.endswith("ranking.md"):
+        ranked = cast(RankingMetrics, namespace["ranked"])
+        assert len(ranked.cumulative_exposure) == len(example.test) + 1
+        assert ranked.selected_points[0].percent == 10
+        assert ranked.selected_points[0].lift > 1
+        np.testing.assert_allclose(ranked.cumulative_observed[[0, -1]], [0, 1])
+    elif page.endswith("pu.md"):
+        citations = cast(CitationGallery, namespace["citations"])
+        assert citations.known_citation_count == 5429
+        assert citations.unlabeled_pair_count == 20000
+        assert len(set(citations.pairs)) == len(citations.labels)
+        assert np.unique(citations.scores).size > 500
+        assert (
+            citations.scores[citations.labels == 1].mean()
+            > citations.scores[citations.labels == 0].mean()
+        )
+    elif page.endswith("distributions.md"):
+        distribution = cast(pl.DataFrame, namespace["time_distribution"])
+        assert distribution.height == 24
+        for low, high in (
+            ("p05", "p25"),
+            ("p25", "p50"),
+            ("p50", "p75"),
+            ("p75", "p95"),
+        ):
+            assert (distribution[low] <= distribution[high]).all()
+    elif page.endswith("psi.md"):
+        comparison = cast(PSIResult, namespace["weather_comparison"])
+        assert comparison.psi.height == 11
+        assert np.isfinite(comparison.psi["psi"].to_numpy()).all()
+        shares = (
+            comparison.time_distribution.filter(pl.col("feature") == "temperature")
+            .group_by("sample", "period_start")
+            .agg(pl.col("share").sum())
+        )
+        assert shares.height == 24
+        np.testing.assert_allclose(shares["share"].to_numpy(), 1)
+    elif page.endswith("explainability.md"):
+        explanation = cast(shap.Explanation, namespace["explanation"])
+        contributions = np.asarray(explanation.values, dtype=float)
+        assert contributions.shape == (600, example.data.X.width)
+        assert (contributions.std(axis=0) > 0.01).sum() >= 5
         np.testing.assert_allclose(
-            float(curve["recall"].iloc[int(index)]), positives / digits.observed.sum()
+            contributions.sum(axis=1) + explanation.base_values,
+            example.model.native_model.predict(explanation.data),
+            atol=1e-6,
         )
-    calibration = cast(pd.DataFrame, namespace["calibration_table"])
-    assert len(calibration) == 10
-    assert calibration["count"].sum() == len(digits.observed)
-    assert calibration["count"].between(60, 85).all()
-
-    by_level = cast(pd.DataFrame, namespace["by_level"])
-    for sample, expected in (
-        ("reference", bikes.reference.observed),
-        ("current", bikes.current.observed),
-    ):
-        part = by_level.loc[by_level["sample"] == sample]
-        assert part["volume"].sum() == len(expected)
-        populated = part.loc[part["volume"] > 0]
-        np.testing.assert_allclose(
-            np.average(populated["observed"], weights=populated["volume"]),
-            expected.mean(),
-        )
-        assert (part["volume"] > 0).sum() >= 8
-    monthly = cast(pd.DataFrame, namespace["temporal"])
-    assert len(monthly) == 18
-    assert monthly.groupby("split").size().to_dict() == {"current": 12, "reference": 6}
-    assert monthly["volume"].min() >= 500
-    assert monthly["volume"].sum() == len(bikes.observed)
-    assert str(monthly["period_start"].min().date()) == "2011-07-01"
-    assert str(monthly["period_start"].max().date()) == "2012-12-01"
-    np.testing.assert_allclose(
-        np.average(monthly["observed"], weights=monthly["volume"]),
-        bikes.observed.mean(),
-    )
-    distribution = cast(pl.DataFrame, namespace["time_distribution"])
-    assert distribution.height == 18
-    assert (distribution["p05"] <= distribution["p25"]).all()
-    assert (distribution["p25"] <= distribution["p50"]).all()
-    assert (distribution["p50"] <= distribution["p75"]).all()
-    assert (distribution["p75"] <= distribution["p95"]).all()
-    comparison = cast(PSIResult, namespace["comparison"])
-    assert comparison.psi.height == bikes.features.width == 11
-    assert set(comparison.psi["feature"]) == set(bikes.features.columns)
-    assert np.isfinite(comparison.psi["psi"].to_numpy()).all()
-    temperature = comparison.time_distribution.filter(
-        pl.col("feature") == "temperature"
-    )
-    shares = temperature.group_by("sample", "period_start").agg(pl.col("share").sum())
-    assert shares.height == 18
-    np.testing.assert_allclose(shares["share"].to_numpy(), 1.0)
-    importance = cast(pd.DataFrame, namespace["importance_table"])
-    assert len(importance) == bikes.features.width
-    assert set(importance["feature"]) == set(bikes.importance)
-    assert importance["importance"].is_monotonic_decreasing
-    assert importance["importance"].std() > 0.1
-
-    ranked = cast(RankingMetrics, namespace["ranked"])
-    assert len(ranked.cumulative_exposure) == len(bikes.observed) + 1
-    assert [point.percent for point in ranked.selected_points] == [10.0, 20.0]
-    assert all(point.lift > 1.0 for point in ranked.selected_points)
-    np.testing.assert_allclose(ranked.cumulative_observed[[0, -1]], [0.0, 1.0])
-    explanation = cast(shap.Explanation, namespace["explanation"])
-    contributions = np.asarray(explanation.values, dtype=float)
-    assert contributions.shape == (600, bikes.features.width)
-    assert (contributions.std(axis=0) > 0.01).sum() >= 5
-    assert contributions.std() > 1.0
-    base_values = np.asarray(explanation.base_values, dtype=float)
-    prediction = bikes.native_model.predict(explanation.data)
-    np.testing.assert_allclose(
-        contributions.sum(axis=1) + base_values, prediction, atol=1e-6
-    )
-    citations = cast(CitationGallery, namespace["citations"])
-    assert citations.paper_count == 2708 and citations.feature_count == 1433
-    assert citations.known_citation_count == 5429
-    assert citations.unlabeled_pair_count == 20000
-    assert len(citations.labels) == 25429
-    assert len(set(citations.pairs)) == len(citations.labels)
-    assert citations.labels.sum() == citations.known_citation_count
-    assert np.unique(citations.scores).size >= 500
-    assert np.std(citations.scores) > 0.01
-    assert (
-        citations.scores[citations.labels == 1].mean()
-        > citations.scores[citations.labels == 0].mean()
-    )
-    assert not plt.get_fignums(), "A documented plot left a figure open"
+    assert not plt.get_fignums(), f"{page} left a figure open"
 
 
 def _validate_gallery_assets(directory: Path) -> None:
     import matplotlib.image as mpimg
     import numpy as np
 
-    linked = re.findall(
-        r"!\[[^\]]*\]\(\.\./assets/plots/([^)]*)\)",
-        (ROOT / "docs/api/plots.md").read_text(),
-    )
+    linked = [
+        name
+        for page in PAGES
+        for name in re.findall(
+            r"!\[[^\]]*\]\(\.\./assets/plots/([^)]*)\)", (ROOT / page).read_text()
+        )
+    ]
     assert set(linked) == set(FIGURE_NAMES) and len(linked) == len(FIGURE_NAMES)
     for name in FIGURE_NAMES:
         path = directory / name
@@ -225,115 +227,77 @@ def _compare_gallery_assets(expected: Path, generated: Path) -> None:
     from matplotlib.testing.compare import compare_images
 
     for name in FIGURE_NAMES:
-        difference = compare_images(str(expected / name), str(generated / name), tol=1)
-        if difference is not None:
+        if (
+            compare_images(str(expected / name), str(generated / name), tol=1)
+            is not None
+        ):
             raise AssertionError(
                 f"Stale gallery figure: {name}; run python -m examples.render_plots"
             )
 
 
-def _validate_metric_results(namespace: dict[str, object]) -> None:
-    import numpy as np
+def _compare_evaluator_figures(directory: Path) -> None:
+    from matplotlib.testing.compare import compare_images
 
-    from ml_toolkit.metrics import (
-        Metric,
-        MetricsClassification,
-        MetricsFrequency,
-        MetricsSeverity,
-        MetricScores,
-        RankingMetrics,
+    pairs = (
+        ("precision_recall/test/precision_recall.png", "direct-precision-recall.png"),
+        ("f1_threshold/test/f1_threshold.png", "direct-f1-threshold.png"),
+        ("calibration/test/calibration.png", "direct-calibration.png"),
+        ("observed_fitted/000_temperature.png", "direct-observed-fitted.png"),
+        ("time_observed_fitted/time.png", "direct-time-observed-fitted.png"),
+        ("gains/test/gains.png", "direct-gains.png"),
+        ("lift/test/lift.png", "direct-lift.png"),
+        ("numerical_feature_distributions/000_humidity.png", "direct-humidity.png"),
     )
-
-    np.testing.assert_allclose(
-        cast(MetricsClassification, namespace["scores"]).recall, 2 / 3
-    )
-    np.testing.assert_allclose(
-        cast(MetricsFrequency, namespace["frequency"]).prediction_over_observed, 0.86
-    )
-    np.testing.assert_allclose(
-        cast(MetricsSeverity, namespace["severity"]).prediction_over_observed, 6 / 7
-    )
-    np.testing.assert_allclose(
-        cast(RankingMetrics, namespace["ranking"]).normalized_gini, 3 / 7
-    )
-    assert (
-        cast(MetricScores, namespace["pu_scores"]).to_dict()[
-            "known_positive_capture_at_10pct"
-        ]
-        == 0.5
-    )
-    from ml_toolkit.types import FloatArray
-
-    np.testing.assert_allclose(
-        cast(FloatArray, namespace["capacity"]), [0.0, 0.0, 0.5, 0.5, 1.0]
-    )
-    np.testing.assert_allclose(
-        cast(FloatArray, namespace["capture"]), [0.0, 0.5, 0.5, 1.0, 1.0]
-    )
-    metric = cast(Metric, namespace["metric"])
-
-    np.testing.assert_allclose(
-        metric(
-            cast(FloatArray, namespace["observed"]),
-            cast(FloatArray, namespace["probabilities"]),
-            cast(FloatArray, namespace["weight"]),
-        ).to_dict()["mae"],
-        0.35,
-    )
+    for evaluator, direct in pairs:
+        assert (
+            compare_images(str(directory / evaluator), str(directory / direct), tol=0)
+            is None
+        ), evaluator
 
 
 def render(check: bool = False) -> None:
-    """Execute the documented recipes and regenerate or verify their outputs.
+    """Execute each guide independently, then verify or refresh its outputs."""
+    import matplotlib
+    import numpy as np
 
-    Parameters
-    ----------
-    check : bool, default False
-        Render figures in a temporary directory and fail on stale captured
-        output or missing checked-in images. False updates both API pages and
-        the 18 gallery PNGs in docs/assets/plots.
-    """
-    try:
-        importlib.import_module("shap")
-    except ImportError as error:
-        raise RuntimeError(
-            "Install the shap extra before rendering the complete gallery"
-        ) from error
-    with (
-        TemporaryDirectory(prefix="ml-toolkit-gallery-") as temporary,
-        chdir(temporary),
-    ):
-        os.environ.setdefault("MPLCONFIGDIR", str(Path(temporary) / "matplotlib"))
-        import matplotlib
-        import numpy as np
-
-        matplotlib.use("Agg")
-        # SHAP's beeswarm jitter uses NumPy's global random state.
-        np.random.seed(42)
-        asset_directory = ROOT / "docs/assets/plots"
-        figure_directory = Path(temporary) / "plots" if check else asset_directory
-        figure_directory.mkdir(parents=True, exist_ok=True)
-        namespace: dict[str, object] = {}
-        plots = ROOT / "docs/api/plots.md"
-        plot_document = _execute_examples(plots, namespace, figure_directory)
-        _validate_plot_results(namespace)
+    matplotlib.use("Agg")
+    with TemporaryDirectory(prefix="ml-toolkit-gallery-") as temporary:
+        temporary_root = Path(temporary)
+        os.environ.setdefault("MPLCONFIGDIR", str(temporary_root / "matplotlib"))
+        figure_directory = temporary_root / "plots"
+        figure_directory.mkdir()
+        documents: dict[Path, str] = {}
+        for index, relative in enumerate(PAGES):
+            page_directory = temporary_root / f"page-{index}"
+            page_directory.mkdir()
+            np.random.seed(42)
+            with chdir(page_directory):
+                namespace: dict[str, object] = {"__name__": "__documentation__"}
+                page = ROOT / relative
+                documents[page] = _execute_examples(page, namespace, figure_directory)
+                _validate_results(relative, namespace)
+            print(f"PASS {relative}", flush=True)
         _validate_gallery_assets(figure_directory)
-        metrics = ROOT / "docs/api/metrics.md"
-        namespace = {}
-        metric_document = _execute_examples(metrics, namespace)
-        _validate_metric_results(namespace)
-        for page, document in ((plots, plot_document), (metrics, metric_document)):
-            if check:
-                if page.read_text() != document:
-                    raise RuntimeError(
-                        f"Stale output in {page.name}; run python -m examples.render_plots"
-                    )
-            else:
-                page.write_text(document)
+        _compare_evaluator_figures(figure_directory)
+        asset_directory = ROOT / "docs/assets/plots"
         if check:
+            for page, document in documents.items():
+                if page.read_text() != document:
+                    raise AssertionError(
+                        f"Stale output in {page}; run python -m examples.render_plots"
+                    )
             _validate_gallery_assets(asset_directory)
             _compare_gallery_assets(asset_directory, figure_directory)
+        else:
+            for page, document in documents.items():
+                page.write_text(document)
+            for name in FIGURE_NAMES:
+                target = asset_directory / name
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(figure_directory / name, target)
         print(
-            f"Verified {len(EXAMPLE.findall(plot_document))} plot examples, {len(FIGURE_NAMES)} gallery figures, and every metric family."
+            f"Verified {len(PAGES)} guides and {len(FIGURE_NAMES)} figures.", flush=True
         )
 
 
@@ -342,10 +306,9 @@ def main() -> None:
     parser.add_argument(
         "--check",
         action="store_true",
-        help="Verify without modifying gallery assets or API pages",
+        help="verify without modifying documented output",
     )
-    arguments = parser.parse_args()
-    render(check=arguments.check)
+    render(check=parser.parse_args().check)
 
 
 if __name__ == "__main__":

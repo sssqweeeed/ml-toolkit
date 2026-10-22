@@ -76,8 +76,12 @@ Test deviance: 72.23
 ```
 <!-- /output -->
 
-`Pool` is the package's ready-to-use data container; see the data guide in the
-documentation for its fields and operations.
+`Pool` holds aligned features, targets, weights and time; see the
+[data guide](https://sssqweeeed.github.io/ml-toolkit/api/data/).
+Choose validation and final datasets with a
+[splitter](https://sssqweeeed.github.io/ml-toolkit/api/splitting/), then attach
+[evaluators](https://sssqweeeed.github.io/ml-toolkit/evaluation/) for plots,
+additional metrics and tables. Both interfaces support project implementations.
 
 The example logs metrics and configuration to a local MLflow store using
 `mlflow.db`. See the [documentation](https://sssqweeeed.github.io/ml-toolkit/)

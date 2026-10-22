@@ -95,8 +95,8 @@ def train_model(
     --------
     For executable data preparation, configuration, fitting and interpretation
     of held-out scores, see the documentation's Training guide, "Run a holdout
-    experiment". Its Bike Sharing example also covers selection, tuning and
-    custom evaluation using the same explicitly prepared data.
+    experiment". The Feature selection, Parameter tuning and Evaluation guides
+    show how to extend that workflow with independently prepared examples.
     """
     splits = splitter.get_validation()
     part = next(splits, None)

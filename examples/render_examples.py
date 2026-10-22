@@ -31,13 +31,15 @@ PAGES = (
     "docs/api/data.md",
     "docs/api/metrics.md",
     "docs/configuration.md",
-    "docs/api/psi.md",
     "docs/api/inflation.md",
     "docs/api/models.md",
     "docs/api/training.md",
+    "docs/api/splitting.md",
+    "docs/api/feature-selection.md",
+    "docs/api/tuning.md",
     "docs/api/tracking.md",
     "docs/api/configuration.md",
-    "docs/custom-model.md",
+    "docs/api/custom-model.md",
 )
 
 
@@ -68,36 +70,14 @@ def execute(recipe: Recipe, namespace: dict[str, object]) -> str:
     return stream.getvalue().strip()
 
 
-def prepare_model(namespace: dict[str, object]) -> None:
-    # This cross-page prerequisite is linked explicitly by the tracking guide.
-    by_name = {recipe.name: recipe for recipe in recipes(ROOT / 'docs/api/models.md')}
-    for name in ('models-data', 'models-regression'):
-        execute(by_name[name], namespace)
-
-
 def render_page(path: Path, *, check: bool) -> None:
     """Execute a page with its documented prerequisites and verify its output."""
     relative = path.relative_to(ROOT).as_posix()
     source = path.read_text()
     namespace: dict[str, object] = {'__name__': '__documentation__'}
-    if relative == 'docs/api/tracking.md':
-        prepare_model(namespace)
     outputs: dict[str, str] = {}
-    frequency: dict[str, dict[str, object]] = {}
     for recipe in recipes(path):
-        if recipe.name == 'configuration-run':
-            namespace.update(frequency['configuration-frequency'])
-        elif recipe.name == 'configuration-full-run':
-            namespace.update(frequency['configuration-frequency-full'])
         outputs[recipe.name] = execute(recipe, namespace)
-        if recipe.name in {'configuration-frequency', 'configuration-frequency-full'}:
-            frequency[recipe.name] = {
-                name: namespace[name]
-                for name in (
-                    'data', 'splitter', 'config', 'params', 'metric', 'model_factory',
-                    'feature_selector', 'param_space', 'prediction_evaluators',
-                )
-            }
         if recipe.name == 'configuration-full-run':
             from matplotlib.testing.compare import compare_images
 

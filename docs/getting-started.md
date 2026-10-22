@@ -148,8 +148,9 @@ metadata. See the [data API](api/data.md) for the complete contract.
 
 ## Choose the next step
 
-Use [configuration by task](configuration.md) for validation splits, feature
-selection, tuning, reports, and model packaging. The
-[training reference](api/training.md) describes the returned results and extension
-interfaces; the [configuration reference](api/configuration.md) lists defaults
-and constraints.
+- [Task recipes](configuration.md) choose a model, metric and reports for your target.
+- [Training](api/training.md) explains the result and execution order.
+- [Data splitting](api/splitting.md) supplies validation and final-fit pools.
+- [Evaluation and plots](evaluation/index.md) shows what each report produces.
+- [Models](api/models.md) covers prediction, packaging and custom adapters.
+- [Configuration](api/configuration.md) lists shared settings and defaults.

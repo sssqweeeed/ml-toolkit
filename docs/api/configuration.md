@@ -1,7 +1,7 @@
 # Configuration
 
 `TrainingConfig` controls tuning, shared reporting and model packaging.
-A [splitter](training.md#chronological-splits) supplies validation and final-fit data. Model factories, metrics, selectors and
+A [splitter](splitting.md) supplies validation and final-fit data. Model factories, metrics, selectors and
 report objects are explicit `train_model` arguments.
 
 ## Start with a small configuration
@@ -18,29 +18,47 @@ with_reports = replace(config, reporting=ReportingConfig(psi=True))
 prediction_evaluators = [ObservedFitted(), TimeObservedFitted(period="month")]
 ```
 
-Pass `prediction_evaluators` separately when training. Add or remove objects to
-choose reports. PSI and SHAP are off by default. `on_tuning=False`,
-`on_validation=True`, and `on_final=True` gate all additional reporting, including
-custom metrics; the primary metric always runs. Every validation fold follows
-the same flags. Evaluators choose which split labels to use themselves.
+Configurations are immutable keyword-only dataclasses; `replace` produces a
+modified copy. Pass evaluator objects separately to select individual reports.
+Their execution, sample selection and shared feature levels are described in
+[Evaluation and plots](../evaluation/index.md).
 
-Configurations are immutable keyword-only dataclasses; use `replace` to change
-them. Shared `features` and `n_bins` define train-fitted levels for PSI and
-observed/fitted. `features=()` disables these
-level reports. `period` applies to PSI; temporal evaluators have their own period.
+| Setting | Responsibility |
+| --- | --- |
+| `TrainingConfig` | Tuning, reporting and model packaging settings |
+| `TuningConfig` | Objective name/direction, trial budget and seed |
+| `ReportingConfig` | Stage switches, PSI/SHAP and common report options |
+| `FeatureLevelConfig` | Numerical or categorical feature levels and bounds |
+| `FigureConfig` | Figure size, resolution and output format |
+| `ShapConfig` | Explanation sampling and displayed features |
+| `TrackingConfig` | Which models to package and how to package them |
 
-See the [complete task recipes](../configuration.md) and
-[custom evaluators](training.md#add-custom-evaluation).
+See [Task recipes](../configuration.md) for complete configuration in a training
+call and [Build an evaluator](../evaluation/custom.md) to add your own report.
 
 ## API reference
 
 ::: ml_toolkit.config.TrainingConfig
+    options:
+      members: []
 ::: ml_toolkit.config.TuningConfig
+    options:
+      members: []
 ::: ml_toolkit.config.ReportingConfig
+    options:
+      members: []
 ::: ml_toolkit.config.FeatureLevelConfig
+    options:
+      members: []
 ::: ml_toolkit.config.ShapConfig
+    options:
+      members: []
 ::: ml_toolkit.config.FigureConfig
+    options:
+      members: []
 ::: ml_toolkit.config.TrackingConfig
+    options:
+      members: []
 
 `TimePeriod` supports minute, hour, day, week, month, quarter and year. Temporal
 reports preserve input timezones. Standalone PSI also accepts these settings

@@ -16,7 +16,7 @@ class SplitResult:
     Attributes
     ----------
     index : int
-        One-based original split index before skipping.
+        Positive unique index supplied by the splitter.
     train_metrics : dict[str, float]
         Metrics on the training rows.
     val_metrics : dict[str, float]
@@ -45,12 +45,12 @@ class SplitResult:
 
 @dataclass(frozen=True)
 class ValidationResult:
-    """Collect chronological split results and their validation averages.
+    """Collect split results in iterator order and their validation averages.
 
     Attributes
     ----------
     splits : tuple[SplitResult, ...]
-        Evaluated splits in chronological order, without fitted models.
+        Evaluated splits in splitter iterator order, without fitted models.
     """
 
     splits: tuple[SplitResult, ...]

@@ -21,7 +21,6 @@ from mlflow.models.model import ModelInfo
 
 from ml_toolkit import Pool, train_model
 from ml_toolkit.config import TrackingConfig, TrainingConfig
-from ml_toolkit.metrics import MetricScores
 from ml_toolkit.models import CatBoostRegressionModel
 from ml_toolkit.types import FloatArray, ModelParams
 
@@ -208,22 +207,7 @@ def model_factory(params: ModelParams) -> TargetScaledRegressor:
 
 
 # --8<-- [start:workflow]
-def weighted_mae(
-    y: FloatArray, prediction: FloatArray, weight: FloatArray
-) -> MetricScores:
-    """Calculate exposure-weighted error in original target units.
-
-    Parameters
-    ----------
-    y, prediction, weight : FloatArray
-        Aligned observed values, predictions, and nonnegative row weights.
-
-    Returns
-    -------
-    MetricScores
-        Mean absolute error under the key 'mae'.
-    """
-    return MetricScores({"mae": float(np.average(abs(y - prediction), weights=weight))})
+from examples.custom_metric import weighted_mae
 
 
 def demo() -> None:

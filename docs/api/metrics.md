@@ -19,7 +19,7 @@ for existing predictions or pass a compatible callable to training. Numerical
 
 Classification, frequency, severity, and PU score objects expose `to_dict()`.
 `RankingMetrics` instead contains curves and attributes for inspection and
-[ranking plots](plots.md#gains-and-lift); it is not itself a training metric
+[ranking plots](../evaluation/ranking.md); it is not itself a training metric
 result with `to_dict()`.
 
 ## Evaluate binary probabilities
@@ -36,11 +36,19 @@ probabilities = np.array([0.1, 0.6, 0.4, 0.9])
 weight = np.array([1.0, 2.0, 1.0, 2.0])
 for cutoff in (0.3, 0.7):
     scores = metrics_classification(
-        observed, probabilities, threshold=cutoff, sample_weight=weight,
+        observed,
+        probabilities,
+        threshold=cutoff,
+        sample_weight=weight,
     )
-    print(f"cutoff={cutoff}: precision={scores.precision:.3f}, recall={scores.recall:.3f}")
+    print(
+        f"cutoff={cutoff}: precision={scores.precision:.3f}, recall={scores.recall:.3f}"
+    )
 labels = (probabilities >= 0.7).astype(float)
-print("Weighted (TN, FP, FN, TP):", confusion_matrix(observed, labels, sample_weight=weight))
+print(
+    "Weighted (TN, FP, FN, TP):",
+    confusion_matrix(observed, labels, sample_weight=weight),
+)
 ```
 
 <!-- output: metrics-classification -->
@@ -74,8 +82,12 @@ from ml_toolkit.metrics import metrics_frequency, metrics_severity
 frequency_observed = np.array([0.0, 1.0, 2.0])
 frequency_prediction = np.array([0.2, 1.2, 1.5])
 exposure = np.array([0.5, 1.0, 2.0])
-frequency = metrics_frequency(frequency_observed, frequency_prediction, exposure)
-print(f"Frequency MAE: {frequency.mean_absolute_error:.4f} claims per policy-year")
+frequency = metrics_frequency(
+    frequency_observed, frequency_prediction, exposure
+)
+print(
+    f"Frequency MAE: {frequency.mean_absolute_error:.4f} claims per policy-year"
+)
 print(f"Poisson deviance: {frequency.mean_poisson_deviance:.4f}")
 print(f"Predicted / observed claims: {frequency.prediction_over_observed:.4f}")
 
@@ -83,7 +95,9 @@ print(f"Predicted / observed claims: {frequency.prediction_over_observed:.4f}")
 severity_observed = np.array([100.0, 200.0, 300.0])
 severity_prediction = np.array([120.0, 180.0, 240.0])
 claim_count = np.array([1.0, 2.0, 3.0])
-severity = metrics_severity(severity_observed, severity_prediction, claim_count, power=2.0)
+severity = metrics_severity(
+    severity_observed, severity_prediction, claim_count, power=2.0
+)
 print(f"Severity MAE: ${severity.mean_absolute_error:.2f} per claim")
 print(f"Gamma deviance: {severity.mean_tweedie_deviance:.4f}")
 print(f"Predicted / observed cost: {severity.prediction_over_observed:.4f}")
@@ -121,7 +135,9 @@ Bind the extra severity argument before passing it to training:
 from functools import partial
 
 severity_metric = partial(metrics_severity, power=2.0)
-bound_scores = severity_metric(severity_observed, severity_prediction, claim_count)
+bound_scores = severity_metric(
+    severity_observed, severity_prediction, claim_count
+)
 print(round(bound_scores.mean_tweedie_deviance, 4))
 ```
 
@@ -147,7 +163,9 @@ ranking = ranking_metrics(
 )
 print(f"Normalized Gini: {ranking.normalized_gini:.4f}")
 for point in ranking.selected_points:
-    print(f"Exposure={point.percent:.0f}%: gain={point.gain:.4f}, lift={point.lift:.4f}")
+    print(
+        f"Exposure={point.percent:.0f}%: gain={point.gain:.4f}, lift={point.lift:.4f}"
+    )
 print("Cumulative exposure:", ranking.cumulative_exposure.round(4).tolist())
 print("Cumulative observed:", ranking.cumulative_observed.round(4).tolist())
 ```
@@ -187,7 +205,10 @@ pu_metric = PUMetric(prior=0.1, loss="nnPU")
 pu_scores = pu_metric(pu_labels, pu_probabilities)
 pu_values = pu_scores.to_dict()
 print("Known-positive capture:", pu_values["known_positive_capture_at_10pct"])
-print("Actual unlabeled fraction flagged:", pu_values["unlabeled_flagged_at_10pct"])
+print(
+    "Actual unlabeled fraction flagged:",
+    pu_values["unlabeled_flagged_at_10pct"],
+)
 capacity, capture = positive_capture_curve(pu_labels, pu_probabilities)
 print(capacity.tolist())
 print(capture.tolist())
@@ -218,23 +239,30 @@ estimates recall only if labeled positives represent the positive population.
 
 ## Supply a custom training metric
 
+The reusable metric below returns weighted MAE in the same units as the target.
+It owns no fitted state and can be called for any split.
+
+??? note "Complete metric source"
+
+    ```python
+    --8<-- "examples/custom_metric.py"
+    ```
+
 <!-- example: metrics-custom -->
 
 ```python
-from ml_toolkit.metrics import Metric, MetricScores
-from ml_toolkit.types import FloatArray
-
-
-def weighted_mae(
-    observed: FloatArray, prediction: FloatArray, weight: FloatArray
-) -> MetricScores:
-    error = abs(observed - prediction)
-    value = float((error * weight).sum() / weight.sum())
-    return MetricScores({"mae": value})
-
+from examples.custom_metric import weighted_mae
+from ml_toolkit.metrics import Metric
 
 metric: Metric = weighted_mae
-print({name: round(value, 4) for name, value in metric(observed, probabilities, weight).to_dict().items()})
+print(
+    {
+        name: round(value, 4)
+        for name, value in metric(observed, probabilities, weight)
+        .to_dict()
+        .items()
+    }
+)
 ```
 
 <!-- output: metrics-custom -->
@@ -248,6 +276,87 @@ boundary. Return an object satisfying `MetricResult`, with `to_dict()` mapping
 score names to floats; `MetricScores` is a simple implementation. Use the same
 key (`"mae"` here) in selection or tuning configuration when optimizing it,
 and choose the appropriate optimization direction.
+
+### Use the metric in training
+
+Run from the installed repository checkout after
+`python -m examples.prepare_data --dataset bike`. This uses all original UCI
+Bike Sharing hours, recorded rental counts and timestamps, and unit weights;
+see [the dataset and features](models.md#prepare-real-observations). The latest
+20% is test; validation is the latest quarter of the remaining rows.
+
+The metric's `mae` key is the tuning objective below. `direction="minimize"`
+selects lower error. CatBoost still fits its RMSE objective; this callable
+controls toolkit evaluation and trial selection.
+
+<!-- example: metrics-training -->
+
+```python
+from pathlib import Path
+from tempfile import TemporaryDirectory
+
+import mlflow
+from optuna import Trial
+
+from examples.gallery_data import load_bike_pool
+from ml_toolkit import train_model
+from ml_toolkit.config import TrackingConfig, TrainingConfig, TuningConfig
+from ml_toolkit.models import CatBoostRegressionModel
+from ml_toolkit.training import Holdout
+from ml_toolkit.types import ModelParams
+
+
+def search_depth(trial: Trial) -> ModelParams:
+    return {"depth": trial.suggest_int("depth", 2, 3)}
+
+
+bike = load_bike_pool(download_if_missing=False)
+previous_uri = mlflow.get_tracking_uri()
+with TemporaryDirectory(prefix="custom-metric-") as directory:
+    mlflow.set_tracking_uri(f"sqlite:///{Path(directory) / 'tracking.db'}")
+    experiment_id = mlflow.create_experiment(
+        "custom-metric",
+        artifact_location=(Path(directory) / "artifacts").as_uri(),
+    )
+    mlflow.set_experiment(experiment_id=experiment_id)
+    result = train_model(
+        splitter=Holdout(bike, val_size=0.25, test_size=0.2),
+        params={
+            "loss_function": "RMSE",
+            "iterations": 30,
+            "random_seed": 42,
+            "thread_count": 2,
+            "verbose": False,
+            "allow_writing_files": False,
+        },
+        model_factory=CatBoostRegressionModel,
+        metric=weighted_mae,
+        run_name="bike-mae",
+        param_space=search_depth,
+        config=TrainingConfig(
+            tuning=TuningConfig(
+                metric="mae", direction="minimize", n_trials=2, seed=42
+            ),
+            tracking=TrackingConfig(log_final_model=False),
+        ),
+    )
+mlflow.set_tracking_uri(previous_uri)
+assert result.tuning is not None and result.test_metrics is not None
+print("Chosen depth:", result.tuning.best_params["depth"])
+print("Test MAE (rentals/hour):", round(result.test_metrics["mae"], 3))
+```
+
+<!-- output: metrics-training -->
+```text
+Chosen depth: 3
+Test MAE (rentals/hour): 94.121
+```
+<!-- /output -->
+
+The final model is refitted using the selected depth. The displayed test error
+uses future hours that neither trial fitted on. The temporary store contains
+run metrics and configuration during execution; model packaging is disabled
+for this example, and the store is removed on exit.
 
 ## API reference
 
