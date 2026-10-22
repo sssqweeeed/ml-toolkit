@@ -151,6 +151,7 @@ metadata. See the [data API](api/data.md) for the complete contract.
 - [Task recipes](configuration.md) choose a model, metric and reports for your target.
 - [Training](api/training.md) explains the result and execution order.
 - [Data splitting](api/splitting.md) supplies validation and final-fit pools.
-- [Evaluation and plots](evaluation/index.md) shows what each report produces.
+- [Evaluation](evaluation/index.md) covers prediction reports.
+- [Data analysis](data-analysis/index.md) covers distributions, PSI and custom data reports.
 - [Models](api/models.md) covers prediction, packaging and custom adapters.
 - [Configuration](api/configuration.md) lists shared settings and defaults.

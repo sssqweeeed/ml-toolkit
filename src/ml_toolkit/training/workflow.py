@@ -17,8 +17,9 @@ from .contracts import (
     Pool,
 )
 from .evaluation import evaluate_model
-from .reporting import prepare_evaluators
+from .reporting import prepare_evaluators, prepare_analyzers
 from ..evaluation import PredictionEvaluator
+from ..data_analysis import DataAnalyzer
 from .fit import fit_final_model, fit_split
 from .results import SplitResult, TrainingResult, ValidationResult
 from .splits import Splitter
@@ -39,6 +40,7 @@ def train_model(
     prediction_evaluators: (
         PredictionEvaluator | list[PredictionEvaluator] | None
     ) = None,
+    data_analyzers: DataAnalyzer | list[DataAnalyzer] | None = None,
 ) -> TrainingResult:
     """Tune, validate, refit and optionally test a complete training workflow.
 
@@ -69,7 +71,12 @@ def train_model(
         Named evaluators called in list order with one combined pool and aligned
         train and optional val or test labels per fit. Names are unique ignoring
         case; object IDs are optional. ReportingConfig stage flags gate all reports.
-        None or an empty list disables evaluator calls, not configured PSI/SHAP.
+        None or an empty list disables evaluator calls, not data analysis or PSI/SHAP.
+    data_analyzers : DataAnalyzer, list[DataAnalyzer], or None, default None
+        Data reports receiving the same pool and split labels without predictions.
+        Called in list order after prediction evaluators, using the same stage
+        flags and selected features. Names must be unique across both lists and
+        enabled PSI/SHAP. None or [] disables custom data reports, not PSI.
 
     Returns
     -------
@@ -104,7 +111,8 @@ def train_model(
         raise ValueError("Splitter must yield at least one validation split")
     if config.tuning is not None and param_space is None:
         raise ValueError("param_space is required when tuning is enabled")
-    evaluators = prepare_evaluators(prediction_evaluators, config.reporting)
+    analyzers = prepare_analyzers(data_analyzers)
+    evaluators = prepare_evaluators(prediction_evaluators, config.reporting, analyzers)
 
     logger.info("Starting training run %s", run_name)
     with tracking.run(run_name):
@@ -126,6 +134,17 @@ def train_model(
                 for item in evaluators
             ],
             "configuration/evaluators.json",
+        )
+        tracking.log_json(
+            [
+                {
+                    "name": item.name,
+                    "class": f"{type(item).__module__}.{type(item).__qualname__}",
+                    "parameters": item.parameters(),
+                }
+                for item in analyzers
+            ],
+            "configuration/data_analyzers.json",
         )
         logger.info("Starting validation")
         with tracking.run("validation"):
@@ -149,6 +168,7 @@ def train_model(
                         config=config,
                         feature_selector=feature_selector,
                         evaluators=evaluators,
+                        analyzers=analyzers,
                         param_space=param_space,
                         index=part.index,
                     )
@@ -191,6 +211,7 @@ def train_model(
                 metric,
                 config.reporting,
                 evaluators,
+                analyzers=analyzers,
                 stage="final",
                 name="final_fit",
                 split=DatasetSplit.TEST,

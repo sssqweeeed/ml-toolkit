@@ -283,3 +283,40 @@ def splitter_contracts(data: ProjectPool) -> None:
         TimeSeriesCV(data, n_splits=2).get_validation(), Iterator[Split[ProjectPool]]
     )
     assert_type(ProjectSplitter(data).get_final().heldout, Pool | None)
+
+
+from ml_toolkit.data_analysis import DataAnalyzer, NumericalFeatureDistributions
+from examples.custom_data_analyzer import DataAudit
+
+
+def data_analysis_contracts(data: Pool, split: pl.Series, output: Path) -> None:
+    analyzer: DataAnalyzer = DataAudit(name="audit")
+    assert_type(analyzer.evaluate(data=data, split=split), dict[str, float])
+    assert_type(
+        NumericalFeatureDistributions().write_artifacts(
+            data=data,
+            split=split,
+            artifact_dir=output,
+            figure=FigureConfig(),
+            features=None,
+            n_bins=10,
+        ),
+        list[Path],
+    )
+    choices: tuple[DataAnalyzer | list[DataAnalyzer] | None, ...] = (
+        None,
+        analyzer,
+        [],
+        [analyzer, NumericalFeatureDistributions()],
+    )
+    for analyzers in choices:
+        train_model(
+            splitter=Holdout(data),
+            params={},
+            model_factory=CatBoostRegressionModel,
+            metric=dictionary_metric,
+            run_name="data-analysis",
+            config=TrainingConfig(),
+            data_analyzers=analyzers,
+            prediction_evaluators=BusinessEvaluator(name="prediction"),
+        )

@@ -16,6 +16,7 @@ from ..feature_selection import FeatureSelector
 from ..data import validate_training_categories
 from .evaluation import evaluate_model
 from ..evaluation import PredictionEvaluator
+from ..data_analysis import DataAnalyzer
 from .results import SplitResult
 from .tuning import tune_optuna
 
@@ -32,6 +33,7 @@ def fit_split(
     config: TrainingConfig,
     feature_selector: FeatureSelector | None,
     evaluators: tuple[PredictionEvaluator, ...],
+    analyzers: tuple[DataAnalyzer, ...],
     param_space: Callable[[Trial], ModelParams] | None,
     index: int,
 ) -> SplitResult:
@@ -105,6 +107,7 @@ def fit_split(
                     metric,
                     config.reporting,
                     evaluators,
+                    analyzers=analyzers,
                     stage="tuning",
                     name=f"validation/split_{index}/tuning",
                 )
@@ -128,6 +131,7 @@ def fit_split(
             metric,
             config.reporting,
             evaluators,
+            analyzers=analyzers,
             stage="validation",
             name=f"validation/split_{index}",
         )

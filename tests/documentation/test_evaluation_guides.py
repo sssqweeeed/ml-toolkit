@@ -49,7 +49,9 @@ def test_custom_evaluator_metric_matches_saved_rows_and_skips_train_only(tmp_pat
     assert metrics["test/mae"] == pytest.approx(
         np.average(abs(rows["observed"] - rows["predicted"]), weights=rows["weight"])
     )
-    assert metrics["test/mae"] != pytest.approx(float(abs(rows["observed"] - rows["predicted"]).mean()))
+    assert metrics["test/mae"] != pytest.approx(
+        float(abs(rows["observed"] - rows["predicted"]).mean())
+    )
     train_only = pl.Series(["train"] * len(data))
     assert evaluator.evaluate(data=data, prediction=prediction, split=train_only) == {}
     assert (
@@ -108,3 +110,48 @@ def test_evaluation_guides_register_independent_executable_recipes(page):
     assert examples
     names = [example["name"] for example in examples]
     assert len(set(names)) == len(names)
+
+
+def test_data_analysis_workflow_passes_reports_to_separate_arguments(monkeypatch):
+    import ml_toolkit
+    from ml_toolkit.data_analysis import DataAnalyzer
+    from ml_toolkit.evaluation import PredictionEvaluator
+
+    captured = {}
+    monkeypatch.setattr(
+        ml_toolkit, "train_model", lambda **kwargs: captured.update(kwargs)
+    )
+    document = (ROOT / "docs/data-analysis/index.md").read_text()
+    code = next(
+        match["code"]
+        for match in EXAMPLE.finditer(document)
+        if match["name"] == "data-analysis-workflow"
+    )
+    namespace = {}
+    exec(compile(code, "data-analysis-workflow", "exec"), namespace)
+    namespace["train_with_reports"](sample_pool(), {"iterations": 2})
+    assert isinstance(captured["data_analyzers"][0], DataAnalyzer)
+    assert isinstance(captured["prediction_evaluators"][0], PredictionEvaluator)
+    assert captured["config"].reporting.psi is True
+
+
+def test_custom_data_analyzer_example_reports_actual_null_counts(tmp_path):
+    from dataclasses import replace
+    from examples.custom_data_analyzer import DataAudit
+
+    data = replace(sample_pool(), X=pl.DataFrame({"feature": [1.0, None, None, 4.0]}))
+    split = pl.Series(["train", "train", "test", "test"])
+    analyzer = DataAudit(name="audit")
+    assert analyzer.evaluate(data=data, split=split) == {
+        "train/rows": 2.0,
+        "test/rows": 2.0,
+    }
+    files = analyzer.write_artifacts(
+        data=data,
+        split=split,
+        artifact_dir=tmp_path,
+        figure=FigureConfig(),
+        features=None,
+        n_bins=10,
+    )
+    assert pl.read_csv(tmp_path / files[0])["feature"][0] == 2

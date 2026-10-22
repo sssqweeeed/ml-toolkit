@@ -60,7 +60,8 @@ round upward. The workflow logs metrics and configuration to MLflow.
 
 1. Consume each validation pair in the splitter's iterator order.
 2. Select columns and tune parameters when those extensions are supplied.
-3. Fit the validation model and run enabled [evaluation reports](../evaluation/index.md).
+3. Fit the validation model and run enabled [prediction reports](../evaluation/index.md) and
+   [data analysis](../data-analysis/index.md).
 4. Request `splitter.get_final()`, fit a fresh model on its `train`, and evaluate
    its optional `heldout` as test.
 
@@ -83,8 +84,8 @@ control additional reports; primary metrics always run.
 | `result.feature_selection`, `result.tuning` | Last split's optional search results |
 
 Selection and tuning scores measure the data used to choose settings. The
-optional test scores describe independent held-out performance. Evaluator
-metrics are logged separately and are not part of these result summaries.
+optional test scores describe independent held-out performance. Evaluator and
+analyzer metrics are logged separately and are not part of these result summaries.
 
 ## Configure the workflow
 
@@ -97,7 +98,8 @@ Pass a [model factory](models.md), [metric](metrics.md) and prepared splitter.
 | Holdout, time-series CV or custom windows | [Data splitting](splitting.md) |
 | Select columns or provide a ranker | [Feature selection](feature-selection.md) |
 | Supply an Optuna search space or a standalone objective | [Parameter tuning](tuning.md) |
-| Add reports or custom metrics/artifacts | [Evaluation](../evaluation/index.md) |
+| Add prediction reports or custom metrics/artifacts | [Evaluation](../evaluation/index.md) |
+| Analyze feature distributions and drift | [Data analysis](../data-analysis/index.md) |
 | Implement a training adapter | [Models](models.md) |
 | Save, reload or inspect MLflow artifacts | [Tracking](tracking.md) |
 

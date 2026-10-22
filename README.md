@@ -80,7 +80,8 @@ Test deviance: 72.23
 [data guide](https://sssqweeeed.github.io/ml-toolkit/api/data/).
 Choose validation and final datasets with a
 [splitter](https://sssqweeeed.github.io/ml-toolkit/api/splitting/), then attach
-[evaluators](https://sssqweeeed.github.io/ml-toolkit/evaluation/) for plots,
+[prediction evaluators](https://sssqweeeed.github.io/ml-toolkit/evaluation/) and
+[data analyzers](https://sssqweeeed.github.io/ml-toolkit/data-analysis/) for plots,
 additional metrics and tables. Both interfaces support project implementations.
 
 The example logs metrics and configuration to a local MLflow store using

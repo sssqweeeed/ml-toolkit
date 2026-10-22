@@ -7,6 +7,7 @@ import numpy as np
 
 from ..config import ReportingConfig
 from ..evaluation import PredictionEvaluator
+from ..data_analysis import DataAnalyzer
 import polars as pl
 from ..metrics import Metric
 from ..models.base import Model
@@ -44,6 +45,7 @@ def evaluate_model(
     reporting: ReportingConfig,
     evaluators: tuple[PredictionEvaluator, ...],
     *,
+    analyzers: tuple[DataAnalyzer, ...] = (),
     stage: TrainingStage,
     name: str,
     split: DatasetSplit = DatasetSplit.VAL,
@@ -81,7 +83,9 @@ def evaluate_model(
         "validation": reporting.on_validation,
         "final": reporting.on_final,
     }[stage]
-    if enabled and (evaluators or reporting.psi or reporting.shap is not None):
+    if enabled and (
+        evaluators or analyzers or reporting.psi or reporting.shap is not None
+    ):
         data = _combine_pools(train, heldout)
         prediction = np.concatenate([predictions[part] for part, _ in datasets])
         labels = pl.concat(
@@ -96,6 +100,7 @@ def evaluate_model(
             prediction=prediction,
             split=labels,
             evaluators=evaluators,
+            analyzers=analyzers,
             config=reporting,
             stage=name,
         )

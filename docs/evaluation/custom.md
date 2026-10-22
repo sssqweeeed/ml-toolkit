@@ -1,7 +1,8 @@
 # Build an evaluator
 
 Implement `PredictionEvaluator` when a report needs project-specific metrics or
-files. The two hooks have empty defaults: implement either or both.
+files based on predictions. For metrics and files derived from input data alone,
+use a [DataAnalyzer](../data-analysis/custom.md). The two hooks have empty defaults: implement either or both.
 This example records held-out weighted MAE and the prediction rows behind it.
 
 ## Implement the contract

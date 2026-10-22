@@ -80,7 +80,8 @@ class ShapConfig:
 class ReportingConfig:
     """Enable reporting by training stage and configure PSI, SHAP and exports.
 
-    Stage switches gate all additional metrics and artifacts, not training
+    Stage switches gate prediction evaluators, data analyzers, PSI and SHAP,
+    including all additional metrics and artifacts, not training
     metrics or optimization. All validation folds use the same settings.
     PSI and observed/fitted use feature levels fitted on training rows.
     ``features=None`` infers all input features; ``()`` disables level reports.
@@ -95,7 +96,7 @@ class ReportingConfig:
     on_final : bool, default True
         Enable additional reports after final fitting.
     psi : bool, default False
-        Calculate population stability tables and figures.
+        Enable data analysis of population stability; uses no predictions.
     shap : ShapConfig or None, default None
         Optional native-model explanations of held-out rows.
     features : tuple[FeatureLevelConfig, ...] or None, default None

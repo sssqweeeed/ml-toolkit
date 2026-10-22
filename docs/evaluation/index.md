@@ -1,8 +1,9 @@
-# Evaluation and plots
+# Evaluation
 
 Use `prediction_evaluators` to add reports to `train_model`, or call plotting
 functions directly with predictions you already have. Choose a report by the
-question you want to answer:
+question you want to answer. For feature distributions, drift, or custom
+reports that do not use predictions, see [Data analysis](../data-analysis/index.md):
 
 | Question | Guide | Reports |
 | --- | --- | --- |
@@ -10,8 +11,6 @@ question you want to answer:
 | Where do predicted means differ from observations? | [Observed versus fitted](observed-fitted.md) | `ObservedFitted`, `TimeObservedFitted` |
 | How much outcome is captured in the highest-ranked rows? | [Ranking](ranking.md) | `Gains`, `Lift` |
 | How are known positives ranked among unlabeled rows? | [Positive-unlabeled](pu.md) | `PUScoreDistribution`, `PUPositiveCapture` |
-| How does a numerical feature change over time? | [Numerical distributions](distributions.md) | `NumericalFeatureDistributions` |
-| How have feature shares changed? | [PSI and feature levels](../api/psi.md) | `ReportingConfig(psi=True)` |
 | Which features contribute to predictions? | [Feature importance and SHAP](explainability.md) | `ReportingConfig(shap=ShapConfig(...))` and direct plots |
 
 Every family guide places evaluator configuration beside the resulting figures,
@@ -94,15 +93,16 @@ test (or train only) after final fitting.
 Classification, ranking, and PU reports use only the held-out rows. Comparison
 reports show train and held-out rows together. Builtins skip incomplete pairs
 or absent held-out rows. Builtin `evaluate()` methods return `{}`; their output
-is graphical. All figures use the predictions supplied to the report.
+is graphical. Prediction evaluators use the supplied predictions; SHAP uses
+the fitted native model.
 
 `ReportingConfig.on_tuning`, `.on_validation`, and `.on_final` control both
-methods of every evaluator and PSI/SHAP. Defaults are false, true, and true.
+methods of every evaluator and data analyzer, plus PSI/SHAP. Defaults are false, true, and true.
 Core training metrics are calculated independently. PSI and SHAP are opt-in.
 Shared `figure`, feature-level definitions, and `n_bins` come from that config;
 each report page explains which settings it uses.
 
-Names must be unique ignoring case, start with an ASCII letter or digit, and
+Names must be unique across evaluators and data analyzers ignoring case, start with an ASCII letter or digit, and
 contain only ASCII letters, digits, underscores, hyphens, or dots. Enabled PSI
 and SHAP reserve `psi` and `shap`. Give repeated report instances distinct names.
 Extra metrics are logged as `<name>/<key>`, and do not enter CV averages,
