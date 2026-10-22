@@ -14,7 +14,8 @@ from ..types import ModelParams
 from .contracts import Pool
 from ..feature_selection import FeatureSelector
 from ..data import validate_training_categories
-from .evaluation import PreparedPredictionEvaluation, evaluate_model
+from .evaluation import evaluate_model
+from ..evaluation import PredictionEvaluator
 from .results import SplitResult
 from .tuning import tune_optuna
 
@@ -30,10 +31,9 @@ def fit_split(
     metric: Metric,
     config: TrainingConfig,
     feature_selector: FeatureSelector | None,
-    prediction_evaluation: PreparedPredictionEvaluation | None,
+    evaluators: tuple[PredictionEvaluator, ...],
     param_space: Callable[[Trial], ModelParams] | None,
     index: int,
-    diagnostics: bool,
 ) -> SplitResult:
     validate_training_categories(train)
     validate_training_categories(validation)
@@ -104,7 +104,7 @@ def fit_split(
                     validation,
                     metric,
                     config.reporting,
-                    prediction_evaluation,
+                    evaluators,
                     stage="tuning",
                     name=f"validation/split_{index}/tuning",
                 )
@@ -127,10 +127,9 @@ def fit_split(
             validation,
             metric,
             config.reporting,
-            prediction_evaluation,
+            evaluators,
             stage="validation",
             name=f"validation/split_{index}",
-            diagnostics=diagnostics,
         )
         if config.tracking.log_validation_models:
             model.log(validation, config=model_tracking)
@@ -153,12 +152,11 @@ def fit_final_model(
     data: Pool,
     last_split: SplitResult,
     model_factory: Callable[[ModelParams], Model],
-) -> tuple[Model, Pool, ModelParams]:
+) -> tuple[Model, ModelParams]:
     validate_training_categories(data)
     params = last_split.refit_params.copy()
-    train = data.select_features(last_split.features)
     logger.info("Starting final fit")
     tracking.log_params(params)
     logger.debug("Final fit selected iterations: %s", last_split.best_iteration)
-    model = model_factory(params.copy()).fit(train)
-    return model, train, params
+    model = model_factory(params.copy()).fit(data)
+    return model, params

@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from numpy.typing import ArrayLike
 
-from ..config import FigureConfig, PUPlotsConfig
+from ..config import FigureConfig
 from ..metrics.pu import positive_capture_curve, pu_arrays
 from .utils import save_figure
 
@@ -17,7 +17,7 @@ def score_distribution(
     save_fig: str | Path,
     *,
     weights: ArrayLike | None = None,
-    config: PUPlotsConfig | None = None,
+    histogram_bins: int = 30,
     figure: FigureConfig | None = None,
 ) -> None:
     """Save score distributions for known positives and unlabeled rows.
@@ -37,9 +37,8 @@ def score_distribution(
     figure : FigureConfig or None, default None
         Optional export dimensions, DPI, and format. None preserves native
         dimensions and the requested path format.
-    config : PUPlotsConfig or None, default None
-        Histogram bin count. None uses PUPlotsConfig defaults.
-
+    histogram_bins : int, default 30
+        Positive count of equal-width score bins.
     Returns
     -------
     None
@@ -54,18 +53,19 @@ def score_distribution(
     Notes
     -----
     Creates parent directories for save_fig and closes the figure after saving.
-    Histograms use config.histogram_bins equal-width bins in [0, 1] and
+    Histograms use histogram_bins equal-width bins in [0, 1] and
     normalize weights within each group. Unlabeled rows are not confirmed
     negatives.
     """
-    config = PUPlotsConfig() if config is None else config
+    if histogram_bins < 1:
+        raise ValueError("histogram_bins must be positive")
     y, p, w = pu_arrays(labels, probabilities, weights)
     fig, ax = plt.subplots(figsize=(9, 6))
     for value, label in ((1, "Known positive"), (0, "Unlabeled")):
         group = y == value
         ax.hist(
             p[group],
-            bins=np.linspace(0, 1, config.histogram_bins + 1),
+            bins=np.linspace(0, 1, histogram_bins + 1),
             weights=w[group] / w[group].sum(),
             alpha=0.55,
             label=label,

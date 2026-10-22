@@ -1,9 +1,8 @@
 # Configuration
 
-Configuration objects describe the workflow: how to split time, which optional
-stages to run, what to report, and which models to package. Data, model
-factories, metric functions, and search-space callbacks are passed separately
-to `train_model`.
+`TrainingConfig` controls tuning, shared reporting and model packaging.
+A [splitter](training.md#chronological-splits) supplies validation and final-fit data. Model factories, metrics, selectors and
+report objects are explicit `train_model` arguments.
 
 ## Start with a small configuration
 
@@ -11,123 +10,38 @@ to `train_model`.
 
 ```python
 from dataclasses import replace
+from ml_toolkit.config import ReportingConfig, TrackingConfig, TrainingConfig
+from ml_toolkit.evaluation import ObservedFitted, TimeObservedFitted
 
-from ml_toolkit.config import (
-    HoldoutConfig,
-    ReportingConfig,
-    RegressionDiagnosticsConfig,
-    TimeSeriesCVConfig,
-    TrackingConfig,
-    TrainingConfig,
-)
-
-config = TrainingConfig(
-    validation=HoldoutConfig(val_size=0.2),
-    test_size=0.2,
-    tracking=TrackingConfig(log_final_model=False),
-)
-with_reports = replace(
-    config,
-    reporting=ReportingConfig(
-        diagnostics=RegressionDiagnosticsConfig(task="frequency"),
-    ),
-)
-with_cv = replace(with_reports, validation=TimeSeriesCVConfig(n_splits=3))
+config = TrainingConfig(tracking=TrackingConfig(log_final_model=False))
+with_reports = replace(config, reporting=ReportingConfig(psi=True))
+prediction_evaluators = [ObservedFitted(), TimeObservedFitted(period="month")]
 ```
 
-`config` enables a validation holdout and a future test tail. Feature selection,
-tuning, and built-in diagnostic figures are off by default. `with_reports` adds
-frequency diagnostics; `with_cv` switches to three expanding validation windows.
-The original configurations keep their values.
+Pass `prediction_evaluators` separately when training. Add or remove objects to
+choose reports. PSI and SHAP are off by default. `on_tuning=False`,
+`on_validation=True`, and `on_final=True` gate all additional reporting, including
+custom metrics; the primary metric always runs. Every validation fold follows
+the same flags. Evaluators choose which split labels to use themselves.
 
-## Change only what you need
+Configurations are immutable keyword-only dataclasses; use `replace` to change
+them. Shared `features` and `n_bins` define train-fitted levels for PSI and
+observed/fitted. `features=()` disables these
+level reports. `period` applies to PSI; temporal evaluators have their own period.
 
-Configurations are immutable, keyword-only dataclasses. Use `replace` for
-changes, including nested objects. Set `test_size=None` to use all rows for
-training and validation, or `reporting.diagnostics=None` to disable built-in
-diagnostics. Model packaging defaults to on for the final fit; disabling it
-still allows MLflow metrics and configuration logging.
-
-Use the [task recipes](../configuration.md) to choose metrics and diagnostic
-settings, or the [training examples](training.md#select-features-and-tune-parameters)
-to wire feature selection and tuning into a run.
-
-## Find a setting
-
-| Change | Configuration |
-| --- | --- |
-| Validation windows or gaps | `HoldoutConfig`, `TimeSeriesCVConfig` |
-| Test tail and tuning | `TrainingConfig`, `TuningConfig` |
-| Enabled reports and evaluated windows | `ReportingConfig` |
-| Classification, regression, or PU figures | Corresponding diagnostics and plots configs |
-| Shared PSI, observed/fitted, and numerical distributions | `CommonPlotsConfig`, `NumericalFeatureDistributionConfig` |
-| SHAP sample size and displayed features | `ShapConfig` |
-| Image size, DPI, and format | `FigureConfig` |
-| Custom evaluator stages and splits | `PredictionEvaluationConfig` |
-| Model packaging and registry | `TrackingConfig` |
-
-Shared plot defaults apply when task diagnostics are enabled; a default
-`TrainingConfig` has no built-in diagnostics. `CommonPlotsConfig.features=()`
-disables feature-level PSI and observed/fitted, while numerical distributions
-and SHAP have their own switches. Set the enclosing diagnostics' `plots=None`
-to disable every figure and PSI table.
+See the [complete task recipes](../configuration.md) and
+[custom evaluators](training.md#add-custom-evaluation).
 
 ## API reference
 
-Import configurations from `ml_toolkit.config`.
-
-### Validation and fitting
-
 ::: ml_toolkit.config.TrainingConfig
-
-::: ml_toolkit.config.HoldoutConfig
-
-::: ml_toolkit.config.TimeSeriesCVConfig
-
-### Parameter tuning
-
 ::: ml_toolkit.config.TuningConfig
-
-### Diagnostic families
-
 ::: ml_toolkit.config.ReportingConfig
-
-::: ml_toolkit.config.ClassificationDiagnosticsConfig
-
-::: ml_toolkit.config.RegressionDiagnosticsConfig
-
-::: ml_toolkit.config.PUDiagnosticsConfig
-
-::: ml_toolkit.config.ClassificationPlotsConfig
-
-::: ml_toolkit.config.RegressionPlotsConfig
-
-::: ml_toolkit.config.PUPlotsConfig
-
-### Shared figures and feature levels
-
-`TimePeriod`, importable from `ml_toolkit.config` or `ml_toolkit.types`, is the
-literal union `"minute"`, `"hour"`, `"day"`, `"week"`, `"month"`, `"quarter"`,
-and `"year"`. `CommonPlotsConfig.period` defaults to `"month"` and controls
-all temporal diagnostics; standalone functions take the same `period` keyword.
-
-
-::: ml_toolkit.config.CommonPlotsConfig
-
 ::: ml_toolkit.config.FeatureLevelConfig
-
-::: ml_toolkit.config.NumericalFeatureDistributionConfig
-
 ::: ml_toolkit.config.ShapConfig
-
 ::: ml_toolkit.config.FigureConfig
-
-### Model logging and custom evaluation
-
 ::: ml_toolkit.config.TrackingConfig
 
-::: ml_toolkit.config.PredictionEvaluationConfig
-
-`DiagnosticsConfig` is the union of the three task diagnostics configurations
-above. See the [feature-level reference](psi.md) for fitting and reusing learned
-level definitions.
+`TimePeriod` supports minute, hour, day, week, month, quarter and year. Temporal
+reports preserve input timezones. Standalone PSI also accepts these settings
+through its [own API](psi.md).

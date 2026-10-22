@@ -1,3 +1,4 @@
+from ml_toolkit.training import Holdout
 from datetime import date, timedelta
 
 import numpy as np
@@ -7,10 +8,10 @@ import pytest
 from examples.project_pool import ProjectPool
 from examples.custom_selector import FixedFeatureSelector
 from ml_toolkit import train_model
-from ml_toolkit.config import HoldoutConfig, TrainingConfig, TrackingConfig
+from ml_toolkit.config import TrainingConfig, TrackingConfig
 from ml_toolkit.feature_selection import RFESelector, TopKSelector, ForwardSelector
 from ml_toolkit.metrics import MetricScores
-from ml_toolkit.training import split_holdout
+
 from tests.support.training import setup_mlflow
 
 
@@ -56,12 +57,12 @@ def quality_factory(quality, calls):
 
 def select(selector, quality):
     data = pool()
-    part = split_holdout(data, HoldoutConfig())
+    part = next(Holdout(data).get_validation())
     calls = []
     params = {"budget": 1}
     result = selector.select(
         train=part.train,
-        validation=part.val,
+        validation=part.heldout,
         params=params,
         model_factory=quality_factory(quality, calls),
         metric=quality_metric,
@@ -181,14 +182,12 @@ def test_selectors_integrate_with_fresh_final_fit(selector, tmp_path):
     }
     calls = []
     result = train_model(
-        data=pool(),
+        splitter=Holdout(pool()),
         params={},
         model_factory=quality_factory(quality, calls),
         metric=quality_metric,
         run_name="selection",
-        config=TrainingConfig(
-            validation=HoldoutConfig(), tracking=TrackingConfig(log_final_model=False)
-        ),
+        config=TrainingConfig(tracking=TrackingConfig(log_final_model=False)),
         feature_selector=selector,
     )
     assert calls[-1][1] == result.features

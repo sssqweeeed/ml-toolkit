@@ -3,6 +3,8 @@
 # --8<-- [start:adapter]
 from __future__ import annotations
 
+from ml_toolkit.training import Holdout
+
 import json
 from importlib.metadata import version
 from math import isfinite
@@ -18,11 +20,10 @@ from mlflow.models import infer_signature
 from mlflow.models.model import ModelInfo
 
 from ml_toolkit import Pool, train_model
-from ml_toolkit.config import HoldoutConfig, TrackingConfig, TrainingConfig
+from ml_toolkit.config import TrackingConfig, TrainingConfig
 from ml_toolkit.metrics import MetricScores
 from ml_toolkit.models import CatBoostRegressionModel
 from ml_toolkit.types import FloatArray, ModelParams
-from ml_toolkit.training import split_holdout
 
 
 class TargetScaledRegressor:
@@ -78,7 +79,9 @@ class TargetScaledRegressor:
         scaled_validation = (
             None
             if validation is None
-            else validation.with_target(validation.y.cast(pl.Float64) / self.target_scale)
+            else validation.with_target(
+                validation.y.cast(pl.Float64) / self.target_scale
+            )
         )
         self._inner.fit(scaled_train, scaled_validation)
         return self
@@ -175,9 +178,12 @@ class TargetScaledRegressor:
                 registered_model_name=config.registered_model_name,
                 conda_env=None if config.conda_env is None else str(config.conda_env),
                 pip_requirements=(
-                    [f"{package}=={version(package)}" for package in
-                     ("mlflow", "catboost", "numpy", "pandas")]
-                    if config.conda_env is None else None
+                    [
+                        f"{package}=={version(package)}"
+                        for package in ("mlflow", "catboost", "numpy", "pandas")
+                    ]
+                    if config.conda_env is None
+                    else None
                 ),
             )
 
@@ -196,11 +202,15 @@ def model_factory(params: ModelParams) -> TargetScaledRegressor:
         Unfitted adapter with a new inner CatBoost model.
     """
     return TargetScaledRegressor(params, target_scale=1000.0)
+
+
 # --8<-- [end:adapter]
 
 
 # --8<-- [start:workflow]
-def weighted_mae(y: FloatArray, prediction: FloatArray, weight: FloatArray) -> MetricScores:
+def weighted_mae(
+    y: FloatArray, prediction: FloatArray, weight: FloatArray
+) -> MetricScores:
     """Calculate exposure-weighted error in original target units.
 
     Parameters
@@ -230,7 +240,9 @@ def demo() -> None:
     from examples.gallery_data import load_bike_pool
 
     data = load_bike_pool(download_if_missing=False)
-    partition = split_holdout(data, HoldoutConfig(val_size=0.2))
+    splitter = Holdout(data, val_size=0.25, test_size=0.2)
+    partition = splitter.get_final()
+    assert partition.heldout is not None
     params: ModelParams = {
         "iterations": 40,
         "depth": 4,
@@ -248,33 +260,36 @@ def demo() -> None:
         )
         mlflow.set_experiment(experiment_id=experiment)
         result = train_model(
-            data=data,
+            splitter=splitter,
             params=params,
             model_factory=model_factory,
             metric=weighted_mae,
             run_name="scaled-regression",
-            config=TrainingConfig(
-                validation=HoldoutConfig(val_size=0.25),
-                test_size=0.2,
-                tracking=TrackingConfig(log_final_model=False),
-            ),
+            config=TrainingConfig(tracking=TrackingConfig(log_final_model=False)),
         )
         fitted = result.model
         with mlflow.start_run(run_name="serving-parity"):
             logged = fitted.log(partition.train)
         info = logged[1] if isinstance(logged, tuple) else logged
         served = mlflow.pyfunc.load_model(info.model_uri)
-        expected = fitted.predict_pool(partition.val)
-        np.testing.assert_allclose(served.predict(partition.val.to_model_input()), expected)
-        native_predictions = fitted.native_model.predict(partition.val.to_model_input())
+        expected = fitted.predict_pool(partition.heldout)
+        np.testing.assert_allclose(
+            served.predict(partition.heldout.to_model_input()), expected
+        )
+        native_predictions = fitted.native_model.predict(
+            partition.heldout.to_model_input()
+        )
         np.testing.assert_allclose(expected, native_predictions * 1000.0)
-        print("native predictions (thousands):", native_predictions[:5].round(4).tolist())
-        print("observed rentals:", partition.val.y.head(5).to_list())
+        print(
+            "native predictions (thousands):", native_predictions[:5].round(4).tolist()
+        )
+        print("observed rentals:", partition.heldout.y.head(5).to_list())
         print("predicted rentals:", expected[:5].round(1).tolist())
         print(f"validation MAE: {result.validation.mean_metrics['mae']:.3f}")
         assert result.test_metrics is not None
         print(f"test MAE: {result.test_metrics['mae']:.3f}")
         print("serving predictions match: True")
+
 
 # --8<-- [end:workflow]
 

@@ -1,10 +1,10 @@
 # Configuration by task
 
 Configurations are immutable, keyword-only dataclasses. Start with shared
-settings, then choose a model, metric, and diagnostic family for your target.
+settings, then choose a model, metric, and report objects for your target.
 Each task includes a compact recipe using `base_config` and a standalone full
 configuration with feature selection, parameter tuning, SHAP, and final-model
-packaging enabled. The full recipes spell out the nested settings and the
+packaging enabled. The full recipes spell out the shared settings and the
 callbacks passed separately to training.
 Use `dataclasses.replace` to change settings without modifying the original.
 The [configuration reference](api/configuration.md) lists every field and default.
@@ -22,8 +22,7 @@ The [configuration reference](api/configuration.md) lists every field and defaul
 ## Prepare source data
 
 Run from an installed repository checkout after `python -m examples.prepare_data`.
-The recipes below load cached source observations explicitly; they never invent
-timestamps or relabel confirmed negatives as unlabeled records.
+The recipes load cached data; PU training requires a caller-supplied pool.
 
 | Recipe | Observations and target | Evaluation |
 | --- | --- | --- |
@@ -34,16 +33,14 @@ timestamps or relabel confirmed negatives as unlabeled records.
 
 The [Bike setup](api/models.md#prepare-real-observations) documents its features
 and units. The [retail setup](api/inflation.md#prepare-recorded-retail-prices)
-documents sampling and exclusions. Retail prices illustrate positive monetary
-regression; they are not insurance claim severities. The PU blocks illustrate
-configuration only and are not run on either of these supervised targets.
+documents sampling and exclusions for the monetary regression example.
 
 ## Imports and shared behavior
 
 Run this block first when using a compact recipe. Full configuration blocks
 include their own imports and do not require this setup. Choose either version
 of one task; both define `config`, `model_factory`, `params`, and `metric` for
-the same training call. Full recipes also define `feature_selector` and
+the same training call, together with a data-bound `splitter`. Full recipes also define `feature_selector` and
 `param_space`; compact recipes set these to `None`.
 
 Full recipes require the `shap` extra (`pip install 'ml-toolkit[shap]'`) and
@@ -53,12 +50,9 @@ features. These small budgets keep the examples quick; increase `max_fits`,
 `n_trials`, and the model's `iterations` for your experiment. `min_features=1`
 is a lower bound, not a promise to select exactly one feature.
 
-Feature selection is configured in `RFESelector` and passed as
-`feature_selector`; it is not a `TrainingConfig` field. `TuningConfig` supplies
-the search budget and objective, while the separate `param_space` callback
-supplies the parameters to search. Both selection and tuning use the named
-score returned by the task's metric. Final fitting reuses the last split's
-selected features and settings; test rows never participate in either search.
+Pass an `RFESelector` as `feature_selector`. `TuningConfig` supplies the search
+budget and objective; `param_space` supplies the parameters to search. Both use
+a named score returned by the task's metric.
 
 | Capability | Compact recipe | Full recipe |
 | --- | --- | --- |
@@ -66,42 +60,23 @@ selected features and settings; test rows never participate in either search.
 | Parameter tuning | Off | Per-split Optuna search for depth and learning rate |
 | SHAP | Off | Importance and beeswarm on validation/test |
 | Final-model packaging | Off | Saved in MLflow with the selected input schema |
-| Custom evaluation | No callback | No callback; see [custom evaluation](api/training.md#add-custom-evaluation) |
+| Reports | Explicit evaluator list | Explicit evaluator list plus SHAP |
 
-Custom evaluation uses a named project-specific `PredictionEvaluator`, or a list
-of evaluators with names unique without regard to case.
-`ReportingConfig.prediction_evaluation` defaults to `None`: supplying an evaluator activates
-the standard policy on validation and final stages, while omitting the evaluator
-disables custom evaluation. Pass `PredictionEvaluationConfig` only to override this
-policy; empty stages or splits disable calls. Aligned `data.object_id` is required
-before training only when the selected stages and available splits permit a call.
-An empty list also disables evaluation. Each evaluator stores artifacts under
-`<name>/<split>/` and metrics under `<split>/<name>/`.
-Both recipes leave `prediction_evaluators=None`. Built-in metrics, PSI, and figures
-need no custom evaluator. See [selector alternatives](api/training.md#choose-a-selector)
-for Top-K, forward selection, and SHAP ranking.
-
-Diagnostic split indices are checked against the validation strategy only when
-diagnostics and their plots are enabled. Disabling either lets you reuse those
-indices with another strategy; indices must still be positive and unique.
+Pass named report objects from `ml_toolkit.evaluation` as
+`prediction_evaluators`. `ReportingConfig` supplies shared feature definitions,
+figure settings, PSI and SHAP. Its `on_tuning=False`, `on_validation=True`, and
+`on_final=True` flags control additional reports on each stage; primary metrics
+always run. See [custom evaluation](api/training.md#add-custom-evaluation) for
+the evaluator contract and metric logging.
 
 <!-- example: configuration-shared -->
 
 ```python
+from ml_toolkit.training import Holdout, TimeSeriesCV
 from dataclasses import replace
-
 from ml_toolkit.config import (
-    ClassificationDiagnosticsConfig,
-    ClassificationPlotsConfig,
-    CommonPlotsConfig,
     FeatureLevelConfig,
-    HoldoutConfig,
-    PUDiagnosticsConfig,
-    PUPlotsConfig,
-    RegressionDiagnosticsConfig,
-    RegressionPlotsConfig,
     ReportingConfig,
-    TimeSeriesCVConfig,
     TrackingConfig,
     TrainingConfig,
 )
@@ -121,11 +96,7 @@ from ml_toolkit.models import (
 )
 from ml_toolkit.types import FloatArray
 
-base_config = TrainingConfig(
-    validation=TimeSeriesCVConfig(n_splits=3),
-    test_size=0.2,
-    tracking=TrackingConfig(log_final_model=False),
-)
+base_config = TrainingConfig(tracking=TrackingConfig(log_final_model=False))
 base_params = {
     "iterations": 20,
     "depth": 2,
@@ -134,13 +105,8 @@ base_params = {
     "verbose": False,
     "allow_writing_files": False,
 }
-common = CommonPlotsConfig()
+common = ReportingConfig(psi=True)
 ```
-
-The compact recipes keep feature selection, tuning, SHAP, and model packaging off.
-Built-in diagnostics run on the last validation split and on test. Metrics and
-configuration are always logged to MLflow. Set
-`TrackingConfig(log_final_model=True)` to also package the final model.
 
 - Rows must have ascending timestamps; splits never shuffle. Integers specify
   row counts, and fractions round upward. Test fractions use the original data;
@@ -150,12 +116,6 @@ configuration are always logged to MLflow. Set
   when enabled. Final fitting uses the last split's features, parameters,
   iteration budget, and classification threshold. It includes former validation
   and gap rows, but excludes test.
-- `reporting.validation_splits` selects built-in validation reports only.
-  Explicit indices refer to original one-based splits before `skip_splits`.
-  Reports do not run during tuning trials.
-- Custom evaluation requires aligned `object_id`. Its default stages are
-  validation and final, with train/val/test where available. Its scores do not
-  enter optimization or validation averages.
 
 ## Binary classification
 
@@ -169,27 +129,39 @@ both classes in evaluated splits for finite ROC AUC; single-class splits return 
 <!-- example: configuration-classification -->
 
 ```python
+from ml_toolkit.evaluation import (
+    PrecisionRecall,
+    F1Threshold,
+    Calibration,
+    Gains,
+    Lift,
+    ObservedFitted,
+    TimeObservedFitted,
+    NumericalFeatureDistributions,
+)
 from examples.gallery_data import load_bike_pool
 import polars as pl
 
 data = load_bike_pool(download_if_missing=False)
 data = data.with_target((data.y >= 100).cast(pl.Float64))
-
-classification_config = replace(
-    base_config,
-    reporting=ReportingConfig(
-        diagnostics=ClassificationDiagnosticsConfig(
-            plots=ClassificationPlotsConfig(common=common),
-        ),
-    ),
-)
+classification_config = replace(base_config, reporting=common)
+splitter = TimeSeriesCV(data, n_splits=3, test_size=0.2)
 config = classification_config
 model_factory = CatBoostClassificationModel
 params = {**base_params, "loss_function": "Logloss"}
 metric = metrics_classification
 feature_selector = None
 param_space = None
-prediction_evaluators = None
+prediction_evaluators = [
+    PrecisionRecall(),
+    F1Threshold(),
+    Calibration(),
+    Gains(),
+    Lift(),
+    ObservedFitted(),
+    TimeObservedFitted(),
+    NumericalFeatureDistributions(),
+]
 ```
 
 ### Full configuration
@@ -197,23 +169,27 @@ prediction_evaluators = None
 <!-- example: configuration-classification-full -->
 
 ```python
+from ml_toolkit.training import TimeSeriesCV
+from ml_toolkit.evaluation import (
+    PrecisionRecall,
+    F1Threshold,
+    Calibration,
+    Gains,
+    Lift,
+    ObservedFitted,
+    TimeObservedFitted,
+    NumericalFeatureDistributions,
+)
 from examples.gallery_data import load_bike_pool
 import polars as pl
 
 data = load_bike_pool(download_if_missing=False)
 data = data.with_target((data.y >= 100).cast(pl.Float64))
-
 from optuna import Trial
-
 from ml_toolkit.config import (
-    ClassificationDiagnosticsConfig,
-    ClassificationPlotsConfig,
-    CommonPlotsConfig,
     FigureConfig,
-    NumericalFeatureDistributionConfig,
     ReportingConfig,
     ShapConfig,
-    TimeSeriesCVConfig,
     TrackingConfig,
     TrainingConfig,
     TuningConfig,
@@ -225,14 +201,6 @@ from ml_toolkit.training import importance_ranker
 from ml_toolkit.types import ModelParams
 
 classification_config = TrainingConfig(
-    validation=TimeSeriesCVConfig(
-        n_splits=3,
-        val_size=None,
-        gap=0,
-        max_train_size=None,
-        skip_splits=0,
-    ),
-    test_size=0.2,
     tuning=TuningConfig(
         metric="log_loss",
         direction="minimize",
@@ -241,45 +209,15 @@ classification_config = TrainingConfig(
         seed=42,
     ),
     reporting=ReportingConfig(
-        diagnostics=ClassificationDiagnosticsConfig(
-            plots=ClassificationPlotsConfig(
-                common=CommonPlotsConfig(
-                    figure=FigureConfig(
-                        figsize=None,
-                        dpi=150,
-                        format="png",
-                    ),
-                    features=None,
-                    psi=True,
-                    observed_fitted=True,
-                    period="month",
-                    n_bins=10,
-                    epsilon=1e-6,
-                    numerical_distributions=NumericalFeatureDistributionConfig(
-                        features=None,
-                        quantile_bands=((0.05, 0.95), (0.25, 0.75)),
-                        show_mean=True,
-                        show_median=True,
-                    ),
-                    shap=ShapConfig(
-                        max_samples=500,
-                        seed=42,
-                        max_display=10,
-                        dependence_features=(),
-                    ),
-                ),
-                precision_recall=True,
-                f1_threshold=True,
-                calibration=True,
-                gains=True,
-                lift=True,
-                time_observed_fitted=True,
-                max_curve_points=1000,
-                calibration_bins=10,
-                histogram_bins=30,
-            ),
+        figure=FigureConfig(figsize=None, dpi=150, format="png"),
+        features=None,
+        psi=True,
+        period="month",
+        n_bins=10,
+        epsilon=1e-06,
+        shap=ShapConfig(
+            max_samples=500, seed=42, max_display=10, dependence_features=()
         ),
-        validation_splits="last",
     ),
     tracking=TrackingConfig(
         log_trial_models=False,
@@ -290,6 +228,15 @@ classification_config = TrainingConfig(
         registered_model_name=None,
         conda_env=None,
     ),
+)
+splitter = TimeSeriesCV(
+    data,
+    n_splits=3,
+    val_size=None,
+    test_size=0.2,
+    gap=0,
+    max_train_size=None,
+    skip_splits=0,
 )
 config = classification_config
 model_factory = CatBoostClassificationModel
@@ -321,11 +268,17 @@ def param_space(trial: Trial) -> ModelParams:
     }
 
 
-prediction_evaluators = None
+prediction_evaluators = [
+    PrecisionRecall(),
+    F1Threshold(),
+    Calibration(),
+    Gains(),
+    Lift(),
+    ObservedFitted(),
+    TimeObservedFitted(),
+    NumericalFeatureDistributions(),
+]
 ```
-
-The reports include precision-recall, F1, calibration, gains/lift, temporal means,
-and the shared feature diagnostics.
 
 ## Regression
 
@@ -337,9 +290,15 @@ returning named scores; this example uses exposure-weighted absolute error.
 <!-- example: configuration-regression -->
 
 ```python
+from ml_toolkit.evaluation import (
+    ObservedFitted,
+    TimeObservedFitted,
+    NumericalFeatureDistributions,
+)
 from examples.gallery_data import load_bike_pool
 
 data = load_bike_pool(download_if_missing=False)
+
 
 def weighted_mae(
     observed: FloatArray, prediction: FloatArray, weight: FloatArray
@@ -349,21 +308,19 @@ def weighted_mae(
     )
 
 
-regression_config = replace(
-    base_config,
-    reporting=ReportingConfig(
-        diagnostics=RegressionDiagnosticsConfig(
-            plots=RegressionPlotsConfig(common=common),
-        ),
-    ),
-)
+regression_config = replace(base_config, reporting=common)
+splitter = TimeSeriesCV(data, n_splits=3, test_size=0.2)
 config = regression_config
 model_factory = CatBoostRegressionModel
 params = {**base_params, "loss_function": "RMSE"}
 metric = weighted_mae
 feature_selector = None
 param_space = None
-prediction_evaluators = None
+prediction_evaluators = [
+    ObservedFitted(),
+    TimeObservedFitted(),
+    NumericalFeatureDistributions(),
+]
 ```
 
 ### Full configuration
@@ -371,21 +328,20 @@ prediction_evaluators = None
 <!-- example: configuration-regression-full -->
 
 ```python
+from ml_toolkit.training import TimeSeriesCV
+from ml_toolkit.evaluation import (
+    ObservedFitted,
+    TimeObservedFitted,
+    NumericalFeatureDistributions,
+)
 from examples.gallery_data import load_bike_pool
 
 data = load_bike_pool(download_if_missing=False)
-
 from optuna import Trial
-
 from ml_toolkit.config import (
-    CommonPlotsConfig,
     FigureConfig,
-    NumericalFeatureDistributionConfig,
-    RegressionDiagnosticsConfig,
-    RegressionPlotsConfig,
     ReportingConfig,
     ShapConfig,
-    TimeSeriesCVConfig,
     TrackingConfig,
     TrainingConfig,
     TuningConfig,
@@ -406,56 +362,19 @@ def weighted_mae(
 
 
 regression_config = TrainingConfig(
-    validation=TimeSeriesCVConfig(
-        n_splits=3,
-        val_size=None,
-        gap=0,
-        max_train_size=None,
-        skip_splits=0,
-    ),
-    test_size=0.2,
     tuning=TuningConfig(
-        metric="mae",
-        direction="minimize",
-        n_trials=2,
-        timeout_seconds=None,
-        seed=42,
+        metric="mae", direction="minimize", n_trials=2, timeout_seconds=None, seed=42
     ),
     reporting=ReportingConfig(
-        diagnostics=RegressionDiagnosticsConfig(
-            task="regression",
-            plots=RegressionPlotsConfig(
-                common=CommonPlotsConfig(
-                    figure=FigureConfig(
-                        figsize=None,
-                        dpi=150,
-                        format="png",
-                    ),
-                    features=None,
-                    psi=True,
-                    observed_fitted=True,
-                    period="month",
-                    n_bins=10,
-                    epsilon=1e-6,
-                    numerical_distributions=NumericalFeatureDistributionConfig(
-                        features=None,
-                        quantile_bands=((0.05, 0.95), (0.25, 0.75)),
-                        show_mean=True,
-                        show_median=True,
-                    ),
-                    shap=ShapConfig(
-                        max_samples=500,
-                        seed=42,
-                        max_display=10,
-                        dependence_features=(),
-                    ),
-                ),
-                gains=False,
-                lift=False,
-                time_observed_fitted=True,
-            ),
+        figure=FigureConfig(figsize=None, dpi=150, format="png"),
+        features=None,
+        psi=True,
+        period="month",
+        n_bins=10,
+        epsilon=1e-06,
+        shap=ShapConfig(
+            max_samples=500, seed=42, max_display=10, dependence_features=()
         ),
-        validation_splits="last",
     ),
     tracking=TrackingConfig(
         log_trial_models=False,
@@ -466,6 +385,15 @@ regression_config = TrainingConfig(
         registered_model_name=None,
         conda_env=None,
     ),
+)
+splitter = TimeSeriesCV(
+    data,
+    n_splits=3,
+    val_size=None,
+    test_size=0.2,
+    gap=0,
+    max_train_size=None,
+    skip_splits=0,
 )
 config = regression_config
 model_factory = CatBoostRegressionModel
@@ -497,11 +425,14 @@ def param_space(trial: Trial) -> ModelParams:
     }
 
 
-prediction_evaluators = None
+prediction_evaluators = [
+    ObservedFitted(),
+    TimeObservedFitted(),
+    NumericalFeatureDistributions(),
+]
 ```
 
-Gains and lift stay off because they require nonnegative targets with a positive
-weighted total. Shared feature diagnostics and time observed/fitted remain on.
+Gains and lift require nonnegative targets with a positive weighted total.
 
 ## Frequency
 
@@ -513,26 +444,31 @@ The log-link adapter fits a training-only baseline and returns positive rates.
 <!-- example: configuration-frequency -->
 
 ```python
+from ml_toolkit.evaluation import (
+    Gains,
+    Lift,
+    ObservedFitted,
+    TimeObservedFitted,
+    NumericalFeatureDistributions,
+)
 from examples.gallery_data import load_bike_pool
 
 data = load_bike_pool(download_if_missing=False)
-
-frequency_config = replace(
-    base_config,
-    reporting=ReportingConfig(
-        diagnostics=RegressionDiagnosticsConfig(
-            task="frequency",
-            plots=RegressionPlotsConfig(common=common, gains=True, lift=True),
-        ),
-    ),
-)
+frequency_config = replace(base_config, reporting=common)
+splitter = TimeSeriesCV(data, n_splits=3, test_size=0.2)
 config = frequency_config
 model_factory = CatBoostLogLinkRegressionModel
 params = {**base_params, "loss_function": "Poisson"}
 metric = metrics_frequency
 feature_selector = None
 param_space = None
-prediction_evaluators = None
+prediction_evaluators = [
+    Gains(),
+    Lift(),
+    ObservedFitted(),
+    TimeObservedFitted(),
+    NumericalFeatureDistributions(),
+]
 ```
 
 ### Full configuration
@@ -540,21 +476,22 @@ prediction_evaluators = None
 <!-- example: configuration-frequency-full -->
 
 ```python
+from ml_toolkit.training import TimeSeriesCV
+from ml_toolkit.evaluation import (
+    Gains,
+    Lift,
+    ObservedFitted,
+    TimeObservedFitted,
+    NumericalFeatureDistributions,
+)
 from examples.gallery_data import load_bike_pool
 
 data = load_bike_pool(download_if_missing=False)
-
 from optuna import Trial
-
 from ml_toolkit.config import (
-    CommonPlotsConfig,
     FigureConfig,
-    NumericalFeatureDistributionConfig,
-    RegressionDiagnosticsConfig,
-    RegressionPlotsConfig,
     ReportingConfig,
     ShapConfig,
-    TimeSeriesCVConfig,
     TrackingConfig,
     TrainingConfig,
     TuningConfig,
@@ -566,14 +503,6 @@ from ml_toolkit.training import importance_ranker
 from ml_toolkit.types import ModelParams
 
 frequency_config = TrainingConfig(
-    validation=TimeSeriesCVConfig(
-        n_splits=3,
-        val_size=None,
-        gap=0,
-        max_train_size=None,
-        skip_splits=0,
-    ),
-    test_size=0.2,
     tuning=TuningConfig(
         metric="mean_poisson_deviance",
         direction="minimize",
@@ -582,40 +511,15 @@ frequency_config = TrainingConfig(
         seed=42,
     ),
     reporting=ReportingConfig(
-        diagnostics=RegressionDiagnosticsConfig(
-            task="frequency",
-            plots=RegressionPlotsConfig(
-                common=CommonPlotsConfig(
-                    figure=FigureConfig(
-                        figsize=None,
-                        dpi=150,
-                        format="png",
-                    ),
-                    features=None,
-                    psi=True,
-                    observed_fitted=True,
-                    period="month",
-                    n_bins=10,
-                    epsilon=1e-6,
-                    numerical_distributions=NumericalFeatureDistributionConfig(
-                        features=None,
-                        quantile_bands=((0.05, 0.95), (0.25, 0.75)),
-                        show_mean=True,
-                        show_median=True,
-                    ),
-                    shap=ShapConfig(
-                        max_samples=500,
-                        seed=42,
-                        max_display=10,
-                        dependence_features=(),
-                    ),
-                ),
-                gains=True,
-                lift=True,
-                time_observed_fitted=True,
-            ),
+        figure=FigureConfig(figsize=None, dpi=150, format="png"),
+        features=None,
+        psi=True,
+        period="month",
+        n_bins=10,
+        epsilon=1e-06,
+        shap=ShapConfig(
+            max_samples=500, seed=42, max_display=10, dependence_features=()
         ),
-        validation_splits="last",
     ),
     tracking=TrackingConfig(
         log_trial_models=False,
@@ -626,6 +530,15 @@ frequency_config = TrainingConfig(
         registered_model_name=None,
         conda_env=None,
     ),
+)
+splitter = TimeSeriesCV(
+    data,
+    n_splits=3,
+    val_size=None,
+    test_size=0.2,
+    gap=0,
+    max_train_size=None,
+    skip_splits=0,
 )
 config = frequency_config
 model_factory = CatBoostLogLinkRegressionModel
@@ -657,7 +570,13 @@ def param_space(trial: Trial) -> ModelParams:
     }
 
 
-prediction_evaluators = None
+prediction_evaluators = [
+    Gains(),
+    Lift(),
+    ObservedFitted(),
+    TimeObservedFitted(),
+    NumericalFeatureDistributions(),
+]
 ```
 
 ## Severity
@@ -666,8 +585,7 @@ Use the recorded positive retail unit prices as monetary targets, with
 `stock_code`, `country` and `quantity` as inputs. The test starts on 1 October
 2011; the holdout uses September for validation and earlier invoices for
 training. The validation row count comes from the canonical calendar split,
-so whole invoices stay together. Shared feature diagnostics focus on
-quantity rather than drawing thousands of product categories.
+so whole invoices stay together. Feature diagnostics use quantity.
 
 Use a Tweedie power consistent with the model loss and metric. Here `power=1.5`
 allows zero targets and requires positive predictions and positive weighted
@@ -675,19 +593,26 @@ observed totals. Gamma deviance (`power=2`) requires strictly positive targets.
 
 For strictly positive severity, set `loss_function="Gamma"` on the same
 `CatBoostLogLinkRegressionModel` and set the reporting metric's `power=2.0`.
-This trains the exact Gamma objective rather than approximating it with Tweedie
-near power 2. See [Gamma regression](api/models.md#gamma-regression) for CPU/GPU
-configuration, predictions, validation requirements and saving models.
+See [Gamma regression](api/models.md#gamma-regression) for CPU/GPU configuration,
+predictions, validation requirements and saving models.
 
 ### Using the base configuration
 
 <!-- example: configuration-severity -->
 
 ```python
+from ml_toolkit.evaluation import (
+    Gains,
+    Lift,
+    ObservedFitted,
+    TimeObservedFitted,
+    NumericalFeatureDistributions,
+)
 from examples.retail_data import load_retail_pool, load_retail_splits
 
 data = load_retail_pool(download_if_missing=False)
 retail_splits = load_retail_splits(download_if_missing=False)
+
 
 def severity_metric(
     observed: FloatArray, prediction: FloatArray, weight: FloatArray
@@ -697,22 +622,22 @@ def severity_metric(
 
 severity_config = replace(
     base_config,
-    validation=HoldoutConfig(val_size=len(retail_splits.validation)),    test_size="2011-10-01",
-    reporting=ReportingConfig(
-        diagnostics=RegressionDiagnosticsConfig(
-            task="severity",
-            plots=RegressionPlotsConfig(common=replace(common, features=(FeatureLevelConfig("quantity", "numerical"),)),
-                gains=True, lift=True),
-        ),
-    ),
+    reporting=replace(common, features=(FeatureLevelConfig("quantity", "numerical"),)),
 )
+splitter = Holdout(data, val_size=len(retail_splits.validation), test_size="2011-10-01")
 config = severity_config
 model_factory = CatBoostLogLinkRegressionModel
 params = {**base_params, "loss_function": "Tweedie:variance_power=1.5"}
 metric = severity_metric
 feature_selector = None
 param_space = None
-prediction_evaluators = None
+prediction_evaluators = [
+    Gains(),
+    Lift(),
+    ObservedFitted(),
+    TimeObservedFitted(),
+    NumericalFeatureDistributions(),
+]
 ```
 
 ### Full configuration
@@ -720,23 +645,24 @@ prediction_evaluators = None
 <!-- example: configuration-severity-full -->
 
 ```python
+from ml_toolkit.training import Holdout
+from ml_toolkit.evaluation import (
+    Gains,
+    Lift,
+    ObservedFitted,
+    TimeObservedFitted,
+    NumericalFeatureDistributions,
+)
 from examples.retail_data import load_retail_pool, load_retail_splits
 
 data = load_retail_pool(download_if_missing=False)
 retail_splits = load_retail_splits(download_if_missing=False)
-
 from optuna import Trial
-
 from ml_toolkit.config import (
-    CommonPlotsConfig,
     FigureConfig,
     FeatureLevelConfig,
-    NumericalFeatureDistributionConfig,
-    RegressionDiagnosticsConfig,
-    RegressionPlotsConfig,
     ReportingConfig,
     ShapConfig,
-    HoldoutConfig,
     TrackingConfig,
     TrainingConfig,
     TuningConfig,
@@ -755,8 +681,6 @@ def severity_metric(
 
 
 severity_config = TrainingConfig(
-    validation=HoldoutConfig(val_size=len(retail_splits.validation)),
-    test_size="2011-10-01",
     tuning=TuningConfig(
         metric="mean_tweedie_deviance",
         direction="minimize",
@@ -765,40 +689,15 @@ severity_config = TrainingConfig(
         seed=42,
     ),
     reporting=ReportingConfig(
-        diagnostics=RegressionDiagnosticsConfig(
-            task="severity",
-            plots=RegressionPlotsConfig(
-                common=CommonPlotsConfig(
-                    figure=FigureConfig(
-                        figsize=None,
-                        dpi=150,
-                        format="png",
-                    ),
-                    features=(FeatureLevelConfig("quantity", "numerical"),),
-                    psi=True,
-                    observed_fitted=True,
-                    period="month",
-                    n_bins=10,
-                    epsilon=1e-6,
-                    numerical_distributions=NumericalFeatureDistributionConfig(
-                        features=None,
-                        quantile_bands=((0.05, 0.95), (0.25, 0.75)),
-                        show_mean=True,
-                        show_median=True,
-                    ),
-                    shap=ShapConfig(
-                        max_samples=500,
-                        seed=42,
-                        max_display=10,
-                        dependence_features=(),
-                    ),
-                ),
-                gains=True,
-                lift=True,
-                time_observed_fitted=True,
-            ),
+        figure=FigureConfig(figsize=None, dpi=150, format="png"),
+        features=(FeatureLevelConfig("quantity", "numerical"),),
+        psi=True,
+        period="month",
+        n_bins=10,
+        epsilon=1e-06,
+        shap=ShapConfig(
+            max_samples=500, seed=42, max_display=10, dependence_features=()
         ),
-        validation_splits="last",
     ),
     tracking=TrackingConfig(
         log_trial_models=False,
@@ -809,6 +708,12 @@ severity_config = TrainingConfig(
         registered_model_name=None,
         conda_env=None,
     ),
+)
+splitter = Holdout(
+    data,
+    val_size=len(retail_splits.validation),
+    test_size="2011-10-01",
+    gap=0,
 )
 config = severity_config
 model_factory = CatBoostLogLinkRegressionModel
@@ -840,7 +745,13 @@ def param_space(trial: Trial) -> ModelParams:
     }
 
 
-prediction_evaluators = None
+prediction_evaluators = [
+    Gains(),
+    Lift(),
+    ObservedFitted(),
+    TimeObservedFitted(),
+    NumericalFeatureDistributions(),
+]
 ```
 
 ## Positive–unlabeled classification
@@ -848,32 +759,34 @@ prediction_evaluators = None
 Targets use `1` for known positives and `0` for unlabeled observations. Each
 training and evaluated sample needs positive weight in both groups. The prior
 is the expected positive fraction in the population, not the labeled fraction.
-Use the same prior in the model and metric. The `0.2` below is an explicit
-configuration assumption, not an estimate from Bike, Retail, or the proportion
-of labeled examples. Replace it with a defensible population prior before
-fitting. These blocks intentionally do not create `data`: provide genuine PU
-observations and recorded timestamps before using the shared training call.
+Use the same prior in the model and metric. Replace the example prior `0.2`
+with an estimate appropriate to your population, and supply `data` containing
+known-positive and unlabeled observations with recorded timestamps.
 
 ### Using the base configuration
 
 <!-- example: configuration-pu -->
 
 ```python
-pu_classification_config = replace(
-    base_config,
-    reporting=ReportingConfig(
-        diagnostics=PUDiagnosticsConfig(
-            plots=PUPlotsConfig(common=replace(common, observed_fitted=False)),
-        ),
-    ),
+from ml_toolkit.evaluation import (
+    PUScoreDistribution,
+    PUPositiveCapture,
+    NumericalFeatureDistributions,
 )
+
+pu_classification_config = replace(base_config, reporting=replace(common))
+splitter = TimeSeriesCV(data, n_splits=3, test_size=0.2)
 config = pu_classification_config
 model_factory = CatBoostPUClassificationModel
 params = {**base_params, "loss": "uPU", "pu_prior": 0.2}
 metric = PUMetric(0.2, loss="uPU")
 feature_selector = None
 param_space = None
-prediction_evaluators = None
+prediction_evaluators = [
+    PUScoreDistribution(),
+    PUPositiveCapture(),
+    NumericalFeatureDistributions(),
+]
 ```
 
 ### Full configuration
@@ -881,17 +794,17 @@ prediction_evaluators = None
 <!-- example: configuration-pu-full -->
 
 ```python
+from ml_toolkit.training import TimeSeriesCV
+from ml_toolkit.evaluation import (
+    PUScoreDistribution,
+    PUPositiveCapture,
+    NumericalFeatureDistributions,
+)
 from optuna import Trial
-
 from ml_toolkit.config import (
-    CommonPlotsConfig,
     FigureConfig,
-    NumericalFeatureDistributionConfig,
-    PUDiagnosticsConfig,
-    PUPlotsConfig,
     ReportingConfig,
     ShapConfig,
-    TimeSeriesCVConfig,
     TrackingConfig,
     TrainingConfig,
     TuningConfig,
@@ -903,14 +816,6 @@ from ml_toolkit.training import importance_ranker
 from ml_toolkit.types import ModelParams
 
 pu_classification_config = TrainingConfig(
-    validation=TimeSeriesCVConfig(
-        n_splits=3,
-        val_size=None,
-        gap=0,
-        max_train_size=None,
-        skip_splits=0,
-    ),
-    test_size=0.2,
     tuning=TuningConfig(
         metric="pu_risk",
         direction="minimize",
@@ -919,39 +824,15 @@ pu_classification_config = TrainingConfig(
         seed=42,
     ),
     reporting=ReportingConfig(
-        diagnostics=PUDiagnosticsConfig(
-            plots=PUPlotsConfig(
-                common=CommonPlotsConfig(
-                    figure=FigureConfig(
-                        figsize=None,
-                        dpi=150,
-                        format="png",
-                    ),
-                    features=None,
-                    psi=True,
-                    observed_fitted=False,
-                    period="month",
-                    n_bins=10,
-                    epsilon=1e-6,
-                    numerical_distributions=NumericalFeatureDistributionConfig(
-                        features=None,
-                        quantile_bands=((0.05, 0.95), (0.25, 0.75)),
-                        show_mean=True,
-                        show_median=True,
-                    ),
-                    shap=ShapConfig(
-                        max_samples=500,
-                        seed=42,
-                        max_display=10,
-                        dependence_features=(),
-                    ),
-                ),
-                score_distribution=True,
-                positive_capture=True,
-                histogram_bins=30,
-            ),
+        figure=FigureConfig(figsize=None, dpi=150, format="png"),
+        features=None,
+        psi=True,
+        period="month",
+        n_bins=10,
+        epsilon=1e-06,
+        shap=ShapConfig(
+            max_samples=500, seed=42, max_display=10, dependence_features=()
         ),
-        validation_splits="last",
     ),
     tracking=TrackingConfig(
         log_trial_models=False,
@@ -962,6 +843,15 @@ pu_classification_config = TrainingConfig(
         registered_model_name=None,
         conda_env=None,
     ),
+)
+splitter = TimeSeriesCV(
+    data,
+    n_splits=3,
+    val_size=None,
+    test_size=0.2,
+    gap=0,
+    max_train_size=None,
+    skip_splits=0,
 )
 config = pu_classification_config
 model_factory = CatBoostPUClassificationModel
@@ -994,14 +884,16 @@ def param_space(trial: Trial) -> ModelParams:
     }
 
 
-prediction_evaluators = None
+prediction_evaluators = [
+    PUScoreDistribution(),
+    PUPositiveCapture(),
+    NumericalFeatureDistributions(),
+]
 ```
 
-PU reports show score distributions and positive capture. They do not treat
-unlabeled rows as confirmed negatives. Shared observed/fitted charts still
-compare the supplied PU labels to predictions; decide whether that comparison
-is useful for your task. Set `common=replace(common, observed_fitted=False)`
-to omit those charts.
+PU reports show score distributions and positive capture. Observed/fitted
+compares supplied labels to predictions; unlabeled rows are not confirmed
+negatives. Include `ObservedFitted()` only when that comparison suits the task.
 
 ## Run the chosen recipe
 
@@ -1020,7 +912,7 @@ from ml_toolkit import train_model
 mlflow.set_tracking_uri("sqlite:///mlflow.db")
 mlflow.set_experiment("ml-toolkit-task-recipes")
 result = train_model(
-    data=data,
+    splitter=splitter,
     params=params,
     model_factory=model_factory,
     metric=metric,
@@ -1042,9 +934,6 @@ print({name: round(value, 4) for name, value in result.test_metrics.items()})
 ```
 <!-- /output -->
 
-The output shown below the example uses the compact Frequency recipe. Choose your task block before running this shared call; its metric
-names and values will differ for other tasks.
-
 The call creates a local `mlflow.db` and logs metrics, configuration, tables,
 and figures. Full recipes also log RFE history, Optuna trials, SHAP figures,
 and the final model. `result.features`, `result.feature_selection`, and
@@ -1058,40 +947,25 @@ and custom evaluators.
 
 ## Inspect a complete run
 
-Run the **Frequency → Full configuration** block, then this example from a
-source checkout with the `shap` extra installed. It uses all 17,379 hourly records
-from the [UCI Bike Sharing dataset](https://archive.ics.uci.edu/dataset/275/bike+sharing+dataset),
-with recorded dates and hours from 2011–2012, eleven weather/calendar features,
-rental counts as targets, and unit weights per recorded hour. The preparation command caches
-the official archive in `.cache/uci-bike-sharing`; example execution requires
-that cache and does not download data. No dates, targets,
-or distribution shifts are synthesized; no rows are sampled before splitting.
-
-The full configuration reserves the latest 20% of rows for test and performs
-three expanding chronological validation splits on the preceding rows.
-Selection and tuning are repeated independently in each split. SHAP uses at
-most 500 actual test rows, sampled with seed 42, and explains the final model's
-raw log-rate output. The preview below is generated by this exact run.
+Run **Frequency → Full configuration**, then this example to inspect selection,
+tuning and SHAP results. It uses the [Bike data prepared above](#prepare-source-data)
+with three chronological validation splits and the latest 20% of rows as test.
+SHAP explains the final model's raw log-rate output for at most 500 test rows,
+sampled with seed 42.
 
 <!-- example: configuration-full-run -->
 
 ```python
 from pathlib import Path
-
 import mlflow
-
-from examples.gallery_data import load_bike_pool
 from ml_toolkit import train_model
 from ml_toolkit.explainability import calculate_shap_values
 from ml_toolkit.plots.explainability import shap_importance
-from ml_toolkit.training import split_holdout
-from ml_toolkit.config import HoldoutConfig
 
-data = load_bike_pool(download_if_missing=False)
 mlflow.set_tracking_uri("sqlite:///mlflow.db")
 mlflow.set_experiment("ml-toolkit-task-recipes")
 result = train_model(
-    data=data,
+    splitter=splitter,
     params=params,
     model_factory=model_factory,
     metric=metric,
@@ -1105,15 +979,16 @@ assert result.feature_selection is not None
 assert result.tuning is not None
 assert result.test_metrics is not None
 print("Selected features:", result.features)
-print("Visited subset sizes:", [
-    len(step.features) for step in result.feature_selection.steps
-])
+print(
+    "Visited subset sizes:",
+    [len(step.features) for step in result.feature_selection.steps],
+)
 print("Best trial:", result.tuning.best_trial)
 print("Test Poisson deviance:", round(result.test_metrics["mean_poisson_deviance"], 4))
-
-test = split_holdout(data, HoldoutConfig(val_size=config.test_size)).val
+test = splitter.get_final().heldout
+assert test is not None
 selected_test = test.select_features(result.features)
-shap_config = config.reporting.diagnostics.plots.common.shap
+shap_config = config.reporting.shap
 explanation = calculate_shap_values(
     result.model.native_model, selected_test.X, config=shap_config
 )
@@ -1134,14 +1009,13 @@ Test Poisson deviance: 114.3487
 `steps` contains every subset evaluated in the last RFE search. A winning subset
 may contain more than `min_features`; RFE retains the best validation score,
 preferring a smaller subset only within `score_tolerance`. `best_trial` is
-zero-based. This small search demonstrates the workflow, not a tuned benchmark.
-The test deviance describes only the untouched future tail.
+zero-based. Test deviance measures error on the held-out future tail.
 
 The MLflow experiment contains all split histories under `selection/history.json`,
 per-trial runs under each split's `tuning` run, final diagnostics under
 `final_fit`, and the packaged final model with its selected input schema.
-SHAP importance and beeswarm figures are under `figures/shap/val/` and
-`figures/shap/test/` in the corresponding runs. `frequency-full-shap.png` is a
+SHAP importance and beeswarm figures are under `shap/val/` and
+`shap/test/` in the corresponding runs. `frequency-full-shap.png` is a
 local preview of the final test importance plot.
 
 Regenerate the captured output and preview with
@@ -1153,16 +1027,15 @@ to execute the examples and detect stale output or a missing/changed figure.
 <!-- example: configuration-splits -->
 
 ```python
-from dataclasses import replace
+from ml_toolkit.training import Holdout
 
-from ml_toolkit.config import HoldoutConfig
-
-holdout_config = replace(regression_config, validation=HoldoutConfig(val_size=0.2))
-no_test_config = replace(holdout_config, test_size=None)
-date_test_config = replace(holdout_config, test_size="2012-10-01")
+holdout = Holdout(data, val_size=0.2, test_size=0.2)
+no_test = Holdout(data, val_size=0.2)
+date_test = Holdout(data, val_size=0.2, test_size="2012-10-01")
 ```
 
-Run the regression configuration block first. `test_size=None` disables test;
+Run the regression configuration block first and pass the chosen object as
+`splitter`. `test_size=None` disables test;
 `result.test_metrics` is then `None`. A date or `YYYY-MM-DD` string starts test
 on that calendar day, inclusive, in the timezone of `data.time`. If that day is
 missing, the next observation starts test. Both partitions must be nonempty;
@@ -1170,68 +1043,57 @@ exact datetimes are not accepted.
 
 ## Shared PSI and observed/fitted diagnostics
 
-Configure both diagnostics in `plots.common`. They share levels fitted on the
-training sample: numerical bins, categories, missing/error sentinels, and valid
-bounds. The following example replaces the regression reports:
+`ReportingConfig.features` and `n_bins` define common levels for PSI and
+`ObservedFitted`: quantile bins, categories, missing/error labels and bounds.
+Levels are fitted on training rows.
 
 <!-- example: configuration-features -->
 
 ```python
 from dataclasses import replace
+from ml_toolkit.config import FeatureLevelConfig, ReportingConfig
+from ml_toolkit.evaluation import ObservedFitted, TimeObservedFitted
 
-from ml_toolkit.config import FeatureLevelConfig
-
-feature_common = CommonPlotsConfig(
-    features=(
-        FeatureLevelConfig("humidity", "numerical", lower_bound=0, upper_bound=1),
-        FeatureLevelConfig("weather", "categorical", null_level="unknown"),
-    ),
-    psi=True,
-    observed_fitted=True,
-    n_bins=8,
-)
 feature_config = replace(
     regression_config,
     reporting=ReportingConfig(
-        diagnostics=RegressionDiagnosticsConfig(
-            plots=RegressionPlotsConfig(common=feature_common),
+        psi=True,
+        features=(
+            FeatureLevelConfig("humidity", "numerical", lower_bound=0, upper_bound=1),
+            FeatureLevelConfig("weather", "categorical", null_level="unknown"),
         ),
+        n_bins=8,
     ),
 )
+feature_reports = [ObservedFitted(), TimeObservedFitted(period="week")]
 ```
 
-`features=None` selects every eligible model feature; `features=()` disables
-both feature-level diagnostics. Explicit names must remain after feature
-selection. Raw numerical distributions are independently configured through
-`numerical_distributions`; set it to `None` to disable them. SHAP defaults off
-in the compact recipes; the full recipes enable it with `ShapConfig`.
-Set `shap=None` to disable it. Empty `dependence_features` disables
-only dependence plots; importance and beeswarm remain enabled. If you name a
-dependence feature, keep it in `protected_features` so selection cannot remove
-it. The same constraint applies to explicit diagnostic feature lists.
+`features=None` infers all model features; `features=()` disables level-based
+PSI and observed/fitted. Explicit names must survive feature selection.
+Numerical distributions use original values and their evaluator's own settings.
+SHAP defaults off; use `ShapConfig` to enable it and protect any explicitly
+requested dependence features from feature selection.
 
-`psi=True` writes score and level-distribution tables, a PSI score figure, and
-time-based level distributions. `observed_fitted=True` writes one figure per feature
-with weighted train and validation/test means and volume bars. Missing or
-zero-weight groups have no mean and break the curve. Each validation split fits
-its own levels; test uses the final training sample as reference.
+Comparison reports use train + val during tuning and validation, or train + test
+after final fitting. Observed/fitted and numerical plots show both samples;
+PSI measures their distribution differences. Train-only runs skip these reports.
+Files are stored under the evaluator's name:
 
-Within each MLflow run, train-versus-validation/test comparisons are grouped under
-`figures/observed_fitted/`, `figures/feature_distributions/`, and `figures/psi/`,
-with PSI tables under `tables/psi/`. These shared artifacts have no `val` or `test`
-subfolder. Performance and SHAP figures describe only the evaluated dataset and
-retain that subfolder under `figures/performance/` and `figures/shap/`.
+| Report | Default artifact paths |
+| --- | --- |
+| Observed/fitted | `observed_fitted/<feature>.png` |
+| Temporal observed/fitted | `time_observed_fitted/time.png` |
+| Numerical distributions | `numerical_feature_distributions/<feature>.png` |
+| PSI | `psi/scores.png`, `psi/scores.json`, distribution tables and temporal plots |
 
-Both flags default to `True` and work independently for every task. The separate
-`time_observed_fitted` flag controls time-based target/prediction charts. Setting
-the enclosing `plots=None` disables all built-in figures and PSI tables.
+`FigureConfig.format` selects the image format.
 
-Set `CommonPlotsConfig(period="week")` to group all temporal diagnostics by week.
-The default is `"month"`; `"minute"`, `"hour"`, `"day"`, `"quarter"`, and `"year"`
-are also supported. Week boundaries are Mondays, and all calendar boundaries
-use the data's timezone. Minute/hour grouping requires `Datetime` inputs.
-Independent PSI analysis accepts the same option in `PSIConfig(period=...)`.
-Temporal diagnostics require the latest reference timestamp to be at or before
-the earliest current timestamp. Equal endpoints are allowed; overlap beyond
-that endpoint or reversed ranges raise `ValueError`. Splitting inside a grouping
-period is allowed.
+PSI shares count rows, observed/fitted uses weights, and numerical distributions
+are unweighted. Observed/fitted means are undefined for sample/level pairs with
+zero total weight.
+
+`ReportingConfig.period` controls temporal PSI only. Each temporal evaluator
+owns its `period`, defaulting to `"month"`. Minute, hour, day, week, quarter and
+year are also supported; weeks begin on Monday and input timezones are kept.
+Minute/hour grouping requires Datetime inputs. Reference timestamps must be at
+or before current timestamps, including when a split falls inside one period.

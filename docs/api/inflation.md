@@ -110,7 +110,6 @@ First held-out prices (GBP/item): [0.85, 7.08, 4.95, 4.25, 4.95]
 The three predictors are product code, country, and purchased quantity. Invoice
 IDs, customer IDs, timestamps, and target-derived amounts are excluded from model
 features. Each invoice line has weight one, so metrics describe line-level prices.
-This is a price-prediction demonstration, not an insurance-claims dataset.
 
 ## Fit an inflation-adjusted regressor
 
@@ -158,10 +157,8 @@ Same item at requested price dates: [1.41, 1.52]
 ```
 <!-- /output -->
 
-The 8% rate is an **assumed conversion policy**, not an estimate of historical UK
-inflation. The date comparison demonstrates the adapter's behavior; it does not
-establish that the assumption improves predictive accuracy. The two requested
-serving dates do not replace any recorded training or evaluation timestamps.
+The 8% annual rate is an assumed conversion policy, not a historical UK
+inflation estimate.
 
 Pool predictions use each row's observation date. Frame predictions require
 `prediction_date`, whose name can be configured on the adapter. With

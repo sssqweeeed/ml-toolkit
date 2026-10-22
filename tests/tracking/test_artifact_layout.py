@@ -1,183 +1,148 @@
-import json
-from dataclasses import replace
-from pathlib import Path
+"""Every bundled report uploads usable files in its own namespace."""
 
-import mlflow
+import json
+
+import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
 import pytest
-from tests.support.training import list_all_artifacts, make_data, setup_mlflow
 
-from ml_toolkit.config import (
-    ClassificationDiagnosticsConfig,
-    ClassificationPlotsConfig,
-    CommonPlotsConfig,
-    FigureConfig,
-    PUDiagnosticsConfig,
-    PUPlotsConfig,
-    RegressionDiagnosticsConfig,
-    RegressionPlotsConfig,
-    ShapConfig,
+from ml_toolkit.config import FigureConfig, ReportingConfig, ShapConfig
+from ml_toolkit.evaluation import (
+    Calibration,
+    F1Threshold,
+    Gains,
+    Lift,
+    NumericalFeatureDistributions,
+    ObservedFitted,
+    PrecisionRecall,
+    PUPositiveCapture,
+    PUScoreDistribution,
+    TimeObservedFitted,
 )
 from ml_toolkit.models import CatBoostRegressionModel
-from ml_toolkit.training import DatasetSplit, reporting
+from ml_toolkit.training.reporting import report_predictions
+from tests.support.training import make_data
 
 
-# Split routing is shared: cover both destinations without rendering every
-# task/format combination twice.
-@pytest.mark.parametrize(
-    "task, format, split",
-    [
-        ("regression", "png", DatasetSplit.VAL),
-        ("classification", "svg", DatasetSplit.TEST),
-        ("pu", "pdf", DatasetSplit.VAL),
-    ],
-)
-def test_diagnostic_layout_preserves_all_images_and_tables(
-    tmp_path, monkeypatch, split, task, format
-):
-    pytest.importorskip("shap")
-    setup_mlflow(tmp_path)
+@pytest.mark.parametrize("format", ["png", "svg", "pdf"])
+@pytest.mark.parametrize("heldout", ["val", "test"])
+def test_all_reports_export_and_cleanup(tmp_path, monkeypatch, format, heldout):
     data = make_data().with_target(pl.Series("target", [0.0, 1.0] * 12))
-    train, current = data.take(range(12)), data.take(range(12, 24))
+    artifacts, directories = {}, set()
+
+    def upload(path, *, artifact_path):
+        assert path.is_file() and path.stat().st_size > 0
+        artifacts[f"{artifact_path}/{path.name}"] = path.read_bytes()
+        directories.add(
+            next(p for p in path.parents if p.name.startswith("ml-toolkit-"))
+        )
+
+    monkeypatch.setattr("ml_toolkit.training.reporting.tracking.log_artifact", upload)
+    config = ReportingConfig(
+        psi=True, figure=FigureConfig(format=format, dpi=72), n_bins=3
+    )
+    evaluators = (
+        PrecisionRecall(),
+        F1Threshold(),
+        Calibration(),
+        Gains(),
+        Lift(),
+        PUScoreDistribution(),
+        PUPositiveCapture(),
+        ObservedFitted(),
+        TimeObservedFitted(),
+        NumericalFeatureDistributions(),
+    )
     model = CatBoostRegressionModel(
         {
-            "thread_count": 1,
-            "iterations": 3,
+            "iterations": 2,
             "depth": 2,
+            "thread_count": 1,
             "verbose": False,
             "allow_writing_files": False,
         }
-    ).fit(train)
-    common = CommonPlotsConfig(
-        n_bins=3,
-        figure=FigureConfig(format=format, dpi=72),
-        shap=ShapConfig(max_samples=12, dependence_features=("x", "unused")),
+    ).fit(data.take(range(12)))
+    report_predictions(
+        model=model,
+        data=data,
+        prediction=np.linspace(0.1, 0.9, 24),
+        split=pl.Series(["train"] * 12 + [heldout] * 12),
+        evaluators=evaluators,
+        config=config,
+        stage="final",
     )
-    if task == "classification":
-        options = ClassificationDiagnosticsConfig(
-            plots=ClassificationPlotsConfig(common=common)
+    for evaluator in evaluators:
+        comparative = isinstance(
+            evaluator,
+            (ObservedFitted, TimeObservedFitted, NumericalFeatureDistributions),
         )
-        performance = {
-            "gains",
-            "lift",
-            "precision_recall",
-            "f1_threshold",
-            "calibration",
-        }
-    elif task == "pu":
-        options = PUDiagnosticsConfig(plots=PUPlotsConfig(common=common))
-        performance = {"score_distribution", "positive_capture"}
-    else:
-        options = RegressionDiagnosticsConfig(
-            plots=RegressionPlotsConfig(common=common, gains=True, lift=True)
+        prefix = evaluator.name + "/" + ("" if comparative else heldout + "/")
+        assert any(
+            key.startswith(prefix)
+            and "/" not in key.removeprefix(prefix)
+            and key.endswith("." + format)
+            for key in artifacts
         )
-        performance = {"gains", "lift"}
-
-    tables = {}
-    original_log_table = reporting.log_polars_table
-
-    def log_table(table, artifact_file):
-        tables[artifact_file] = json.loads(json.dumps(table.to_dicts(), default=str))
-        original_log_table(table, artifact_file)
-
-    monkeypatch.setattr(reporting, "log_polars_table", log_table)
-    with mlflow.start_run() as run:
-        reporting.report_diagnostics(
-            model,
-            train,
-            current,
-            model.predict_pool(train),
-            model.predict_pool(current),
-            options,
-            "layout",
-            split=split,
-        )
-
-    suffix = f".{format}"
-    expected_images = {
-        f"figures/psi/scores{suffix}",
-        f"figures/shap/{split.value}/importance{suffix}",
-        f"figures/shap/{split.value}/beeswarm{suffix}",
-    }
-    feature_directories = (
-        "figures/psi/time_by_feature",
-        "figures/observed_fitted/by_feature",
-        "figures/feature_distributions/time_by_feature",
-        f"figures/shap/{split.value}/dependence",
-    )
-    for directory in feature_directories:
-        expected_images.update(
-            f"{directory}/{feature}{suffix}"
-            for feature in ("000_x", "001_unused")
-        )
-    expected_images.update(
-        f"figures/performance/{split.value}/{name}{suffix}" for name in performance
-    )
-    if task != "pu":
-        expected_images.add(f"figures/observed_fitted/time{suffix}")
-    expected_tables = {
-        f"tables/psi/{name}.json"
-        for name in ("scores", "level_distribution", "time_distribution")
-    }
-    client = mlflow.MlflowClient()
-    assert (
-        set(list_all_artifacts(client, run.info.run_id))
-        == expected_images | expected_tables
-    )
-    download_dir = tmp_path / "download"
-    download_dir.mkdir()
-    downloaded = Path(client.download_artifacts(run.info.run_id, "", str(download_dir)))
-    images = {path: (downloaded / path).read_bytes() for path in expected_images}
-    for content in images.values():
-        if format == "png":
-            assert content.startswith(b"\x89PNG\r\n\x1a\n")
-        elif format == "pdf":
-            assert content.startswith(b"%PDF-")
-        else:
-            assert b"<svg" in content
-    # The same feature filename must retain a distinct image in each category.
-    assert len(
-        {
-            images[f"{directory}/000_x{suffix}"]
-            for directory in feature_directories
-        }
-    ) == len(feature_directories)
-    assert set(tables) == expected_tables
-    for path in expected_tables:
-        assert tables[path]
-        assert json.loads((downloaded / path).read_text()) == {"rows": tables[path]}
-
-
-def test_feature_filenames_preserve_order_and_disambiguate_sanitized_names(
-    tmp_path, monkeypatch
-):
-    setup_mlflow(tmp_path)
-    source = make_data()
-    names = ("x / value", "x ? value", "." * 4, "x" * 80)
-    data = replace(source, X=pl.DataFrame({name: source.X["x"] for name in names}))
-    images = []
-
-    def upload(path, *, artifact_path):
-        assert path.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
-        images.append(f"{artifact_path}/{path.name}")
-
-    monkeypatch.setattr(reporting.tracking, "log_artifact", upload)
-    reporting.report_diagnostics(
-        CatBoostRegressionModel({}),
-        data,
-        data,
-        np.ones(len(data)),
-        np.ones(len(data)),
-        RegressionDiagnosticsConfig(
-            plots=RegressionPlotsConfig(
-                common=CommonPlotsConfig(psi=False, numerical_distributions=None),
-                time_observed_fitted=False,
+        if comparative:
+            assert not any(
+                key.startswith(evaluator.name + "/" + part + "/")
+                for key in artifacts
+                for part in ("val", "test")
             )
-        ),
-        "filenames",
+    assert not any(key.startswith(("psi/val/", "psi/test/")) for key in artifacts)
+    assert {r["feature"] for r in json.loads(artifacts["psi/scores.json"])} == {
+        "x",
+        "unused",
+    }
+    assert not plt.get_fignums()
+    assert all(not folder.exists() for folder in directories)
+
+
+def test_shap_artifacts_and_no_train_only_explanation(tmp_path, monkeypatch):
+    pytest.importorskip("shap")
+    data = make_data()
+    model = CatBoostRegressionModel(
+        {
+            "iterations": 2,
+            "depth": 2,
+            "thread_count": 1,
+            "verbose": False,
+            "allow_writing_files": False,
+        }
+    ).fit(data.take(range(12)))
+    artifacts = []
+    monkeypatch.setattr(
+        "ml_toolkit.training.reporting.tracking.log_artifact",
+        lambda path, artifact_path: artifacts.append(f"{artifact_path}/{path.name}"),
     )
-    assert images == [
-        f"figures/observed_fitted/by_feature/{filename}.png"
-        for filename in ("000_x_value", "001_x_value", "002_feature", "003_" + "x" * 60)
-    ]
+    config = ReportingConfig(shap=ShapConfig(max_samples=5, dependence_features=("x",)))
+    report_predictions(
+        model=model,
+        data=data,
+        prediction=model.predict_pool(data),
+        split=pl.Series(["train"] * 12 + ["test"] * 12),
+        evaluators=(),
+        config=config,
+        stage="final",
+    )
+    assert set(artifacts) == {
+        "shap/test/importance.png",
+        "shap/test/beeswarm.png",
+        "shap/test/dependence/000_x.png",
+    }
+    artifacts.clear()
+    monkeypatch.setattr(
+        "ml_toolkit.explainability.calculate_shap_values",
+        lambda *a, **k: pytest.fail("SHAP on train only"),
+    )
+    report_predictions(
+        model=model,
+        data=data,
+        prediction=model.predict_pool(data),
+        split=pl.Series(["train"] * 24),
+        evaluators=(),
+        config=config,
+        stage="final",
+    )
+    assert artifacts == []

@@ -28,14 +28,14 @@ come from the original date and hour columns.
 <!-- example: models-data -->
 
 ```python
+from ml_toolkit.training import Holdout
 from examples.gallery_data import load_bike_pool
-from ml_toolkit.config import HoldoutConfig
-from ml_toolkit.training import split_holdout
 
 data = load_bike_pool(download_if_missing=False)
-development = split_holdout(data, HoldoutConfig(val_size=0.2))
-split = split_holdout(development.train, HoldoutConfig(val_size=0.25))
-test = development.val
+splitter = Holdout(data, val_size=0.25, test_size=0.2)
+development = splitter.get_final()
+split = next(splitter.get_validation())
+test = development.heldout
 ```
 
 The last 20% of hours are untouched test rows. The preceding observations are
@@ -95,8 +95,7 @@ uses recorded sterling unit prices and invoice timestamps. It keeps a determinis
 approximately 10% sample of eligible invoice groups, excludes cancellations and nonpositive prices
 or quantities, trains before September 2011, validates in September, and tests
 in October–November. Stock code, country and quantity are inputs; price is
-excluded. This is positive price regression, not an insurance severity dataset.
-The model is evaluated only on future transactions.
+excluded.
 
 Gamma minimizes `log(mu) + y / mu`. The toolkit creates its custom objective
 only for training; constructor and refit parameters retain the string `"Gamma"`.
@@ -168,7 +167,7 @@ model = CatBoostRegressionModel(
         "verbose": False,
         "allow_writing_files": False,
     }
-).fit(split.train, split.val)
+).fit(split.train, split.heldout)
 preview = test.take([0, 8, 16, 24, 32])
 future = preview.X
 predictions = model.predict_frame(future)
@@ -198,7 +197,7 @@ from ml_toolkit.models import CatBoostClassificationModel
 
 # A high-demand hour means at least 100 recorded rentals.
 binary_train = split.train.with_target((split.train.y >= 100).cast(pl.Float64))
-binary_validation = split.val.with_target((split.val.y >= 100).cast(pl.Float64))
+binary_validation = split.heldout.with_target((split.heldout.y >= 100).cast(pl.Float64))
 classifier = CatBoostClassificationModel(
     {
         "iterations": 40,
@@ -294,7 +293,9 @@ native = lgb.LGBMRegressor(
 features = split.train.to_model_input()
 for column in split.train.cat_features:
     features[column] = features[column].astype("category")
-native.fit(features, split.train.y.to_numpy(), sample_weight=split.train.weight.to_numpy())
+native.fit(
+    features, split.train.y.to_numpy(), sample_weight=split.train.weight.to_numpy()
+)
 wrapper = LightGBMServingModel(
     native,
     numerical_features=split.train.numerical_features,

@@ -1,7 +1,7 @@
 # Plots
 
 Use plotting functions with existing predictions, or enable figures through
-`reporting.diagnostics` in the [training configuration](../configuration.md).
+`prediction_evaluators` in the [training configuration](../configuration.md).
 Each saving function creates parent directories, writes the figure, and closes
 it. `binary_curves` only calculates a table.
 
@@ -10,7 +10,7 @@ it. `binary_curves` only calculates a table.
 | Question | Functions |
 | --- | --- |
 | How do precision, recall, F1, and calibration behave? | `classification.precision_recall`, `f1_threshold`, `calibration` |
-| Where do predictions differ from observations? | `regression.observed_fitted`, `observed_fitted_by_level`, `time_observed_fitted` |
+| Where do predictions differ from observations? | `observed_fitted_by_level`, `time_observed_fitted` |
 | How much outcome is captured at a given capacity? | `ranking.gains_curve`, `lift_curve` |
 | How are known positives ranked among unlabeled rows? | `pu.score_distribution`, `positive_capture` |
 | Which feature distributions have shifted? | `psi.feature_psi_plot`, `time_psi_level_distribution` |
@@ -84,7 +84,9 @@ current_time = bikes.current.time.to_list()
 output = Path("figures")
 figure = FigureConfig(dpi=150)
 print(f"Digits: {len(digits.train_indices)} training / {len(observed)} held-out images")
-print(f"Bikes: {len(bikes.train_indices)} training / {len(reference)} reference / {len(current)} current hours")
+print(
+    f"Bikes: {len(bikes.train_indices)} training / {len(reference)} reference / {len(current)} current hours"
+)
 ```
 
 <!-- output: plots-setup -->
@@ -162,14 +164,8 @@ limit reduces the displayed curve.
 
 <!-- example: plots-calibration -->
 ```python
-from ml_toolkit.config import ClassificationPlotsConfig
-
 calibration_table = classification.calibration(
-    observed,
-    probabilities,
-    output / "calibration.png",
-    config=ClassificationPlotsConfig(calibration_bins=10),
-    figure=figure,
+    observed, probabilities, output / "calibration.png", figure=figure
 )
 print(calibration_table.round(3).to_string(index=False))
 ```
@@ -198,51 +194,13 @@ These classification plots use supplied sample weights and require confirmed gro
 
 ## Observed versus fitted
 
-Compare actual hourly bike rentals with the model's predictions. First group
-the reference period into ten temperature quantiles. The returned pandas table
-contains mean `observed`, mean `fitted`, and `volume` for every feature bin;
-without explicit weights, volume is its number of recorded hours.
-
-<!-- example: plots-observed-fitted -->
-```python
-from ml_toolkit.plots import regression
-
-by_feature = regression.observed_fitted(
-    reference["temperature"].to_numpy(),
-    reference_y,
-    reference_prediction,
-    output / "observed-fitted.png",
-    feature_name="Normalized temperature",
-    n_bins=10,
-    figure=figure,
-)
-print(by_feature.round(2).to_string(index=False))
-```
-
-<!-- output: plots-observed-fitted -->
-```text
-     feature  observed  fitted  volume
-(0.139, 0.3]     84.05   76.85   497.0
- (0.3, 0.36]    122.88  109.56   456.0
-(0.36, 0.42]    143.49  131.78   392.0
- (0.42, 0.5]    148.08  147.52   515.0
- (0.5, 0.56]    170.36  172.74   431.0
-(0.56, 0.62]    147.20  148.69   451.0
-(0.62, 0.66]    157.61  166.41   391.0
-(0.66, 0.72]    192.97  200.96   514.0
-(0.72, 0.78]    242.87  248.28   367.0
-(0.78, 0.96]    258.20  278.82   381.0
-```
-<!-- /output -->
-
-![Observed and predicted hourly bike rentals across ten reference-temperature bins.](../assets/plots/observed-fitted.png)
-
-For comparable reference/current groups, fit levels once on the reference and
-reuse the same boundaries in the current period. Each level aggregates
-hundreds of recorded hours rather than isolated examples.
+Fit feature levels on reference rows and reuse them for both samples.
+The shared `LevelTransformer` supplies the same rules used by PSI, including
+missing and unseen categories. Means and volumes use supplied row weights.
 
 <!-- example: plots-observed-fitted-levels -->
 ```python
+from ml_toolkit.plots import regression
 from ml_toolkit.config import FeatureLevelConfig
 from ml_toolkit.feature_levels import LevelTransformer
 
@@ -303,7 +261,9 @@ temporal = regression.time_observed_fitted(
 )
 summary = temporal[["period_start", "split", "observed", "fitted", "volume"]]
 print(summary.head(6).round({"observed": 2, "fitted": 2}).to_string(index=False))
-print(f"Monthly summaries: {len(temporal)}; minimum hours per month: {int(temporal.volume.min())}")
+print(
+    f"Monthly summaries: {len(temporal)}; minimum hours per month: {int(temporal.volume.min())}"
+)
 ```
 
 <!-- output: plots-time-observed-fitted -->
@@ -321,12 +281,8 @@ Monthly summaries: 18; minimum hours per month: 692
 
 ![Monthly actual and predicted bike rental means across recorded July 2011–December 2012 hours.](../assets/plots/time-observed-fitted.png)
 
-This uses the six actual reference months and twelve actual current months.
-Each point summarizes hundreds of hours. The model was fitted before both
-periods, so the gap includes genuine later-period prediction error. Changes
-in weather, calendar mix, and demand can all affect these comparisons;
-a figure alone does not establish a cause. The simple RMSE fit permits negative
-individual predictions; the gallery preserves its raw outputs.
+Each monthly point summarizes hundreds of held-out hours. The RMSE model can
+produce negative predictions; plots use its raw outputs.
 
 The temporal table contains `period_start`, the calendar-period start used
 for positioning. Dates retain their original time zone and calendar boundaries. Optional group Series add
@@ -354,7 +310,12 @@ ranking.gains_curve(ranked, output / "gains.png", figure=figure)
 <!-- example: plots-lift -->
 ```python
 ranking.lift_curve(ranked, output / "lift.png", figure=figure)
-print([(point.percent, round(point.gain, 3), round(point.lift, 3)) for point in ranked.selected_points])
+print(
+    [
+        (point.percent, round(point.gain, 3), round(point.lift, 3))
+        for point in ranked.selected_points
+    ]
+)
 ```
 
 <!-- output: plots-lift -->
@@ -375,8 +336,7 @@ Use the [original LINQS Cora archive](https://linqs-data.soe.ucsc.edu/public/lbc
 for an observed-link retrieval example: 2,708 real papers, their 1,433 binary
 word indicators, and all 5,429 recorded directed citations. Recorded links are
 known positives. The loader selects 20,000 distinct unrecorded directed pairs
-as unverified candidates; their citation status is unknown. It never hides
-recorded links or generates replacement labels.
+as unverified candidates; their citation status is unknown.
 
 Scores are cosine similarities between the source word vectors. They are
 retrieval scores in `[0, 1]`, without a probability interpretation or fitted PU
@@ -387,19 +347,16 @@ estimate citation prevalence.
 <!-- example: plots-pu-distribution -->
 ```python
 from examples.citation_data import load_citation_gallery
-from ml_toolkit.config import PUPlotsConfig
 from ml_toolkit.plots import pu
 
 citations = load_citation_gallery(download_if_missing=False)
-pu_labels, pu_scores = citations.labels, citations.scores
+pu_labels, pu_scores = (citations.labels, citations.scores)
 pu.score_distribution(
-    pu_labels,
-    pu_scores,
-    output / "pu-distribution.png",
-    config=PUPlotsConfig(histogram_bins=30),
-    figure=figure,
+    pu_labels, pu_scores, output / "pu-distribution.png", figure=figure
 )
-print(f"Cora: {citations.paper_count} papers, {citations.known_citation_count} recorded citations, {citations.unlabeled_pair_count} unverified candidate pairs")
+print(
+    f"Cora: {citations.paper_count} papers, {citations.known_citation_count} recorded citations, {citations.unlabeled_pair_count} unverified candidate pairs"
+)
 ```
 
 <!-- output: plots-pu-distribution -->
@@ -444,11 +401,21 @@ so January–June month categories in 2012 use the unseen level.
 from ml_toolkit.psi import PSIAnalysis, PSIConfig
 from ml_toolkit.plots import psi
 
-categorical_features = {"hour", "working_day", "weekday", "holiday", "season", "weather", "month"}
+categorical_features = {
+    "hour",
+    "working_day",
+    "weekday",
+    "holiday",
+    "season",
+    "weather",
+    "month",
+}
 analysis = PSIAnalysis(
     PSIConfig(
         features=tuple(
-            FeatureLevelConfig(name, "categorical" if name in categorical_features else "numerical")
+            FeatureLevelConfig(
+                name, "categorical" if name in categorical_features else "numerical"
+            )
             for name in reference.columns
         ),
         n_bins=10,
@@ -456,7 +423,13 @@ analysis = PSIAnalysis(
 ).fit(reference, time=bikes.reference.time)
 comparison = analysis.compare(current, time=bikes.current.time)
 psi.feature_psi_plot(comparison.psi, output / "psi-scores.png", figure=figure)
-print(comparison.psi.sort("psi", descending=True).head(5).with_columns(pl.col("psi").round(3)).write_csv(), end="")
+print(
+    comparison.psi.sort("psi", descending=True)
+    .head(5)
+    .with_columns(pl.col("psi").round(3))
+    .write_csv(),
+    end="",
+)
 ```
 
 <!-- output: plots-psi-scores -->
@@ -494,9 +467,7 @@ from `PSIAnalysis`; see the [PSI guide](psi.md) for their schemas and reuse.
 
 ## Numerical distributions over time
 
-Inspect actual humidity distributions alongside the rental-prediction plots.
-This exposes the seasonal range of a measured covariate without inventing a
-time axis.
+Inspect seasonal humidity distributions alongside rental predictions.
 
 <!-- example: plots-time-humidity -->
 ```python
@@ -510,7 +481,13 @@ time_distribution = monitoring.time_feature_distribution(
     output / "time-humidity.png",
     figure=figure,
 )
-print(time_distribution.select("period_start", "split", "p50", "mean").head(6).with_columns(pl.col("mean").round(3)).write_csv(), end="")
+print(
+    time_distribution.select("period_start", "split", "p50", "mean")
+    .head(6)
+    .with_columns(pl.col("mean").round(3))
+    .write_csv(),
+    end="",
+)
 ```
 
 <!-- output: plots-time-humidity -->
@@ -529,7 +506,7 @@ period_start,split,p50,mean
 
 The Polars result contains one row per recorded period and sample. By default
 the plot shows 5–95% and 25–75% bands, median, and mean. Pass
-`NumericalFeatureDistributionConfig` to choose bands or hide curves.
+the `quantile_bands`, `show_mean` and `show_median` arguments to choose bands or hide curves.
 Summaries are unweighted; null/non-finite feature values are omitted.
 
 For a shorter calendar interval, use the same recorded timestamps with
@@ -540,10 +517,19 @@ For a shorter calendar interval, use the same recorded timestamps with
 weekly_distribution = monitoring.time_feature_distribution(
     reference.with_columns(bikes.reference.time.alias("timestamp")),
     current.with_columns(bikes.current.time.alias("timestamp")),
-    "humidity", "timestamp", output / "time-humidity-week.png",
-    period="week", figure=figure,
+    "humidity",
+    "timestamp",
+    output / "time-humidity-week.png",
+    period="week",
+    figure=figure,
 )
-print(weekly_distribution.select("period_start", "split", "p50", "mean").head(3).with_columns(pl.col("mean").round(3)).write_csv(), end="")
+print(
+    weekly_distribution.select("period_start", "split", "p50", "mean")
+    .head(3)
+    .with_columns(pl.col("mean").round(3))
+    .write_csv(),
+    end="",
+)
 ```
 
 <!-- output: plots-weekly-humidity -->
@@ -559,8 +545,7 @@ period_start,split,p50,mean
 
 ## Feature importance
 
-Use the fitted bike model's native feature importance values. These summarize
-the actual model and are not manually assigned scores.
+Use the fitted bike model's native feature importance values.
 
 <!-- example: plots-feature-importance -->
 ```python
@@ -596,9 +581,8 @@ you supply its importance values.
 
 ## Plot SHAP explanations
 
-Install the optional `shap` extra. Explain 600 genuine held-out bike hours
-with the same model used for the regression plots; no synthetic targets or
-separately invented model are involved.
+Install the optional `shap` extra. Explain 600 held-out bike hours with the
+regression model.
 
 <!-- example: plots-shap-importance -->
 ```python
@@ -686,7 +670,7 @@ accepted inputs, returned tables, and validation constraints.
     options:
       show_root_heading: false
       heading_level: 4
-      members: [observed_fitted, observed_fitted_by_level, time_observed_fitted]
+      members: [observed_fitted_by_level, time_observed_fitted]
 
 ### Ranking
 

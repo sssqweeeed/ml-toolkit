@@ -1,31 +1,23 @@
-"""Train with a project-owned data object and inspect MLflow artifacts."""
+from ml_toolkit.training import TimeSeriesCV
+from ml_toolkit.evaluation import (
+    PrecisionRecall,
+    Calibration,
+    PUScoreDistribution,
+    PUPositiveCapture,
+)
 
+"""Train with a project-owned data object and inspect MLflow artifacts."""
 import json
 import logging
 from datetime import date
 from functools import partial
 from pathlib import Path
-
 import mlflow
 import numpy as np
 import polars as pl
 import pytest
-
 from ml_toolkit.feature_selection import RFESelector
-from ml_toolkit.config import (
-    ClassificationDiagnosticsConfig,
-    ClassificationPlotsConfig,
-    CommonPlotsConfig,
-    NumericalFeatureDistributionConfig,
-    PUDiagnosticsConfig,
-    PUPlotsConfig,
-    RegressionDiagnosticsConfig,
-    RegressionPlotsConfig,
-    ReportingConfig,
-    ShapConfig,
-    TimeSeriesCVConfig,
-    TrainingConfig,
-)
+from ml_toolkit.config import ReportingConfig, ShapConfig, TrainingConfig
 from ml_toolkit.explainability import calculate_shap_values, top_shap_features
 from ml_toolkit.inflation import ConstantRateInflation
 from ml_toolkit.metrics import PUMetric, metrics_classification, metrics_severity
@@ -42,8 +34,6 @@ from ml_toolkit.plots.explainability import (
     shap_importance,
 )
 from ml_toolkit.training import importance_ranker, train_model
-
-
 from tests.support.training import (
     ProjectData,
     MeanModel,
@@ -76,12 +66,12 @@ def recording_model():
 def test_train_model_selection_and_mlflow(tmp_path):
     setup_mlflow(tmp_path)
     result = train_model(
-        data=make_data(),
+        splitter=TimeSeriesCV(make_data(), n_splits=2),
         params={"unused_param": 1},
         model_factory=MeanModel,
         metric=mae,
         run_name="example",
-        config=TrainingConfig(validation=TimeSeriesCVConfig(n_splits=2)),
+        config=TrainingConfig(),
         feature_selector=RFESelector(
             ranker=importance_ranker, min_features=1, metric="mae", direction="minimize"
         ),
@@ -113,14 +103,12 @@ def test_feature_selection_uses_each_evaluated_split_training_rows(
     setup_mlflow(tmp_path)
     model_factory, calls = recording_model()
     result = train_model(
-        data=make_data(),
+        splitter=TimeSeriesCV(make_data(), n_splits=2, skip_splits=skip_splits),
         params={},
         model_factory=model_factory,
         metric=mae,
         run_name="early-selection",
-        config=TrainingConfig(
-            validation=TimeSeriesCVConfig(n_splits=2, skip_splits=skip_splits)
-        ),
+        config=TrainingConfig(),
         feature_selector=RFESelector(
             ranker=importance_ranker, min_features=1, metric="mae", direction="minimize"
         ),
@@ -140,12 +128,12 @@ def test_training_without_feature_selection_keeps_all_features(tmp_path):
     setup_mlflow(tmp_path)
     model_factory, calls = recording_model()
     result = train_model(
-        data=make_data(),
+        splitter=TimeSeriesCV(make_data(), n_splits=2),
         params={},
         model_factory=model_factory,
         metric=mae,
         run_name="no-selection",
-        config=TrainingConfig(validation=TimeSeriesCVConfig(n_splits=2)),
+        config=TrainingConfig(),
     )
 
     assert calls["fit"] == [("x", "unused")] * 3
@@ -155,12 +143,12 @@ def test_training_without_feature_selection_keeps_all_features(tmp_path):
 def test_feature_selection_accepts_single_row_training_window(tmp_path):
     setup_mlflow(tmp_path)
     result = train_model(
-        data=make_data().take(np.arange(3)),
+        splitter=TimeSeriesCV(make_data().take(np.arange(3)), n_splits=2),
         params={},
         model_factory=MeanModel,
         metric=mae,
         run_name="small-selection-window",
-        config=TrainingConfig(validation=TimeSeriesCVConfig(n_splits=2)),
+        config=TrainingConfig(),
         feature_selector=RFESelector(
             ranker=importance_ranker, min_features=1, metric="mae", direction="minimize"
         ),
@@ -177,86 +165,20 @@ def test_training_rejects_unsorted_project_data(tmp_path):
     reversed_rows = source.take(np.arange(len(source))[::-1])
     with pytest.raises(ValueError, match="ascending timestamps"):
         train_model(
-            data=reversed_rows,
+            splitter=TimeSeriesCV(reversed_rows, n_splits=2),
             params={},
             model_factory=MeanModel,
             metric=mae,
             run_name="invalid",
-            config=TrainingConfig(validation=TimeSeriesCVConfig(n_splits=2)),
+            config=TrainingConfig(),
         )
-
-
-def test_training_logs_psi_and_plots(tmp_path, caplog):
-    setup_mlflow(tmp_path)
-    caplog.set_level(logging.DEBUG, logger="ml_toolkit")
-    train_model(
-        data=make_data(),
-        params={},
-        model_factory=MeanModel,
-        metric=mae,
-        run_name="diagnostics",
-        config=TrainingConfig(
-            validation=TimeSeriesCVConfig(n_splits=2),
-            reporting=ReportingConfig(
-                diagnostics=RegressionDiagnosticsConfig(
-                    task="regression",
-                    plots=RegressionPlotsConfig(
-                        common=CommonPlotsConfig(
-                            n_bins=3,
-                            numerical_distributions=NumericalFeatureDistributionConfig(
-                                features=("x",)
-                            ),
-                        ),
-                    ),
-                ),
-                validation_splits="all",
-            ),
-        ),
-    )
-    runs = mlflow.search_runs(output_format="list")
-    folds = [
-        run
-        for run in runs
-        if run.data.tags.get("mlflow.runName", "").startswith("validation/split_")
-    ]
-    assert {run.data.tags["mlflow.runName"] for run in folds} == {
-        "validation/split_1",
-        "validation/split_2",
-    }
-    for fold in folds:
-        artifacts = list_all_artifacts(mlflow.MlflowClient(), fold.info.run_id)
-        assert set(artifacts) == {
-            "tables/psi/scores.json",
-            "tables/psi/level_distribution.json",
-            "tables/psi/time_distribution.json",
-            "figures/psi/scores.png",
-            "figures/psi/time_by_feature/000_x.png",
-            "figures/psi/time_by_feature/001_unused.png",
-            "figures/observed_fitted/time.png",
-            "figures/observed_fitted/by_feature/000_x.png",
-            "figures/observed_fitted/by_feature/001_unused.png",
-            "figures/feature_distributions/time_by_feature/000_x.png",
-        }
-    messages = [
-        record.getMessage()
-        for record in caplog.records
-        if record.name == "ml_toolkit.training.reporting"
-    ]
-    assert any(
-        message.startswith("Generating diagnostics for validation/split_1")
-        for message in messages
-    )
-    assert (
-        "Logged diagnostic figure figures/psi/scores.png for validation/split_1"
-        in messages
-    )
 
 
 @pytest.mark.parametrize("loss", ["Poisson", "Gamma"])
 def test_bundled_catboost_model_runs_through_training(tmp_path, loss):
     setup_mlflow(tmp_path)
     result = train_model(
-        data=make_data(),
+        splitter=TimeSeriesCV(make_data(), n_splits=2),
         model_factory=(
             CatBoostLogLinkRegressionModel
             if loss == "Gamma"
@@ -273,7 +195,7 @@ def test_bundled_catboost_model_runs_through_training(tmp_path, loss):
         },
         metric=partial(metrics_severity, power=2.0) if loss == "Gamma" else mae,
         run_name="catboost",
-        config=TrainingConfig(validation=TimeSeriesCVConfig(n_splits=2)),
+        config=TrainingConfig(),
     )
     prediction = result.model.predict_pool(make_data())
     assert prediction.shape == (24,)
@@ -294,7 +216,7 @@ def test_bundled_classifier_and_classification_diagnostics(tmp_path):
         source.X, pl.Series("target", [0, 1] * 12), source.time, source.weight
     )
     result = train_model(
-        data=binary,
+        splitter=TimeSeriesCV(binary, n_splits=2),
         model_factory=CatBoostClassificationModel,
         params={
             "iterations": 5,
@@ -307,40 +229,29 @@ def test_bundled_classifier_and_classification_diagnostics(tmp_path):
         },
         metric=metrics_classification,
         run_name="classification",
-        config=TrainingConfig(
-            validation=TimeSeriesCVConfig(n_splits=2),
-            reporting=ReportingConfig(
-                diagnostics=ClassificationDiagnosticsConfig(
-                    plots=ClassificationPlotsConfig(
-                        common=CommonPlotsConfig(
-                            n_bins=3,
-                            numerical_distributions=NumericalFeatureDistributionConfig(
-                                features=()
-                            ),
-                        ),
-                    ),
-                ),
-                validation_splits="all",
-            ),
-        ),
+        prediction_evaluators=[PrecisionRecall(), Calibration()],
+        config=TrainingConfig(reporting=ReportingConfig(n_bins=3, psi=True)),
     )
     assert result.model.predict_pool(binary).shape == (24,)
     runs = mlflow.search_runs(output_format="list")
     fold = next(
-        run
-        for run in runs
-        if run.data.tags.get("mlflow.runName") == "validation/split_1"
+        (
+            run
+            for run in runs
+            if run.data.tags.get("mlflow.runName") == "validation/split_1"
+        )
     )
     artifacts = list_all_artifacts(mlflow.MlflowClient(), fold.info.run_id)
-    assert "figures/performance/val/precision_recall.png" in artifacts
-    assert "figures/performance/val/calibration.png" in artifacts
-    for path in artifacts:
-        if path.startswith("figures/performance/"):
-            assert path.split("/")[2] == "val"
-        else:
-            assert path.split("/")[2] not in {"val", "test"}
+    assert "precision_recall/val/precision_recall.png" in artifacts
+    assert "calibration/val/calibration.png" in artifacts
+    assert all(
+        path.split("/")[1] == "val"
+        for path in artifacts
+        if path.split("/")[0] in {"precision_recall", "calibration"}
+    )
+    assert "psi/scores.json" in artifacts
     final = next(
-        run for run in runs if run.data.tags.get("mlflow.runName") == "final_fit"
+        (run for run in runs if run.data.tags.get("mlflow.runName") == "final_fit")
     )
     loaded = mlflow.pyfunc.load_model(f"runs:/{final.info.run_id}/model")
     loaded_prediction = np.asarray(loaded.predict(binary.to_model_input()))
@@ -351,8 +262,14 @@ def test_inflation_model_and_shap_are_available(tmp_path, caplog):
     caplog.set_level(logging.DEBUG, logger="ml_toolkit")
     data = make_data()
     regression = CatBoostRegressionModel(
-        {"iterations": 5, "loss_function": "Poisson", "depth": 2, "verbose": False,
-         "thread_count": 1, "allow_writing_files": False}
+        {
+            "iterations": 5,
+            "loss_function": "Poisson",
+            "depth": 2,
+            "verbose": False,
+            "thread_count": 1,
+            "allow_writing_files": False,
+        }
     )
     adjusted = InflationAdjustedModel(
         regression, ConstantRateInflation(0.03), date(2024, 1, 1)
@@ -422,42 +339,30 @@ def test_pu_training_logs_only_pu_diagnostics(tmp_path):
         "logging_level": "Silent",
     }
     result = train_model(
-        data=binary,
+        splitter=TimeSeriesCV(binary, n_splits=2),
         model_factory=CatBoostPUClassificationModel,
         params=params,
         metric=PUMetric(0.5, loss="uPU"),
         run_name="pu",
-        config=TrainingConfig(
-            validation=TimeSeriesCVConfig(n_splits=2),
-            reporting=ReportingConfig(
-                diagnostics=PUDiagnosticsConfig(
-                    plots=PUPlotsConfig(
-                        common=CommonPlotsConfig(
-                            n_bins=3,
-                            psi=False,
-                            observed_fitted=False,
-                            numerical_distributions=NumericalFeatureDistributionConfig(
-                                features=()
-                            ),
-                        ),
-                    ),
-                ),
-                validation_splits="all",
-            ),
-        ),
+        prediction_evaluators=[PUScoreDistribution(), PUPositiveCapture()],
+        config=TrainingConfig(reporting=ReportingConfig(n_bins=3, psi=False)),
     )
     assert "pu_risk" in result.validation.mean_metrics
     runs = mlflow.search_runs(output_format="list")
     fold = next(
-        run
-        for run in runs
-        if run.data.tags.get("mlflow.runName") == "validation/split_1"
+        (
+            run
+            for run in runs
+            if run.data.tags.get("mlflow.runName") == "validation/split_1"
+        )
     )
     artifacts = list_all_artifacts(mlflow.MlflowClient(), fold.info.run_id)
-    assert "figures/performance/val/score_distribution.png" in artifacts
-    assert "figures/performance/val/positive_capture.png" in artifacts
-    assert all(path.split("/")[2] == "val" for path in artifacts)
+    assert "pu_score_distribution/val/pu_score_distribution.png" in artifacts
+    assert "pu_positive_capture/val/pu_positive_capture.png" in artifacts
+    assert all((path.split("/")[1] == "val" for path in artifacts))
     assert not any(
-        path.endswith(("precision_recall.png", "calibration.png", "gains.png"))
-        for path in artifacts
+        (
+            path.endswith(("precision_recall.png", "calibration.png", "gains.png"))
+            for path in artifacts
+        )
     )

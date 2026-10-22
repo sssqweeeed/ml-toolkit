@@ -1,233 +1,226 @@
-from dataclasses import replace
+"""Shared level semantics with independent, stateless report fits."""
 
+from dataclasses import replace
 import numpy as np
+import polars as pl
 import pytest
 
-from tests.support.training import MeanModel, make_data
-from ml_toolkit.config import (
-    ClassificationDiagnosticsConfig,
-    ClassificationPlotsConfig,
-    CommonPlotsConfig,
-    FeatureLevelConfig,
-    PUDiagnosticsConfig,
-    PUPlotsConfig,
-    RegressionDiagnosticsConfig,
-    RegressionPlotsConfig,
+from ml_toolkit.config import ReportingConfig, FigureConfig
+from ml_toolkit.evaluation import (
+    ObservedFitted,
+    TimeObservedFitted,
+    NumericalFeatureDistributions,
+    Calibration,
+    PrecisionRecall,
+    F1Threshold,
+    Gains,
+    Lift,
+    PUScoreDistribution,
+    PUPositiveCapture,
 )
-from ml_toolkit.feature_levels import LevelTransformer
-from ml_toolkit.training import DatasetSplit
-from ml_toolkit.training import reporting
-
-
-def diagnostics_for(task, common):
-    if task == "classification":
-        return ClassificationDiagnosticsConfig(
-            plots=ClassificationPlotsConfig(
-                common=common,
-                precision_recall=False,
-                f1_threshold=False,
-                calibration=False,
-                gains=False,
-                lift=False,
-                time_observed_fitted=False,
-            )
-        )
-    if task == "pu":
-        return PUDiagnosticsConfig(
-            plots=PUPlotsConfig(
-                common=common, score_distribution=False, positive_capture=False
-            )
-        )
-    return RegressionDiagnosticsConfig(
-        plots=RegressionPlotsConfig(common=common, time_observed_fitted=False)
-    )
+from ml_toolkit.feature_levels import FeatureLevelConfig, LevelTransformer
+from ml_toolkit.training.reporting import report_predictions
+from tests.support.training import MeanModel, make_data
 
 
 @pytest.mark.parametrize(
-    "task,psi,observed_fitted",
-    [
-        ("regression", True, True),
-        ("regression", True, False),
-        ("regression", False, True),
-        ("regression", False, False),
-        ("classification", True, True),
-        ("pu", True, True),
-    ],
+    "psi,observed", [(True, True), (True, False), (False, True), (False, False)]
 )
-def test_shared_diagnostics_switches_and_single_reference_fit(
-    monkeypatch, task, psi, observed_fitted
-):
+def test_independent_fits_produce_identical_train_levels(monkeypatch, psi, observed):
     data = make_data()
-    train, current = data.take(range(12)), data.take(range(12, 24))
-    artifacts, tables, fits, transforms, comparisons, summaries = [], {}, [], [], [], []
-    original_fit = LevelTransformer.fit
-    original_transform = LevelTransformer.transform
-    original_compare = reporting.compare_psi
-    original_plot = reporting.regression.observed_fitted_by_level
+    data = replace(
+        data,
+        X=data.X.with_columns(
+            pl.Series("unused", ["a", "b", None] * 4 + ["unseen"] * 12)
+        ),
+        cat_features=("unused",),
+    )
+    split = pl.Series(["train"] * 12 + ["test"] * 12)
+    levels, artifacts, summaries = [], [], []
+    fit = LevelTransformer.fit
 
-    def fit(self, frame):
-        fits.append(frame)
-        return original_fit(self, frame)
-
-    def transform(self, frame):
-        result = original_transform(self, frame)
-        transforms.append(result)
+    def capture(self, frame):
+        assert frame.equals(data.X.head(12))
+        result = fit(self, frame)
+        levels.append(self.feature_levels)
         return result
 
-    def compare(reference, current, config, **kwargs):
-        comparisons.append((reference, current, config))
-        return original_compare(reference, current, config, **kwargs)
+    import ml_toolkit.evaluation as evaluation
+
+    original = evaluation.regression.observed_fitted_by_level
 
     def plot(*args, **kwargs):
-        summary = original_plot(*args, **kwargs)
-        summaries.append((args, kwargs, summary))
-        return summary
+        result = original(*args, **kwargs)
+        summaries.append(result)
+        return result
 
-    def log_artifact(path, *, artifact_path):
-        assert path.is_file() and path.stat().st_size > 0
-        artifacts.append(f"{artifact_path}/{path.name}")
-
-    monkeypatch.setattr(LevelTransformer, "fit", fit)
-    monkeypatch.setattr(LevelTransformer, "transform", transform)
-    monkeypatch.setattr(reporting, "compare_psi", compare)
-    monkeypatch.setattr(reporting.regression, "observed_fitted_by_level", plot)
-    monkeypatch.setattr(reporting.tracking, "log_artifact", log_artifact)
+    monkeypatch.setattr(LevelTransformer, "fit", capture)
+    monkeypatch.setattr(evaluation.regression, "observed_fitted_by_level", plot)
     monkeypatch.setattr(
-        reporting, "log_polars_table", lambda table, path: tables.update({path: table})
+        "ml_toolkit.training.reporting.tracking.log_artifact",
+        lambda path, artifact_path: artifacts.append(f"{artifact_path}/{path.name}"),
     )
-    common = CommonPlotsConfig(
+    reporting = ReportingConfig(
+        psi=psi,
+        n_bins=3,
         features=(
             FeatureLevelConfig("unused", "categorical"),
             FeatureLevelConfig("x", "numerical"),
         ),
-        psi=psi,
-        observed_fitted=observed_fitted,
-        n_bins=3,
-        numerical_distributions=None,
     )
-    reporting.report_diagnostics(
-        MeanModel({}),
-        train,
-        current,
-        np.full(len(train), 2.0),
-        np.full(len(current), 3.0),
-        diagnostics_for(task, common),
-        "test",
-        split=DatasetSplit.TEST,
+    evaluators = (ObservedFitted(),) if observed else ()
+    report_predictions(
+        model=MeanModel({}),
+        data=data,
+        prediction=np.ones(len(data)),
+        split=split,
+        evaluators=evaluators,
+        config=reporting,
+        stage="final",
     )
-    if psi or observed_fitted:
-        assert len(fits) == 1 and fits[0].equals(train.X)
-        assert len(transforms) == 2
-    else:
-        assert not fits and not transforms
-    assert bool(tables) == psi
-    if psi:
-        assert tables["tables/psi/scores.json"]["feature"].to_list() == [
-            "unused",
-            "x",
-        ]
-        assert comparisons[0][0] is transforms[0]
-        assert comparisons[0][1] is transforms[1]
-        assert "figures/psi/time_by_feature/000_unused.png" in artifacts
-        assert "figures/psi/time_by_feature/001_x.png" in artifacts
-    else:
-        assert not comparisons
-    assert len(summaries) == (2 if observed_fitted else 0)
-    if observed_fitted:
-        assert "figures/observed_fitted/by_feature/000_unused.png" in artifacts
-        assert "figures/observed_fitted/by_feature/001_x.png" in artifacts
-        for args, kwargs, summary in summaries:
-            name = kwargs["feature_name"]
-            assert args[0].equals(transforms[0][name])
-            assert args[3].equals(transforms[1][name])
-            assert kwargs["current_label"] == "Test"
-            assert (
-                summary.loc[summary["sample"] == "reference", "volume"].sum()
-                == train.weight.sum()
-            )
-            assert (
-                summary.loc[summary["sample"] == "current", "volume"].sum()
-                == current.weight.sum()
-            )
-        # Validation values beyond the train range retain the train's last bin.
-        assert transforms[1]["x"].n_unique() == 1
-    if not psi and not observed_fitted:
-        assert artifacts == []
+    assert len(levels) == int(psi) + int(observed)
+    if psi and observed:
+        assert levels[0] == levels[1]
+    assert bool(summaries) == observed
+    for summary in summaries:
+        assert (
+            summary.loc[summary["sample"] == "reference", "volume"].sum()
+            == data.weight.head(12).sum()
+        )
+        assert (
+            summary.loc[summary["sample"] == "current", "volume"].sum()
+            == data.weight.tail(12).sum()
+        )
+    assert any(p.startswith("psi/") for p in artifacts) == psi
+    assert any(p.startswith("observed_fitted/") for p in artifacts) == observed
 
 
-@pytest.mark.parametrize("disabled", ["empty", "plots_none"])
-def test_disabled_feature_diagnostics_do_not_fit(monkeypatch, disabled):
+def test_level_fit_never_learns_heldout_values_or_retains_previous_fit(
+    tmp_path, monkeypatch
+):
     data = make_data()
+    evaluator = ObservedFitted(features=("x",))
+    learned = []
+    fit = LevelTransformer.fit
 
-    def unexpected(*args, **kwargs):
-        pytest.fail(
-            "Disabled feature diagnostics must not prepare levels or log artifacts"
+    def capture(self, frame):
+        result = fit(self, frame)
+        learned.append(self.feature_levels)
+        return result
+
+    monkeypatch.setattr(LevelTransformer, "fit", capture)
+    inputs = dict(
+        prediction=np.ones(len(data)),
+        split=pl.Series(["train"] * 12 + ["val"] * 12),
+        artifact_dir=tmp_path,
+        figure=FigureConfig(),
+        features=None,
+        n_bins=3,
+    )
+    evaluator.write_artifacts(data=data, **inputs)
+    changed = replace(
+        data,
+        X=data.X.with_columns(
+            pl.Series("x", data.X["x"].head(12).to_list() + [100000] * 12)
+        ),
+    )
+    evaluator.write_artifacts(data=changed, **inputs)
+    assert learned[0] == learned[1]
+    changed = replace(data, X=data.X.with_columns(pl.col("x") * 100))
+    evaluator.write_artifacts(data=changed, **inputs)
+    assert learned[2] != learned[1]
+    assert evaluator.parameters() == {"features": ("x",)}
+
+
+REPORTS = [
+    PrecisionRecall(),
+    F1Threshold(),
+    Calibration(),
+    Gains(),
+    Lift(),
+    PUScoreDistribution(),
+    PUPositiveCapture(),
+    ObservedFitted(),
+    TimeObservedFitted(),
+    NumericalFeatureDistributions(),
+]
+
+
+@pytest.mark.parametrize("evaluator", REPORTS, ids=lambda x: x.name)
+def test_multiple_heldout_splits_rejected_before_writing(tmp_path, evaluator):
+    data = make_data()
+    with pytest.raises(ValueError, match="only one held-out split"):
+        evaluator.write_artifacts(
+            data=data,
+            prediction=np.ones(len(data)),
+            split=pl.Series(["train"] * 8 + ["val"] * 8 + ["test"] * 8),
+            artifact_dir=tmp_path,
+            figure=FigureConfig(),
+            features=None,
+            n_bins=3,
         )
+    assert not list(tmp_path.iterdir())
 
-    monkeypatch.setattr(LevelTransformer, "fit", unexpected)
-    monkeypatch.setattr(reporting.tracking, "log_artifact", unexpected)
-    monkeypatch.setattr(reporting, "log_polars_table", unexpected)
-    options = diagnostics_for(
-        "regression", CommonPlotsConfig(features=(), numerical_distributions=None)
+
+@pytest.mark.parametrize("evaluator", REPORTS, ids=lambda x: x.name)
+def test_train_only_reports_skip_without_fitting(tmp_path, monkeypatch, evaluator):
+    monkeypatch.setattr(LevelTransformer, "fit", lambda *a: pytest.fail("fit"))
+    data = make_data()
+    assert (
+        evaluator.write_artifacts(
+            data=data,
+            prediction=np.ones(len(data)),
+            split=pl.Series(["train"] * len(data)),
+            artifact_dir=tmp_path,
+            figure=FigureConfig(),
+            features=None,
+            n_bins=10,
+        )
+        == []
     )
-    if disabled == "plots_none":
-        options = RegressionDiagnosticsConfig(plots=None)
-    reporting.report_diagnostics(
-        MeanModel({}),
-        data,
-        data,
-        np.ones(len(data)),
-        np.ones(len(data)),
-        options,
-        "disabled",
+    assert (
+        evaluator.evaluate(
+            data=data,
+            prediction=np.ones(len(data)),
+            split=pl.Series(["train"] * len(data)),
+        )
+        == {}
     )
 
 
-def test_default_feature_inference_and_missing_feature(monkeypatch):
-    data = replace(make_data(), cat_features=("unused",))
-    captured = []
-    original_fit = LevelTransformer.fit
-
-    def fit(self, frame):
-        captured.extend(self.features)
-        return original_fit(self, frame)
-
-    monkeypatch.setattr(LevelTransformer, "fit", fit)
-    monkeypatch.setattr(
-        reporting.tracking, "log_artifact", lambda *args, **kwargs: None
+def test_disabled_levels_and_missing_features(tmp_path, monkeypatch):
+    data = make_data()
+    inputs = dict(
+        data=data,
+        prediction=np.ones(len(data)),
+        split=pl.Series(["train"] * 12 + ["val"] * 12),
+        artifact_dir=tmp_path,
+        figure=FigureConfig(),
+        n_bins=3,
     )
-    common = CommonPlotsConfig(psi=False, numerical_distributions=None)
-    reporting.report_diagnostics(
-        MeanModel({}),
-        data,
-        data,
-        np.ones(len(data)),
-        np.ones(len(data)),
-        diagnostics_for("regression", common),
-        "inference",
-    )
-    assert [(f.name, f.ftype) for f in captured] == [
-        ("x", "numerical"),
-        ("unused", "categorical"),
-    ]
-    missing = replace(common, features=(FeatureLevelConfig("missing", "numerical"),))
+    assert ObservedFitted().write_artifacts(features=(), **inputs) == []
+    with pytest.raises(ValueError, match="features"):
+        ObservedFitted(features=("absent",)).write_artifacts(features=None, **inputs)
     with pytest.raises(ValueError, match="missing"):
-        reporting.report_diagnostics(
-            MeanModel({}),
-            data,
-            data,
-            np.ones(len(data)),
-            np.ones(len(data)),
-            diagnostics_for("regression", missing),
-            "missing",
+        ObservedFitted().write_artifacts(
+            features=(FeatureLevelConfig("missing", "numerical"),), **inputs
+        )
+    with pytest.raises(ValueError, match="missing"):
+        NumericalFeatureDistributions(features=("missing",)).write_artifacts(
+            features=None, **inputs
         )
 
 
-def test_shared_config_rejects_duplicate_features():
-    with pytest.raises(ValueError, match="unique"):
-        CommonPlotsConfig(
-            features=(
-                FeatureLevelConfig("x", "numerical"),
-                FeatureLevelConfig("x", "categorical"),
-            )
+@pytest.mark.parametrize("report", [Calibration(), Gains(), Lift()])
+def test_invalid_outcomes_are_not_silently_skipped(tmp_path, report):
+    data = make_data().with_target(pl.Series("y", [-1.0] * 24))
+    with pytest.raises(ValueError):
+        report.write_artifacts(
+            data=data,
+            prediction=np.ones(len(data)),
+            split=pl.Series(["train"] * 12 + ["val"] * 12),
+            artifact_dir=tmp_path,
+            figure=FigureConfig(),
+            features=None,
+            n_bins=10,
         )

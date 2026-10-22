@@ -7,7 +7,7 @@ import polars as pl
 
 from ..types import TimePeriod
 from .._time import paired_period_starts
-from ..config import FigureConfig, NumericalFeatureDistributionConfig
+from ..config import FigureConfig
 from .utils import save_figure
 
 
@@ -23,7 +23,9 @@ def time_feature_distribution(
     save_fig: str | Path,
     *,
     period: TimePeriod = "month",
-    config: NumericalFeatureDistributionConfig | None = None,
+    quantile_bands: tuple[tuple[float, float], ...] = ((0.05, 0.95), (0.25, 0.75)),
+    show_mean: bool = True,
+    show_median: bool = True,
     figure: FigureConfig | None = None,
 ) -> pl.DataFrame:
     """Plot configured time-based quantile bands, median, and mean.
@@ -45,9 +47,10 @@ def time_feature_distribution(
     period : TimePeriod, default "month"
         Calendar grouping in the matching input timezones. Minute/hour need
         Datetime; weeks start on Monday. Empty periods are not filled.
-    config : NumericalFeatureDistributionConfig or None, default None
-        Quantile bands and displayed mean/median. None uses defaults. The
-        features list controls workflow selection; this call plots feature.
+    quantile_bands : tuple of pairs
+        Quantile intervals shaded on the chart.
+    show_mean, show_median : bool, default True
+        Display the corresponding unweighted time summaries.
     figure : FigureConfig or None, default None
         Export dimensions, resolution, and format; None preserves native output.
 
@@ -71,8 +74,8 @@ def time_feature_distribution(
     Null and non-finite values are omitted. Saves and closes the figure,
     including when there are no finite values.
     """
-    config = NumericalFeatureDistributionConfig() if config is None else config
-    quantiles = sorted({0.5, *(q for band in config.quantile_bands for q in band)})
+    validate_distribution(quantile_bands)
+    quantiles = sorted({0.5, *(q for band in quantile_bands for q in band)})
     columns = ["period_start", "split"]
     columns += [_quantile_name(q) for q in quantiles if q <= 0.5]
     columns += ["mean"]
@@ -127,7 +130,7 @@ def time_feature_distribution(
         if part.is_empty():
             continue
         period_start = part.get_column("period_start").to_list()
-        for index, (lower, upper) in enumerate(config.quantile_bands):
+        for index, (lower, upper) in enumerate(quantile_bands):
             ax.fill_between(
                 period_start,
                 part[_quantile_name(lower)].to_numpy(),
@@ -136,7 +139,7 @@ def time_feature_distribution(
                 alpha=min(0.10 + 0.15 * index, 0.5),
                 label=f"{split} {lower * 100:g}–{upper * 100:g}%",
             )
-        if config.show_median:
+        if show_median:
             ax.plot(
                 period_start,
                 part["p50"].to_numpy(),
@@ -146,7 +149,7 @@ def time_feature_distribution(
                 markersize=3,
                 label=f"{split} median",
             )
-        if config.show_mean:
+        if show_mean:
             ax.plot(
                 period_start,
                 part["mean"].to_numpy(),
@@ -183,3 +186,11 @@ def time_feature_distribution(
     fig.tight_layout()
     save_figure(fig, save_fig, config=figure)
     return grouped
+
+
+def validate_distribution(bands: tuple[tuple[float, float], ...]) -> None:
+    """Validate unique quantile intervals for a numerical distribution."""
+    if any(not 0 <= lo < hi <= 1 for lo, hi in bands):
+        raise ValueError("quantile_bands require 0 <= lower < upper <= 1")
+    if len(set(bands)) != len(bands):
+        raise ValueError("quantile_bands must be unique")

@@ -15,129 +15,20 @@ from numpy.typing import ArrayLike
 from ..types import TimePeriod
 from .._time import paired_period_starts
 from ..config import FigureConfig
-from ..types import FloatArray
 from .utils import PlotError, numeric_vector, same_length, save_figure, weights
 
 
-def _aggregate(
-    groups: pd.Series[str],
-    observed: FloatArray,
-    fitted: FloatArray,
-    weight: FloatArray,
-    name: str,
-    *,
-    sort: bool,
-) -> pd.DataFrame:
-    frame = pd.DataFrame(
-        {
-            name: groups,
-            "observed_weighted": observed * weight,
-            "fitted_weighted": fitted * weight,
-            "volume": weight,
-        }
-    )
-    grouped = frame.groupby(name, sort=sort, as_index=False, observed=True).sum(
-        numeric_only=True
+def _aggregate(frame: pd.DataFrame, groups: list[str], *, sort: bool) -> pd.DataFrame:
+    """Aggregate weighted outcomes for feature levels or calendar groups."""
+    grouped = frame.groupby(groups, sort=sort, as_index=False, observed=True).agg(
+        observed_weighted=("observed_weighted", "sum"),
+        fitted_weighted=("fitted_weighted", "sum"),
+        volume=("volume", "sum"),
     )
     grouped = grouped.loc[grouped.volume > 0].copy()
     grouped["observed"] = grouped.observed_weighted / grouped.volume
     grouped["fitted"] = grouped.fitted_weighted / grouped.volume
-    return grouped[[name, "observed", "fitted", "volume"]]
-
-
-def observed_fitted(
-    feature: ArrayLike,
-    observed: ArrayLike,
-    fitted: ArrayLike,
-    save_fig: str | Path,
-    *,
-    weight: ArrayLike | None = None,
-    feature_name: str = "Feature",
-    n_bins: int = 10,
-    figure: FigureConfig | None = None,
-) -> pd.DataFrame:
-    """Plot weighted observed and fitted means by feature group.
-
-    Parameters
-    ----------
-    feature : array-like of shape (n_samples,)
-        Feature values. Varying numeric features are quantile-binned;
-        categorical and constant features are grouped by value. Missing values
-        form a missing group.
-    observed : array-like of shape (n_samples,)
-        Nonempty finite observed values.
-    fitted : array-like of shape (n_samples,)
-        Finite predictions aligned with observations.
-    save_fig : str or pathlib.Path
-        Output figure path; parent directories are created.
-    weight : array-like or None, default None
-        Finite, nonnegative exposure weights with positive total; None uses row
-        counts.
-    feature_name : str, default 'Feature'
-        Feature label used on the plot.
-    n_bins : int, default 10
-        Positive requested number of numeric quantile bins; duplicate edges are
-        dropped.
-
-    figure : FigureConfig or None, default None
-        Optional export dimensions, DPI, and format. None preserves native
-        dimensions and the requested path format.
-
-    Returns
-    -------
-    pandas.DataFrame
-        Columns feature, observed, fitted, and volume. Means are weighted by
-        exposure; volume is group total weight. Zero-weight groups are omitted.
-
-    Raises
-    ------
-    PlotError
-        Values, lengths, or exposure weights are invalid.
-    ValueError
-        n_bins is nonpositive.
-
-    See Also
-    --------
-    observed_fitted_by_level : Compare samples on shared reference-fitted levels.
-
-    Notes
-    -----
-    Creates parent directories for save_fig and closes the figure after saving.
-    For a complete held-out bike-rental example, its aggregated table, and the
-    saved figure, see the documentation's
-    [Observed versus fitted](https://sssqweeeed.github.io/ml-toolkit/api/plots/#observed-versus-fitted)
-    gallery recipe.
-    """
-    y, prediction = numeric_vector(observed, "observed"), numeric_vector(
-        fitted, "fitted"
-    )
-    values = pd.Series(np.asarray(feature), name=feature_name)
-    same_length(feature=values, observed=y, fitted=prediction)
-    exposure = weights(weight, len(y))
-    if n_bins < 1:
-        raise ValueError("n_bins must be positive")
-    numeric = pd.api.types.is_numeric_dtype(values) and values.nunique(dropna=True) > 1
-    if numeric:
-        groups = pd.qcut(
-            values, q=min(n_bins, values.nunique(dropna=True)), duplicates="drop"
-        )
-        groups = groups.astype("string").fillna("missing")
-    else:
-        groups = values.astype("string").fillna("missing")
-    grouped = _aggregate(groups, y, prediction, exposure, "feature", sort=numeric)
-    x = np.arange(len(grouped))
-    fig, ax = plt.subplots(figsize=(10, 6))
-    volume_ax = ax.twinx()
-    volume_ax.bar(x, grouped.volume, alpha=0.2, color="tab:gray")
-    ax.plot(x, grouped.observed, marker="o", label="Observed")
-    ax.plot(x, grouped.fitted, marker="o", label="Fitted")
-    ax.set_xticks(x, grouped.feature.astype(str), rotation=45, ha="right")
-    ax.set(xlabel=feature_name, ylabel="Observed / fitted")
-    volume_ax.set_ylabel("Exposure / count")
-    ax.legend()
-    fig.tight_layout()
-    save_figure(fig, save_fig, config=figure)
-    return grouped
+    return grouped[[*groups, "observed", "fitted", "volume"]]
 
 
 def observed_fitted_by_level(
@@ -223,7 +114,18 @@ def observed_fitted_by_level(
         if labels.null_count() or not labels.is_in(level_order).all():
             raise PlotError(f"{sample} contains null or undefined feature levels")
         groups = pd.Series(labels.to_list(), dtype="string")
-        table = _aggregate(groups, y, prediction, exposure, "level", sort=False)
+        table = _aggregate(
+            pd.DataFrame(
+                {
+                    "level": groups,
+                    "observed_weighted": y * exposure,
+                    "fitted_weighted": prediction * exposure,
+                    "volume": exposure,
+                }
+            ),
+            ["level"],
+            sort=False,
+        )
         table = table.set_index("level").reindex(pd.Index(level_order, name="level"))
         table["volume"] = table["volume"].fillna(0.0)
         table["sample"] = sample
@@ -412,14 +314,7 @@ def time_observed_fitted(
                 "volume": exposure,
             }
         )
-        aggregated = frame.groupby(["period_start", "group"], as_index=False).agg(
-            observed_weighted=("observed_weighted", "sum"),
-            fitted_weighted=("fitted_weighted", "sum"),
-            volume=("volume", "sum"),
-        )
-        aggregated = aggregated.loc[aggregated.volume > 0].copy()
-        aggregated["observed"] = aggregated.observed_weighted / aggregated.volume
-        aggregated["fitted"] = aggregated.fitted_weighted / aggregated.volume
+        aggregated = _aggregate(frame, ["period_start", "group"], sort=True)
         aggregated["split"] = name
         splits.append(
             aggregated[

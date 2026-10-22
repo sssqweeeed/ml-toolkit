@@ -3,12 +3,10 @@
 import logging
 from collections.abc import Callable
 from dataclasses import asdict
-from datetime import date
 
 from optuna import Trial
 
-from ..config import HoldoutConfig, TrainingConfig
-from ..data import validate_training_data
+from ..config import TrainingConfig
 from ..feature_selection import FeatureSelector
 from ..metrics import Metric
 from ..models.base import Model
@@ -16,20 +14,21 @@ from ..tracking import runs as tracking
 from ..types import ModelParams
 from .contracts import (
     DatasetSplit,
-    PredictionEvaluator,
     Pool,
 )
-from .evaluation import evaluate_model, prepare_prediction_evaluation
+from .evaluation import evaluate_model
+from .reporting import prepare_evaluators
+from ..evaluation import PredictionEvaluator
 from .fit import fit_final_model, fit_split
 from .results import SplitResult, TrainingResult, ValidationResult
-from .splits import make_validation_splits, split_holdout
+from .splits import Splitter
 
 logger = logging.getLogger(__name__)
 
 
 def train_model(
     *,
-    data: Pool,
+    splitter: Splitter[Pool],
     params: ModelParams,
     model_factory: Callable[[ModelParams], Model],
     metric: Metric,
@@ -37,16 +36,19 @@ def train_model(
     config: TrainingConfig,
     feature_selector: FeatureSelector | None = None,
     param_space: Callable[[Trial], ModelParams] | None = None,
-    prediction_evaluators: PredictionEvaluator | list[PredictionEvaluator] | None = None,
+    prediction_evaluators: (
+        PredictionEvaluator | list[PredictionEvaluator] | None
+    ) = None,
 ) -> TrainingResult:
     """Tune, validate, refit and optionally test a complete training workflow.
 
     Parameters
     ----------
-    data : Pool
-        Raw categorical values must not stringify to the reserved "unknown".
-        Aligned prepared features, finite targets, ascending non-null timestamps
-        and nonnegative weights with positive total. May include a future test tail.
+    splitter : Splitter
+        Supplies numbered validation pairs and final training/test data. Pools
+        must have aligned features and metadata, ascending timestamps, finite
+        targets and nonnegative weights with positive total. Raw categorical
+        values must not stringify to the reserved "unknown".
     params : ModelParams
         Base constructor parameters, copied without mutating the input.
     model_factory : Callable[[ModelParams], Model]
@@ -57,21 +59,17 @@ def train_model(
     run_name : str
         Enclosing MLflow experiment run name.
     config : TrainingConfig
-        Holdout/TSCV, test row count, fraction or calendar start date,
-        tuning, reporting and packaging. A test start date includes the entire
-        day in the timezone of data.time.
+        Parameter tuning, additional reporting and model packaging settings.
     feature_selector : FeatureSelector or None, default None
         Selects features independently before tuning on each split. None keeps
         all columns. The selector owns its settings and must not retain fitted state.
     param_space : Callable or None, default None
         Optuna trial overrides; required when tuning is enabled.
     prediction_evaluators : PredictionEvaluator, list[PredictionEvaluator], or None, default None
-        Reused named evaluators, called in list order with shared predictions.
-        Names must be unique without regard to case, even when calls are disabled.
-        None or an empty list disables custom evaluation.
-        Without an explicit prediction evaluation policy, uses
-        validation and final stages on available splits. Aligned object IDs
-        are required before training only when at least one call is scheduled.
+        Named evaluators called in list order with one combined pool and aligned
+        train and optional val or test labels per fit. Names are unique ignoring
+        case; object IDs are optional. ReportingConfig stage flags gate all reports.
+        None or an empty list disables evaluator calls, not configured PSI/SHAP.
 
     Returns
     -------
@@ -84,12 +82,14 @@ def train_model(
     on its validation rows, then fits the winning settings once for reporting.
     Validation averages are reports, not Optuna objectives. Final fitting uses
     the last split's features, parameters, iterations and optional threshold on
-    all rows before test, without repeated selection or validation. Test only
-    receives predictions after fitting. MLflow URI and experiment are caller-owned.
+    splitter.get_final().train, without repeated selection or validation. The
+    final held-out sample receives predictions after fitting. MLflow URI and
+    experiment are caller-owned.
 
     See Also
     --------
-    ml_toolkit.training.split_holdout : Prepare chronological train/validation rows.
+    ml_toolkit.training.Holdout : A trailing validation window and optional test.
+    ml_toolkit.training.TimeSeriesCV : Chronological validation windows.
 
     Examples
     --------
@@ -98,68 +98,69 @@ def train_model(
     experiment". Its Bike Sharing example also covers selection, tuning and
     custom evaluation using the same explicitly prepared data.
     """
-    validate_training_data(data)
-    train, test = data, None
-    test_size = config.test_size
-    if isinstance(test_size, date):
-        train_rows = int((data.time.dt.date() < test_size).sum())
-        if train_rows == 0 or train_rows == len(data):
-            raise ValueError(
-                "test_size date must leave nonempty training and test data"
-            )
-        test_size = len(data) - train_rows
-    if isinstance(test_size, (int, float)):
-        partition = split_holdout(data, HoldoutConfig(val_size=test_size))
-        train, test = partition.train, partition.val
-    splits = make_validation_splits(train, config.validation)
+    splits = splitter.get_validation()
+    part = next(splits, None)
+    if part is None:
+        raise ValueError("Splitter must yield at least one validation split")
     if config.tuning is not None and param_space is None:
         raise ValueError("param_space is required when tuning is enabled")
-    prediction_evaluation = prepare_prediction_evaluation(
-        data,
-        prediction_evaluators,
-        config.reporting.prediction_evaluation,
-        tuning=config.tuning is not None,
-        has_test=test is not None,
-    )
+    evaluators = prepare_evaluators(prediction_evaluators, config.reporting)
 
     logger.info("Starting training run %s", run_name)
-    logger.debug(
-        "Training data: %s rows, %s features", len(train), len(train.X.columns)
-    )
     with tracking.run(run_name):
         tracking.log_json(asdict(config), "configuration/requested.json")
-        diagnosed = config.reporting.validation_splits
-        if diagnosed == "all":
-            diagnosed_indices = {part.index for part in splits}
-        elif diagnosed == "last":
-            diagnosed_indices = {splits[-1].index}
-        else:
-            diagnosed_indices = set(diagnosed)
-        logger.info("Starting validation with %s evaluated splits", len(splits))
+        tracking.log_json(
+            {
+                "class": f"{type(splitter).__module__}.{type(splitter).__qualname__}",
+                "parameters": splitter.parameters(),
+            },
+            "configuration/splitter.json",
+        )
+        tracking.log_json(
+            [
+                {
+                    "name": item.name,
+                    "class": f"{type(item).__module__}.{type(item).__qualname__}",
+                    "parameters": item.parameters(),
+                }
+                for item in evaluators
+            ],
+            "configuration/evaluators.json",
+        )
+        logger.info("Starting validation")
         with tracking.run("validation"):
             split_results: list[SplitResult] = []
-            for part in splits:
+            indices: set[int] = set()
+            while part is not None:
+                if part.heldout is None:
+                    raise ValueError("Validation split must contain heldout data")
+                if part.index is None or part.index <= 0 or part.index in indices:
+                    raise ValueError(
+                        "Validation split index must be positive and unique"
+                    )
+                indices.add(part.index)
                 split_results.append(
                     fit_split(
                         train=part.train,
-                        validation=part.val,
+                        validation=part.heldout,
                         params=params,
                         model_factory=model_factory,
                         metric=metric,
                         config=config,
                         feature_selector=feature_selector,
-                        prediction_evaluation=prediction_evaluation,
+                        evaluators=evaluators,
                         param_space=param_space,
                         index=part.index,
-                        diagnostics=part.index in diagnosed_indices,
                     )
                 )
+                del part
+                part = next(splits, None)
             validation = ValidationResult(tuple(split_results))
             mean_metrics = validation.mean_metrics
             tracking.log_metrics(
                 {f"validation/{key}": value for key, value in mean_metrics.items()}
             )
-        logger.info("Completed validation with %s splits", len(splits))
+        logger.info("Completed validation with %s splits", len(split_results))
         logger.debug("Validation mean metrics: %s", mean_metrics)
         last = validation.last_split
         tracking.log_json(
@@ -170,24 +171,29 @@ def train_model(
             },
             "configuration/resolved.json",
         )
+        final = splitter.get_final()
+        final_train = final.train.select_features(last.features)
+        final_test = (
+            None
+            if final.heldout is None
+            else final.heldout.select_features(last.features)
+        )
         with tracking.run("final_fit"):
-            model, final_train, final_params = fit_final_model(
-                data=train,
+            model, final_params = fit_final_model(
+                data=final_train,
                 last_split=last,
                 model_factory=model_factory,
             )
-            final_test = None if test is None else test.select_features(last.features)
             scores = evaluate_model(
                 model,
                 final_train,
                 final_test,
                 metric,
                 config.reporting,
-                prediction_evaluation,
+                evaluators,
                 stage="final",
                 name="final_fit",
                 split=DatasetSplit.TEST,
-                diagnostics=test is not None,
             )
             if config.tracking.log_final_model:
                 model.log(final_train, config=config.tracking)

@@ -1,4 +1,4 @@
-from ml_toolkit.training import PredictionEvaluator
+from ml_toolkit.evaluation import PredictionEvaluator
 
 
 class CallbackEvaluator(PredictionEvaluator):

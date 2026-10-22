@@ -1,11 +1,9 @@
+from ml_toolkit.config import ReportingConfig
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
-
 import pandas as pd
 import polars as pl
 import pytest
-
-from ml_toolkit.config import CommonPlotsConfig
 from ml_toolkit.plots.monitoring import time_feature_distribution
 from ml_toolkit.plots.regression import time_observed_fitted
 from ml_toolkit.psi import PSIAnalysis, PSIConfig
@@ -60,7 +58,6 @@ def test_all_periods_agree_across_reports(period, expected, tmp_path):
 
 def test_time_zone_boundaries_missing_periods_and_dst(tmp_path):
     zone = ZoneInfo("Europe/Berlin")
-    # Both instances of the repeated DST hour must remain distinguishable.
     times = pl.Series(
         [
             datetime(2025, 10, 26, 2, 20, tzinfo=zone, fold=0),
@@ -69,7 +66,7 @@ def test_time_zone_boundaries_missing_periods_and_dst(tmp_path):
     )
     starts = period_starts(times, "hour")
     assert starts.n_unique() == 2
-    assert (starts[1].timestamp() - starts[0].timestamp()) == 3600
+    assert starts[1].timestamp() - starts[0].timestamp() == 3600
     with pytest.raises(ValueError, match="matching time zones"):
         paired_period_starts(times, times.dt.convert_time_zone("UTC"), "day")
     with pytest.raises(ValueError, match="Datetime"):
@@ -94,7 +91,7 @@ def test_time_zone_boundaries_missing_periods_and_dst(tmp_path):
         datetime(2025, 1, 5),
         datetime(2025, 1, 7),
     ]
-    assert CommonPlotsConfig().period == "month"
+    assert ReportingConfig(psi=True).period == "month"
 
 
 @pytest.mark.parametrize(
@@ -175,7 +172,9 @@ def test_time_plot_points_and_dst_bar_end(monkeypatch, tmp_path):
         )
         result = (
             PSIAnalysis(
-                PSIConfig(features=(FeatureLevelConfig("x", "numerical"),), period="day")
+                PSIConfig(
+                    features=(FeatureLevelConfig("x", "numerical"),), period="day"
+                )
             )
             .fit(frame.head(1), time="time")
             .compare(

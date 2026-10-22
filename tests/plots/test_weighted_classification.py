@@ -1,7 +1,6 @@
 import numpy as np
 import pandas as pd
 import pytest
-
 from ml_toolkit.plots.classification import (
     binary_curves,
     calibration,
@@ -11,20 +10,12 @@ from ml_toolkit.plots.classification import (
 
 
 def test_weighted_calibration_and_plots(tmp_path):
-    from ml_toolkit.config import ClassificationPlotsConfig
-
     y, p, w = (
         np.array([0.0, 1.0, 1.0]),
         np.array([0.2, 0.8, 0.9]),
         np.array([3.0, 1.0, 0.0]),
     )
-    table = calibration(
-        y,
-        p,
-        tmp_path / "calibration.png",
-        weight=w,
-        config=ClassificationPlotsConfig(calibration_bins=1),
-    )
+    table = calibration(y, p, tmp_path / "calibration.png", weight=w, n_bins=1)
     assert table.observed_rate.iloc[0] == 0.25
     assert table.predicted_rate.iloc[0] == pytest.approx(0.35)
     assert table.weight_sum.iloc[0] == 4

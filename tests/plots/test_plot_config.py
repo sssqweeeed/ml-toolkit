@@ -1,18 +1,11 @@
 """Plot rendering configuration and reproducible explanation sampling."""
 
 from dataclasses import replace
-
 import matplotlib.pyplot as plt
 import numpy as np
 import pytest
-
 from tests.support.training import make_data
-from ml_toolkit.config import (
-    ClassificationPlotsConfig,
-    FigureConfig,
-    NumericalFeatureDistributionConfig,
-    ShapConfig,
-)
+from ml_toolkit.config import FigureConfig, ShapConfig
 from ml_toolkit.explainability import calculate_shap_values
 from ml_toolkit.models import CatBoostRegressionModel
 from ml_toolkit.plots.classification import calibration, precision_recall
@@ -23,21 +16,20 @@ from ml_toolkit.plots.utils import save_figure
 def test_custom_quantile_bands_and_hidden_curves(tmp_path):
     data = make_data()
     frame = data.X.with_columns(data.time)
-    config = NumericalFeatureDistributionConfig(
-        quantile_bands=((0.1, 0.9),), show_mean=False, show_median=False
-    )
     summary = time_feature_distribution(
         frame.head(len(frame) // 2),
         frame.tail(len(frame) - len(frame) // 2),
         "x",
         "date",
         tmp_path / "quantiles.png",
-        config=config,
+        quantile_bands=((0.1, 0.9),),
+        show_mean=False,
+        show_median=False,
     )
     assert (
         "p10" in summary.columns
         and "p90" in summary.columns
-        and "p05" not in summary.columns
+        and ("p05" not in summary.columns)
     )
     assert (tmp_path / "quantiles.png").is_file()
 
@@ -63,9 +55,6 @@ def test_figure_export_honors_format_dimensions_and_dpi(tmp_path, monkeypatch):
 
 
 def test_classification_resolution_preserves_full_curve(tmp_path, monkeypatch):
-    cfg = ClassificationPlotsConfig(
-        max_curve_points=3, calibration_bins=2, histogram_bins=4
-    )
     y = np.array([0, 1] * 10)
     p = np.linspace(0.01, 0.99, 20)
     captured = []
@@ -75,9 +64,9 @@ def test_classification_resolution_preserves_full_curve(tmp_path, monkeypatch):
 
     monkeypatch.setattr("ml_toolkit.plots.classification.save_figure", capture)
     try:
-        curve = precision_recall(y, p, tmp_path / "pr.png", config=cfg)
+        curve = precision_recall(y, p, tmp_path / "pr.png", max_curve_points=3)
         assert len(curve) == 20 and len(captured[0].axes[0].lines[0].get_xdata()) == 4
-        groups = calibration(y, p, tmp_path / "cal.png", config=cfg)
+        groups = calibration(y, p, tmp_path / "cal.png", n_bins=2, histogram_bins=4)
         assert len(groups) == 2 and len(captured[1].axes[1].patches) == 4
     finally:
         for fig in captured:
@@ -88,7 +77,13 @@ def test_shap_sampling_honors_limit_and_seed():
     pytest.importorskip("shap")
     data = make_data()
     model = CatBoostRegressionModel(
-        {"thread_count": 1, "iterations": 2, "depth": 2, "verbose": False, "allow_writing_files": False}
+        {
+            "thread_count": 1,
+            "iterations": 2,
+            "depth": 2,
+            "verbose": False,
+            "allow_writing_files": False,
+        }
     ).fit(data)
     cfg = ShapConfig(max_samples=5, seed=23)
     first = calculate_shap_values(model.native_model, data.X, config=cfg)

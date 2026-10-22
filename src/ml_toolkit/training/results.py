@@ -86,7 +86,7 @@ class ValidationResult:
         Returns
         -------
         SplitResult
-            Last chronological validation result.
+            Last validation result in the splitter iterator's order.
 
         Raises
         ------
@@ -124,7 +124,7 @@ class TrainingResult:
     Attributes
     ----------
     model : Model
-        Fresh model fitted on all rows before test.
+        Fresh model fitted on the training pool returned by splitter.get_final().
     validation : ValidationResult
         Per-split selection, tuning and post-tuning evaluation results.
     params : ModelParams
@@ -136,7 +136,7 @@ class TrainingResult:
     tuning : TuningResult or None
         Last validation split's optional optimization result.
     test_metrics : dict[str, float] or None
-        Final model's test scores; None when test_size is None.
+        Final model's test scores; None when the final split has no held-out sample.
     """
 
     model: Model

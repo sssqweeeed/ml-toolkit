@@ -2,8 +2,6 @@
 
 import numpy as np
 import pytest
-
-from ml_toolkit.config import PUPlotsConfig
 from ml_toolkit.plots import pu
 
 
@@ -17,7 +15,7 @@ def test_score_histograms_normalize_each_group_independently(monkeypatch, tmp_pa
         [0.8, 0.2, 0.3, 0.9],
         tmp_path / "scores.png",
         weights=[3, 1, 2, 6],
-        config=PUPlotsConfig(histogram_bins=2),
+        histogram_bins=2,
     )
     ax = figures[0].axes[0]
     assert [bar.get_height() for bar in ax.patches] == pytest.approx([0.25, 0.75] * 2)

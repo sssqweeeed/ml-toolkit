@@ -38,10 +38,8 @@ data = Pool(
 )
 ```
 
-There are 24 rows and two model features. This `data` is reused by the
-[training](training.md) and [model](models.md) examples. Targets, timestamps,
-weights, IDs, and reporting groups stay outside `X` unless they are intentional
-model features. No project-specific container implementation is required.
+There are 24 rows and two model features. Targets, timestamps, weights, IDs,
+and reporting groups stay outside `X` unless they are model features.
 
 ## Slice without losing alignment
 
@@ -162,7 +160,7 @@ from ml_toolkit import Pool
 | --- | --- |
 | `X`, `y`, `time`, `weight` | Aligned, nonempty Polars frame/series; one value per row |
 | `cat_features`, `numerical_features` | Tuples of feature names present in `X` |
-| `object_id` | Aligned string/integer IDs or `None`; required for custom evaluation |
+| `object_id` | Aligned string/integer IDs or `None`; optional for evaluators that join external data |
 | `business_type` | Aligned diagnostic groups or `None` |
 
 Training validates ascending non-null Date/Datetime timestamps, finite targets,

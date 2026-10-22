@@ -1,5 +1,7 @@
 """Batch RFE selection, objective handling and adapter/ranker boundaries."""
 
+from ml_toolkit.training import Holdout
+
 from dataclasses import dataclass, replace
 from datetime import date, timedelta
 from types import SimpleNamespace
@@ -12,11 +14,11 @@ from polars.testing import assert_frame_equal, assert_series_equal
 
 from examples.project_pool import ProjectPool as Pool
 from ml_toolkit.feature_selection import RFESelector
-from ml_toolkit.config import HoldoutConfig
+
 from ml_toolkit.metrics import MetricScores
 from tests.support.training import ProjectData
 from ml_toolkit.models import CatBoostRegressionModel
-from ml_toolkit.training import ShapRanker, importance_ranker, split_holdout
+from ml_toolkit.training import ShapRanker, importance_ranker
 
 
 @pytest.fixture
@@ -90,10 +92,10 @@ def factory(quality, calls):
 def run(data, quality, config=None, ranker=ordered_ranker, metric=scores, holdout=None):
     calls = []
     params = {"seed": 123}
-    partition = split_holdout(data, holdout or HoldoutConfig(val_size=0.25))
+    partition = next((holdout or Holdout(data, val_size=0.25)).get_validation())
     result = replace(config or settings(), ranker=ranker).select(
         train=partition.train,
-        validation=partition.val,
+        validation=partition.heldout,
         params=params,
         model_factory=factory(quality, calls),
         metric=metric,
@@ -146,7 +148,7 @@ def test_supplied_split_preserves_gap_metadata_and_weighted_metric(data):
         data,
         {6: 3, 3: 1, 2: 2},
         metric=metric,
-        holdout=HoldoutConfig(val_size=6, gap=2),
+        holdout=Holdout(data, val_size=6, gap=2),
     )
     for _, train, validation in calls:
         assert train.object_id.to_list() == list(range(16))
@@ -259,10 +261,10 @@ def test_invalid_data_configuration_fails_before_fit(data, config):
         pytest.fail("Invalid selection must not train")
 
     with pytest.raises(ValueError):
-        partition = split_holdout(data, HoldoutConfig(val_size=0.25))
+        partition = next(Holdout(data, val_size=0.25).get_validation())
         replace(config, ranker=ordered_ranker).select(
             train=partition.train,
-            validation=partition.val,
+            validation=partition.heldout,
             params={},
             model_factory=fail,
             metric=scores,
@@ -400,7 +402,7 @@ def test_real_shap_ranker_handles_null_and_numeric_categories_without_shap_extra
     expected = np.average(abs(values[:, :-1]), weights=data.weight.to_numpy(), axis=0)
     result = ShapRanker(max_samples=count)(model, data)
     np.testing.assert_allclose(list(result.values()), expected)
-    partition = split_holdout(data, HoldoutConfig(val_size=0.25))
+    partition = next(Holdout(data, val_size=0.25).get_validation())
     selection = RFESelector(
         ranker=ShapRanker(max_samples=8),
         min_features=1,
@@ -408,7 +410,7 @@ def test_real_shap_ranker_handles_null_and_numeric_categories_without_shap_extra
         direction="minimize",
     ).select(
         train=partition.train,
-        validation=partition.val,
+        validation=partition.heldout,
         params=model.params,
         model_factory=CatBoostRegressionModel,
         metric=lambda y, p, w: MetricScores({"mae": np.average(abs(y - p), weights=w)}),
@@ -422,7 +424,9 @@ def test_real_shap_ranker_handles_null_and_numeric_categories_without_shap_extra
 @pytest.mark.parametrize(
     "invalid", ["different_columns", "reordered_columns", "empty_train", "empty_val"]
 )
-def test_selection_requires_matching_columns_and_nonempty_supplied_windows(data, invalid):
+def test_selection_requires_matching_columns_and_nonempty_supplied_windows(
+    data, invalid
+):
     def fail(params):
         pytest.fail("Invalid split must fail before any fit")
 
@@ -442,7 +446,9 @@ def test_selection_requires_matching_columns_and_nonempty_supplied_windows(data,
             train = empty
         else:
             validation = empty
-    message = "nonzero lengths" if invalid.startswith("empty") else "features must match"
+    message = (
+        "nonzero lengths" if invalid.startswith("empty") else "features must match"
+    )
     with pytest.raises(ValueError, match=message):
         replace(settings(), ranker=ordered_ranker).select(
             train=train,
@@ -472,11 +478,11 @@ def test_selection_rejects_invalid_predictions_before_scoring(data, invalid):
     def metric(*args):
         pytest.fail("Invalid predictions must be rejected before metric evaluation")
 
-    split = split_holdout(data, HoldoutConfig(val_size=6))
+    split = next(Holdout(data, val_size=6).get_validation())
     with pytest.raises(ValueError, match="one finite value per row"):
         settings().select(
             train=split.train,
-            validation=split.val,
+            validation=split.heldout,
             params={},
             model_factory=Model,
             metric=metric,

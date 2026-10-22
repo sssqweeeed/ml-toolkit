@@ -113,19 +113,17 @@ then uses MLflow Models From Code with this separate serving entrypoint:
 The entrypoint restores feature order and categorical conversion, then applies
 the inverse scale transformation. It depends only on pinned CatBoost, pandas,
 NumPy, and MLflow packages. An explicit `TrackingConfig.conda_env` can supply your
-own serving environment. The guide's executable check compares the reloaded
-model against the adapter, so a missing transformation fails immediately.
+own serving environment.
 
 ## Backend and diagnostic constraints
 
-The current `Model.native_model` annotation supports CatBoost and LightGBM
-Boosters. A generic scikit-learn estimator does not satisfy that backend contract;
-this guide does not promise that it can be passed directly to `train_model`.
+Training adapters expose a CatBoost or LightGBM backend through `native_model`;
+generic scikit-learn estimators do not satisfy this contract.
 `LightGBMServingModel` packages an already trained model and does not implement the
 complete training adapter interface.
 
-Shared diagnostics such as observed/fitted use `predict_pool` and see original
-units. Native SHAP diagnostics and `ShapRanker` inspect `native_model` and see
+Observed/fitted reports use the adapter's predictions in original units.
+Native SHAP diagnostics and `ShapRanker` inspect `native_model` and see
 scaled raw outputs in this example. Multiplication by a fixed positive scale
 preserves relative feature rankings, but raw contributions must be multiplied
 by the scale before interpreting them as original-unit contributions.

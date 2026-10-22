@@ -1,5 +1,7 @@
 """Adapter feature selection and configured model packaging."""
 
+from ml_toolkit.training import Holdout
+
 from datetime import date
 
 import mlflow
@@ -8,10 +10,10 @@ import pytest
 from tests.support.training import mae, make_data
 
 from ml_toolkit.feature_selection import RFESelector
-from ml_toolkit.config import HoldoutConfig, TrackingConfig
+from ml_toolkit.config import TrackingConfig
 from ml_toolkit.inflation import ConstantRateInflation
 from ml_toolkit.models import CatBoostRegressionModel, InflationAdjustedModel
-from ml_toolkit.training import importance_ranker, split_holdout
+from ml_toolkit.training import importance_ranker
 
 
 @pytest.mark.parametrize("classifier", [False, True])
@@ -29,14 +31,19 @@ def test_selection_fits_native_model_with_normal_parameters(classifier):
         fitted.append(model)
         return model
 
-    params = {"thread_count": 1, "iterations": 3, "verbose": False, "allow_writing_files": False}
-    partition = split_holdout(data, HoldoutConfig(val_size=0.25))
+    params = {
+        "thread_count": 1,
+        "iterations": 3,
+        "verbose": False,
+        "allow_writing_files": False,
+    }
+    partition = next(Holdout(data, val_size=0.25).get_validation())
     result = RFESelector(
         ranker=importance_ranker, min_features=1, metric="mae", direction="minimize"
     ).select(
         metric=mae,
         train=partition.train,
-        validation=partition.val,
+        validation=partition.heldout,
         params=params,
         model_factory=record,
     )
@@ -50,7 +57,13 @@ def test_selection_fits_native_model_with_normal_parameters(classifier):
 def test_standalone_model_logging_uses_example_size(monkeypatch):
     data = make_data()
     model = CatBoostRegressionModel(
-        {"thread_count": 1, "iterations": 2, "depth": 2, "verbose": False, "allow_writing_files": False}
+        {
+            "thread_count": 1,
+            "iterations": 2,
+            "depth": 2,
+            "verbose": False,
+            "allow_writing_files": False,
+        }
     ).fit(data)
     examples = []
     monkeypatch.setattr(
@@ -78,14 +91,19 @@ def test_inflation_wrapper_uses_shared_importance_selection():
         fitted.append(model)
         return model
 
-    partition = split_holdout(data, HoldoutConfig(val_size=0.25))
+    partition = next(Holdout(data, val_size=0.25).get_validation())
     result = RFESelector(
         ranker=importance_ranker, min_features=1, metric="mae", direction="minimize"
     ).select(
         metric=mae,
         train=partition.train,
-        validation=partition.val,
-        params={"thread_count": 1, "iterations": 3, "verbose": False, "allow_writing_files": False},
+        validation=partition.heldout,
+        params={
+            "thread_count": 1,
+            "iterations": 3,
+            "verbose": False,
+            "allow_writing_files": False,
+        },
         model_factory=factory,
     )
     assert [len(step.features) for step in result.steps] == [2, 1]
