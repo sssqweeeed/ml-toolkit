@@ -49,7 +49,7 @@ def train_with_reports(data: Pool, params: ModelParams):
         run_name="data-and-predictions",
         config=TrainingConfig(
             reporting=ReportingConfig(psi=True),
-            tracking=TrackingConfig(log_final_model=False),
+            tracking=TrackingConfig(log_test_model=False, log_final_model=False),
         ),
         prediction_evaluators=[ObservedFitted()],
         data_analyzers=[NumericalFeatureDistributions(period="month")],
@@ -70,9 +70,12 @@ is needed. Direct calls can analyze prepared data before fitting any model.
 
 During training, analyzers run after prediction evaluators on the same selected
 features and combined rows. They use train + val for tuning and validation,
-and train + test (or train only) for final fitting. `ReportingConfig.on_tuning`,
-`.on_validation` and `.on_final` gate both interfaces and PSI/SHAP. Their defaults
-are false, true and true. These switches do not change core training metrics.
+and train + test for the `test` stage. The `final_fit` stage supplies train-only
+rows, either when no test sample exists or for the additional full-data model
+requested with `TrainingConfig(fit_on_test=True)`. `ReportingConfig.on_tuning`,
+`.on_validation`, `.on_test` and `.on_final_fit` gate both interfaces and PSI/SHAP.
+Their defaults are false, true, true and true. These switches do not change core
+training metrics. Reports requiring a held-out comparison skip `final_fit`.
 
 Like evaluators, analyzers may return finite scalar metrics from `evaluate()`
 and selected files from `write_artifacts()`. Either hook can be omitted.

@@ -88,7 +88,7 @@ def test_each_split_selects_once_before_tuning_and_excludes_test(
             if tuning
             else None
         ),
-        tracking=TrackingConfig(log_final_model=False),
+        tracking=TrackingConfig(log_test_model=False, log_final_model=False),
     )
     result = train_model(
         splitter=validation(data, test_size=4),
@@ -205,7 +205,9 @@ def test_calendar_test_preserves_rows_and_logs_date(tmp_path, dtype, cutoff, tes
         model_factory=Model,
         metric=mae,
         run_name="calendar-test",
-        config=TrainingConfig(tracking=TrackingConfig(log_final_model=False)),
+        config=TrainingConfig(
+            tracking=TrackingConfig(log_test_model=False, log_final_model=False)
+        ),
     )
     assert fit_rows[-1] == train_ids
     assert test_predictions == [test_ids]
@@ -267,7 +269,9 @@ def test_latest_split_with_no_best_iteration_keeps_original_budget(tmp_path):
         model_factory=Model,
         metric=mae,
         run_name="last-budget",
-        config=TrainingConfig(tracking=TrackingConfig(log_final_model=False)),
+        config=TrainingConfig(
+            tracking=TrackingConfig(log_test_model=False, log_final_model=False)
+        ),
     )
     assert result.validation.splits[0].refit_params["iterations"] == 4
     assert result.params["iterations"] == 30
@@ -275,7 +279,10 @@ def test_latest_split_with_no_best_iteration_keeps_original_budget(tmp_path):
 
 
 @pytest.mark.parametrize("fixed_threshold", [None, 0.8])
-def test_supervised_final_fit_preserves_last_threshold(tmp_path, fixed_threshold):
+@pytest.mark.parametrize("fit_on_test", [False, True])
+def test_supervised_final_fit_preserves_last_threshold(
+    tmp_path, fixed_threshold, fit_on_test
+):
     setup_mlflow(tmp_path)
     source = make_data()
     data = source.with_target(pl.Series("target", [0, 1] * 12))
@@ -296,17 +303,28 @@ def test_supervised_final_fit_preserves_last_threshold(tmp_path, fixed_threshold
     if fixed_threshold is not None:
         params["decision_threshold"] = fixed_threshold
     result = train_model(
-        splitter=Holdout(data, val_size=0.25),
+        splitter=Holdout(data, val_size=0.25, test_size=4 if fit_on_test else None),
         params=params,
         model_factory=factory,
         metric=metrics_classification,
         run_name="threshold",
-        config=TrainingConfig(tracking=TrackingConfig(log_final_model=False)),
+        config=TrainingConfig(
+            fit_on_test=fit_on_test,
+            tracking=TrackingConfig(log_test_model=False, log_final_model=False),
+        ),
     )
-    assert result.model.threshold == models[-2].threshold
-    assert result.params["decision_threshold"] == models[-2].threshold
-    assert result.model.native_model.tree_count_ == models[-2].best_iteration + 1
+    assert result.model.threshold == models[0].threshold
+    assert result.params["decision_threshold"] == models[0].threshold
+    assert result.model.native_model.tree_count_ == models[0].best_iteration + 1
     assert result.model.validation_f1 is None
+
+    if fit_on_test:
+        assert result.final_model.threshold == models[0].threshold
+        assert (
+            result.final_model.native_model.tree_count_ == models[0].best_iteration + 1
+        )
+        assert result.final_model.validation_f1 is None
+        assert result.final_model is not result.model
 
 
 @pytest.mark.parametrize(
@@ -333,7 +351,10 @@ def test_refit_preserves_budget_alias_and_disables_early_stopping(
     assert params == original
 
 
-def test_final_relearns_inflation_and_baseline_on_all_rows_before_test(tmp_path):
+@pytest.mark.parametrize("fit_on_test", [False, True])
+def test_final_relearns_inflation_and_baseline_on_all_rows_before_test(
+    tmp_path, fit_on_test
+):
     setup_mlflow(tmp_path)
     data = make_data()
     models, inflation_fits = [], []
@@ -367,14 +388,17 @@ def test_final_relearns_inflation_and_baseline_on_all_rows_before_test(tmp_path)
         model_factory=factory,
         metric=mae,
         run_name="inflation-refit",
-        config=TrainingConfig(tracking=TrackingConfig(log_final_model=False)),
+        config=TrainingConfig(
+            fit_on_test=fit_on_test,
+            tracking=TrackingConfig(log_test_model=False, log_final_model=False),
+        ),
     )
-    assert [len(dates) for dates, _, _ in inflation_fits] == [14, 20]
-    assert inflation_fits[-1][0] == data.time.head(20).to_list()
-    np.testing.assert_array_equal(inflation_fits[-1][1], data.y.head(20).to_numpy())
-    np.testing.assert_array_equal(
-        inflation_fits[-1][2], data.weight.head(20).to_numpy()
+    assert [len(dates) for dates, _, _ in inflation_fits] == (
+        [14, 20, 24] if fit_on_test else [14, 20]
     )
+    assert inflation_fits[1][0] == data.time.head(20).to_list()
+    np.testing.assert_array_equal(inflation_fits[1][1], data.y.head(20).to_numpy())
+    np.testing.assert_array_equal(inflation_fits[1][2], data.weight.head(20).to_numpy())
     normalized = result.model.inflation.adjust(
         data.y.head(20).to_numpy(),
         data.time.head(20),
@@ -387,6 +411,25 @@ def test_final_relearns_inflation_and_baseline_on_all_rows_before_test(tmp_path)
     assert result.params == result.validation.last_split.refit_params
     assert "early_stopping_rounds" not in result.params
     assert np.isfinite(result.model.predict_pool(data)).all()
+
+    if fit_on_test:
+        assert result.final_model is models[2]
+        assert result.final_model.inflation is not result.model.inflation
+        assert inflation_fits[2][0] == data.time.to_list()
+        normalized_full = result.final_model.inflation.adjust(
+            data.y.to_numpy(), data.time, pl.Series([reference_date] * len(data))
+        )
+        expected_full = np.log(
+            np.average(normalized_full, weights=data.weight.to_numpy())
+        )
+        assert result.final_model.model.baseline == pytest.approx(expected_full)
+        assert result.final_model.model.baseline != pytest.approx(
+            result.model.model.baseline
+        )
+        assert (
+            result.final_model.model.native_model.tree_count_
+            == result.model.model.native_model.tree_count_
+        )
 
 
 def test_undefined_nonobjective_metric_is_preserved():
@@ -528,7 +571,7 @@ def test_split_searches_are_independent_and_final_uses_last_post_tuning_fit(tmp_
         assert [event[2] for event in runs] == [("x", "unused")] + [part.features] * 4
         assert all(event[3] == list(range(train_end)) for event in runs)
         assert all(event[4] == list(range(train_end, val_end)) for event in runs)
-    assert events[-1] == ("final_fit", 18, ("unused",), list(range(20)), None)
+    assert events[-1] == ("test", 18, ("unused",), list(range(20)), None)
     assert result.tuning is last.tuning
     assert result.feature_selection is last.feature_selection
     assert result.params["iterations"] == 15
@@ -553,7 +596,7 @@ def test_split_searches_are_independent_and_final_uses_last_post_tuning_fit(tmp_
         ("trial_1", None),
         ("trial_2", None),
         ("validation/split_2", None),
-        ("final_fit", "final-only"),
+        ("test", "final-only"),
     ]
     runs = mlflow.search_runs(output_format="list")
     studies = [run for run in runs if run.data.tags["mlflow.runName"] == "tuning"]

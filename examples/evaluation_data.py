@@ -35,7 +35,7 @@ def fit_bike_evaluation(*, classification: bool = False) -> BikeEvaluation:
     data = load_bike_pool(download_if_missing=False)
     if classification:
         data = data.with_target((data.y >= 200).cast(pl.Float64))
-    final = Holdout(data, test_size="2012-01-01").get_final()
+    final = Holdout(data, test_size="2012-01-01").get_test()
     train, test = final.train, final.heldout
     assert test is not None
     params: ModelParams = {

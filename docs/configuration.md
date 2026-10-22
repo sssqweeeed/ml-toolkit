@@ -10,7 +10,7 @@ tuning, reporting and model packaging without requiring that setup.
 | Task | Model | Primary metric |
 | --- | --- | --- |
 | [Binary classification](#binary-classification) | `CatBoostClassificationModel` | `metrics_classification` |
-| [Regression](#regression) | `CatBoostRegressionModel` | Weighted MAE |
+| [Regression](#regression) | `CatBoostRegressionModel` | `metrics_regression` |
 | [Frequency](#frequency) | `CatBoostLogLinkRegressionModel` | `metrics_frequency` |
 | [Severity](#severity) | `CatBoostLogLinkRegressionModel` | Tweedie deviance with fixed power |
 | [Positive–unlabeled](#positiveunlabeled-classification) | `CatBoostPUClassificationModel` | `PUMetric` with a population prior |
@@ -63,7 +63,7 @@ from ml_toolkit.models import (
 )
 from ml_toolkit.types import FloatArray
 
-base_config = TrainingConfig(tracking=TrackingConfig(log_final_model=False))
+base_config = TrainingConfig(tracking=TrackingConfig(log_test_model=False, log_final_model=False))
 base_params = {
     "iterations": 20,
     "depth": 2,
@@ -125,8 +125,8 @@ data_analyzers = [NumericalFeatureDistributions()]
 
 ## Regression
 
-Ordinary regression supports signed targets. Define a three-argument metric
-returning named scores; this example uses weighted mean absolute error.
+Ordinary regression supports signed targets. `metrics_regression` returns
+weighted MAE, MSE, RMSE, R² and mean error (prediction minus target).
 
 <!-- example: configuration-regression -->
 
@@ -140,14 +140,14 @@ from examples.gallery_data import load_bike_pool
 
 data = load_bike_pool(download_if_missing=False)
 
-from examples.custom_metric import weighted_mae
+from ml_toolkit.metrics import metrics_regression
 
 regression_config = replace(base_config, reporting=common)
 splitter = TimeSeriesCV(data, n_splits=3, test_size=0.2)
 config = regression_config
 model_factory = CatBoostRegressionModel
 params = {**base_params, "loss_function": "RMSE"}
-metric = weighted_mae
+metric = metrics_regression
 feature_selector = None
 param_space = None
 prediction_evaluators = [
@@ -323,8 +323,8 @@ print({name: round(value, 4) for name, value in result.test_metrics.items()})
 
 <!-- output: configuration-run -->
 ```text
-{'mean_poisson_deviance': 120.7394, 'd2_poisson_score': 0.1843, 'mean_absolute_error': 111.9625, 'root_mean_squared_error': 155.9688, 'prediction_over_observed': 0.7438, 'lift_at_10': 1.6123, 'gain_at_10': 0.1612, 'normalized_gini': 0.6381}
-{'mean_poisson_deviance': 159.3838, 'd2_poisson_score': 0.1984, 'mean_absolute_error': 144.2219, 'root_mean_squared_error': 205.547, 'prediction_over_observed': 0.6959, 'lift_at_10': 1.7831, 'gain_at_10': 0.1783, 'normalized_gini': 0.7351}
+{'mean_absolute_error': 111.9625, 'mean_squared_error': 26246.4224, 'root_mean_squared_error': 155.9688, 'r2_score': 0.1234, 'mean_error': -56.8402, 'mean_poisson_deviance': 120.7394, 'd2_poisson_score': 0.1843, 'prediction_over_observed': 0.7438, 'lift_at_10': 1.6123, 'gain_at_10': 0.1612, 'normalized_gini': 0.6381}
+{'mean_absolute_error': 144.2219, 'mean_squared_error': 42249.5587, 'root_mean_squared_error': 205.547, 'r2_score': 0.1309, 'mean_error': -75.6556, 'mean_poisson_deviance': 159.3838, 'd2_poisson_score': 0.1984, 'prediction_over_observed': 0.6959, 'lift_at_10': 1.7831, 'gain_at_10': 0.1783, 'normalized_gini': 0.7351}
 ```
 <!-- /output -->
 
@@ -336,7 +336,7 @@ store. See [workflow results](api/training.md#use-the-result) and
 ## Complete Frequency example
 
 This standalone configuration enables RFE, two Optuna trials per fold, PSI,
-SHAP, the listed evaluators and final-model packaging. Install the `shap` extra.
+SHAP, the listed evaluators and main-model packaging. Install the `shap` extra.
 The small budgets keep the demonstration reproducible; choose production budgets
 for your own task. RFE's `min_features` is a lower bound, not a promised result.
 
@@ -391,6 +391,7 @@ frequency_config = TrainingConfig(
     tracking=TrackingConfig(
         log_trial_models=False,
         log_validation_models=False,
+        log_test_model=True,
         log_final_model=True,
         input_example_rows=5,
         model_name="model",
@@ -491,7 +492,7 @@ print(
     "Test Poisson deviance:",
     round(result.test_metrics["mean_poisson_deviance"], 4),
 )
-test = splitter.get_final().heldout
+test = splitter.get_test().heldout
 assert test is not None
 selected_test = test.select_features(result.features)
 shap_config = config.reporting.shap
@@ -515,7 +516,7 @@ Test Poisson deviance: 114.3487
 ![Final test SHAP importance for the full Frequency recipe.](assets/plots/frequency-full-shap.png)
 
 `steps` includes every subset tried in the last fold; the winning subset can
-contain more than `min_features`. `best_trial` is zero-based. The final model
+contain more than `min_features`. `best_trial` is zero-based. The main model
 reuses the last fold's selected settings. Its packaged form preserves the
 prediction behavior shown in the [Models guide](api/models.md#log-and-reload-for-serving).
 

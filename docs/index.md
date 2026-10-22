@@ -17,10 +17,13 @@ control data partitions and additional reports.
 1. A splitter supplies train/validation pairs.
 2. Each pair independently selects features, tunes parameters and fits a model.
    Selection and tuning are optional.
-3. A fresh final model uses the last pair's selected settings and the training
-   pool returned by `splitter.get_final()`.
-4. An optional final held-out pool is evaluated after fitting. Metrics, reports
-   and model artifacts are recorded in MLflow.
+3. A fresh main model uses the last pair's selected settings and
+   `splitter.get_test().train`, including former validation and gap rows.
+4. With test data, the `test` stage evaluates the held-out pool. Without test,
+   this fit is named `final_fit` and uses all eligible rows.
+5. With `fit_on_test=True`, a separate `final_fit` includes test and returns
+   `result.final_model`. Without test, requesting this option is an error.
+   Metrics, reports and model artifacts are recorded in MLflow.
 
 Built-in splitters reserve chronological windows and refit on all non-test rows.
 [Custom splitters](api/splitting.md) define their own windows and final training data.

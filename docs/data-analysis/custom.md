@@ -35,7 +35,7 @@ from ml_toolkit.config import FigureConfig
 from ml_toolkit.training import Holdout
 
 data = load_bike_pool(download_if_missing=False)
-partition = Holdout(data, test_size="2012-01-01").get_final()
+partition = Holdout(data, test_size="2012-01-01").get_test()
 assert partition.heldout is not None
 split = pl.Series(
     "split",

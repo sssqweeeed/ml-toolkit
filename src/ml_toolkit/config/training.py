@@ -57,13 +57,16 @@ class TrainingConfig:
         Additional metric and artifact settings.
     tracking : TrackingConfig
         Model packaging settings.
+    fit_on_test : bool, default False
+        After independent test evaluation, fit an additional fresh model on
+        all eligible data including test. Requires a held-out test sample.
 
     Notes
     -----
-    The splitter argument to train_model supplies validation and final-fit data.
-    Final fitting uses the last validation split's features and refit parameters.
+    Both post-validation fits use the last split's features and refit parameters.
     """
 
     tuning: TuningConfig | None = None
     reporting: ReportingConfig = field(default_factory=ReportingConfig)
     tracking: TrackingConfig = field(default_factory=TrackingConfig)
+    fit_on_test: bool = False

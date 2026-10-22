@@ -9,7 +9,7 @@ from ml_toolkit.feature_selection import (
 )
 from examples.custom_selector import FixedFeatureSelector
 from ml_toolkit.types import TimePeriod
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from collections.abc import Callable, Iterator
 from typing import assert_type
@@ -24,6 +24,8 @@ from ml_toolkit.metrics import (
     Metric,
     MetricScores,
     MetricsFrequency,
+    MetricsRegression,
+    metrics_regression,
     MetricsSeverity,
     PUMetric,
     metrics_classification,
@@ -84,7 +86,7 @@ def metric_contracts(y: FloatArray, prediction: FloatArray, weight: FloatArray) 
 def contracts(data: Pool) -> None:
     reporting = ReportingConfig(on_tuning=True)
     assert_type(reporting.on_tuning, bool)
-    ReportingConfig(on_validation=False, on_final=False)
+    ReportingConfig(on_validation=False, on_test=False, on_final_fit=False)
     evaluators: list[PredictionEvaluator] = [
         BusinessEvaluator(name="business"),
         BusinessEvaluator(name="quality"),
@@ -271,18 +273,30 @@ class ProjectSplitter(Splitter[Pool]):
     def get_validation(self) -> Iterator[Split[Pool]]:
         yield Split(self.data.take([0]), self.data.take([1]), index=1)
 
-    def get_final(self) -> Split[Pool]:
+    def get_test(self) -> Split[Pool]:
         return Split(self.data)
 
 
 def splitter_contracts(data: ProjectPool) -> None:
     splitter: Splitter[Pool] = Holdout(data)
     assert_type(splitter.get_validation(), Iterator[Split[Pool]])
-    assert_type(Holdout(data).get_final(), Split[ProjectPool])
+    assert_type(Holdout(data).get_test(), Split[ProjectPool])
     assert_type(
         TimeSeriesCV(data, n_splits=2).get_validation(), Iterator[Split[ProjectPool]]
     )
-    assert_type(ProjectSplitter(data).get_final().heldout, Pool | None)
+    assert_type(ProjectSplitter(data).get_test().heldout, Pool | None)
+
+
+def new_training_contracts(data: Pool, result: TrainingResult, y: FloatArray) -> None:
+    assert_type(Holdout(data, gap=timedelta(days=2)).get_final(), Pool)
+    assert_type(
+        TimeSeriesCV(data, n_splits=2, gap=timedelta(hours=3)).get_test(), Split[Pool]
+    )
+    assert_type(result.final_model, Model | None)
+    assert_type(TrainingConfig(fit_on_test=True).fit_on_test, bool)
+    metric: Metric = metrics_regression
+    assert_type(metrics_regression(y, y), MetricsRegression)
+    assert_type(metric(y, y, y).to_dict(), dict[str, float])
 
 
 from ml_toolkit.data_analysis import DataAnalyzer, NumericalFeatureDistributions

@@ -2,11 +2,12 @@
 
 import logging
 from collections.abc import Callable
-from dataclasses import asdict
+from dataclasses import asdict, replace
 
 from optuna import Trial
 
 from ..config import TrainingConfig
+from ..data import validate_training_data
 from ..feature_selection import FeatureSelector
 from ..metrics import Metric
 from ..models.base import Model
@@ -20,7 +21,7 @@ from .evaluation import evaluate_model
 from .reporting import prepare_evaluators, prepare_analyzers
 from ..evaluation import PredictionEvaluator
 from ..data_analysis import DataAnalyzer
-from .fit import fit_final_model, fit_split
+from .fit import refit_model, fit_split
 from .results import SplitResult, TrainingResult, ValidationResult
 from .splits import Splitter
 
@@ -81,17 +82,18 @@ def train_model(
     Returns
     -------
     TrainingResult
-        Final model, split results, last-split settings and optional test scores.
+        Main model, split results, optional test scores and additional final model.
 
     Notes
     -----
     Each split independently selects features using the base parameters, tunes
     on its validation rows, then fits the winning settings once for reporting.
-    Validation averages are reports, not Optuna objectives. Final fitting uses
-    the last split's features, parameters, iterations and optional threshold on
-    splitter.get_final().train, without repeated selection or validation. The
-    final held-out sample receives predictions after fitting. MLflow URI and
-    experiment are caller-owned.
+    Validation averages are reports, not Optuna objectives. The main model
+    fits splitter.get_test().train using the last split's features and refit
+    parameters. With held-out test data this is the test stage; otherwise it
+    is final_fit. fit_on_test adds a fresh final_fit on splitter.get_final()
+    after test evaluation, without replacing the main model or its scores.
+    No selection or tuning is repeated. MLflow configuration is caller-owned.
 
     See Also
     --------
@@ -105,6 +107,9 @@ def train_model(
     experiment". The Feature selection, Parameter tuning and Evaluation guides
     show how to extend that workflow with independently prepared examples.
     """
+    test = splitter.get_test()
+    if config.fit_on_test and test.heldout is None:
+        raise ValueError("fit_on_test=True requires a held-out test sample")
     splits = splitter.get_validation()
     part = next(splits, None)
     if part is None:
@@ -191,34 +196,77 @@ def train_model(
             },
             "configuration/resolved.json",
         )
-        final = splitter.get_final()
-        final_train = final.train.select_features(last.features)
-        final_test = (
+        test_train = test.train.select_features(last.features)
+        test_heldout = (
             None
-            if final.heldout is None
-            else final.heldout.select_features(last.features)
+            if test.heldout is None
+            else test.heldout.select_features(last.features)
         )
-        with tracking.run("final_fit"):
-            model, final_params = fit_final_model(
-                data=final_train,
+        stage = "final_fit" if test_heldout is None else "test"
+        logger.info("Starting %s stage", stage)
+        with tracking.run(stage):
+            model, final_params = refit_model(
+                data=test_train,
                 last_split=last,
                 model_factory=model_factory,
             )
             scores = evaluate_model(
                 model,
-                final_train,
-                final_test,
+                test_train,
+                test_heldout,
                 metric,
                 config.reporting,
                 evaluators,
                 analyzers=analyzers,
-                stage="final",
-                name="final_fit",
+                stage=stage,
+                name=stage,
                 split=DatasetSplit.TEST,
             )
-            if config.tracking.log_final_model:
-                model.log(final_train, config=config.tracking)
-            logger.info("Completed final fit for run %s", run_name)
+            log_main = (
+                config.tracking.log_final_model
+                if test_heldout is None
+                else config.tracking.log_test_model
+            )
+            if log_main:
+                main_tracking = (
+                    replace(config.tracking, registered_model_name=None)
+                    if config.fit_on_test
+                    else config.tracking
+                )
+                model.log(test_train, config=main_tracking)
+        logger.info("Completed %s stage", stage)
+        final_model = None
+        if config.fit_on_test:
+            full = splitter.get_final()
+            validate_training_data(full)
+            full = full.select_features(last.features)
+            if (
+                full.X.schema != test_train.X.schema
+                or full.cat_features != test_train.cat_features
+                or full.numerical_features != test_train.numerical_features
+            ):
+                raise ValueError(
+                    "Final-fit data must match the selected training schema"
+                )
+            logger.info("Starting final_fit stage")
+            with tracking.run("final_fit"):
+                final_model, _ = refit_model(
+                    data=full, last_split=last, model_factory=model_factory
+                )
+                evaluate_model(
+                    final_model,
+                    full,
+                    None,
+                    metric,
+                    config.reporting,
+                    evaluators,
+                    analyzers=analyzers,
+                    stage="final_fit",
+                    name="final_fit",
+                )
+                if config.tracking.log_final_model:
+                    final_model.log(full, config=config.tracking)
+            logger.info("Completed final_fit stage")
         logger.info("Completed training run %s", run_name)
         return TrainingResult(
             model=model,
@@ -228,4 +276,5 @@ def train_model(
             feature_selection=last.feature_selection,
             tuning=last.tuning,
             test_metrics=scores.heldout_metrics,
+            final_model=final_model,
         )

@@ -167,7 +167,7 @@ from ml_toolkit.training import Holdout
 from ml_toolkit.config import FigureConfig
 
 data = load_bike_pool(download_if_missing=False)
-partition = Holdout(data, test_size="2012-01-01").get_final()
+partition = Holdout(data, test_size="2012-01-01").get_test()
 train, test = partition.train, partition.heldout
 assert test is not None
 output = Path("figures")

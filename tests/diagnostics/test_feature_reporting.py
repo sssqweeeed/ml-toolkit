@@ -76,7 +76,7 @@ def test_independent_fits_produce_identical_train_levels(monkeypatch, psi, obser
         split=split,
         evaluators=evaluators,
         config=reporting,
-        stage="final",
+        stage="final_fit",
     )
     assert len(levels) == int(psi) + int(observed)
     if psi and observed:

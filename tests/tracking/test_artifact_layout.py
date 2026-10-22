@@ -70,7 +70,7 @@ def test_all_reports_export_and_cleanup(tmp_path, monkeypatch, format, heldout):
         split=pl.Series(["train"] * 12 + [heldout] * 12),
         evaluators=evaluators,
         config=config,
-        stage="final",
+        stage="final_fit",
     )
     for evaluator in evaluators:
         comparative = isinstance(
@@ -124,7 +124,7 @@ def test_shap_artifacts_and_no_train_only_explanation(tmp_path, monkeypatch):
         split=pl.Series(["train"] * 12 + ["test"] * 12),
         evaluators=(),
         config=config,
-        stage="final",
+        stage="final_fit",
     )
     assert set(artifacts) == {
         "shap/test/importance.png",
@@ -143,6 +143,6 @@ def test_shap_artifacts_and_no_train_only_explanation(tmp_path, monkeypatch):
         split=pl.Series(["train"] * 24),
         evaluators=(),
         config=config,
-        stage="final",
+        stage="final_fit",
     )
     assert artifacts == []

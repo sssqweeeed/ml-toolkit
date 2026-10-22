@@ -80,7 +80,7 @@ def test_documented_task_recipes_train_and_evaluate(
         experiment = mlflow.get_experiment_by_name("ml-toolkit-task-recipes")
         runs = client.search_runs([experiment.experiment_id])
         final_run = next(
-            run for run in runs if run.data.tags["mlflow.runName"] == "final_fit"
+            run for run in runs if run.data.tags["mlflow.runName"] == "test"
         )
         figures = client.list_artifacts(final_run.info.run_id, "shap/test")
         assert {item.path for item in figures} == {

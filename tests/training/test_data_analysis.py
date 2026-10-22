@@ -42,7 +42,9 @@ def test_analyzer_only_workflow_logs_separate_settings_metrics_and_artifacts(tmp
         metric=mae,
         run_name="data-only",
         data_analyzers=DataAudit(name="audit"),
-        config=TrainingConfig(tracking=TrackingConfig(log_final_model=False)),
+        config=TrainingConfig(
+            tracking=TrackingConfig(log_test_model=False, log_final_model=False)
+        ),
     )
     assert set(result.validation.mean_metrics) == set(result.test_metrics) == {"mae"}
     client = mlflow.MlflowClient()
@@ -68,7 +70,7 @@ def test_analyzer_only_workflow_logs_separate_settings_metrics_and_artifacts(tmp
     reported = [run for run in runs if "audit/train/rows" in run.data.metrics]
     assert len(reported) == 2
     for run in reported:
-        heldout = "test" if run.data.tags["mlflow.runName"] == "final_fit" else "val"
+        heldout = "test" if run.data.tags["mlflow.runName"] == "test" else "val"
         assert run.data.metrics[f"audit/{heldout}/rows"] > 0
         assert list_all_artifacts(client, run.info.run_id) == ["audit/null_counts.csv"]
 
@@ -262,3 +264,47 @@ def test_distribution_skips_an_incomplete_pair(tmp_path):
             == []
         )
     assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.parametrize(
+    "on_test,on_final_fit", [(False, False), (True, False), (False, True), (True, True)]
+)
+def test_data_analyzers_follow_separate_test_and_full_data_stages(
+    tmp_path, on_test, on_final_fit
+):
+    setup_mlflow(tmp_path)
+    calls = []
+
+    def record(*, data, split):
+        calls.append(
+            (
+                mlflow.active_run().data.tags["mlflow.runName"],
+                len(data),
+                split.unique(maintain_order=True).to_list(),
+            )
+        )
+        return {"rows": float(len(data))}
+
+    result = train_model(
+        splitter=Holdout(make_data(), test_size=4),
+        params={},
+        model_factory=MeanModel,
+        metric=mae,
+        run_name="data-stages",
+        data_analyzers=CallbackAnalyzer(name="audit", evaluate=record),
+        config=TrainingConfig(
+            fit_on_test=True,
+            reporting=ReportingConfig(
+                on_validation=False, on_test=on_test, on_final_fit=on_final_fit
+            ),
+            tracking=TrackingConfig(log_test_model=False, log_final_model=False),
+        ),
+    )
+    expected = []
+    if on_test:
+        expected.append(("test", 24, ["train", "test"]))
+    if on_final_fit:
+        expected.append(("final_fit", 24, ["train"]))
+    assert calls == expected
+    assert result.final_model is not None
+    assert result.test_metrics == {"mae": 12.0}

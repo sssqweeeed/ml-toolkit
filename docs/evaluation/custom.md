@@ -59,7 +59,7 @@ result = train_model(
     run_name="prediction-audit",
     config=TrainingConfig(
         reporting=ReportingConfig(on_validation=False),
-        tracking=TrackingConfig(log_final_model=False),
+        tracking=TrackingConfig(log_test_model=False, log_final_model=False),
     ),
     prediction_evaluators=PredictionAudit(name="audit"),
 )
@@ -68,7 +68,7 @@ experiment = mlflow.get_experiment_by_name("custom-evaluator")
 assert experiment is not None
 runs = client.search_runs([experiment.experiment_id])
 final_run = next(
-    run for run in runs if run.data.tags["mlflow.runName"] == "final_fit"
+    run for run in runs if run.data.tags["mlflow.runName"] == "test"
 )
 print("Additional metric:", round(final_run.data.metrics["audit/test/mae"], 3))
 files = client.list_artifacts(final_run.info.run_id, "audit/test")

@@ -42,7 +42,7 @@ Weather and calendar fields are predictors; `casual` and `registered` are exclud
 because their sum reveals the target. Each hour has weight one.
 
 July–December 2012 is held out for testing. The last 20% of earlier observations
-forms validation; the final model refits on all pre-test hours. No test observations
+forms validation; the main model refits on all pre-test hours. No test observations
 are used to choose training iterations.
 
 <!-- example: getting-started-train -->
@@ -79,7 +79,7 @@ result = train_model(
     model_factory=CatBoostLogLinkRegressionModel,
     metric=metrics_frequency,
     run_name="hourly-rentals",
-    config=TrainingConfig(tracking=TrackingConfig(log_final_model=False)),
+    config=TrainingConfig(tracking=TrackingConfig(log_test_model=False, log_final_model=False)),
 )
 print(
     f"Validation deviance: {result.validation.mean_metrics['mean_poisson_deviance']:.2f}"
@@ -109,8 +109,8 @@ This small model demonstrates the workflow; it is not a tuned demand forecast.
 `Pool` is included in the installed package. Pass your own prepared data to its
 constructor; see the [data guide](api/data.md) for fields and operations.
 The example creates a local `mlflow.db` and logs metrics and configuration.
-Model packaging is disabled here; `TrackingConfig(log_final_model=True)` also
-saves the final model and its inference dependencies.
+Model packaging is disabled here; `TrackingConfig(log_test_model=True)` also
+saves the main model and its inference dependencies.
 
 ## Reproduce the other examples
 

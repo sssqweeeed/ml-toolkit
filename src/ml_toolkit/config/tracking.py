@@ -14,14 +14,17 @@ class TrackingConfig:
         Package each trial model in each split's Optuna study.
     log_validation_models : bool, default False
         Package each split's post-tuning validation model.
+    log_test_model : bool, default True
+        Package the model fitted without test and evaluated on held-out test rows.
     log_final_model : bool, default True
-        Package the model fitted on splitter.get_final().train.
+        Package a model fitted on all eligible rows, including when no test exists.
     input_example_rows : int, default 5
         Positive maximum serving-example row count, capped at sample size.
     model_name : str, default 'model'
         Nonempty MLflow model artifact name shared across nested runs.
     registered_model_name : str or None, default None
-        Registry name used only for final fitting, never trial or validation models.
+        Registry name for the additional model when fit_on_test is enabled,
+        otherwise for the main model. Requires that model's logging flag.
     conda_env : pathlib.Path or None, default None
         Existing serving environment file; None pins installed dependencies.
 
@@ -33,6 +36,7 @@ class TrackingConfig:
 
     log_trial_models: bool = False
     log_validation_models: bool = False
+    log_test_model: bool = True
     log_final_model: bool = True
     input_example_rows: int = 5
     model_name: str = "model"
