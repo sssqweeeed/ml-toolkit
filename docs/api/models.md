@@ -74,7 +74,10 @@ gamma = CatBoostLogLinkRegressionModel(
 gamma.fit(retail.train, retail.validation)
 predicted_means = gamma.predict_pool(retail.test)
 scores = metrics_severity(
-    retail.test.y.to_numpy(), predicted_means, retail.test.weight.to_numpy(), power=2.0
+    retail.test.y.to_numpy(),
+    predicted_means,
+    retail.test.weight.to_numpy(),
+    power=2.0,
 )
 print("Observed unit prices (GBP):", retail.test.y.head(5).round(2).to_list())
 print("Predicted unit prices (GBP):", predicted_means[:5].round(2).tolist())
@@ -185,7 +188,7 @@ Predicted rentals: [197.3, 273.0, 14.1, 200.0, 293.3]
 `predict_frame` accepts Polars or pandas features; `predict_pool` takes a pool.
 Both require the fitted feature columns. Extra columns are ignored and fitted
 feature order is restored. `model.native_model` exposes the fitted backend for
-operations such as [SHAP contributions](tracking.md#explain-a-fitted-model).
+operations such as [SHAP contributions](../evaluation/explainability.md).
 
 For binary classification, `predict_pool` returns positive-class probabilities;
 use `predict_labels_pool` for labels at the adapter's decision threshold.
@@ -197,7 +200,9 @@ from ml_toolkit.models import CatBoostClassificationModel
 
 # A high-demand hour means at least 100 recorded rentals.
 binary_train = split.train.with_target((split.train.y >= 100).cast(pl.Float64))
-binary_validation = split.heldout.with_target((split.heldout.y >= 100).cast(pl.Float64))
+binary_validation = split.heldout.with_target(
+    (split.heldout.y >= 100).cast(pl.Float64)
+)
 classifier = CatBoostClassificationModel(
     {
         "iterations": 40,
@@ -294,7 +299,9 @@ features = split.train.to_model_input()
 for column in split.train.cat_features:
     features[column] = features[column].astype("category")
 native.fit(
-    features, split.train.y.to_numpy(), sample_weight=split.train.weight.to_numpy()
+    features,
+    split.train.y.to_numpy(),
+    sample_weight=split.train.weight.to_numpy(),
 )
 wrapper = LightGBMServingModel(
     native,
@@ -423,22 +430,10 @@ Import the CatBoost adapters, `InflationAdjustedModel`, and `Model` from
         - native_model
         - feature_names
 
-### Model contract
+### Custom adapters
 
-Follow [build a model adapter](../custom-model.md) for a complete implementation,
-factory, and serving parity check. Custom factories accept a `ModelParams` dictionary and return a fresh adapter
-implementing `Model`. Keep learned state in that adapter; the workflow creates
-new instances for selection, tuning, validation, and final fitting. A factory
-for `InflationAdjustedModel` must also create a fresh wrapped model and
-inflation strategy using the composition in the [inflation guide](inflation.md).
-
-::: ml_toolkit.models.Model
-    options:
-      members:
-        - fit
-        - predict_pool
-        - native_model
-        - best_iteration
-        - feature_importances
-        - get_refit_params
-        - log
+[Build a model adapter](custom-model.md) covers the complete contract, a reusable
+implementation and factory, and a saved/reloaded prediction check. Factories
+create fresh adapters for selection, tuning, validation and final fitting.
+For an inflation-adjusted adapter, each call also creates a fresh wrapped model
+and strategy; see [custom inflation](inflation.md#implement-an-inflation-strategy).

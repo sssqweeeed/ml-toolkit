@@ -7,7 +7,7 @@ built-in model and preserves that transformation when logging to MLflow.
 
 The complete runnable files are `examples/custom_model.py` and
 `examples/custom_model_serving.py` in the repository checkout. They use the
-built-in [`Pool`](api/data.md#prepare-a-pool) to hold prepared data.
+built-in [`Pool`](data.md#prepare-a-pool) to hold prepared data.
 
 ## Run the complete example
 
@@ -130,5 +130,17 @@ by the scale before interpreting them as original-unit contributions.
 
 Before adopting your own adapter, check metadata alignment, finite one-value
 predictions, fresh factory instances, selected iteration reuse, and serving
-prediction equality. The public [`Model` reference](api/models.md#model-contract)
-lists the full method signatures.
+prediction equality. The reference below lists the full method signatures.
+
+## API reference
+
+::: ml_toolkit.models.Model
+    options:
+      members:
+        - fit
+        - predict_pool
+        - native_model
+        - best_iteration
+        - feature_importances
+        - get_refit_params
+        - log

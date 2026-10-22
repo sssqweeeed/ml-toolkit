@@ -46,7 +46,23 @@ class PredictionEvaluator:
     def evaluate(
         self, *, data: Pool, prediction: FloatArray, split: pl.Series
     ) -> dict[str, float]:
-        """Return metrics describing the supplied rows, or an empty dictionary."""
+        """Return additional scalar metrics, or an empty dictionary.
+
+        Parameters
+        ----------
+        data : Pool
+            Combined train and optional held-out rows. Do not mutate its fields.
+        prediction : FloatArray
+            Finite one-dimensional predictions aligned with data, shape (n_rows,).
+        split : polars.Series
+            Aligned non-null String labels: train plus at most one of val/test.
+
+        Returns
+        -------
+        dict of str to float
+            Finite values logged as ``<name>/<key>``. Include the sample in keys
+            when relevant; these values do not become optimization objectives.
+        """
         return {}
 
     def write_artifacts(
@@ -60,7 +76,32 @@ class PredictionEvaluator:
         features: tuple[FeatureLevelConfig, ...] | None,
         n_bins: int,
     ) -> list[Path]:
-        """Write selected reports; skip unavailable splits and preserve inputs."""
+        """Write report files and return only the paths to upload.
+
+        Parameters
+        ----------
+        data : Pool
+            Combined train and optional held-out rows; inputs must not be mutated.
+        prediction : FloatArray
+            Finite predictions aligned with data, shape (n_rows,).
+        split : polars.Series
+            Aligned non-null String labels: train plus at most one of val/test.
+        artifact_dir : pathlib.Path
+            Temporary directory owned by the caller, removed after upload.
+        figure : FigureConfig
+            Shared figure dimensions, resolution and file format.
+        features : tuple of FeatureLevelConfig or None
+            Shared feature-level rules. None infers rules; an empty tuple disables
+            level diagnostics. Use only if relevant to this report.
+        n_bins : int
+            Shared numerical feature-level bin limit.
+
+        Returns
+        -------
+        list of pathlib.Path
+            Files relative to artifact_dir, or absolute paths inside it. Only
+            these files are uploaded under the report name. Return [] to skip.
+        """
         return []
 
     def parameters(self) -> dict[str, object]:
@@ -234,7 +275,21 @@ def _pu_capture(
 
 @dataclass(frozen=True, kw_only=True)
 class PrecisionRecall(PredictionEvaluator):
-    """Write precision recall reports for available validation/test rows."""
+    """Plot weighted precision against recall on held-out probabilities.
+
+    Parameters
+    ----------
+    name : str, default 'precision_recall'
+        Unique report name and artifact namespace.
+    max_curve_points : int, default 1000
+        Maximum displayed threshold points; does not change metric calculations.
+
+    Notes
+    -----
+    Uses the single validation or test sample, ignoring train rows. Targets are
+    confirmed binary labels and predictions are probabilities in [0, 1].
+    Saves ``<split>/precision_recall.<format>``. Row weights affect both curves.
+    """
 
     name: str = "precision_recall"
     max_curve_points: int = 1000
@@ -272,7 +327,20 @@ class PrecisionRecall(PredictionEvaluator):
 
 @dataclass(frozen=True, kw_only=True)
 class F1Threshold(PredictionEvaluator):
-    """Write f1 threshold reports for available validation/test rows."""
+    """Plot weighted F1 against held-out probability thresholds.
+
+    Parameters
+    ----------
+    name : str, default 'f1_threshold'
+        Unique report name and artifact namespace.
+    max_curve_points : int, default 1000
+        Maximum displayed threshold points.
+
+    Notes
+    -----
+    Uses confirmed binary validation or test labels and probabilities in [0, 1].
+    Saves ``<split>/f1_threshold.<format>`` without changing the model threshold.
+    """
 
     name: str = "f1_threshold"
     max_curve_points: int = 1000
@@ -310,7 +378,24 @@ class F1Threshold(PredictionEvaluator):
 
 @dataclass(frozen=True, kw_only=True)
 class Calibration(PredictionEvaluator):
-    """Write calibration reports for available validation/test rows."""
+    """Compare held-out probabilities with observed positive rates.
+
+    Parameters
+    ----------
+    name : str, default 'calibration'
+        Unique report name and artifact namespace.
+    n_bins : int, default 10
+        Number of probability quantiles for the calibration curve. Independent
+        of shared feature-level binning.
+    histogram_bins : int, default 30
+        Number of bins in the accompanying probability histogram.
+
+    Notes
+    -----
+    Uses confirmed binary labels and probabilities in [0, 1]. Means and the
+    histogram use weights; quantile boundaries use positive-weight rows without
+    weighting. Saves ``<split>/calibration.<format>`` for validation or test.
+    """
 
     name: str = "calibration"
     n_bins: int = 10
@@ -352,7 +437,20 @@ class Calibration(PredictionEvaluator):
 
 @dataclass(frozen=True, kw_only=True)
 class Gains(PredictionEvaluator):
-    """Write gains reports for available validation/test rows."""
+    """Plot captured observed outcome against held-out exposure capacity.
+
+    Parameters
+    ----------
+    name : str, default 'gains'
+        Unique report name and artifact namespace.
+
+    Notes
+    -----
+    Ranks validation or test rows by descending prediction. Pool weights supply
+    exposure; targets must be nonnegative with positive weighted total. The
+    curve shows cumulative ``target * weight`` share, including the default 10%
+    capacity point. Saves ``<split>/gains.<format>``.
+    """
 
     name: str = "gains"
 
@@ -372,7 +470,20 @@ class Gains(PredictionEvaluator):
 
 @dataclass(frozen=True, kw_only=True)
 class Lift(PredictionEvaluator):
-    """Write lift reports for available validation/test rows."""
+    """Plot held-out outcome capture relative to uniform selection.
+
+    Parameters
+    ----------
+    name : str, default 'lift'
+        Unique report name and artifact namespace.
+
+    Notes
+    -----
+    Lift divides captured weighted outcome share by exposure share after
+    ranking by prediction. Uses validation or test rows and the default 10%
+    capacity point. Targets must be nonnegative with positive weighted total.
+    Saves ``<split>/lift.<format>``.
+    """
 
     name: str = "lift"
 
@@ -392,7 +503,22 @@ class Lift(PredictionEvaluator):
 
 @dataclass(frozen=True, kw_only=True)
 class PUScoreDistribution(PredictionEvaluator):
-    """Write pu score distribution reports for available validation/test rows."""
+    """Compare score distributions for known positives and unlabeled rows.
+
+    Parameters
+    ----------
+    name : str, default 'pu_score_distribution'
+        Unique report name and artifact namespace.
+    histogram_bins : int, default 30
+        Number of score bins.
+
+    Notes
+    -----
+    Labels 1 and 0 mean known positive and unlabeled. Each group's weighted
+    histogram is normalized separately; both need positive total weight.
+    Uses validation or test rows and saves
+    ``<split>/pu_score_distribution.<format>``.
+    """
 
     name: str = "pu_score_distribution"
     histogram_bins: int = 30
@@ -430,7 +556,20 @@ class PUScoreDistribution(PredictionEvaluator):
 
 @dataclass(frozen=True, kw_only=True)
 class PUPositiveCapture(PredictionEvaluator):
-    """Write pu positive capture reports for available validation/test rows."""
+    """Plot known-positive capture against unlabeled review capacity.
+
+    Parameters
+    ----------
+    name : str, default 'pu_positive_capture'
+        Unique report name and artifact namespace.
+
+    Notes
+    -----
+    Labels 1 and 0 mean known positive and unlabeled. Both axes use weighted
+    percentages; tied scores enter together. Capture is not recall for all
+    positives without assumptions about labeling. Uses validation or test rows
+    and saves ``<split>/pu_positive_capture.<format>``.
+    """
 
     name: str = "pu_positive_capture"
 
@@ -458,7 +597,23 @@ class PUPositiveCapture(PredictionEvaluator):
 
 @dataclass(frozen=True, kw_only=True)
 class ObservedFitted(PredictionEvaluator):
-    """Compare weighted observed/fitted means on train-fitted feature levels."""
+    """Compare weighted observed/fitted means on train-fitted feature levels.
+
+    Parameters
+    ----------
+    name : str, default 'observed_fitted'
+        Unique report name and artifact namespace.
+    features : tuple of str or None, default None
+        Names to display from shared feature definitions. None selects all;
+        an empty tuple selects none. Unknown names raise ValueError.
+
+    Notes
+    -----
+    Fits LevelTransformer on train using the supplied feature rules and n_bins.
+    Each figure compares train with validation or test using the same levels.
+    Lines show weighted means; volume is summed weight. Zero-weight or absent
+    levels have no mean. Saves one indexed feature filename in the report root.
+    """
 
     name: str = "observed_fitted"
     features: tuple[str, ...] | None = None
@@ -527,7 +682,22 @@ class ObservedFitted(PredictionEvaluator):
 
 @dataclass(frozen=True, kw_only=True)
 class TimeObservedFitted(PredictionEvaluator):
-    """Compare weighted time summaries, optionally grouped by business_type."""
+    """Compare weighted time summaries, optionally grouped by business_type.
+
+    Parameters
+    ----------
+    name : str, default 'time_observed_fitted'
+        Unique report name and artifact namespace.
+    period : TimePeriod, default 'month'
+        Calendar grouping from minute through year, in the data timezone.
+
+    Notes
+    -----
+    Compares train with validation or test. Pool.business_type supplies a separate
+    panel for each group when present. Observed/fitted means and volumes use row weights.
+    Timestamps must be ordered across the pair; a shared endpoint is allowed.
+    Saves ``time.<format>``. Shared feature rules and n_bins are unused.
+    """
 
     name: str = "time_observed_fitted"
     period: TimePeriod = "month"
@@ -576,7 +746,29 @@ class TimeObservedFitted(PredictionEvaluator):
 
 @dataclass(frozen=True, kw_only=True)
 class NumericalFeatureDistributions(PredictionEvaluator):
-    """Compare unweighted numerical time distributions on original features."""
+    """Compare unweighted numerical time distributions on original features.
+
+    Parameters
+    ----------
+    name : str, default 'numerical_feature_distributions'
+        Unique report name and artifact namespace.
+    features : tuple of str or None, default None
+        Numeric feature names to display. None uses numeric columns in Pool.X;
+        an empty tuple selects none. Missing or nonnumeric names raise ValueError.
+    period : TimePeriod, default 'month'
+        Calendar grouping in the data timezone.
+    quantile_bands : tuple of pairs, default ((0.05, 0.95), (0.25, 0.75))
+        Lower and upper quantiles for shaded distribution bands.
+    show_mean, show_median : bool, default True
+        Whether to draw each central summary.
+
+    Notes
+    -----
+    Compares train with validation or test using unweighted original values,
+    independent of predictions, Pool.weight, shared feature rules, and n_bins.
+    Nulls and non-finite values are omitted. Saves one indexed feature
+    filename in the report root.
+    """
 
     name: str = "numerical_feature_distributions"
     features: tuple[str, ...] | None = None

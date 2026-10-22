@@ -16,18 +16,30 @@ theme:
 nav:
   - Home: index.md
   - Getting started: getting-started.md
-  - Configuration by task: configuration.md
-  - Build a model adapter: custom-model.md
-  - Usage and API:
-      - Data: api/data.md
-      - Training: api/training.md
-      - Configuration: api/configuration.md
-      - Models: api/models.md
-      - Metrics: api/metrics.md
-      - PSI and feature levels: api/psi.md
-      - Plots: api/plots.md
+  - Task recipes: configuration.md
+  - Data: api/data.md
+  - Training:
+      - Workflow and results: api/training.md
+      - Data splitting: api/splitting.md
+      - Feature selection: api/feature-selection.md
+      - Parameter tuning: api/tuning.md
+  - Models:
+      - Built-in adapters: api/models.md
+      - Build a model adapter: api/custom-model.md
       - Inflation: api/inflation.md
-      - Explainability and tracking: api/tracking.md
+  - Evaluation and plots:
+      - Overview: evaluation/index.md
+      - Classification: evaluation/classification.md
+      - Observed versus fitted: evaluation/observed-fitted.md
+      - Ranking: evaluation/ranking.md
+      - Positive-unlabeled: evaluation/pu.md
+      - Numerical distributions: evaluation/distributions.md
+      - PSI and feature levels: api/psi.md
+      - Feature importance and SHAP: evaluation/explainability.md
+      - Build an evaluator: evaluation/custom.md
+  - Metrics: api/metrics.md
+  - Tracking: api/tracking.md
+  - Configuration: api/configuration.md
 
 plugins:
   - search
@@ -46,6 +58,7 @@ plugins:
             show_symbol_type_toc: false
             show_signature_annotations: true
             separate_signature: true
+            merge_init_into_class: true
             members_order: source
             filters:
               - '!^_'

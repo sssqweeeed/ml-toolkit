@@ -1,74 +1,69 @@
-# Explainability and tracking
+# Tracking
 
-Explainability helps inspect a fitted model; tracking preserves outputs in an
-MLflow experiment. These helpers can also be used outside `train_model`.
+`train_model` records its experiment in MLflow. Set the tracking URI and
+experiment before calling it; the toolkit uses the active run as a parent when
+one already exists. The same table helpers also work outside training.
 
-## Explain a fitted model
+## Inspect a training run
 
-Continue with the fitted `model` and held-out Bike `test` from the
-[model example](models.md#fit-and-predict-directly).
-Pass the fitted native backend and a Polars feature frame to the explanation
-helper.
+A workflow has a parent named by `run_name`, a `validation` run containing
+`validation/split_<index>` runs, and a `final_fit` run. Selection history is
+stored in `selection/history.json` inside each split; tuning uses nested
+`tuning` and `trial_<number>` runs. The final fit uses the
+last yielded split's settings and the final data supplied by the splitter.
 
-<!-- example: tracking-native -->
+| Where to look | Contents |
+| --- | --- |
+| Parent `configuration/requested.json` | Shared training configuration |
+| Parent `configuration/splitter.json` | Splitter class and explicit parameters |
+| Parent `configuration/evaluators.json` | Evaluator classes, names and parameters |
+| Parent `configuration/resolved.json` | Final selected features and model settings |
+| `validation` | Averages of primary validation metrics |
+| `validation/split_<index>` | Train/validation metrics, optional selection, trials and reports |
+| `final_fit` | Final train/test metrics, reports and optional model |
+
+Primary metrics drive training and tuning; evaluator metrics are additional
+named measurements. See [Evaluation and plots](../evaluation/index.md) for
+report scheduling, metric names and artifact paths. The
+[complete task recipe](../configuration.md#complete-frequency-example) shows
+selection, tuning, SHAP and final model packaging together.
+
+`TrackingConfig` controls model packaging for trials, validation and final
+fitting. Model methods preserve their prediction transformation when saving
+and loading; use the [model serving guide](models.md#log-and-reload-for-serving)
+or the [custom adapter guide](custom-model.md) for that contract.
+
+## Prepare a fitted model
+
+This independent example uses recorded Bike Sharing hours. The last 20% are
+held out; the preceding data contains a trailing 25% validation window. Run
+`python -m examples.prepare_data --dataset bike` from the checkout once.
+
+<!-- example: tracking-setup -->
 
 ```python
 import numpy as np
+from examples.gallery_data import load_bike_pool
+from ml_toolkit.models import CatBoostRegressionModel
+from ml_toolkit.training import Holdout
 
-from ml_toolkit.explainability import shap_contributions
-
-names, features, contributions = shap_contributions(model.native_model, test.X.head(3))
-feature_effects = contributions[:, :-1]
-base_values = contributions[:, -1]
-reconstructed = base_values + feature_effects.sum(axis=1)
-predicted = model.predict_frame(test.X.head(3))
-np.testing.assert_allclose(reconstructed, predicted)
-print("Base rental count:", base_values.round(2).tolist())
-print("Total feature effect:", feature_effects.sum(axis=1).round(2).tolist())
-print("Reconstructed predictions:", reconstructed.round(2).tolist())
+data = load_bike_pool(download_if_missing=False)
+splitter = Holdout(data, val_size=0.25, test_size=0.2)
+part = next(splitter.get_validation())
+test = splitter.get_final().heldout
+assert test is not None
+model = CatBoostRegressionModel(
+    {
+        "iterations": 40,
+        "depth": 4,
+        "loss_function": "RMSE",
+        "random_seed": 42,
+        "thread_count": 2,
+        "verbose": False,
+        "allow_writing_files": False,
+    }
+).fit(part.train, part.heldout)
 ```
-
-<!-- output: tracking-native -->
-```text
-Base rental count: [144.82, 144.82, 144.82]
-Total feature effect: [52.53, 43.56, 45.34]
-Reconstructed predictions: [197.35, 188.38, 190.15]
-```
-<!-- /output -->
-
-There is one contribution per feature and a final base-value column. Their row
-sum reconstructs the native raw score. For this RMSE regressor, that is the
-prediction; for log-link or classification models, the raw scale differs from
-the final transformed prediction.
-
-Native contributions do not require the optional `shap` package. Install the
-`shap` extra and use `calculate_shap_values` when you want a `shap.Explanation`
-for the plotting helpers or `top_shap_features`:
-
-<!-- example: tracking-shap -->
-
-```python
-from ml_toolkit.config import ShapConfig
-from ml_toolkit.explainability import calculate_shap_values, top_shap_features
-
-explanation = calculate_shap_values(
-    model.native_model, test.X, config=ShapConfig(max_samples=500, seed=0)
-)
-important_features = top_shap_features(explanation, top_n=3)
-print("Three most influential features:", important_features)
-assert 0 < len(important_features) < test.X.width
-```
-
-<!-- output: tracking-shap -->
-```text
-Three most influential features: ['hour', 'temperature', 'working_day']
-```
-<!-- /output -->
-
-Calculation samples at most `max_samples` rows using `seed`; defaults are 10,000
-rows and seed `0`. The explanation retains sampled feature values and native
-raw-score contributions. See [plot SHAP explanations](plots.md#plot-shap-explanations)
-for a complete example of importance, beeswarm, and dependence plots.
 
 ## Save a table in MLflow
 
@@ -85,9 +80,14 @@ mlflow.set_experiment("ml-toolkit-examples")
 predictions = model.predict_pool(test)
 table = (
     test.X.select("working_day")
-    .with_columns(pl.Series("absolute_error", np.abs(test.y.to_numpy() - predictions)))
+    .with_columns(
+        pl.Series("absolute_error", np.abs(test.y.to_numpy() - predictions))
+    )
     .group_by("working_day")
-    .agg(pl.col("absolute_error").mean().round(3).alias("mae"), pl.len().alias("hours"))
+    .agg(
+        pl.col("absolute_error").mean().round(3).alias("mae"),
+        pl.len().alias("hours"),
+    )
     .sort("working_day")
 )
 with mlflow.start_run(run_name="segment-metrics") as run:
@@ -112,17 +112,5 @@ saved payload to verify its contents. Model adapters expose their
 own model-packaging methods in the [model reference](models.md).
 
 ## API reference
-
-### Native feature contributions
-
-::: ml_toolkit.explainability.shap_contributions
-
-### SHAP explanations and selection
-
-::: ml_toolkit.explainability.calculate_shap_values
-
-::: ml_toolkit.explainability.top_shap_features
-
-### Experiment tables
 
 ::: ml_toolkit.tracking.log_polars_table

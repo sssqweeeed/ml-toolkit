@@ -44,9 +44,7 @@ pair; reversing the dates converts back to an earlier price level.
 ```python
 from ml_toolkit.inflation import ManualInflation
 
-monthly = ManualInflation(
-    {date(2025, 1, 1): 1.0, date(2025, 3, 1): 1.21}
-)
+monthly = ManualInflation({date(2025, 1, 1): 1.0, date(2025, 3, 1): 1.21})
 adjusted = monthly.adjust(
     np.array([100.0]),
     pl.Series([date(2025, 1, 15)]),
@@ -95,8 +93,12 @@ covers October–November. Invoice groups never cross those partitions.
 from examples.retail_data import load_retail_splits
 
 retail = load_retail_splits(download_if_missing=False)
-print("Train / validation / test lines:",
-      len(retail.train), len(retail.validation), len(retail.test))
+print(
+    "Train / validation / test lines:",
+    len(retail.train),
+    len(retail.validation),
+    len(retail.test),
+)
 print("First held-out prices (GBP/item):", retail.test.y.head(5).to_list())
 ```
 
@@ -125,8 +127,12 @@ from ml_toolkit.models import CatBoostRegressionModel, InflationAdjustedModel
 adjusted_model = InflationAdjustedModel(
     CatBoostRegressionModel(
         {
-            "iterations": 60, "depth": 4, "loss_function": "RMSE",
-            "random_seed": 42, "thread_count": 2, "verbose": False,
+            "iterations": 60,
+            "depth": 4,
+            "loss_function": "RMSE",
+            "random_seed": 42,
+            "thread_count": 2,
+            "verbose": False,
             "allow_writing_files": False,
         }
     ),
@@ -135,18 +141,25 @@ adjusted_model = InflationAdjustedModel(
 ).fit(retail.train, retail.validation)
 predictions = adjusted_model.predict_pool(retail.test)
 print("Predicted prices (GBP/item):", predictions[:5].round(2).tolist())
-print("Held-out MAE (GBP/item):", round(float(
-    np.mean(np.abs(predictions - retail.test.y.to_numpy()))
-), 2))
+print(
+    "Held-out MAE (GBP/item):",
+    round(float(np.mean(np.abs(predictions - retail.test.y.to_numpy()))), 2),
+)
 
 # Hold product, country, and quantity fixed; vary only the requested price date.
-requested_dates = pl.Series("prediction_date", [date(2011, 9, 1), date(2012, 9, 1)])
+requested_dates = pl.Series(
+    "prediction_date", [date(2011, 9, 1), date(2012, 9, 1)]
+)
 future = retail.test.X[[0, 0]].with_columns(requested_dates)
 date_predictions = adjusted_model.predict_frame(future)
 assert date_predictions[1] > date_predictions[0] > 0
 print("Same item at requested price dates:", date_predictions.round(2).tolist())
-conversion = adjusted_model.inflation.factor(requested_dates.head(1), requested_dates.tail(1))
-np.testing.assert_allclose(date_predictions[1:], date_predictions[:1] * conversion)
+conversion = adjusted_model.inflation.factor(
+    requested_dates.head(1), requested_dates.tail(1)
+)
+np.testing.assert_allclose(
+    date_predictions[1:], date_predictions[:1] * conversion
+)
 ```
 
 <!-- output: inflation-model -->
@@ -191,6 +204,128 @@ np.testing.assert_allclose(
 This writes a local tracking database and model artifacts. The assertion checks
 that the reloaded model preserves both requested price-date predictions.
 
+## Implement an inflation strategy
+
+Subclass `InflationAdjuster` and implement `factor(from_dates, to_dates)`:
+return one finite positive multiplier per aligned date pair. The inherited
+`adjust()` multiplies amounts by these factors. Override `fit()` when learning
+parameters, using only its training dates, targets and weights; keep learned
+state in that strategy instance. A model factory must create a fresh strategy
+for each fit, including final refitting.
+
+This project implementation accepts a separate compound rate for each calendar
+year. A full year applies exactly `1 + rate`, including leap years; a partial
+year compounds by the fraction of that year's calendar days. Datetime inputs
+use their local dates. Requested dates must lie within the supplied consecutive
+years, including the following January 1 boundary.
+
+??? note "Complete strategy source"
+
+    ```python
+    --8<-- "examples/custom_inflation.py"
+    ```
+
+These rates illustrate a supplied conversion policy, not measured inflation.
+Continue with the NumPy, Polars and date imports from the first calculation:
+
+<!-- example: inflation-custom-calculation -->
+
+```python
+from examples.custom_inflation import AnnualRateTable
+
+annual = AnnualRateTable({2024: 0.03, 2025: 0.07})
+original_dates = pl.Series([date(2024, 1, 1)])
+later_dates = pl.Series([date(2026, 1, 1)])
+converted = annual.adjust(np.array([100.0]), original_dates, later_dates)
+print("After 3% then 7%:", converted.round(2).tolist())
+restored = annual.adjust(converted, later_dates, original_dates)
+print("Reversed conversion:", restored.round(2).tolist())
+np.testing.assert_allclose(restored, [100.0])
+```
+
+<!-- output: inflation-custom-calculation -->
+```text
+After 3% then 7%: [110.21]
+Reversed conversion: [100.0]
+```
+<!-- /output -->
+
+### Fit with a project strategy
+
+Continue with `retail`, `mlflow` and the model imports above. This example uses
+the same recorded retail observations and chronological boundaries as the
+built-in strategy. Rates are fixed inputs; inherited `fit()` validates dates
+without learning from prices. The normal workflow creates separate strategy
+instances for validation and final fitting.
+
+<!-- example: inflation-custom-training -->
+
+```python
+from examples.custom_metric import weighted_mae
+from examples.retail_data import load_retail_pool
+from ml_toolkit import train_model
+from ml_toolkit.config import TrackingConfig, TrainingConfig
+from ml_toolkit.training import Holdout
+from ml_toolkit.types import ModelParams
+
+
+def annual_model(params: ModelParams) -> InflationAdjustedModel:
+    return InflationAdjustedModel(
+        CatBoostRegressionModel(params),
+        inflation=AnnualRateTable({2010: 0.02, 2011: 0.08, 2012: 0.05}),
+        reference_date=date(2011, 9, 1),
+    )
+
+
+retail_data = load_retail_pool(download_if_missing=False)
+annual_result = train_model(
+    splitter=Holdout(
+        retail_data,
+        val_size=len(retail.validation),
+        test_size="2011-10-01",
+    ),
+    params={
+        "iterations": 30,
+        "depth": 4,
+        "loss_function": "RMSE",
+        "random_seed": 42,
+        "thread_count": 2,
+        "verbose": False,
+        "allow_writing_files": False,
+    },
+    model_factory=annual_model,
+    metric=weighted_mae,
+    run_name="retail-annual-policy",
+    config=TrainingConfig(tracking=TrackingConfig(log_final_model=False)),
+)
+annual_predictions = annual_result.model.predict_pool(retail.test)
+assert annual_result.test_metrics is not None
+print(
+    "Custom-policy test MAE (GBP/item):",
+    round(annual_result.test_metrics["mae"], 2),
+)
+print("Predicted prices (GBP/item):", annual_predictions[:5].round(2).tolist())
+```
+
+<!-- output: inflation-custom-training -->
+```text
+Custom-policy test MAE (GBP/item): 2.08
+Predicted prices (GBP/item): [1.09, 3.9, 5.45, 7.21, 7.74]
+```
+<!-- /output -->
+
+The final model includes September's validation rows and predicts prices at
+October–November transaction dates. Metrics and configuration are logged to the
+local MLflow store configured above.
+
+Bundled model packaging reconstructs `ConstantRateInflation` and
+`ManualInflation` only. A custom strategy such as `AnnualRateTable` works for
+fitting and prediction, but `InflationAdjustedModel.log()` raises `ValueError`
+for it. Keep trial, validation and final model logging disabled, as above, or
+provide your own serving implementation that saves and restores the strategy.
+See [the model adapter guide](custom-model.md#preserve-predictions-in-serving)
+for an executable persistence pattern.
+
 ## API reference
 
 Import strategies from `ml_toolkit.inflation`.
@@ -199,14 +334,14 @@ Import strategies from `ml_toolkit.inflation`.
 
 ::: ml_toolkit.inflation.InflationAdjuster
     options:
-      filters: ['!^_', '!^to_config$']
+      members: [fit, factor, adjust]
 
 ### Inflation strategies
 
 ::: ml_toolkit.inflation.ConstantRateInflation
     options:
-      filters: ['!^_', '!^to_config$']
+      members: [fit, factor, adjust]
 
 ::: ml_toolkit.inflation.ManualInflation
     options:
-      filters: ['!^_', '!^to_config$']
+      members: [fit, factor, adjust]

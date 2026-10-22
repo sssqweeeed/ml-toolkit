@@ -14,28 +14,40 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 @pytest.mark.parametrize('page', [page for page in PAGES if page not in {
-    'docs/configuration.md', 'docs/api/metrics.md',
+    'docs/configuration.md',
 }])
 def test_captured_documentation_output_matches_examples(page):
     from examples.gallery_data import bike_cache_available
     from examples.retail_data import retail_cache_available
 
     if page in {'README.md', 'docs/getting-started.md', 'docs/api/models.md',
-                'docs/api/training.md', 'docs/api/tracking.md', 'docs/custom-model.md'}:
+                'docs/api/training.md', 'docs/api/tracking.md', 'docs/api/custom-model.md',
+                'docs/api/splitting.md', 'docs/api/feature-selection.md',
+                'docs/api/tuning.md', 'docs/api/metrics.md'}:
         if not bike_cache_available():
             pytest.skip('Prepare the original Bike Sharing cache before running this recipe')
     if page in {'docs/api/models.md', 'docs/api/inflation.md'} and not retail_cache_available():
         pytest.skip('Prepare the original Online Retail cache before running this recipe')
     if page == 'docs/api/models.md':
         pytest.importorskip('lightgbm')
-    if page == 'docs/api/tracking.md':
-        pytest.importorskip('shap')
     render(check=True, pages=(page,))
 
 
 @pytest.mark.parametrize('page', PAGES)
 def test_every_recipe_is_registered_even_without_prints(page):
     assert recipes(ROOT / page)
+
+
+def test_all_executable_pages_have_one_renderer():
+    from examples.render_plots import PAGES as PLOT_PAGES
+
+    assert not set(PAGES).intersection(PLOT_PAGES)
+    executable = {
+        path.relative_to(ROOT).as_posix()
+        for path in [ROOT / 'README.md', *sorted((ROOT / 'docs').rglob('*.md'))]
+        if '<!-- example:' in path.read_text()
+    }
+    assert executable == set(PAGES) | set(PLOT_PAGES)
 
 
 def test_inflation_calculation_changes_price_and_reverses():

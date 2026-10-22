@@ -15,7 +15,7 @@ class TrackingConfig:
     log_validation_models : bool, default False
         Package each split's post-tuning validation model.
     log_final_model : bool, default True
-        Package the model fitted on all retained rows.
+        Package the model fitted on splitter.get_final().train.
     input_example_rows : int, default 5
         Positive maximum serving-example row count, capped at sample size.
     model_name : str, default 'model'

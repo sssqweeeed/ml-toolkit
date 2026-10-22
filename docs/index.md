@@ -1,45 +1,45 @@
 # ml-toolkit
 
-Reusable tools for model training, chronological validation, feature selection,
-Optuna tuning, metrics, diagnostic plots, and MLflow logging.
-
-Prepare your data in the built-in `Pool` container, choose a model adapter and metric,
-then run the same training workflow across tasks.
+Prepare data, choose a model and metric, then train, evaluate and record an
+experiment with the same workflow across tasks. Splitter and evaluator objects
+control data partitions and additional reports.
 
 ## Start here
 
-- [Getting started](getting-started.md): install the package and train a model
-  on a complete, reproducible example.
-- [Configuration by task](configuration.md): shared settings and task recipes for classification,
-  regression, frequency, severity, and positive-unlabeled learning.
-- [Data](api/data.md): prepare a pool and slice features without losing row
-  alignment.
-- [Training](api/training.md): run a holdout experiment, add selection and tuning,
-  and understand the result.
-- [Models](api/models.md): choose an adapter, fit it, and predict new rows.
+- [Getting started](getting-started.md): installation and one complete training run.
+- [Task recipes](configuration.md): model, metric and report choices for your target.
+- [Data](api/data.md): prepare a `Pool` and preserve row alignment when slicing.
+- [Training](api/training.md): run the workflow and interpret its result.
+- [Models](api/models.md): fit, predict, save and load a supported adapter.
 
-Each usage page starts with a short example and explains its result. The API
-reference below it lists signatures, parameters, and constraints.
+## Follow the workflow
 
-## A chronological training workflow
+1. A splitter supplies train/validation pairs.
+2. Each pair independently selects features, tunes parameters and fits a model.
+   Selection and tuning are optional.
+3. A fresh final model uses the last pair's selected settings and the training
+   pool returned by `splitter.get_final()`.
+4. An optional final held-out pool is evaluated after fitting. Metrics, reports
+   and model artifacts are recorded in MLflow.
 
-1. Reserve an optional future test tail.
-2. For each validation split, select features, tune parameters, and fit the
-   winning settings. Selection and tuning are optional.
-3. Fit the final model on every non-test row using the last split's settings.
-4. Evaluate the test tail after fitting and log results to MLflow.
+Built-in splitters reserve chronological windows and refit on all non-test rows.
+[Custom splitters](api/splitting.md) define their own windows and final training data.
+The caller prepares features and targets and selects the MLflow experiment.
 
-The caller prepares features and targets, orders observations by ascending time,
-and configures the MLflow tracking URI and experiment.
+## Inspect and customize
 
-## More tools
+| Task | Guide |
+| --- | --- |
+| Choose a diagnostic and understand its graph | [Evaluation and plots](evaluation/index.md) |
+| Supply extra metrics or artifacts | [Build an evaluator](evaluation/custom.md) |
+| Define validation windows | [Data splitting](api/splitting.md) |
+| Select or rank model features | [Feature selection](api/feature-selection.md) |
+| Search model parameters | [Parameter tuning](api/tuning.md) |
+| Implement model fitting and serving | [Build a model adapter](api/custom-model.md) |
+| Choose or implement a training metric | [Metrics](api/metrics.md) |
+| Find experiment results | [Tracking](api/tracking.md) |
+| Configure shared settings | [Configuration](api/configuration.md) |
 
-- [Metrics](api/metrics.md): classification, frequency, severity, PU, and ranking.
-- [PSI and feature levels](api/psi.md): reference-fitted bins and drift analysis.
-- [Plots](api/plots.md): runnable examples for every chart, including
-  observed/fitted, ranking, calibration, and monitoring.
-- [Inflation](api/inflation.md): constant-rate and monthly-index strategies.
-- [Explainability and tracking](api/tracking.md): SHAP helpers and table logging.
-
-This site follows the `main` branch. Source code and additional usage notes are
-available in the [GitHub repository](https://github.com/sssqweeeed/ml-toolkit).
+Each guide includes executable usage and the relevant API reference. The site
+follows the `main` branch; source and examples are in the
+[GitHub repository](https://github.com/sssqweeeed/ml-toolkit).

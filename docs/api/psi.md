@@ -8,7 +8,7 @@ bins on the reference once, then reuse them for every comparison.
 
 This small calculation makes the level counts easy to inspect; four rows per
 sample are not enough to establish population drift. For monitoring real
-observations, see the [bike-sharing gallery](plots.md#psi-scores-and-temporal-level-shares).
+observations, see the [recorded-hour comparison](#compare-recorded-weather-and-calendar-features).
 
 <!-- example: psi-compare -->
 
@@ -34,10 +34,19 @@ analysis = PSIAnalysis(
     )
 ).fit(reference)
 comparison = analysis.compare(current)
-print(comparison.psi.sort("feature").with_columns(pl.col("psi").round(4)).write_csv(), end="")
-region_shares = comparison.level_distribution.filter(
-    (pl.col("feature") == "region") & (pl.col("level") != "__NULL__")
-).select("level", "sample", "share").pivot(on="sample", index="level", values="share")
+print(
+    comparison.psi.sort("feature")
+    .with_columns(pl.col("psi").round(4))
+    .write_csv(),
+    end="",
+)
+region_shares = (
+    comparison.level_distribution.filter(
+        (pl.col("feature") == "region") & (pl.col("level") != "__NULL__")
+    )
+    .select("level", "sample", "share")
+    .pivot(on="sample", index="level", values="share")
+)
 print(region_shares.write_csv(), end="")
 ```
 
@@ -98,7 +107,9 @@ level_comparison = compare_psi(
     reference_levels, current_levels, feature_levels=levels.feature_levels
 )
 print("Age boundaries:", levels.feature_levels[0].boundaries)
-print("Current region levels:", current_levels["region"].cast(pl.String).to_list())
+print(
+    "Current region levels:", current_levels["region"].cast(pl.String).to_list()
+)
 print("Same PSI scores:", level_comparison.psi.equals(comparison.psi))
 ```
 
@@ -115,7 +126,136 @@ their values and order. Reuse the fitted transformer for subsequent samples.
 Calling `fit` again replaces its levels; previously returned comparison results
 retain their original immutable rules and levels.
 Training's shared PSI and observed/fitted diagnostics use these levels too; see the
-[shared diagnostic recipe](../configuration.md#shared-psi-and-observedfitted-diagnostics).
+[observed/fitted guide](../evaluation/observed-fitted.md).
+
+## Compare recorded weather and calendar features
+
+Prepare the [Bike Sharing cache](../evaluation/index.md#example-data). These
+figures fit levels on 2011 training hours and compare 2012 test hours. Calendar
+changes can be expected; PSI measures distribution differences, not their cause.
+Shares count rows, independent of model weights.
+
+<!-- example: psi-gallery-setup -->
+
+```python
+from pathlib import Path
+
+import numpy as np
+import polars as pl
+
+from examples.evaluation_data import fit_bike_evaluation
+from ml_toolkit.config import FigureConfig
+
+example = fit_bike_evaluation(classification=False)
+data, prediction, split = example.data, example.prediction, example.split
+train, test = example.train, example.test
+train_prediction = prediction[: len(train)]
+test_prediction = prediction[len(train) :]
+output = Path("figures")
+figure = FigureConfig(dpi=150)
+print(f"2011 train hours: {len(train)}; 2012 test hours: {len(test)}")
+```
+
+<!-- output: psi-gallery-setup -->
+```text
+2011 train hours: 8645; 2012 test hours: 8734
+```
+<!-- /output -->
+
+<!-- example: psi-gallery-scores -->
+
+```python
+from ml_toolkit.plots import psi
+
+categorical_features = {
+    "hour",
+    "working_day",
+    "weekday",
+    "holiday",
+    "season",
+    "weather",
+    "month",
+}
+weather_analysis = PSIAnalysis(
+    PSIConfig(
+        features=tuple(
+            FeatureLevelConfig(
+                name,
+                "categorical" if name in categorical_features else "numerical",
+            )
+            for name in train.X.columns
+        ),
+        n_bins=10,
+    )
+).fit(train.X, time=train.time)
+weather_comparison = weather_analysis.compare(test.X, time=test.time)
+psi.feature_psi_plot(
+    weather_comparison.psi, output / "psi-scores.png", figure=figure
+)
+print(
+    weather_comparison.psi.sort("psi", descending=True)
+    .head(5)
+    .with_columns(pl.col("psi").round(3))
+    .write_csv(),
+    end="",
+)
+```
+
+<!-- output: psi-gallery-scores -->
+```text
+feature,psi
+humidity,0.048
+temperature,0.036
+feels_like_temperature,0.033
+weather,0.004
+wind_speed,0.004
+```
+<!-- /output -->
+
+![Feature PSI scores comparing recorded 2011 and 2012 weather and calendar distributions.](../assets/plots/psi-scores.png)
+
+The bars show one PSI score per feature. Inspect its level shares to understand
+which values contribute to the difference; a universal alert cutoff is not
+implied by this illustration.
+
+<!-- example: psi-gallery-time -->
+
+```python
+psi.time_psi_level_distribution(
+    weather_comparison.time_distribution,
+    "temperature",
+    output / "psi-time.png",
+    figure=figure,
+)
+```
+
+![Monthly temperature shares on the same 2011-fitted numerical levels.](../assets/plots/psi-time.png)
+
+Each bar shows period-specific shares on the fitted levels. The dashed boundary
+marks the first current bar. When the split falls inside a period, that period
+has two equal-width bars, reference then current; the separator marks their
+visual boundary, not the exact split date. Entirely missing periods stay empty.
+Both plotting calls return `None`; their tables come from `PSIAnalysis`.
+
+## Enable PSI during training
+
+<!-- example: psi-reporting -->
+
+```python
+from ml_toolkit.config import ReportingConfig
+
+reporting = ReportingConfig(
+    psi=True, features=weather_analysis.config.features, n_bins=10
+)
+```
+
+Pass this reporting config to `TrainingConfig(reporting=reporting)`. The
+workflow compares train with the current held-out sample, writes `psi/scores.png`
+and per-feature time distributions, and saves the score and distribution tables
+as JSON. A train-only fit has no PSI report. `features=None` infers feature
+rules; `features=()` disables feature diagnostics. `epsilon` is the PSI share
+floor, and `period` sets temporal grouping. Scheduling and shared figure settings
+are described in the [evaluation overview](../evaluation/index.md).
 
 ## API reference
 
@@ -152,3 +292,10 @@ Import these lower-level types from `ml_toolkit.feature_levels`.
 `FeatureType` identifies numerical and categorical features. `FeatureScalar`
 describes the values retained by learned levels. `NULL_LEVEL`, `ERROR_LEVEL`,
 and `UNSEEN_LEVEL` are the default missing, invalid, and unseen-category labels.
+
+### PSI plots
+
+::: ml_toolkit.plots.psi
+    options:
+      heading_level: 3
+      members: [feature_psi_plot, time_psi_level_distribution]
