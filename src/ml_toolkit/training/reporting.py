@@ -1,6 +1,7 @@
 """Execute additional reporting and upload its explicitly selected artifacts."""
 
 import logging
+from collections.abc import Callable
 import re
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -10,10 +11,15 @@ import polars as pl
 
 from ..config import ReportingConfig
 from ..data import Pool
-from ..evaluation import (
-    PredictionEvaluator,
+from ..data_analysis import DataAnalyzer
+from .._reporting import (
+    data_comparison_pair,
+    validate_split,
     feature_definitions,
     feature_filename,
+)
+from ..evaluation import (
+    PredictionEvaluator,
     comparison_pair,
     validate_inputs,
 )
@@ -30,6 +36,7 @@ logger = logging.getLogger(__name__)
 def prepare_evaluators(
     evaluators: PredictionEvaluator | list[PredictionEvaluator] | None,
     config: ReportingConfig,
+    analyzers: tuple[DataAnalyzer, ...] = (),
 ) -> tuple[PredictionEvaluator, ...]:
     """Normalize and validate names before fitting, even for disabled stages."""
     items = (
@@ -43,14 +50,25 @@ def prepare_evaluators(
         reserved.add("psi")
     if config.shap is not None:
         reserved.add("shap")
-    for item in items:
+    for item in (*items, *analyzers):
         name = item.name.casefold()
         if name in names or name in reserved:
             raise ValueError(
-                f"Evaluator names must be unique and not reserved: {item.name!r}"
+                f"Evaluator and analyzer names must be unique and not reserved: {item.name!r}"
             )
         names.add(name)
     return items
+
+
+def prepare_analyzers(
+    analyzers: DataAnalyzer | list[DataAnalyzer] | None,
+) -> tuple[DataAnalyzer, ...]:
+    """Normalize data reports independently of prediction evaluators."""
+    return (
+        ()
+        if analyzers is None
+        else tuple(analyzers) if isinstance(analyzers, list) else (analyzers,)
+    )
 
 
 def upload_artifacts(root: Path, paths: list[Path], namespace: str) -> None:
@@ -94,9 +112,7 @@ def upload_artifacts(root: Path, paths: list[Path], namespace: str) -> None:
         if parent != ".":
             artifact_path += f"/{parent}"
         tracking.log_artifact(image, artifact_path=artifact_path)
-        logger.debug(
-            "Logged prediction evaluation artifact %s to %s", relative, artifact_path
-        )
+        logger.debug("Logged report artifact %s to %s", relative, artifact_path)
 
 
 def report_predictions(
@@ -108,76 +124,119 @@ def report_predictions(
     evaluators: tuple[PredictionEvaluator, ...],
     config: ReportingConfig,
     stage: str,
+    analyzers: tuple[DataAnalyzer, ...] = (),
 ) -> None:
     """Run one already-enabled fit's reports; stage is only error context."""
     validate_inputs(data, prediction, split)
     for evaluator in evaluators:
+        _run_report(
+            name=evaluator.name,
+            evaluate=lambda: evaluator.evaluate(
+                data=data, prediction=prediction, split=split
+            ),
+            write=lambda root: evaluator.write_artifacts(
+                data=data,
+                prediction=prediction,
+                split=split,
+                artifact_dir=root,
+                figure=config.figure,
+                features=config.features,
+                n_bins=config.n_bins,
+            ),
+            context=f"Prediction evaluation evaluator={evaluator.name}, stage={stage}",
+        )
+    report_data(data=data, split=split, analyzers=analyzers, config=config, stage=stage)
+    if config.shap is not None:
         try:
-            values = evaluator.evaluate(data=data, prediction=prediction, split=split)
-            metrics: dict[str, float] = {}
-            for key, value in values.items():
-                if (
-                    not re.fullmatch(r"[\w .\-/]+", key)
-                    or not key.strip()
-                    or any(part in ("", ".", "..") for part in key.split("/"))
-                ):
-                    raise ValueError(
-                        f"Invalid prediction evaluation metric name: {key!r}"
-                    )
-                numeric = float(value)
-                if not np.isfinite(numeric):
-                    raise ValueError(
-                        f"Prediction evaluation metric {key!r} must be finite"
-                    )
-                metrics[f"{evaluator.name}/{key}"] = numeric
-            if metrics:
-                tracking.log_metrics(metrics)
-            with TemporaryDirectory(prefix="ml-toolkit-evaluation-") as directory:
+            with TemporaryDirectory(prefix="ml-toolkit-shap-") as directory:
                 root = Path(directory).resolve()
-                paths = evaluator.write_artifacts(
-                    data=data,
-                    prediction=prediction,
-                    split=split,
-                    artifact_dir=root,
-                    figure=config.figure,
-                    features=config.features,
-                    n_bins=config.n_bins,
+                upload_artifacts(
+                    root,
+                    _shap_artifacts(model, data, prediction, split, root, config),
+                    "shap",
                 )
-                upload_artifacts(root, paths, evaluator.name)
         except Exception as exc:
-            exc.add_note(
-                f"Prediction evaluation evaluator={evaluator.name}, stage={stage}"
-            )
+            exc.add_note(f"Prediction evaluation evaluator=shap, stage={stage}")
             raise
-    for namespace, enabled in (("psi", config.psi), ("shap", config.shap is not None)):
-        if not enabled:
-            continue
+
+
+def _run_report(
+    *,
+    name: str,
+    evaluate: Callable[[], dict[str, float]],
+    write: Callable[[Path], list[Path]],
+    context: str,
+) -> None:
+    """Apply the same metric and artifact rules to both report interfaces."""
+    try:
+        values = evaluate()
+        metrics: dict[str, float] = {}
+        for key, value in values.items():
+            if (
+                not re.fullmatch(r"[\w .\-/]+", key)
+                or not key.strip()
+                or any(part in ("", ".", "..") for part in key.split("/"))
+            ):
+                raise ValueError(f"Invalid report metric name: {key!r}")
+            numeric = float(value)
+            if not np.isfinite(numeric):
+                raise ValueError(f"Report metric {key!r} must be finite")
+            metrics[f"{name}/{key}"] = numeric
+        if metrics:
+            tracking.log_metrics(metrics)
+        with TemporaryDirectory(prefix="ml-toolkit-report-") as directory:
+            root = Path(directory).resolve()
+            upload_artifacts(root, write(root), name)
+    except Exception as exc:
+        exc.add_note(context)
+        raise
+
+
+def report_data(
+    *,
+    data: Pool,
+    split: pl.Series,
+    analyzers: tuple[DataAnalyzer, ...],
+    config: ReportingConfig,
+    stage: str,
+) -> None:
+    """Run data analysis and PSI without a model or predictions."""
+    validate_split(data, split)
+    for analyzer in analyzers:
+        _run_report(
+            name=analyzer.name,
+            evaluate=lambda: analyzer.evaluate(data=data, split=split),
+            write=lambda root: analyzer.write_artifacts(
+                data=data,
+                split=split,
+                artifact_dir=root,
+                figure=config.figure,
+                features=config.features,
+                n_bins=config.n_bins,
+            ),
+            context=f"Data analysis analyzer={analyzer.name}, stage={stage}",
+        )
+    if config.psi:
         try:
-            with TemporaryDirectory(prefix=f"ml-toolkit-{namespace}-") as directory:
+            with TemporaryDirectory(prefix="ml-toolkit-psi-") as directory:
                 root = Path(directory).resolve()
-                paths = (
-                    _psi_artifacts(data, prediction, split, root, config)
-                    if namespace == "psi"
-                    else _shap_artifacts(model, data, prediction, split, root, config)
-                )
-                upload_artifacts(root, paths, namespace)
+                upload_artifacts(root, _psi_artifacts(data, split, root, config), "psi")
         except Exception as exc:
-            exc.add_note(f"Prediction evaluation evaluator={namespace}, stage={stage}")
+            exc.add_note(f"Data analysis analyzer=psi, stage={stage}")
             raise
 
 
 def _psi_artifacts(
     data: Pool,
-    prediction: FloatArray,
     split: pl.Series,
     root: Path,
     config: ReportingConfig,
 ) -> list[Path]:
     paths: list[Path] = []
-    pair = comparison_pair(data, prediction, split)
+    pair = data_comparison_pair(data, split)
     if pair is None:
         return []
-    _, train, _, current, _ = pair
+    _, train, current = pair
     features = feature_definitions(train, config.features)
     if not features:
         return []

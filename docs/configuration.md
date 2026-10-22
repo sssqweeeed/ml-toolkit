@@ -35,7 +35,7 @@ units and sampling. The PU recipe is a function requiring your own pool.
 Run this block, choose one short task recipe, then use
 [Run the chosen recipe](#run-the-chosen-recipe). Set the MLflow tracking URI and
 experiment before training. Compact recipes disable model packaging and leave
-selection and tuning off; PSI and the listed evaluators still write reports.
+selection and tuning off; PSI, prediction evaluators and data analyzers still write reports.
 
 <!-- example: configuration-shared -->
 
@@ -75,7 +75,8 @@ base_params = {
 common = ReportingConfig(psi=True)
 ```
 See [Configuration](api/configuration.md) for settings, [data splitting](api/splitting.md)
-for partition rules, and [Evaluation and plots](evaluation/index.md) for report selection.
+for partition rules, [Evaluation](evaluation/index.md) for prediction reports, and
+[Data analysis](data-analysis/index.md) for distributions and drift.
 
 ## Binary classification
 
@@ -87,6 +88,7 @@ both classes in evaluated splits for finite ROC AUC; single-class splits return 
 <!-- example: configuration-classification -->
 
 ```python
+from ml_toolkit.data_analysis import NumericalFeatureDistributions
 from ml_toolkit.evaluation import (
     PrecisionRecall,
     F1Threshold,
@@ -95,7 +97,6 @@ from ml_toolkit.evaluation import (
     Lift,
     ObservedFitted,
     TimeObservedFitted,
-    NumericalFeatureDistributions,
 )
 from examples.gallery_data import load_bike_pool
 import polars as pl
@@ -118,8 +119,8 @@ prediction_evaluators = [
     Lift(),
     ObservedFitted(),
     TimeObservedFitted(),
-    NumericalFeatureDistributions(),
 ]
+data_analyzers = [NumericalFeatureDistributions()]
 ```
 
 ## Regression
@@ -130,10 +131,10 @@ weighted MAE, MSE, RMSE, R² and mean error (prediction minus target).
 <!-- example: configuration-regression -->
 
 ```python
+from ml_toolkit.data_analysis import NumericalFeatureDistributions
 from ml_toolkit.evaluation import (
     ObservedFitted,
     TimeObservedFitted,
-    NumericalFeatureDistributions,
 )
 from examples.gallery_data import load_bike_pool
 
@@ -152,8 +153,8 @@ param_space = None
 prediction_evaluators = [
     ObservedFitted(),
     TimeObservedFitted(),
-    NumericalFeatureDistributions(),
 ]
+data_analyzers = [NumericalFeatureDistributions()]
 ```
 
 ## Severity
@@ -176,12 +177,12 @@ predictions, validation requirements and saving models.
 <!-- example: configuration-severity -->
 
 ```python
+from ml_toolkit.data_analysis import NumericalFeatureDistributions
 from ml_toolkit.evaluation import (
     Gains,
     Lift,
     ObservedFitted,
     TimeObservedFitted,
-    NumericalFeatureDistributions,
 )
 from examples.retail_data import load_retail_pool, load_retail_splits
 
@@ -215,8 +216,8 @@ prediction_evaluators = [
     Lift(),
     ObservedFitted(),
     TimeObservedFitted(),
-    NumericalFeatureDistributions(),
 ]
+data_analyzers = [NumericalFeatureDistributions()]
 ```
 
 ## Positive–unlabeled classification
@@ -256,12 +257,12 @@ The log-link adapter fits a training-only baseline and returns positive rates.
 <!-- example: configuration-frequency -->
 
 ```python
+from ml_toolkit.data_analysis import NumericalFeatureDistributions
 from ml_toolkit.evaluation import (
     Gains,
     Lift,
     ObservedFitted,
     TimeObservedFitted,
-    NumericalFeatureDistributions,
 )
 from examples.gallery_data import load_bike_pool
 
@@ -279,8 +280,8 @@ prediction_evaluators = [
     Lift(),
     ObservedFitted(),
     TimeObservedFitted(),
-    NumericalFeatureDistributions(),
 ]
+data_analyzers = [NumericalFeatureDistributions()]
 ```
 
 ## Run the chosen recipe
@@ -308,6 +309,7 @@ result = train_model(
     feature_selector=feature_selector,
     param_space=param_space,
     prediction_evaluators=prediction_evaluators,
+    data_analyzers=data_analyzers,
 )
 print(
     {
@@ -342,12 +344,12 @@ for your own task. RFE's `min_features` is a lower bound, not a promised result.
 
 ```python
 from ml_toolkit.training import TimeSeriesCV
+from ml_toolkit.data_analysis import NumericalFeatureDistributions
 from ml_toolkit.evaluation import (
     Gains,
     Lift,
     ObservedFitted,
     TimeObservedFitted,
-    NumericalFeatureDistributions,
 )
 from examples.gallery_data import load_bike_pool
 
@@ -443,8 +445,8 @@ prediction_evaluators = [
     Lift(),
     ObservedFitted(),
     TimeObservedFitted(),
-    NumericalFeatureDistributions(),
 ]
+data_analyzers = [NumericalFeatureDistributions()]
 ```
 
 ## Inspect the complete run
@@ -475,6 +477,7 @@ result = train_model(
     feature_selector=feature_selector,
     param_space=param_space,
     prediction_evaluators=prediction_evaluators,
+    data_analyzers=data_analyzers,
 )
 assert result.feature_selection is not None
 assert result.tuning is not None

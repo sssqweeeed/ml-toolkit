@@ -27,16 +27,19 @@ nav:
       - Built-in adapters: api/models.md
       - Build a model adapter: api/custom-model.md
       - Inflation: api/inflation.md
-  - Evaluation and plots:
+  - Evaluation:
       - Overview: evaluation/index.md
       - Classification: evaluation/classification.md
       - Observed versus fitted: evaluation/observed-fitted.md
       - Ranking: evaluation/ranking.md
       - Positive-unlabeled: evaluation/pu.md
-      - Numerical distributions: evaluation/distributions.md
-      - PSI and feature levels: api/psi.md
       - Feature importance and SHAP: evaluation/explainability.md
       - Build an evaluator: evaluation/custom.md
+  - Data analysis:
+      - Overview: data-analysis/index.md
+      - Numerical distributions: data-analysis/distributions.md
+      - PSI and feature levels: api/psi.md
+      - Build a data analyzer: data-analysis/custom.md
   - Metrics: api/metrics.md
   - Tracking: api/tracking.md
   - Configuration: api/configuration.md
@@ -82,3 +85,6 @@ validation:
   links:
     not_found: warn
     anchors: warn
+
+not_in_nav: |
+  /evaluation/distributions.md

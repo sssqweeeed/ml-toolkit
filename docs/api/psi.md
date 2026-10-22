@@ -1,6 +1,7 @@
 # PSI and feature levels
 
-Population Stability Index (PSI) measures how feature distributions change
+Part of [Data analysis](../data-analysis/index.md), Population Stability Index
+(PSI) measures how feature distributions change
 between a reference sample and a current sample. Fit categories and numerical
 bins on the reference once, then reuse them for every comparison.
 
@@ -125,8 +126,27 @@ Configured columns become Polars `Categorical` columns; other columns retain
 their values and order. Reuse the fitted transformer for subsequent samples.
 Calling `fit` again replaces its levels; previously returned comparison results
 retain their original immutable rules and levels.
-Training's shared PSI and observed/fitted diagnostics use these levels too; see the
-[observed/fitted guide](../evaluation/observed-fitted.md).
+
+## How PSI and observed/fitted share levels
+
+During training, PSI and `ObservedFitted` receive the same
+`ReportingConfig.features` rules and `ReportingConfig.n_bins`. Each report
+creates its own `LevelTransformer` and calls `fit(train.X)` on the same training
+rows for that fit. They do not share a fitted transformer, a cached level object,
+or fitted state between reports.
+
+The same rules, bin count and reference data produce identical categories and
+numerical boundaries for matching features. Identical configuration alone is
+insufficient when the reference data differs. `ObservedFitted(features=...)`
+can select a subset of the shared feature definitions without changing how
+those features are binned.
+
+Each report applies its training-fitted levels to both train and validation/test
+rows. Held-out rows do not influence the learned levels. Every enabled fit
+learns levels afresh from its own training rows, so boundaries can differ across
+folds and the final fit. See the
+[observed/fitted guide](../evaluation/observed-fitted.md#compare-feature-levels)
+for the corresponding prediction report.
 
 ## Compare recorded weather and calendar features
 
@@ -140,17 +160,16 @@ Shares count rows, independent of model weights.
 ```python
 from pathlib import Path
 
-import numpy as np
 import polars as pl
 
-from examples.evaluation_data import fit_bike_evaluation
+from examples.gallery_data import load_bike_pool
+from ml_toolkit.training import Holdout
 from ml_toolkit.config import FigureConfig
 
-example = fit_bike_evaluation(classification=False)
-data, prediction, split = example.data, example.prediction, example.split
-train, test = example.train, example.test
-train_prediction = prediction[: len(train)]
-test_prediction = prediction[len(train) :]
+data = load_bike_pool(download_if_missing=False)
+partition = Holdout(data, test_size="2012-01-01").get_test()
+train, test = partition.train, partition.heldout
+assert test is not None
 output = Path("figures")
 figure = FigureConfig(dpi=150)
 print(f"2011 train hours: {len(train)}; 2012 test hours: {len(test)}")
@@ -252,10 +271,11 @@ reporting = ReportingConfig(
 Pass this reporting config to `TrainingConfig(reporting=reporting)`. The
 workflow compares train with the current held-out sample, writes `psi/scores.png`
 and per-feature time distributions, and saves the score and distribution tables
-as JSON. A train-only fit has no PSI report. `features=None` infers feature
+as JSON. PSI uses feature values and timestamps only; no predictions are
+passed to the analysis. A train-only fit has no PSI report. `features=None` infers feature
 rules; `features=()` disables feature diagnostics. `epsilon` is the PSI share
 floor, and `period` sets temporal grouping. Scheduling and shared figure settings
-are described in the [evaluation overview](../evaluation/index.md).
+are described in the [data analysis overview](../data-analysis/index.md).
 
 ## API reference
 

@@ -30,7 +30,7 @@ from tests.support.training import (
     setup_mlflow,
     list_all_artifacts,
 )
-from tests.support.evaluators import CallbackEvaluator
+from tests.support.evaluators import CallbackEvaluator, CallbackAnalyzer
 
 
 @pytest.mark.parametrize(
@@ -48,6 +48,7 @@ def test_stage_flags_gate_whole_reporting_without_affecting_metrics(
 ):
     setup_mlflow(tmp_path)
     called, written, predictions, prepared, builtin = [], [], [], [], []
+    analyzed, analysis_written = [], []
 
     class Model(MeanModel):
         def predict_pool(self, data):
@@ -82,6 +83,12 @@ def test_stage_flags_gate_whole_reporting_without_affecting_metrics(
         model_factory=Model,
         metric=mae,
         run_name="stages",
+        data_analyzers=CallbackAnalyzer(
+            name="data_audit",
+            evaluate=lambda **inputs: analyzed.append(inputs)
+            or {"rows": float(len(inputs["data"]))},
+            write_artifacts=lambda **inputs: analysis_written.append(inputs) or [],
+        ),
         prediction_evaluators=CallbackEvaluator(
             name="business", evaluate=evaluate, write_artifacts=writer
         ),
@@ -101,7 +108,13 @@ def test_stage_flags_gate_whole_reporting_without_affecting_metrics(
     )
     expected = 2 * flags[0] + 2 * flags[1] + flags[2]
     assert len(called) == len(written) == len(prepared) == expected
+    assert len(analyzed) == len(analysis_written) == expected
     assert len(builtin) == expected * 2
+    for (_, inputs), analysis, output in zip(called, analyzed, analysis_written):
+        assert set(analysis) == {"data", "split"}
+        assert analysis["data"] is inputs["data"] is output["data"]
+        assert analysis["split"] is inputs["split"] is output["split"]
+        assert "prediction" not in output
     assert len(predictions) == 10  # Two samples for each of five fits.
     assert result.test_metrics and "val/extra" not in result.test_metrics
     assert "val/extra" not in result.validation.mean_metrics

@@ -18,15 +18,16 @@ last yielded split's settings and the final data supplied by the splitter.
 | --- | --- |
 | Parent `configuration/requested.json` | Shared training configuration |
 | Parent `configuration/splitter.json` | Splitter class and explicit parameters |
-| Parent `configuration/evaluators.json` | Evaluator classes, names and parameters |
+| Parent `configuration/evaluators.json` | Prediction evaluator classes, names and parameters |
+| Parent `configuration/data_analyzers.json` | Data analyzer classes, names and parameters |
 | Parent `configuration/resolved.json` | Final selected features and model settings |
 | `validation` | Averages of primary validation metrics |
 | `validation/split_<index>` | Train/validation metrics, optional selection, trials and reports |
 | `test` | Main model train/test metrics, reports and optional model |
 | `final_fit` | All-data train metrics, applicable reports and optional model; no independent test metrics |
 
-Primary metrics drive training and tuning; evaluator metrics are additional
-named measurements. See [Evaluation and plots](../evaluation/index.md) for
+Primary metrics drive training and tuning; evaluator and analyzer metrics are additional
+named measurements. See [Evaluation](../evaluation/index.md) and [Data analysis](../data-analysis/index.md) for
 report scheduling, metric names and artifact paths. The
 [complete task recipe](../configuration.md#complete-frequency-example) shows
 selection, tuning, SHAP and final model packaging together.

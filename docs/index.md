@@ -33,8 +33,10 @@ The caller prepares features and targets and selects the MLflow experiment.
 
 | Task | Guide |
 | --- | --- |
-| Choose a diagnostic and understand its graph | [Evaluation and plots](evaluation/index.md) |
-| Supply extra metrics or artifacts | [Build an evaluator](evaluation/custom.md) |
+| Choose a diagnostic and understand its graph | [Evaluation](evaluation/index.md) |
+| Analyze input distributions or drift | [Data analysis](data-analysis/index.md) |
+| Supply custom data metrics or artifacts | [Build a data analyzer](data-analysis/custom.md) |
+| Supply extra prediction metrics or artifacts | [Build an evaluator](evaluation/custom.md) |
 | Define validation windows | [Data splitting](api/splitting.md) |
 | Select or rank model features | [Feature selection](api/feature-selection.md) |
 | Search model parameters | [Parameter tuning](api/tuning.md) |

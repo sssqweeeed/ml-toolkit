@@ -1,4 +1,4 @@
-"""Reusable training, evaluation, PSI and plots for ML projects."""
+"""Reusable training, prediction evaluation, data analysis and plots for ML projects."""
 
 import logging as _logging
 from typing import TYPE_CHECKING as _TYPE_CHECKING
