@@ -10,17 +10,30 @@ vectors, not calibrated citation probabilities or a fitted PU classifier.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from hashlib import sha256
+from io import BytesIO
+import logging
 from pathlib import Path
-from tarfile import open as open_tar
+from tarfile import TarInfo, open as open_tar
 from tempfile import TemporaryDirectory
-from urllib.request import urlretrieve
+from urllib.error import URLError
+from urllib.request import urlopen
 
 import numpy as np
 
 from ml_toolkit.types import FloatArray, IntArray
 
 CORA_URL = "https://linqs-data.soe.ucsc.edu/public/lbc/cora.tgz"
+CORA_MIRROR = (
+    "https://raw.githubusercontent.com/tkipf/pygcn/"
+    "1600b5b748b3976413d1e307540ccc62605b4d6d/data/cora"
+)
+CORA_FILE_HASHES = {
+    "cora.content": "b8ebed0fd45e53995abafd1b70cf6a9fcc8f86abc5826d69b97fe6ca46e9c8ee",
+    "cora.cites": "ec1a372391b7f0f60a6aff0084e8abd8f19f0faa7e1f2441a41c492042d5945e",
+}
 DEFAULT_CITATION_CACHE = Path(__file__).resolve().parents[1] / ".cache/linqs-cora"
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -68,6 +81,25 @@ def citation_cache_available(cache_dir: Path | None = None) -> bool:
     return (directory / "cora.tgz").is_file()
 
 
+def _download_source(path: Path) -> None:
+    try:
+        with urlopen(CORA_URL, timeout=30) as response:
+            original = response.read()
+    except (URLError, TimeoutError) as error:
+        logger.warning("Cora source unavailable (%s); using pinned pygcn mirror", error)
+        with open_tar(path, "w:gz") as archive:
+            for name, expected in CORA_FILE_HASHES.items():
+                with urlopen(f"{CORA_MIRROR}/{name}", timeout=30) as response:
+                    content = response.read()
+                if sha256(content).hexdigest() != expected:
+                    raise ValueError(f"Cora mirror checksum mismatch for {name}")
+                member = TarInfo(f"cora/{name}")
+                member.size = len(content)
+                archive.addfile(member, BytesIO(content))
+    else:
+        path.write_bytes(original)
+
+
 def _source_records(
     cache_dir: Path, download_if_missing: bool
 ) -> tuple[tuple[str, ...], FloatArray, IntArray]:
@@ -78,7 +110,7 @@ def _source_records(
         cache_dir.mkdir(parents=True, exist_ok=True)
         with TemporaryDirectory(prefix="cora-download-", dir=cache_dir) as temporary:
             downloaded = Path(temporary) / "cora.tgz"
-            urlretrieve(CORA_URL, downloaded)
+            _download_source(downloaded)
             downloaded.replace(path)
     with open_tar(path, "r:gz") as archive:
         content = archive.extractfile("cora/cora.content")
@@ -139,8 +171,9 @@ def load_citation_gallery(
     cache_dir : pathlib.Path or None, default None
         Cache directory for the original archive. None uses .cache/linqs-cora.
     download_if_missing : bool, default True
-        Allow downloading the official LINQS text archive. False raises for a
-        missing cache without making network requests or writing files.
+        Allow downloading the LINQS archive, with a pinned, checksum-verified
+        pygcn mirror as fallback. False raises for a missing cache without
+        making network requests or writing files.
     unlabeled_pair_count : int, default 20000
         Number of distinct absent directed pairs sampled uniformly with seed 42.
         Must be positive and fit the available non-self, unrecorded pairs.

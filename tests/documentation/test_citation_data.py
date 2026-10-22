@@ -1,7 +1,9 @@
 """The retrieval gallery preserves real citations and scores original content."""
 
 from io import BytesIO
+from hashlib import sha256
 from tarfile import TarInfo, open as open_tar
+from urllib.error import URLError
 
 import numpy as np
 import pytest
@@ -35,11 +37,67 @@ def test_missing_cache_never_downloads_or_writes_when_disabled(tmp_path, monkeyp
     def unexpected_download(*args, **kwargs):
         pytest.fail("Source-data tests must never implicitly download")
 
-    monkeypatch.setattr("examples.citation_data.urlretrieve", unexpected_download)
+    monkeypatch.setattr("examples.citation_data.urlopen", unexpected_download)
     assert not citation_cache_available(tmp_path)
     with pytest.raises(FileNotFoundError, match="Cora data is not cached"):
         load_citation_gallery(cache_dir=tmp_path, download_if_missing=False)
     assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.parametrize("failure", [None, "timeout", "url", "checksum", "mirror"])
+def test_source_download_fallback_preserves_records_and_cache_is_atomic(
+    tmp_path, monkeypatch, failure
+):
+    from examples import citation_data
+
+    records = {
+        "cora.content": b"a\t1\t0\ttopic\nb\t0\t1\ttopic\n",
+        "cora.cites": b"a\tb\n",
+    }
+    hashes = {name: sha256(value).hexdigest() for name, value in records.items()}
+    monkeypatch.setattr(citation_data, "CORA_FILE_HASHES", hashes)
+    original = BytesIO()
+    with open_tar(fileobj=original, mode="w:gz") as archive:
+        for name, content in records.items():
+            member = TarInfo(f"cora/{name}")
+            member.size = len(content)
+            archive.addfile(member, BytesIO(content))
+    requests = []
+
+    def fetch(url, *, timeout):
+        assert timeout == 30
+        requests.append(url)
+        if url == citation_data.CORA_URL:
+            if failure == "timeout":
+                raise TimeoutError("unavailable")
+            if failure is not None:
+                raise URLError("unavailable")
+            return BytesIO(original.getvalue())
+        name = url.rsplit("/", 1)[1]
+        if name == "cora.cites":
+            if failure == "mirror":
+                raise URLError("mirror unavailable")
+            if failure == "checksum":
+                return BytesIO(b"altered data")
+        return BytesIO(records[name])
+
+    monkeypatch.setattr(citation_data, "urlopen", fetch)
+    if failure in {"checksum", "mirror"}:
+        with pytest.raises((ValueError, URLError)):
+            citation_data._source_records(tmp_path, True)
+        assert list(tmp_path.iterdir()) == []
+        return
+
+    ids, features, links = citation_data._source_records(tmp_path, True)
+    assert ids == ("a", "b")
+    np.testing.assert_array_equal(features, [[1, 0], [0, 1]])
+    np.testing.assert_array_equal(links, [[1, 0]])
+    assert len(requests) == (1 if failure is None else 3)
+    with open_tar(tmp_path / "cora.tgz") as archive:
+        for name, content in records.items():
+            assert archive.extractfile(f"cora/{name}").read() == content
+    citation_data._source_records(tmp_path, False)
+    assert len(requests) == (1 if failure is None else 3)
 
 
 def test_all_recorded_citations_preserve_the_original_directed_status(source, gallery):
