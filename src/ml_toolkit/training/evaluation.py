@@ -79,7 +79,8 @@ def evaluate_model(
     enabled = {
         "tuning": reporting.on_tuning,
         "validation": reporting.on_validation,
-        "final": reporting.on_final,
+        "test": reporting.on_test,
+        "final_fit": reporting.on_final_fit,
     }[stage]
     if enabled and (evaluators or reporting.psi or reporting.shap is not None):
         data = _combine_pools(train, heldout)

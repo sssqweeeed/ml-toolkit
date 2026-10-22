@@ -64,8 +64,8 @@ result = train_model(
     metric=weighted_mae,
     run_name="bike-evaluation",
     config=TrainingConfig(
-        reporting=ReportingConfig(on_validation=False, on_final=True),
-        tracking=TrackingConfig(log_final_model=False),
+        reporting=ReportingConfig(on_validation=False, on_test=True),
+        tracking=TrackingConfig(log_test_model=False, log_final_model=False),
     ),
     prediction_evaluators=reports,
 )
@@ -89,15 +89,16 @@ Each call receives one aligned `Pool`, one finite prediction per row, and a
 non-null String `split` Series containing `train` and at most one of `val` or
 `test`. The split labels are separate from model features; object IDs are
 optional. Training passes train + val during validation and tuning, and train +
-test (or train only) after final fitting.
+test during the `test` stage. The `final_fit` stage receives only train rows.
 
 Classification, ranking, and PU reports use only the held-out rows. Comparison
 reports show train and held-out rows together. Builtins skip incomplete pairs
 or absent held-out rows. Builtin `evaluate()` methods return `{}`; their output
 is graphical. All figures use the predictions supplied to the report.
 
-`ReportingConfig.on_tuning`, `.on_validation`, and `.on_final` control both
-methods of every evaluator and PSI/SHAP. Defaults are false, true, and true.
+`ReportingConfig.on_tuning`, `.on_validation`, `.on_test`, and `.on_final_fit`
+control both methods of every evaluator and PSI/SHAP. Defaults are false, true,
+true, and true. Reports that require held-out rows skip `final_fit`.
 Core training metrics are calculated independently. PSI and SHAP are opt-in.
 Shared `figure`, feature-level definitions, and `n_bins` come from that config;
 each report page explains which settings it uses.

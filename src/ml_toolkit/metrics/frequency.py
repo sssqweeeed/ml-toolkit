@@ -1,22 +1,14 @@
 from dataclasses import dataclass
 
-import numpy as np
-from sklearn.metrics import d2_tweedie_score, mean_absolute_error, mean_poisson_deviance
+from sklearn.metrics import d2_tweedie_score, mean_poisson_deviance
 
 from ..types import FloatArray
 from .ranking import ranking_metrics
-
-
-def root_mean_squared_error(
-    y_target: FloatArray,
-    y_pred: FloatArray,
-    weight: FloatArray,
-) -> float:
-    return float(np.sqrt(np.average(np.square(y_target - y_pred), weights=weight)))
+from .regression import MetricsRegression, metrics_regression
 
 
 @dataclass(frozen=True)
-class MetricsFrequency:
+class MetricsFrequency(MetricsRegression):
     """Store exposure-weighted frequency errors and ranking scores.
 
     Attributes
@@ -30,6 +22,12 @@ class MetricsFrequency:
         Exposure-weighted mean absolute error.
     root_mean_squared_error : float
         Square root of exposure-weighted mean squared error.
+    mean_squared_error : float
+        Exposure-weighted mean squared error.
+    r2_score : float
+        Weighted coefficient of determination, as in metrics_regression.
+    mean_error : float
+        Exposure-weighted prediction minus target; positive means overprediction.
     prediction_over_observed : float
         Total exposure-weighted prediction divided by the observed total.
     lift_at_10 : float
@@ -44,31 +42,10 @@ class MetricsFrequency:
 
     mean_poisson_deviance: float
     d2_poisson_score: float
-    mean_absolute_error: float
-    root_mean_squared_error: float
     prediction_over_observed: float
     lift_at_10: float
     gain_at_10: float
     normalized_gini: float
-
-    def to_dict(self) -> dict[str, float]:
-        """Return named scalar scores.
-
-        Returns
-        -------
-        dict[str, float]
-            All scores in this result.
-        """
-        return {
-            "mean_poisson_deviance": self.mean_poisson_deviance,
-            "d2_poisson_score": self.d2_poisson_score,
-            "mean_absolute_error": self.mean_absolute_error,
-            "root_mean_squared_error": self.root_mean_squared_error,
-            "prediction_over_observed": self.prediction_over_observed,
-            "lift_at_10": self.lift_at_10,
-            "gain_at_10": self.gain_at_10,
-            "normalized_gini": self.normalized_gini,
-        }
 
 
 def metrics_frequency(
@@ -130,10 +107,7 @@ def metrics_frequency(
         d2_poisson_score=float(
             d2_tweedie_score(y_target, y_pred, sample_weight=exposure, power=1)
         ),
-        mean_absolute_error=float(
-            mean_absolute_error(y_target, y_pred, sample_weight=exposure)
-        ),
-        root_mean_squared_error=root_mean_squared_error(y_target, y_pred, exposure),
+        **metrics_regression(y_target, y_pred, exposure).to_dict(),
         prediction_over_observed=float(
             (y_pred * exposure).sum() / (y_target * exposure).sum()
         ),

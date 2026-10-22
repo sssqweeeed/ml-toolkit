@@ -1,15 +1,15 @@
 from dataclasses import dataclass
 
 import numpy as np
-from sklearn.metrics import d2_tweedie_score, mean_absolute_error, mean_tweedie_deviance
+from sklearn.metrics import d2_tweedie_score, mean_tweedie_deviance
 
 from ..types import FloatArray
-from .frequency import root_mean_squared_error
 from .ranking import ranking_metrics
+from .regression import MetricsRegression, metrics_regression
 
 
 @dataclass(frozen=True)
-class MetricsSeverity:
+class MetricsSeverity(MetricsRegression):
     """Store exposure-weighted severity errors and ranking scores.
 
     Attributes
@@ -23,6 +23,12 @@ class MetricsSeverity:
         Exposure-weighted mean absolute error.
     root_mean_squared_error : float
         Square root of exposure-weighted mean squared error.
+    mean_squared_error : float
+        Exposure-weighted mean squared error.
+    r2_score : float
+        Weighted coefficient of determination, as in metrics_regression.
+    mean_error : float
+        Exposure-weighted prediction minus target; positive means overprediction.
     prediction_over_observed : float
         Total exposure-weighted prediction divided by the observed total.
     lift_at_10 : float
@@ -37,31 +43,10 @@ class MetricsSeverity:
 
     mean_tweedie_deviance: float
     d2_tweedie_score: float
-    mean_absolute_error: float
-    root_mean_squared_error: float
     prediction_over_observed: float
     lift_at_10: float
     gain_at_10: float
     normalized_gini: float
-
-    def to_dict(self) -> dict[str, float]:
-        """Return named scalar scores.
-
-        Returns
-        -------
-        dict[str, float]
-            All scores in this result.
-        """
-        return {
-            "mean_tweedie_deviance": self.mean_tweedie_deviance,
-            "d2_tweedie_score": self.d2_tweedie_score,
-            "mean_absolute_error": self.mean_absolute_error,
-            "root_mean_squared_error": self.root_mean_squared_error,
-            "prediction_over_observed": self.prediction_over_observed,
-            "lift_at_10": self.lift_at_10,
-            "gain_at_10": self.gain_at_10,
-            "normalized_gini": self.normalized_gini,
-        }
 
 
 def metrics_severity(
@@ -146,20 +131,7 @@ def metrics_severity(
                 power=power,
             )
         ),
-        mean_absolute_error=float(
-            mean_absolute_error(
-                y_target,
-                y_pred,
-                sample_weight=exposure,
-            )
-        ),
-        root_mean_squared_error=float(
-            root_mean_squared_error(
-                y_target,
-                y_pred,
-                weight=exposure,
-            )
-        ),
+        **metrics_regression(y_target, y_pred, exposure).to_dict(),
         prediction_over_observed=float(
             predicted / observed if observed != 0 else np.nan
         ),

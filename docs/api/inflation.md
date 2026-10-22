@@ -296,7 +296,7 @@ annual_result = train_model(
     model_factory=annual_model,
     metric=weighted_mae,
     run_name="retail-annual-policy",
-    config=TrainingConfig(tracking=TrackingConfig(log_final_model=False)),
+    config=TrainingConfig(tracking=TrackingConfig(log_test_model=False, log_final_model=False)),
 )
 annual_predictions = annual_result.model.predict_pool(retail.test)
 assert annual_result.test_metrics is not None

@@ -225,7 +225,7 @@ def demo() -> None:
 
     data = load_bike_pool(download_if_missing=False)
     splitter = Holdout(data, val_size=0.25, test_size=0.2)
-    partition = splitter.get_final()
+    partition = splitter.get_test()
     assert partition.heldout is not None
     params: ModelParams = {
         "iterations": 40,
@@ -249,7 +249,9 @@ def demo() -> None:
             model_factory=model_factory,
             metric=weighted_mae,
             run_name="scaled-regression",
-            config=TrainingConfig(tracking=TrackingConfig(log_final_model=False)),
+            config=TrainingConfig(
+                tracking=TrackingConfig(log_test_model=False, log_final_model=False)
+            ),
         )
         fitted = result.model
         with mlflow.start_run(run_name="serving-parity"):

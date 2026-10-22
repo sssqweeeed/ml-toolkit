@@ -7,7 +7,9 @@ one already exists. The same table helpers also work outside training.
 ## Inspect a training run
 
 A workflow has a parent named by `run_name`, a `validation` run containing
-`validation/split_<index>` runs, and a `final_fit` run. Selection history is
+`validation/split_<index>` runs, and a `test` run when test exists.
+Without test, the main fit is `final_fit`; with test and `fit_on_test=True`,
+a separate `final_fit` follows test evaluation. Selection history is
 stored in `selection/history.json` inside each split; tuning uses nested
 `tuning` and `trial_<number>` runs. The final fit uses the
 last yielded split's settings and the final data supplied by the splitter.
@@ -20,7 +22,8 @@ last yielded split's settings and the final data supplied by the splitter.
 | Parent `configuration/resolved.json` | Final selected features and model settings |
 | `validation` | Averages of primary validation metrics |
 | `validation/split_<index>` | Train/validation metrics, optional selection, trials and reports |
-| `final_fit` | Final train/test metrics, reports and optional model |
+| `test` | Main model train/test metrics, reports and optional model |
+| `final_fit` | All-data train metrics, applicable reports and optional model; no independent test metrics |
 
 Primary metrics drive training and tuning; evaluator metrics are additional
 named measurements. See [Evaluation and plots](../evaluation/index.md) for
@@ -28,8 +31,12 @@ report scheduling, metric names and artifact paths. The
 [complete task recipe](../configuration.md#complete-frequency-example) shows
 selection, tuning, SHAP and final model packaging together.
 
-`TrackingConfig` controls model packaging for trials, validation and final
-fitting. Model methods preserve their prediction transformation when saving
+`TrackingConfig` controls packaging for trials, validation, test and final
+fitting. `log_test_model=True` saves the test-stage main model;
+`log_final_model=True` saves the final-fit model, including when test is absent.
+Registration selects the additional model when trained, otherwise the main
+model, and requires that model's logging flag. It never falls back to the other
+model. Each stage logs its own row counts and timestamp ranges. Model methods preserve their prediction transformation when saving
 and loading; use the [model serving guide](models.md#log-and-reload-for-serving)
 or the [custom adapter guide](custom-model.md) for that contract.
 
@@ -50,7 +57,7 @@ from ml_toolkit.training import Holdout
 data = load_bike_pool(download_if_missing=False)
 splitter = Holdout(data, val_size=0.25, test_size=0.2)
 part = next(splitter.get_validation())
-test = splitter.get_final().heldout
+test = splitter.get_test().heldout
 assert test is not None
 model = CatBoostRegressionModel(
     {

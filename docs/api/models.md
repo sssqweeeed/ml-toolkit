@@ -33,7 +33,7 @@ from examples.gallery_data import load_bike_pool
 
 data = load_bike_pool(download_if_missing=False)
 splitter = Holdout(data, val_size=0.25, test_size=0.2)
-development = splitter.get_final()
+development = splitter.get_test()
 split = next(splitter.get_validation())
 test = development.heldout
 ```

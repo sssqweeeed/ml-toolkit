@@ -52,7 +52,7 @@ class DatasetSplit(StrEnum):
         Validation rows; serialized as "val".
     TEST : DatasetSplit
         Independent test rows; serialized as "test". The training workflow
-        evaluates test after final fitting when the splitter supplies held-out data.
+        evaluates test after the main fit when the splitter supplies held-out data.
     """
 
     TRAIN = "train"
@@ -60,4 +60,4 @@ class DatasetSplit(StrEnum):
     TEST = "test"
 
 
-TrainingStage = Literal["tuning", "validation", "final"]
+TrainingStage = Literal["tuning", "validation", "test", "final_fit"]

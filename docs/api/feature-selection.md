@@ -166,7 +166,7 @@ artifact and verifies its reloaded predictions on the selected input schema.
 import numpy as np
 import mlflow
 
-development = splitter.get_final()
+development = splitter.get_test()
 assert development.heldout is not None
 selected_train = development.train.select_features(custom_selection.features)
 selected_test = development.heldout.select_features(custom_selection.features)
