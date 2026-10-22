@@ -14,11 +14,12 @@ would reveal the target are excluded from the inputs.
 <!-- example: training-holdout -->
 
 ```python
+from ml_toolkit.training import Holdout
 import mlflow
 
 from examples.gallery_data import load_bike_pool
 from ml_toolkit import train_model
-from ml_toolkit.config import HoldoutConfig, TrackingConfig, TrainingConfig
+from ml_toolkit.config import TrackingConfig, TrainingConfig
 from ml_toolkit.metrics import metrics_frequency
 from ml_toolkit.models import CatBoostLogLinkRegressionModel
 
@@ -35,20 +36,20 @@ params = {
     "verbose": False,
     "allow_writing_files": False,
 }
-config = TrainingConfig(
-    validation=HoldoutConfig(val_size=0.25),
-    test_size=0.2,
-    tracking=TrackingConfig(log_final_model=False),
-)
+splitter = Holdout(data, val_size=0.25, test_size=0.2)
+config = TrainingConfig(tracking=TrackingConfig(log_final_model=False))
 result = train_model(
-    data=data,
+    splitter=splitter,
     params=params,
     model_factory=CatBoostLogLinkRegressionModel,
     metric=metrics_frequency,
     run_name="frequency-holdout",
     config=config,
 )
-print("Validation Poisson deviance:", round(result.validation.mean_metrics["mean_poisson_deviance"], 4))
+print(
+    "Validation Poisson deviance:",
+    round(result.validation.mean_metrics["mean_poisson_deviance"], 4),
+)
 assert result.test_metrics is not None
 print("Test Poisson deviance:", round(result.test_metrics["mean_poisson_deviance"], 4))
 ```
@@ -66,6 +67,37 @@ validation, the final model fits all non-test rows and evaluates the future
 test tail. Neither selection nor tuning sees test rows. The call creates a local `mlflow.db` and logs metrics and
 configuration; model packaging is disabled in this example.
 
+## Supply validation and final-fit data
+
+`Holdout` and `TimeSeriesCV` bind a prepared pool to a splitting strategy.
+`get_validation()` returns a fresh iterator of `Split(train, heldout, index)`;
+`get_final()` returns `Split(train, heldout)` with an optional test sample.
+Pools retain row metadata and their concrete container type.
+
+<!-- example: training-splitter-data -->
+
+```python
+from ml_toolkit.training import TimeSeriesCV
+
+cv = TimeSeriesCV(data, n_splits=3, test_size=0.2, gap=0, max_train_size=None)
+for part in cv.get_validation():
+    assert part.index is not None and part.heldout is not None
+final = cv.get_final()
+assert final.heldout is not None
+```
+
+Test fractions use the original pool; validation fractions use its non-test rows.
+Fractions round upward. A test start date includes that calendar day in the
+input timezone. `gap` omits rows before validation, and `max_train_size` bounds
+CV training windows. Built-in final fitting includes every non-test row.
+`skip_splits` omits initial CV windows while preserving their one-based indices.
+
+The workflow consumes validation pairs in iterator order and requests final data
+after validation. At least one validation pair is required, with positive unique
+indices. Each pool needs ascending timestamps and valid targets and weights;
+feature schemas and declarations must match within a pair. The splitter owns
+sample membership and leakage prevention; object IDs can repeat.
+
 ## Use the result
 
 `result.validation.mean_metrics` summarizes held-out validation scores;
@@ -73,8 +105,8 @@ configuration; model packaging is disabled in this example.
 fitted adapter. A single holdout produces one entry in
 `result.validation.splits`.
 
-To evaluate several chronological windows, change `validation` to
-`TimeSeriesCVConfig(n_splits=3)`. Each window performs its own selection and
+To evaluate several chronological windows, pass
+`splitter=TimeSeriesCV(data, n_splits=3, test_size=0.2)`. Each window performs its own selection and
 tuning when enabled. Final fitting uses the last window's settings. See
 [configuration by task](../configuration.md) for reporting and task-specific
 settings.
@@ -113,24 +145,33 @@ search_config = replace(
     ),
 )
 searched = train_model(
-    data=data,
+    splitter=splitter,
     params=params,
     model_factory=CatBoostLogLinkRegressionModel,
     metric=metrics_frequency,
     run_name="frequency-search",
     config=search_config,
     feature_selector=RFESelector(
-        min_features=3, metric="mean_poisson_deviance", direction="minimize",
-        max_fits=2, ranker=importance_ranker,
+        min_features=3,
+        metric="mean_poisson_deviance",
+        direction="minimize",
+        max_fits=2,
+        ranker=importance_ranker,
     ),
     param_space=param_space,
 )
 assert searched.feature_selection is not None and searched.tuning is not None
 assert searched.test_metrics is not None
 print("Selected features:", searched.features)
-print("Visited subset sizes:", [len(step.features) for step in searched.feature_selection.steps])
+print(
+    "Visited subset sizes:",
+    [len(step.features) for step in searched.feature_selection.steps],
+)
 print("Best depth:", searched.tuning.best_params["depth"])
-print("Independent test deviance:", round(searched.test_metrics["mean_poisson_deviance"], 4))
+print(
+    "Independent test deviance:",
+    round(searched.test_metrics["mean_poisson_deviance"], 4),
+)
 ```
 
 <!-- output: training-search -->
@@ -149,7 +190,7 @@ window repeats this process; the final fit reuses the last window's settings.
 `ShapRanker()` is an alternative ranker using native tree SHAP contributions;
 it does not require the `shap` extra.
 
-For an explicit train/validation pair, use `split_holdout` and
+For an explicit train/validation pair, use `next(splitter.get_validation())` and
 `selector.select(train=..., validation=..., params=..., model_factory=..., metric=...)` directly. Selection returns history and column names; apply
 them with `data.select_features(selection.features)` before your own fit.
 `tune_optuna` also works independently when supplied a scalar `score` callback.
@@ -162,25 +203,29 @@ returns only its validation score. The reserved test tail is not passed in.
 <!-- example: training-standalone-tuning -->
 
 ```python
-from ml_toolkit.training import split_holdout, tune_optuna
+from ml_toolkit.training import tune_optuna
 
-development = split_holdout(data, HoldoutConfig(val_size=0.2))
-partition = split_holdout(development.train, HoldoutConfig(val_size=0.25))
+partition = next(splitter.get_validation())
 
 
 def score(candidate_params: ModelParams) -> float:
     candidate = CatBoostLogLinkRegressionModel(candidate_params).fit(
-        partition.train, partition.val
+        partition.train, partition.heldout
     )
     return metrics_frequency(
-        partition.val.y.to_numpy(), candidate.predict_pool(partition.val),
-        partition.val.weight.to_numpy(),
+        partition.heldout.y.to_numpy(),
+        candidate.predict_pool(partition.heldout),
+        partition.heldout.weight.to_numpy(),
     ).mean_poisson_deviance
 
 
 tuned = tune_optuna(
-    base_params=params, param_space=param_space, score=score,
-    config=TuningConfig(metric="mean_poisson_deviance", direction="minimize", n_trials=2, seed=42),
+    base_params=params,
+    param_space=param_space,
+    score=score,
+    config=TuningConfig(
+        metric="mean_poisson_deviance", direction="minimize", n_trials=2, seed=42
+    ),
 )
 print("Best depth:", tuned.best_params["depth"])
 print("Validation deviance:", round(tuned.best_score, 4))
@@ -196,29 +241,38 @@ Validation deviance: 129.3511
 ## Choose a selector
 
 All selectors below work with the prepared `data`, `params`, model factory,
-metric and `search_config` above. The selector owns its settings and ranker;
-`TrainingConfig` has no feature-selection settings. Omit `feature_selector` to
+metric and `search_config` above. The selector owns its settings and ranker.
+Omit `feature_selector` to
 keep all columns. Each validation window uses fresh models, and the final fit
 reuses the last window's selected columns.
 
 <!-- example: training-selectors -->
 
 ```python
-from ml_toolkit.training import split_holdout
-
-development = split_holdout(data, HoldoutConfig(val_size=0.2))
-partition = split_holdout(development.train, HoldoutConfig(val_size=0.25))
+partition = next(splitter.get_validation())
 selectors = (
-    RFESelector(min_features=3, metric="mean_poisson_deviance", direction="minimize",
-                ranker=importance_ranker, max_fits=2),
+    RFESelector(
+        min_features=3,
+        metric="mean_poisson_deviance",
+        direction="minimize",
+        ranker=importance_ranker,
+        max_fits=2,
+    ),
     TopKSelector(k=3, ranker=importance_ranker),
-    ForwardSelector(metric="mean_poisson_deviance", direction="minimize",
-                    max_features=2, max_fits=21),
+    ForwardSelector(
+        metric="mean_poisson_deviance",
+        direction="minimize",
+        max_features=2,
+        max_fits=21,
+    ),
 )
 for selector in selectors:
     selection = selector.select(
-        train=partition.train, validation=partition.val, params=params,
-        model_factory=CatBoostLogLinkRegressionModel, metric=metrics_frequency,
+        train=partition.train,
+        validation=partition.heldout,
+        params=params,
+        model_factory=CatBoostLogLinkRegressionModel,
+        metric=metrics_frequency,
     )
     print(type(selector).__name__, selection.features, len(selection.steps))
 ```
@@ -251,7 +305,7 @@ the tuple form records feature names.
 
 Each validation run stores concrete settings and every evaluated subset in
 `selection/history.json`, including scores, timings, available importances and
-`selected_step`. No fitted models or executable rankers are serialized there.
+`selected_step`.
 The selected scores are logged under `selection/metrics/<name>`; fit count,
 feature count and selected index have separate `selection/` entries.
 
@@ -277,8 +331,12 @@ This reusable example evaluates a project-approved feature subset:
 from examples.custom_selector import FixedFeatureSelector
 
 custom_selection = train_model(
-    data=data, params=params, model_factory=CatBoostLogLinkRegressionModel,
-    metric=metrics_frequency, run_name="custom-selector", config=config,
+    splitter=splitter,
+    params=params,
+    model_factory=CatBoostLogLinkRegressionModel,
+    metric=metrics_frequency,
+    run_name="custom-selector",
+    config=config,
     feature_selector=FixedFeatureSelector(("temperature", "hour")),
 )
 print(custom_selection.features)
@@ -310,8 +368,10 @@ artifact and verifies its reloaded predictions on the selected input schema.
 ```python
 import numpy as np
 
+development = splitter.get_final()
+assert development.heldout is not None
 selected_train = development.train.select_features(custom_selection.features)
-selected_test = development.val.select_features(custom_selection.features)
+selected_test = development.heldout.select_features(custom_selection.features)
 expected = custom_selection.model.predict_pool(selected_test)
 with mlflow.start_run():
     logged = custom_selection.model.log(selected_train)
@@ -329,11 +389,10 @@ Selected model predictions preserved after reload
 
 ## Add custom evaluation
 
-Custom evaluation needs aligned IDs in `Pool.object_id`. Continue with `data`,
-`params`, and `config` from the holdout example. Each evaluator needs a unique
-name, used for its metric and artifact namespace. The example passes two
-instances that both report unweighted MAE and write the same filenames;
-their results are stored separately.
+Import `PredictionEvaluator` from `ml_toolkit.evaluation`. Each call receives
+one fit's combined pool, predictions and an aligned String `split` series.
+IDs are optional. Continue with `data`,
+`params`, and `config` from the holdout example.
 
 <!-- example: training-custom-evaluation -->
 
@@ -341,59 +400,65 @@ their results are stored separately.
 from pathlib import Path
 import numpy as np
 import polars as pl
-
+from ml_toolkit.config import FigureConfig
 from ml_toolkit.data import Pool
-from ml_toolkit.training import DatasetSplit, PredictionEvaluator
+from ml_toolkit.evaluation import PredictionEvaluator
+from ml_toolkit.feature_levels import FeatureLevelConfig
 from ml_toolkit.types import FloatArray
 
 
 class ExtraMetrics(PredictionEvaluator):
     def evaluate(
-        self,
-        *,
-        object_id: pl.Series,
-        y_pred: FloatArray,
-        y_true: FloatArray,
-        split: DatasetSplit,
+        self, *, data: Pool, prediction: FloatArray, split: pl.Series
     ) -> dict[str, float]:
-        return {"mae": float(np.mean(np.abs(y_true - y_pred)))}
+        result = {}
+        for part in split.unique().to_list():
+            mask = (split == part).to_numpy()
+            result[f"{part}/mae"] = float(
+                np.mean(np.abs(data.y.to_numpy()[mask] - prediction[mask]))
+            )
+        return result
 
     def write_artifacts(
-        self, *, object_id: pl.Series, y_pred: FloatArray, y_true: FloatArray,
-        split: DatasetSplit, artifact_dir: Path,
+        self,
+        *,
+        data: Pool,
+        prediction: FloatArray,
+        split: pl.Series,
+        artifact_dir: Path,
+        figure: FigureConfig,
+        features: tuple[FeatureLevelConfig, ...] | None,
+        n_bins: int,
     ) -> list[Path]:
-        directory = artifact_dir / "tables"
-        directory.mkdir()
-        table = pl.DataFrame({"id": object_id, "observed": y_true, "predicted": y_pred})
-        paths = [directory / f"predictions.{extension}"
-                 for extension in ("csv", "parquet", "json", "html")]
-        table.write_csv(paths[0])
-        table.write_parquet(paths[1])
-        table.write_json(paths[2])
-        paths[3].write_text(table.to_pandas().to_html(index=False))
-        return paths
+        heldout = split.filter(split != "train")
+        if heldout.is_empty():
+            return []
+        part = heldout[0]
+        mask = (split == part).to_numpy()
+        directory = artifact_dir / part / "tables"
+        directory.mkdir(parents=True)
+        table = pl.DataFrame(
+            {"observed": data.y.to_numpy()[mask], "predicted": prediction[mask]}
+        )
+        files = [
+            directory / f"predictions.{extension}"
+            for extension in ("csv", "parquet", "json", "html")
+        ]
+        table.write_csv(files[0])
+        table.write_parquet(files[1])
+        table.write_json(files[2])
+        files[3].write_text(table.to_pandas().to_html(index=False))
+        return files
 
 
-identified = Pool(
-    X=data.X,
-    y=data.y,
-    time=data.time,
-    weight=data.weight,
-    cat_features=data.cat_features,
-    numerical_features=data.numerical_features,
-    object_id=pl.Series("object_id", range(len(data))),
-)
 evaluated = train_model(
-    data=identified,
+    splitter=splitter,
     params=params,
     model_factory=CatBoostLogLinkRegressionModel,
     metric=metrics_frequency,
     run_name="frequency-custom-evaluation",
     config=config,
-    prediction_evaluators=[
-        ExtraMetrics(name="business"),
-        ExtraMetrics(name="quality"),
-    ],
+    prediction_evaluators=[ExtraMetrics(name="business"), ExtraMetrics(name="quality")],
 )
 client = mlflow.MlflowClient()
 parent_run = client.search_runs(
@@ -404,8 +469,10 @@ children = client.search_runs(
     [parent_run.info.experiment_id],
     f"tags.mlflow.parentRunId = '{parent_run.info.run_id}'",
 )
-final_run = next(run for run in children if run.data.tags["mlflow.runName"] == "final_fit")
-print("Custom test MAE:", round(final_run.data.metrics["test/business/mae"], 3))
+final_run = next(
+    run for run in children if run.data.tags["mlflow.runName"] == "final_fit"
+)
+print("Custom test MAE:", round(final_run.data.metrics["business/test/mae"], 3))
 artifacts = client.list_artifacts(final_run.info.run_id, "business/test/tables")
 print("Saved prediction files:", [Path(item.path).name for item in artifacts])
 ```
@@ -417,39 +484,67 @@ Saved prediction files: ['predictions.csv', 'predictions.html', 'predictions.jso
 ```
 <!-- /output -->
 
-With `ReportingConfig.prediction_evaluation=None`, supplying an evaluator uses the default
-policy: available train, validation, and test rows during validation and final
-fitting. Pass one evaluator directly, a list, or `None`; an empty list also
-disables custom evaluation. All evaluators share the policy and run in list
-order using the same predictions. Custom scores appear in MLflow under
-`<split>/<name>/<metric>`, such as `val/business/mae` and `val/quality/mae`;
-they do not enter validation averages or the tuning objective. Each instance
-is reused, so return scores for the supplied rows and keep inputs unchanged.
+Both methods have empty default implementations, so a report may implement only
+metrics or artifacts. A single instance or a list is accepted; `None` and `[]`
+disable custom calls. `ReportingConfig` stage flags gate both methods and PSI/SHAP.
+Instances are reused, but bundled reports retain settings only. Inputs must not
+be mutated. Returned metrics do not become CV averages or optimization objectives.
 
-Names start with an ASCII letter or digit and contain only ASCII letters,
-digits, underscores, hyphens or dots. Names are checked for uniqueness without
-regard to case before training, including when evaluation is disabled.
-The `name` property is read-only. Subclasses with their own constructor must
-call `super().__init__(name=name)`.
+A call accepts train + val, train + test, or train only; val and test together
+raise `ValueError`. Single-sample reports and SHAP use `val/` or `test/`
+subfolders. See [comparison reports](../configuration.md#shared-psi-and-observedfitted-diagnostics)
+for their plots and artifact paths.
 
-Use `ReportingConfig(prediction_evaluation=PredictionEvaluationConfig(...))` to choose stages
-and splits, or empty stages/splits to disable calls. The workflow resolves these
-calls before training and requires IDs only if a call is scheduled. For example,
-a test-only policy needs no IDs when `test_size=None`, and a tuning-only policy
-needs none when tuning is disabled.
+Names must be unique ignoring case and contain ASCII letters, digits,
+underscores, hyphens or dots, starting with a letter or digit. Enabled PSI/SHAP
+reserve their names. Metrics use `<name>/<key>`; files use `<name>/<relative path>`.
+Only explicitly returned files are uploaded; temporary directories are removed
+on success and failure. Supported files include PNG, SVG, PDF, CSV, Parquet,
+JSON and HTML. Errors propagate with evaluator and stage context.
 
-To log images, CSV, Parquet, JSON, or HTML, override `write_artifacts`, save them inside the
-supplied temporary `artifact_dir`, and return their paths. The method's reference
-below describes supported files and directory lifetime. Files are stored under
-`<name>/<split>/`, preserving your relative subdirectories. For example, both
-`business/val/tables/predictions.csv` and `quality/val/tables/predictions.csv`
-are retained. Each call receives its own temporary directory, and every returned
-path is validated before any upload. An evaluator error stops the workflow with
-its name, stage and split attached; earlier logged results remain available.
+Override `parameters()` to return JSON-compatible settings for experiment logging.
 
-Existing evaluator implementations must now supply a name. Update consumers of
-the previous `custom` paths and metric prefixes to use that name; historical
-MLflow runs are unchanged.
+## Implement a splitter
+
+Subclass `Splitter` to define project-specific windows. This example takes
+explicit row boundaries in the prepared chronological pool:
+
+??? note "Complete splitter source"
+
+    ```python
+    --8<-- "examples/custom_splitter.py"
+    ```
+
+Continue with `data`, `params` and `config` from the holdout example:
+
+<!-- example: training-custom-splitter -->
+
+```python
+from examples.custom_splitter import ProjectSplitter
+
+project_splitter = ProjectSplitter(
+    data,
+    validation_start=len(data) // 2,
+    test_start=3 * len(data) // 4,
+)
+project_result = train_model(
+    splitter=project_splitter,
+    params=params,
+    model_factory=CatBoostLogLinkRegressionModel,
+    metric=metrics_frequency,
+    run_name="project-splits",
+    config=config,
+)
+assert len(project_result.validation.splits) == 1
+assert project_result.test_metrics is not None
+```
+
+Each `get_validation()` call must return a fresh iterator. The last yielded
+split supplies final-fit settings, while `get_final().train` determines the
+final training rows. Return `heldout=None` to omit test evaluation. Final pools
+must contain the selected features. `parameters()` optionally supplies explicit
+JSON-compatible settings logged with the class name in
+`configuration/splitter.json`; it defaults to `{}`.
 
 ## API reference
 
@@ -504,11 +599,24 @@ feature coverage and returned importance values.
 
 ### Chronological splits
 
-::: ml_toolkit.training.split_holdout
+::: ml_toolkit.training.Splitter
+    options:
+      merge_init_into_class: true
+      members: [get_validation, get_final, parameters]
 
-::: ml_toolkit.training.make_validation_splits
+::: ml_toolkit.training.Split
+    options:
+      members: [train, heldout, index]
 
-::: ml_toolkit.training.TrainValSplit
+::: ml_toolkit.training.Holdout
+    options:
+      merge_init_into_class: true
+      members: [get_validation, get_final, parameters]
+
+::: ml_toolkit.training.TimeSeriesCV
+    options:
+      merge_init_into_class: true
+      members: [get_validation, get_final, parameters]
 
 ### Workflow results
 
@@ -520,9 +628,31 @@ feature coverage and returned importance values.
 
 ### Custom evaluation
 
-::: ml_toolkit.training.PredictionEvaluator
+::: ml_toolkit.evaluation.PredictionEvaluator
     options:
       merge_init_into_class: true
       members: [name, evaluate, write_artifacts]
 
 ::: ml_toolkit.training.DatasetSplit
+
+### Ready-made reports
+
+::: ml_toolkit.evaluation.PrecisionRecall
+
+::: ml_toolkit.evaluation.F1Threshold
+
+::: ml_toolkit.evaluation.Calibration
+
+::: ml_toolkit.evaluation.Gains
+
+::: ml_toolkit.evaluation.Lift
+
+::: ml_toolkit.evaluation.PUScoreDistribution
+
+::: ml_toolkit.evaluation.PUPositiveCapture
+
+::: ml_toolkit.evaluation.ObservedFitted
+
+::: ml_toolkit.evaluation.TimeObservedFitted
+
+::: ml_toolkit.evaluation.NumericalFeatureDistributions

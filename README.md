@@ -32,11 +32,12 @@ hours before July 2012; July–December 2012 is the future test period.
 <!-- example: readme-quickstart -->
 
 ```python
+from ml_toolkit.training import Holdout
 import mlflow
 
 from examples.gallery_data import load_bike_pool
 from ml_toolkit import train_model
-from ml_toolkit.config import HoldoutConfig, TrackingConfig, TrainingConfig
+from ml_toolkit.config import TrackingConfig, TrainingConfig
 from ml_toolkit.metrics import metrics_frequency
 from ml_toolkit.models import CatBoostLogLinkRegressionModel
 
@@ -46,22 +47,24 @@ mlflow.set_tracking_uri("sqlite:///mlflow.db")
 mlflow.set_experiment("ml-toolkit-quickstart")
 
 result = train_model(
-    data=data,
+    splitter=Holdout(data, val_size=0.2, test_size="2012-07-01"),
     params={
-        "iterations": 100, "depth": 5, "loss_function": "Poisson",
-        "random_seed": 42, "thread_count": 2, "verbose": False,
+        "iterations": 100,
+        "depth": 5,
+        "loss_function": "Poisson",
+        "random_seed": 42,
+        "thread_count": 2,
+        "verbose": False,
         "allow_writing_files": False,
     },
     model_factory=CatBoostLogLinkRegressionModel,
     metric=metrics_frequency,
     run_name="hourly-rentals",
-    config=TrainingConfig(
-        validation=HoldoutConfig(val_size=0.2),
-        test_size="2012-07-01",
-        tracking=TrackingConfig(log_final_model=False),
-    ),
+    config=TrainingConfig(tracking=TrackingConfig(log_final_model=False)),
 )
-print(f"Validation deviance: {result.validation.mean_metrics['mean_poisson_deviance']:.2f}")
+print(
+    f"Validation deviance: {result.validation.mean_metrics['mean_poisson_deviance']:.2f}"
+)
 assert result.test_metrics is not None
 print(f"Test deviance: {result.test_metrics['mean_poisson_deviance']:.2f}")
 ```

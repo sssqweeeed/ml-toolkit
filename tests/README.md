@@ -48,5 +48,5 @@ also load Gamma and inflation-adjusted Gamma models without Numba or CUDA.
 `tests/gamma_cuda_check.py` exercises the actual CUDA kernel under Numba's
 simulator, while the type-inference test catches unsupported CUDA operations.
 The `gpu` integration test requires a real compatible CUDA device; simulator
-success does not replace that hardware check. PU tests cover the existing
-objectives after their move into `models.losses.pu`.
+success does not replace that hardware check. PU tests cover the objectives
+in `models.losses.pu`.

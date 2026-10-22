@@ -5,13 +5,15 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from ..config import PredictionEvaluationConfig, ReportingConfig
+from ..config import ReportingConfig
+from ..evaluation import PredictionEvaluator
+import polars as pl
 from ..metrics import Metric
 from ..models.base import Model
 from ..tracking import runs as tracking
 from ..types import FloatArray
-from .contracts import DatasetSplit, PredictionEvaluator, Pool, TrainingStage
-from .reporting import report_custom_evaluation, report_diagnostics
+from .contracts import DatasetSplit, Pool, TrainingStage
+from .reporting import report_predictions
 
 logger = logging.getLogger(__name__)
 
@@ -20,56 +22,6 @@ logger = logging.getLogger(__name__)
 class EvaluationResult:
     train_metrics: dict[str, float]
     heldout_metrics: dict[str, float] | None
-
-
-@dataclass(frozen=True)
-class PreparedPredictionEvaluation:
-    evaluators: tuple[PredictionEvaluator, ...]
-    calls: frozenset[tuple[TrainingStage, DatasetSplit]]
-    write_artifacts: bool
-
-
-def prepare_prediction_evaluation(
-    data: Pool,
-    evaluator: PredictionEvaluator | list[PredictionEvaluator] | None,
-    policy: PredictionEvaluationConfig | None,
-    *,
-    tuning: bool,
-    has_test: bool,
-) -> PreparedPredictionEvaluation | None:
-    if evaluator is None:
-        return None
-    evaluators = tuple(evaluator) if isinstance(evaluator, list) else (evaluator,)
-    names: set[str] = set()
-    for item in evaluators:
-        name = item.name.casefold()
-        if name in names:
-            raise ValueError(f"Evaluator names must be unique: {item.name!r}")
-        names.add(name)
-    if not evaluators:
-        return None
-    policy = PredictionEvaluationConfig() if policy is None else policy
-    available: set[tuple[TrainingStage, DatasetSplit]] = {
-        ("validation", DatasetSplit.TRAIN),
-        ("validation", DatasetSplit.VAL),
-        ("final", DatasetSplit.TRAIN),
-    }
-    if tuning:
-        available.update(
-            {("tuning", DatasetSplit.TRAIN), ("tuning", DatasetSplit.VAL)}
-        )
-    if has_test:
-        available.add(("final", DatasetSplit.TEST))
-    calls: frozenset[tuple[TrainingStage, DatasetSplit]] = frozenset(
-        (stage, split)
-        for stage, split in available
-        if stage in policy.stages and split.value in policy.splits
-    )
-    if not calls:
-        return None
-    if data.object_id is None:
-        raise ValueError("object_id is required when prediction_evaluators is supplied")
-    return PreparedPredictionEvaluation(evaluators, calls, policy.write_artifacts)
 
 
 def calculate_metrics(
@@ -90,12 +42,11 @@ def evaluate_model(
     heldout: Pool | None,
     metric: Metric,
     reporting: ReportingConfig,
-    prediction_evaluation: PreparedPredictionEvaluation | None,
+    evaluators: tuple[PredictionEvaluator, ...],
     *,
     stage: TrainingStage,
     name: str,
     split: DatasetSplit = DatasetSplit.VAL,
-    diagnostics: bool = False,
 ) -> EvaluationResult:
     datasets = [(DatasetSplit.TRAIN, train)]
     if heldout is not None:
@@ -125,28 +76,57 @@ def evaluate_model(
             dataset_split.value,
             scores[dataset_split],
         )
-        if (
-            prediction_evaluation is not None
-            and (stage, dataset_split) in prediction_evaluation.calls
-        ):
-            for evaluator in prediction_evaluation.evaluators:
-                report_custom_evaluation(
-                    evaluator=evaluator,
-                    data=data,
-                    prediction=prediction,
-                    split=dataset_split,
-                    name=name,
-                    write_artifacts=prediction_evaluation.write_artifacts,
-                )
-    if diagnostics and reporting.diagnostics is not None and heldout is not None:
-        report_diagnostics(
-            model,
-            train,
-            heldout,
-            predictions[DatasetSplit.TRAIN],
-            predictions[split],
-            reporting.diagnostics,
-            name,
-            split,
+    enabled = {
+        "tuning": reporting.on_tuning,
+        "validation": reporting.on_validation,
+        "final": reporting.on_final,
+    }[stage]
+    if enabled and (evaluators or reporting.psi or reporting.shap is not None):
+        data = _combine_pools(train, heldout)
+        prediction = np.concatenate([predictions[part] for part, _ in datasets])
+        labels = pl.concat(
+            [
+                pl.repeat(part.value, len(pool), dtype=pl.String, eager=True)
+                for part, pool in datasets
+            ]
+        ).rename("split")
+        report_predictions(
+            model=model,
+            data=data,
+            prediction=prediction,
+            split=labels,
+            evaluators=evaluators,
+            config=reporting,
+            stage=name,
         )
     return EvaluationResult(scores[DatasetSplit.TRAIN], scores.get(split))
+
+
+def _combine_pools(train: Pool, heldout: Pool | None) -> Pool:
+    """Join standard pool fields positionally, preserving feature metadata."""
+    if heldout is None:
+        return train
+    if (
+        train.X.schema != heldout.X.schema
+        or train.cat_features != heldout.cat_features
+        or train.numerical_features != heldout.numerical_features
+    ):
+        raise ValueError("Reporting pools must have matching features and metadata")
+
+    def optional(left: pl.Series | None, right: pl.Series | None) -> pl.Series | None:
+        if left is None and right is None:
+            return None
+        if left is None or right is None:
+            raise ValueError("Reporting pools must have matching optional fields")
+        return pl.concat([left, right])
+
+    return Pool(
+        X=pl.concat([train.X, heldout.X]),
+        y=pl.concat([train.y, heldout.y]),
+        time=pl.concat([train.time, heldout.time]),
+        weight=pl.concat([train.weight, heldout.weight]),
+        business_type=optional(train.business_type, heldout.business_type),
+        object_id=optional(train.object_id, heldout.object_id),
+        cat_features=train.cat_features,
+        numerical_features=train.numerical_features,
+    )

@@ -1,12 +1,14 @@
 """Feature selection across native, PU, and inflation-adjusted adapters."""
 
+from ml_toolkit.training import Holdout
+
 from datetime import date
 
 import numpy as np
 import polars as pl
 import pytest
 
-from ml_toolkit.config import HoldoutConfig
+
 from ml_toolkit.feature_selection import RFESelector
 from ml_toolkit.inflation import ConstantRateInflation
 from ml_toolkit.models import (
@@ -16,7 +18,7 @@ from ml_toolkit.models import (
     CatBoostRegressionModel,
     InflationAdjustedModel,
 )
-from ml_toolkit.training import ShapRanker, importance_ranker, split_holdout
+from ml_toolkit.training import ShapRanker, importance_ranker
 from tests.models.support import PARAMS
 from tests.support.training import mae
 
@@ -58,13 +60,13 @@ def test_rfe_selection_preserves_adapter_policies_and_original_order(
 
     metric = PUMetric(0.2, loss=kind) if kind in ("uPU", "nnPU") else mae
     metric_name = "pu_risk" if kind in ("uPU", "nnPU") else "mae"
-    partition = split_holdout(data.take(range(32)), HoldoutConfig(val_size=0.25))
+    partition = next(Holdout(data.take(range(32)), val_size=0.25).get_validation())
     result = RFESelector(
         ranker=ranker, min_features=2, metric=metric_name, direction="minimize"
     ).select(
         metric=metric,
         train=partition.train,
-        validation=partition.val,
+        validation=partition.heldout,
         params=PARAMS,
         model_factory=factory,
     )
@@ -85,13 +87,13 @@ def test_inflation_selection_fits_strategy_on_supplied_training_only(data):
             seen.append((dates.clone(), y.copy(), sample_weight.copy()))
             return super().fit(dates, y, sample_weight)
 
-    partition = split_holdout(data.take(range(32)), HoldoutConfig(val_size=0.25))
+    partition = next(Holdout(data.take(range(32)), val_size=0.25).get_validation())
     RFESelector(
         ranker=importance_ranker, min_features=2, metric="mae", direction="minimize"
     ).select(
         metric=mae,
         train=partition.train,
-        validation=partition.val,
+        validation=partition.heldout,
         params={},
         model_factory=lambda params: InflationAdjustedModel(
             CatBoostRegressionModel(PARAMS), RecordingInflation(0.03), date(2024, 1, 1)

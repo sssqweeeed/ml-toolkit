@@ -1,3 +1,4 @@
+from ml_toolkit.training import Holdout, Split, Splitter, TimeSeriesCV
 from dataclasses import replace
 from ml_toolkit.feature_selection import (
     RFESelector,
@@ -10,7 +11,7 @@ from examples.custom_selector import FixedFeatureSelector
 from ml_toolkit.types import TimePeriod
 from datetime import date
 from pathlib import Path
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from typing import assert_type
 
 import polars as pl
@@ -18,13 +19,7 @@ import polars as pl
 from examples.project_pool import ProjectPool
 from examples.custom_model import model_factory
 from ml_toolkit import Pool, TrainingResult, train_model
-from ml_toolkit.config import (
-    HoldoutConfig,
-    PredictionEvaluationConfig,
-    ReportingConfig,
-    TimeSeriesCVConfig,
-    TrainingConfig,
-)
+from ml_toolkit.config import ReportingConfig, TrainingConfig
 from ml_toolkit.metrics import (
     Metric,
     MetricScores,
@@ -38,9 +33,10 @@ from ml_toolkit.metrics import (
 )
 from ml_toolkit.models import CatBoostPUClassificationModel, CatBoostRegressionModel
 from ml_toolkit.models.base import Model
-from ml_toolkit.training import DatasetSplit, PredictionEvaluator
+from ml_toolkit.evaluation import PredictionEvaluator
+from ml_toolkit.config import FigureConfig, FeatureLevelConfig
 from ml_toolkit.training import Pool as TrainingPool
-from ml_toolkit.training.splits import TrainValSplit, make_validation_splits
+
 from ml_toolkit.types import FloatArray, ModelParams
 
 
@@ -48,21 +44,22 @@ class BusinessEvaluator(PredictionEvaluator):
     def evaluate(
         self,
         *,
-        object_id: pl.Series,
-        y_pred: FloatArray,
-        y_true: FloatArray,
-        split: DatasetSplit,
+        data: Pool,
+        prediction: FloatArray,
+        split: pl.Series,
     ) -> dict[str, float]:
-        return {"rows": float(len(object_id))}
+        return {"rows": float(len(data))}
 
     def write_artifacts(
         self,
         *,
-        object_id: pl.Series,
-        y_pred: FloatArray,
-        y_true: FloatArray,
-        split: DatasetSplit,
+        data: Pool,
+        prediction: FloatArray,
+        split: pl.Series,
         artifact_dir: Path,
+        figure: FigureConfig,
+        features: tuple[FeatureLevelConfig, ...] | None,
+        n_bins: int,
     ) -> list[Path]:
         return []
 
@@ -85,34 +82,38 @@ def metric_contracts(y: FloatArray, prediction: FloatArray, weight: FloatArray) 
 
 
 def contracts(data: Pool) -> None:
-    reporting = ReportingConfig(prediction_evaluation=None)
-    assert_type(reporting.prediction_evaluation, PredictionEvaluationConfig | None)
-    ReportingConfig(prediction_evaluation=PredictionEvaluationConfig(stages=()))
+    reporting = ReportingConfig(on_tuning=True)
+    assert_type(reporting.on_tuning, bool)
+    ReportingConfig(on_validation=False, on_final=False)
     evaluators: list[PredictionEvaluator] = [
-        BusinessEvaluator(name="business"), BusinessEvaluator(name="quality")
+        BusinessEvaluator(name="business"),
+        BusinessEvaluator(name="quality"),
     ]
     assert_type(evaluators[0].name, str)
     inputs: tuple[PredictionEvaluator | list[PredictionEvaluator] | None, ...] = (
-        None, evaluators[0], evaluators, []
+        None,
+        evaluators[0],
+        evaluators,
+        [],
     )
     for evaluator in inputs:
         train_model(
-            data=data,
+            splitter=Holdout(data),
             params={},
             model_factory=CatBoostRegressionModel,
             metric=dictionary_metric,
             run_name="named-evaluators",
-            config=TrainingConfig(validation=HoldoutConfig()),
+            config=TrainingConfig(),
             prediction_evaluators=evaluator,
         )
     assert_type(
         train_model(
-            data=data,
+            splitter=Holdout(data),
             params={},
             model_factory=CatBoostRegressionModel,
             metric=dictionary_metric,
             run_name="typing",
-            config=TrainingConfig(validation=HoldoutConfig()),
+            config=TrainingConfig(),
         ),
         TrainingResult,
     )
@@ -130,12 +131,10 @@ def contracts(data: Pool) -> None:
         severity_metric,
         PUMetric(0.2),
     )
+    assert_type(list(Holdout(data).get_validation()), list[Split[Pool]])
     assert_type(
-        make_validation_splits(data, HoldoutConfig()), list[TrainValSplit[Pool]]
-    )
-    assert_type(
-        make_validation_splits(data, TimeSeriesCVConfig(n_splits=3)),
-        list[TrainValSplit[Pool]],
+        list(TimeSeriesCV(data, n_splits=3).get_validation()),
+        list[Split[Pool]],
     )
     assert_type(protocol.object_id, pl.Series | None)
     assert_type(model.get_refit_params(), dict[str, object])
@@ -145,12 +144,12 @@ def contracts(data: Pool) -> None:
         ).to_dict(),
         dict[str, float],
     )
-    TrainingConfig(validation=HoldoutConfig())
-    TrainingConfig(validation=HoldoutConfig(), test_size=4)
-    TrainingConfig(validation=HoldoutConfig(), test_size=0.2)
-    TrainingConfig(validation=HoldoutConfig(), test_size="2025-01-01")
-    TrainingConfig(validation=HoldoutConfig(), test_size=date(2025, 1, 1))
-    TrainingConfig(validation=HoldoutConfig(), test_size=None)
+    TrainingConfig()
+    Holdout(data, test_size=4)
+    Holdout(data, test_size=0.2)
+    Holdout(data, test_size="2025-01-01")
+    Holdout(data, test_size=date(2025, 1, 1))
+    Holdout(data, test_size=None)
 
 
 def project_pool_contract(data: ProjectPool) -> None:
@@ -160,8 +159,8 @@ def project_pool_contract(data: ProjectPool) -> None:
     assert_type(data.take([0]), ProjectPool)
     assert_type(data.select_features([data.X.columns[0]]), ProjectPool)
     assert_type(
-        make_validation_splits(data, HoldoutConfig()),
-        list[TrainValSplit[ProjectPool]],
+        list(Holdout(data).get_validation()),
+        list[Split[ProjectPool]],
     )
     assert_type(
         CatBoostRegressionModel({"iterations": 2}).fit(data),
@@ -196,7 +195,7 @@ def explicit_selection(data: Pool) -> None:
     )
 
 
-from ml_toolkit.config import CommonPlotsConfig, FeatureLevelConfig, PUPlotsConfig
+from ml_toolkit.config import FeatureLevelConfig
 from ml_toolkit.feature_levels import FeatureLevels, LevelTransformer
 from ml_toolkit.plots.regression import observed_fitted_by_level
 from ml_toolkit.psi import PSIResult, compare_psi
@@ -206,13 +205,11 @@ import pandas as pd
 def feature_diagnostics(
     reference: pl.DataFrame, current: pl.DataFrame, y: FloatArray, output: Path
 ) -> None:
-    common = CommonPlotsConfig(
+    common = ReportingConfig(
         features=(FeatureLevelConfig("age", "numerical", lower_bound=0),),
         psi=False,
-        observed_fitted=True,
     )
     assert_type(common.features, tuple[FeatureLevelConfig, ...] | None)
-    assert_type(PUPlotsConfig(common=common), PUPlotsConfig)
     transformer = LevelTransformer((FeatureLevelConfig("age", "numerical"),)).fit(
         reference
     )
@@ -226,7 +223,8 @@ def feature_diagnostics(
     )
     assert_type(result.feature_levels, tuple[FeatureLevels, ...])
     assert_type(
-        compare_psi(reference_levels, current_levels, transformer.feature_levels), PSIResult
+        compare_psi(reference_levels, current_levels, transformer.feature_levels),
+        PSIResult,
     )
     assert_type(
         observed_fitted_by_level(
@@ -266,4 +264,22 @@ def selector_contracts(data: Pool) -> None:
             FeatureSelectionResult,
         )
     period: TimePeriod = "hour"
-    assert_type(CommonPlotsConfig(period=period).period, TimePeriod)
+    assert_type(ReportingConfig(period=period).period, TimePeriod)
+
+
+class ProjectSplitter(Splitter[Pool]):
+    def get_validation(self) -> Iterator[Split[Pool]]:
+        yield Split(self.data.take([0]), self.data.take([1]), index=1)
+
+    def get_final(self) -> Split[Pool]:
+        return Split(self.data)
+
+
+def splitter_contracts(data: ProjectPool) -> None:
+    splitter: Splitter[Pool] = Holdout(data)
+    assert_type(splitter.get_validation(), Iterator[Split[Pool]])
+    assert_type(Holdout(data).get_final(), Split[ProjectPool])
+    assert_type(
+        TimeSeriesCV(data, n_splits=2).get_validation(), Iterator[Split[ProjectPool]]
+    )
+    assert_type(ProjectSplitter(data).get_final().heldout, Pool | None)

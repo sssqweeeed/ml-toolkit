@@ -1,3 +1,4 @@
+from ml_toolkit.training import TimeSeriesCV
 from datetime import date
 
 import mlflow
@@ -8,10 +9,7 @@ from polars.testing import assert_frame_equal
 from tests.support.training import MeanModel, ProjectData, mae, make_data, setup_mlflow
 
 from ml_toolkit.feature_selection import RFESelector
-from ml_toolkit.config import (
-    TimeSeriesCVConfig,
-    TrainingConfig,
-)
+from ml_toolkit.config import TrainingConfig
 from examples.project_pool import ProjectPool as Pool
 from ml_toolkit.inflation import ConstantRateInflation
 from ml_toolkit.metrics import metrics_classification
@@ -20,7 +18,7 @@ from ml_toolkit.models import (
     CatBoostRegressionModel,
     InflationAdjustedModel,
 )
-from ml_toolkit.training import importance_ranker, make_validation_splits, train_model
+from ml_toolkit.training import importance_ranker, train_model
 
 
 @pytest.fixture
@@ -79,12 +77,12 @@ def test_training_feature_selection_accepts_project_pool(pool, tmp_path):
             return super().fit(train, validation)
 
     result = train_model(
-        data=pool,
+        splitter=TimeSeriesCV(pool, n_splits=2),
         params={},
         model_factory=RecordingModel,
         metric=mae,
         run_name="shared-pool-selection",
-        config=TrainingConfig(validation=TimeSeriesCVConfig(n_splits=2)),
+        config=TrainingConfig(),
         feature_selector=RFESelector(
             ranker=importance_ranker, min_features=1, metric="mae", direction="minimize"
         ),
@@ -96,10 +94,10 @@ def test_training_feature_selection_accepts_project_pool(pool, tmp_path):
 
 def test_independent_project_container_preserves_its_type_through_model_fitting():
     data = make_data()
-    partitions = make_validation_splits(data, TimeSeriesCVConfig(n_splits=2))
+    partitions = list(TimeSeriesCV(data, n_splits=2).get_validation())
     for part in partitions:
         assert isinstance(part.train, ProjectData)
-        assert isinstance(part.val, ProjectData)
+        assert isinstance(part.heldout, ProjectData)
         model = CatBoostRegressionModel(
             {
                 "iterations": 3,
@@ -108,12 +106,12 @@ def test_independent_project_container_preserves_its_type_through_model_fitting(
                 "verbose": False,
                 "allow_writing_files": False,
             }
-        ).fit(part.train, part.val)
-        predictions = model.predict_pool(part.val)
-        assert predictions.shape == (len(part.val),)
+        ).fit(part.train, part.heldout)
+        predictions = model.predict_pool(part.heldout)
+        assert predictions.shape == (len(part.heldout),)
         assert np.isfinite(predictions).all()
         np.testing.assert_allclose(
-            predictions, model.predict_frame(part.val.to_model_input())
+            predictions, model.predict_frame(part.heldout.to_model_input())
         )
 
 
@@ -123,7 +121,7 @@ def test_catboost_pool_training_and_serving_roundtrip(pool, tmp_path, classifier
     if classifier:
         pool = pool.with_target(pl.Series("target", [0, 1] * 12))
     result = train_model(
-        data=pool,
+        splitter=TimeSeriesCV(pool, n_splits=2),
         params={
             "iterations": 3,
             "depth": 2,
@@ -136,7 +134,7 @@ def test_catboost_pool_training_and_serving_roundtrip(pool, tmp_path, classifier
         ),
         metric=metrics_classification if classifier else mae,
         run_name="shared-pool-catboost",
-        config=TrainingConfig(validation=TimeSeriesCVConfig(n_splits=2)),
+        config=TrainingConfig(),
     )
     runs = mlflow.search_runs(output_format="list")
     final = next(

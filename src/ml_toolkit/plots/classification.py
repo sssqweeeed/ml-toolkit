@@ -8,7 +8,7 @@ import pandas as pd
 from numpy.typing import ArrayLike
 
 from ..metrics._binary import binary_threshold_scores
-from ..config import ClassificationPlotsConfig, FigureConfig
+from ..config import FigureConfig
 from .utils import PlotError, numeric_vector, same_length, save_figure, weights
 
 
@@ -78,7 +78,7 @@ def precision_recall(
     save_fig: str | Path,
     *,
     weight: ArrayLike | None = None,
-    config: ClassificationPlotsConfig | None = None,
+    max_curve_points: int = 1000,
     figure: FigureConfig | None = None,
 ) -> pd.DataFrame:
     """Save a precision-recall curve and return its full threshold table.
@@ -95,10 +95,8 @@ def precision_recall(
     figure : FigureConfig or None, default None
         Optional export dimensions, DPI, and format. None preserves native
         dimensions and the requested path format.
-    config : ClassificationPlotsConfig or None, default None
-        Uses max_curve_points to limit rendered points. Other settings are
-        ignored by this function. None uses defaults.
-
+    max_curve_points : int, default 1000
+        Positive rendering limit; calculations retain all thresholds.
     weight : array-like of shape (n_samples,) or None, default None
         Nonnegative finite sample weights with positive total; None uses ones.
         Zero-weight rows do not influence the calculations.
@@ -117,10 +115,11 @@ def precision_recall(
     Notes
     -----
     Creates parent directories for save_fig and closes the figure after saving.
-    The plot uses at most config.max_curve_points; the returned table retains
+    The plot uses at most max_curve_points; the returned table retains
     every threshold. Scores use the supplied weights.
     """
-    config = ClassificationPlotsConfig() if config is None else config
+    if max_curve_points < 1:
+        raise ValueError("max_curve_points must be positive")
     curve = binary_curves(observed, probabilities, weight=weight)
     prevalence = float(
         np.average(
@@ -134,9 +133,7 @@ def precision_recall(
         ).sum()
     )
     shown = curve.iloc[
-        np.linspace(
-            0, len(curve) - 1, min(len(curve), config.max_curve_points), dtype=int
-        )
+        np.linspace(0, len(curve) - 1, min(len(curve), max_curve_points), dtype=int)
     ]
     fig, ax = plt.subplots(figsize=(9, 6))
     ax.plot(
@@ -173,7 +170,7 @@ def f1_threshold(
     save_fig: str | Path,
     *,
     weight: ArrayLike | None = None,
-    config: ClassificationPlotsConfig | None = None,
+    max_curve_points: int = 1000,
     figure: FigureConfig | None = None,
 ) -> pd.DataFrame:
     """Save F1 against distinct score thresholds and return the curve table.
@@ -190,10 +187,8 @@ def f1_threshold(
     figure : FigureConfig or None, default None
         Optional export dimensions, DPI, and format. None preserves native
         dimensions and the requested path format.
-    config : ClassificationPlotsConfig or None, default None
-        Uses max_curve_points to limit rendered points. Other settings are
-        ignored by this function. None uses defaults.
-
+    max_curve_points : int, default 1000
+        Positive rendering limit; calculations retain all thresholds.
     weight : array-like of shape (n_samples,) or None, default None
         Nonnegative finite sample weights with positive total; None uses ones.
         Zero-weight rows do not influence the calculations.
@@ -212,15 +207,14 @@ def f1_threshold(
     Notes
     -----
     Creates parent directories for save_fig and closes the figure after saving.
-    The plot uses at most config.max_curve_points; the returned table retains
+    The plot uses at most max_curve_points; the returned table retains
     every threshold. Scores use the supplied weights.
     """
-    config = ClassificationPlotsConfig() if config is None else config
+    if max_curve_points < 1:
+        raise ValueError("max_curve_points must be positive")
     curve = binary_curves(observed, probabilities, weight=weight)
     shown = curve.iloc[
-        np.linspace(
-            0, len(curve) - 1, min(len(curve), config.max_curve_points), dtype=int
-        )
+        np.linspace(0, len(curve) - 1, min(len(curve), max_curve_points), dtype=int)
     ]
     fig, ax = plt.subplots(figsize=(9, 6))
     ax.plot(shown.threshold, shown.f1)
@@ -251,7 +245,8 @@ def calibration(
     save_fig: str | Path,
     *,
     weight: ArrayLike | None = None,
-    config: ClassificationPlotsConfig | None = None,
+    n_bins: int = 10,
+    histogram_bins: int = 30,
     figure: FigureConfig | None = None,
 ) -> pd.DataFrame:
     """Save a quantile-bin calibration plot and return bin statistics.
@@ -264,10 +259,8 @@ def calibration(
         Finite positive-class probabilities in [0, 1], aligned with labels.
     save_fig : str or pathlib.Path
         Output figure path; parent directories are created.
-    config : ClassificationPlotsConfig or None, default None
-        Calibration and histogram bin counts. None uses defaults. Repeated
-        score values can reduce the number of distinct calibration bins.
-
+    n_bins, histogram_bins : int, default 10, 30
+        Positive calibration and histogram bin counts.
     figure : FigureConfig or None, default None
         Optional export dimensions, DPI, and format. None preserves native
         dimensions and the requested path format.
@@ -293,8 +286,8 @@ def calibration(
     Creates parent directories for save_fig and closes the figure after saving.
     Includes a prediction histogram and a perfect-calibration reference line.
     """
-    config = ClassificationPlotsConfig() if config is None else config
-    n_bins = config.calibration_bins
+    if n_bins < 1 or histogram_bins < 1:
+        raise ValueError("bin counts must be positive")
     binary_curves(observed, probabilities, weight=weight)
     y = np.asarray(observed, dtype=float)
     p = np.asarray(probabilities, dtype=float)
@@ -329,7 +322,7 @@ def calibration(
     )
     ax.grid(alpha=0.25)
     ax.legend(loc="best")
-    histogram.hist(p, weights=w, bins=config.histogram_bins, color="tab:blue")
+    histogram.hist(p, weights=w, bins=histogram_bins, color="tab:blue")
     histogram.set(xlabel="Predicted probability", ylabel="Sample weight", xlim=(0, 1))
     histogram.set_yscale("log")
     fig.tight_layout()

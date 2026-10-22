@@ -45,7 +45,7 @@ class Pool:
         Names of numerical features in X.
     object_id : polars.Series or None, default None
         Optional non-null string or integer IDs aligned with X. Keyword-only;
-        repeated IDs are allowed. Required for prediction evaluation. IDs retain
+        repeated IDs are allowed. IDs retain
         their dtype and values through row and feature operations and are not
         added to model inputs.
     """

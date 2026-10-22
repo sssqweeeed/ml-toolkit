@@ -1,5 +1,7 @@
 """Application-controlled logging and independent experiment tracking."""
 
+from ml_toolkit.training import Holdout, TimeSeriesCV
+
 import io
 import json
 import logging
@@ -21,13 +23,7 @@ import pytest
 from tests.support.training import MeanModel, mae, make_data, setup_mlflow
 
 from ml_toolkit.feature_selection import RFESelector
-from ml_toolkit.config import (
-    HoldoutConfig,
-    ShapConfig,
-    TimeSeriesCVConfig,
-    TrainingConfig,
-    TuningConfig,
-)
+from ml_toolkit.config import ShapConfig, TrainingConfig, TuningConfig
 from ml_toolkit.explainability import calculate_shap_values
 from ml_toolkit.inflation import ConstantRateInflation
 from ml_toolkit.metrics import MetricScores
@@ -37,7 +33,7 @@ from ml_toolkit.feature_levels import FeatureLevelConfig
 from ml_toolkit.psi import PSIAnalysis, PSIConfig
 from ml_toolkit.tracking.mlflow import log_polars_table
 from ml_toolkit.tracking.model_artifacts import log_model_from_code
-from ml_toolkit.training import importance_ranker, split_holdout, train_model
+from ml_toolkit.training import importance_ranker, train_model
 
 
 def toolkit_records(caplog):
@@ -105,15 +101,14 @@ def test_workflow_levels_and_results(tmp_path, caplog, level):
     caplog.set_level(level, logger="ml_toolkit")
     optuna_verbosity = optuna.logging.get_verbosity()
     result = train_model(
-        data=make_data(),
+        splitter=TimeSeriesCV(make_data(), n_splits=2, skip_splits=1),
         params={"private_parameter": "do-not-log"},
         model_factory=MeanModel,
         metric=lambda y, p, w: MetricScores({"mae": float(np.mean(abs(y - p)))}),
         run_name="logging",
         param_space=lambda trial: {"choice": trial.suggest_int("choice", 1, 2)},
         config=TrainingConfig(
-            validation=TimeSeriesCVConfig(n_splits=2, skip_splits=1),
-            tuning=TuningConfig(metric="mae", direction="minimize", n_trials=2),
+            tuning=TuningConfig(metric="mae", direction="minimize", n_trials=2)
         ),
         feature_selector=RFESelector(
             ranker=importance_ranker, min_features=1, metric="mae", direction="minimize"
@@ -147,7 +142,6 @@ def test_workflow_levels_and_results(tmp_path, caplog, level):
         assert debug_records == []
     else:
         for detail in (
-            "Training data:",
             "Selected features:",
             "Split 2:",
             "Starting tuning trial 1",
@@ -166,13 +160,13 @@ def test_module_override_propagates_once(caplog):
     handler = logging.StreamHandler(stream)
     package.addHandler(handler)
     try:
-        partition = split_holdout(make_data(), HoldoutConfig(val_size=0.25))
+        partition = next(Holdout(make_data(), val_size=0.25).get_validation())
         selected = RFESelector(
             ranker=importance_ranker, min_features=1, metric="mae", direction="minimize"
         ).select(
             metric=mae,
             train=partition.train,
-            validation=partition.val,
+            validation=partition.heldout,
             params={},
             model_factory=MeanModel,
         )
@@ -252,7 +246,8 @@ def test_model_and_shap_debug_logs_preserve_verbosity(caplog):
     pytest.importorskip("shap")
     caplog.set_level(logging.DEBUG, logger="ml_toolkit")
     params = {
-        "thread_count": 1, "iterations": 3,
+        "thread_count": 1,
+        "iterations": 3,
         "depth": 2,
         "loss_function": "Poisson",
         "verbose": False,
@@ -369,14 +364,19 @@ def test_feature_selection_keeps_catboost_verbosity(caplog, classifier, level):
         fitted.append(model)
         return model
 
-    params = {"thread_count": 1, "iterations": 3, "verbose": False, "allow_writing_files": False}
-    partition = split_holdout(data, HoldoutConfig(val_size=0.25))
+    params = {
+        "thread_count": 1,
+        "iterations": 3,
+        "verbose": False,
+        "allow_writing_files": False,
+    }
+    partition = next(Holdout(data, val_size=0.25).get_validation())
     result = RFESelector(
         ranker=importance_ranker, min_features=1, metric="mae", direction="minimize"
     ).select(
         metric=mae,
         train=partition.train,
-        validation=partition.val,
+        validation=partition.heldout,
         params=params,
         model_factory=record,
     )
@@ -396,12 +396,12 @@ def test_exceptions_propagate_without_error_records(tmp_path, caplog):
 
     with pytest.raises(RuntimeError) as caught:
         train_model(
-            data=make_data(),
+            splitter=TimeSeriesCV(make_data(), n_splits=2),
             params={},
             model_factory=FailingModel,
             metric=lambda y, p, w: MetricScores({}),
             run_name="failure",
-            config=TrainingConfig(validation=TimeSeriesCVConfig(n_splits=2)),
+            config=TrainingConfig(),
         )
     assert caught.value is error
     assert not any(

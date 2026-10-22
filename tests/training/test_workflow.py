@@ -1,3 +1,6 @@
+from functools import partial
+from ml_toolkit.training import Holdout, TimeSeriesCV
+
 """Shared training behavior across holdout, temporal validation and tuning."""
 
 from ml_toolkit.feature_selection import RFESelector
@@ -5,33 +8,14 @@ import json
 from dataclasses import replace
 from datetime import date, datetime
 from pathlib import Path
-
 import mlflow
 import numpy as np
 import polars as pl
 import pytest
 from polars.testing import assert_frame_equal, assert_series_equal
-from tests.support.evaluators import CallbackEvaluator
-from tests.support.training import (
-    MeanModel,
-    list_all_artifacts,
-    mae,
-    make_data,
-    setup_mlflow,
-)
-
+from tests.support.training import MeanModel, mae, make_data, setup_mlflow
 from examples.project_pool import ProjectPool as Pool
-from ml_toolkit.config import (
-    HoldoutConfig,
-    CommonPlotsConfig,
-    RegressionPlotsConfig,
-    RegressionDiagnosticsConfig,
-    ReportingConfig,
-    TimeSeriesCVConfig,
-    TrackingConfig,
-    TrainingConfig,
-    TuningConfig,
-)
+from ml_toolkit.config import TrackingConfig, TrainingConfig, TuningConfig
 from ml_toolkit.inflation import ConstantRateInflation
 from ml_toolkit.metrics import metrics_classification
 from ml_toolkit.models import (
@@ -40,14 +24,12 @@ from ml_toolkit.models import (
     InflationAdjustedModel,
 )
 from ml_toolkit.models._catboost import refit_parameters
-from ml_toolkit.training import DatasetSplit, train_model
-
-
+from ml_toolkit.training import train_model
 from tests.support.training import make_identified_data as identified_data
 
 
 @pytest.mark.parametrize(
-    "validation", [HoldoutConfig(val_size=0.25), TimeSeriesCVConfig(n_splits=2)]
+    "validation", [partial(Holdout, val_size=0.25), partial(TimeSeriesCV, n_splits=2)]
 )
 @pytest.mark.parametrize("tuning", [False, True])
 def test_each_split_selects_once_before_tuning_and_excludes_test(
@@ -101,8 +83,6 @@ def test_each_split_selects_once_before_tuning_and_excludes_test(
 
     params = {"iterations": 100, "early_stopping_rounds": 2, "use_best_model": True}
     config = TrainingConfig(
-        validation=validation,
-        test_size=4,
         tuning=(
             TuningConfig(metric="mae", direction="minimize", n_trials=2)
             if tuning
@@ -111,7 +91,7 @@ def test_each_split_selects_once_before_tuning_and_excludes_test(
         tracking=TrackingConfig(log_final_model=False),
     )
     result = train_model(
-        data=data,
+        splitter=validation(data, test_size=4),
         params=params,
         model_factory=Model,
         metric=mae,
@@ -122,7 +102,7 @@ def test_each_split_selects_once_before_tuning_and_excludes_test(
             ranker=ranker, min_features=1, metric="mae", direction="minimize"
         ),
     )
-    count = 1 if isinstance(validation, HoldoutConfig) else 2
+    count = 1 if validation.func is Holdout else 2
     assert len(ranked) == count
     assert len(fits) == count * (5 if tuning else 3) + 1
     assert fits[-1] == (list(range(20)), None, result.features)
@@ -220,16 +200,12 @@ def test_calendar_test_preserves_rows_and_logs_date(tmp_path, dtype, cutoff, tes
             return super().predict_pool(rows)
 
     result = train_model(
-        data=data,
+        splitter=Holdout(data, val_size=1, test_size=cutoff),
         params={},
         model_factory=Model,
         metric=mae,
         run_name="calendar-test",
-        config=TrainingConfig(
-            validation=HoldoutConfig(val_size=1),
-            test_size=cutoff,
-            tracking=TrackingConfig(log_final_model=False),
-        ),
+        config=TrainingConfig(tracking=TrackingConfig(log_final_model=False)),
     )
     assert fit_rows[-1] == train_ids
     assert test_predictions == [test_ids]
@@ -250,9 +226,11 @@ def test_calendar_test_preserves_rows_and_logs_date(tmp_path, dtype, cutoff, tes
         if run.data.tags["mlflow.runName"] == "calendar-test"
     )
     artifact = mlflow.MlflowClient().download_artifacts(
-        parent.info.run_id, "configuration/requested.json"
+        parent.info.run_id, "configuration/splitter.json"
     )
-    assert json.loads(Path(artifact).read_text())["test_size"] == str(cutoff)
+    assert json.loads(Path(artifact).read_text())["parameters"]["test_size"] == str(
+        cutoff
+    )
 
 
 @pytest.mark.parametrize("cutoff", ["2023-12-31", date(2024, 1, 1), "2026-01-01"])
@@ -262,12 +240,12 @@ def test_calendar_cutoff_rejects_empty_train_or_test_before_fitting(cutoff):
 
     with pytest.raises(ValueError, match="nonempty training and test"):
         train_model(
-            data=identified_data(),
+            splitter=Holdout(identified_data(), test_size=cutoff),
             params={},
             model_factory=unexpected_fit,
             metric=mae,
             run_name="invalid-calendar-test",
-            config=TrainingConfig(validation=HoldoutConfig(), test_size=cutoff),
+            config=TrainingConfig(),
         )
 
 
@@ -284,73 +262,16 @@ def test_latest_split_with_no_best_iteration_keeps_original_budget(tmp_path):
             return self._best
 
     result = train_model(
-        data=make_data(),
+        splitter=TimeSeriesCV(make_data(), n_splits=2),
         params={"iterations": 30},
         model_factory=Model,
         metric=mae,
         run_name="last-budget",
-        config=TrainingConfig(
-            validation=TimeSeriesCVConfig(n_splits=2),
-            tracking=TrackingConfig(log_final_model=False),
-        ),
+        config=TrainingConfig(tracking=TrackingConfig(log_final_model=False)),
     )
     assert result.validation.splits[0].refit_params["iterations"] == 4
     assert result.params["iterations"] == 30
     assert result.test_metrics is None
-
-
-def test_test_reuses_reports_and_evaluator_independently_of_split_selection(tmp_path):
-    setup_mlflow(tmp_path)
-    calls = []
-
-    def evaluate(**inputs):
-        calls.append((inputs["split"], inputs["object_id"].to_list()))
-        return {"rows": float(len(inputs["object_id"]))}
-
-    result = train_model(
-        data=identified_data(),
-        params={},
-        model_factory=MeanModel,
-        metric=mae,
-        run_name="reports",
-        prediction_evaluators=CallbackEvaluator(name="business", evaluate=evaluate),
-        config=TrainingConfig(
-            validation=TimeSeriesCVConfig(n_splits=2),
-            test_size=4,
-            reporting=ReportingConfig(
-                diagnostics=RegressionDiagnosticsConfig(
-                    plots=RegressionPlotsConfig(
-                        common=CommonPlotsConfig(
-                            n_bins=3, numerical_distributions=None
-                        ),
-                        time_observed_fitted=False,
-                    )
-                ),
-                validation_splits=(1,),
-            ),
-            tracking=TrackingConfig(log_final_model=False),
-        ),
-    )
-    assert calls[-2:] == [
-        (DatasetSplit.TRAIN, list(range(20))),
-        (DatasetSplit.TEST, list(range(20, 24))),
-    ]
-    assert len(calls) == 6
-    client = mlflow.MlflowClient()
-    for run in mlflow.search_runs(output_format="list"):
-        artifacts = list_all_artifacts(client, run.info.run_id)
-        name = run.data.tags["mlflow.runName"]
-        if name == "validation/split_1":
-            assert "tables/psi/scores.json" in artifacts
-        elif name == "validation/split_2":
-            assert not artifacts
-        elif name == "final_fit":
-            assert "tables/psi/scores.json" in artifacts
-            assert "figures/observed_fitted/by_feature/000_x.png" in artifacts
-            assert "test/business/rows" in run.data.metrics
-            assert "test/mae" in run.data.metrics
-            assert "val/mae" not in run.data.metrics
-            assert run.data.metrics["test/mae"] == result.test_metrics["mae"]
 
 
 @pytest.mark.parametrize("fixed_threshold", [None, 0.8])
@@ -375,15 +296,12 @@ def test_supervised_final_fit_preserves_last_threshold(tmp_path, fixed_threshold
     if fixed_threshold is not None:
         params["decision_threshold"] = fixed_threshold
     result = train_model(
-        data=data,
+        splitter=Holdout(data, val_size=0.25),
         params=params,
         model_factory=factory,
         metric=metrics_classification,
         run_name="threshold",
-        config=TrainingConfig(
-            validation=HoldoutConfig(val_size=0.25),
-            tracking=TrackingConfig(log_final_model=False),
-        ),
+        config=TrainingConfig(tracking=TrackingConfig(log_final_model=False)),
     )
     assert result.model.threshold == models[-2].threshold
     assert result.params["decision_threshold"] == models[-2].threshold
@@ -436,7 +354,7 @@ def test_final_relearns_inflation_and_baseline_on_all_rows_before_test(tmp_path)
         return model
 
     result = train_model(
-        data=data,
+        splitter=Holdout(data, val_size=4, gap=2, test_size=4),
         params={
             "iterations": 4,
             "thread_count": 1,
@@ -449,11 +367,7 @@ def test_final_relearns_inflation_and_baseline_on_all_rows_before_test(tmp_path)
         model_factory=factory,
         metric=mae,
         run_name="inflation-refit",
-        config=TrainingConfig(
-            validation=HoldoutConfig(val_size=4, gap=2),
-            test_size=4,
-            tracking=TrackingConfig(log_final_model=False),
-        ),
+        config=TrainingConfig(tracking=TrackingConfig(log_final_model=False)),
     )
     assert [len(dates) for dates, _, _ in inflation_fits] == [14, 20]
     assert inflation_fits[-1][0] == data.time.head(20).to_list()
@@ -486,7 +400,7 @@ def test_undefined_nonobjective_metric_is_preserved():
 
 
 @pytest.mark.parametrize(
-    "validation", [HoldoutConfig(val_size=8), TimeSeriesCVConfig(n_splits=2)]
+    "validation", [partial(Holdout, val_size=8), partial(TimeSeriesCV, n_splits=2)]
 )
 @pytest.mark.parametrize("zero_window", ["train", "val"])
 def test_zero_weight_windows_fail_before_any_fit(tmp_path, validation, zero_window):
@@ -507,12 +421,12 @@ def test_zero_weight_windows_fail_before_any_fit(tmp_path, validation, zero_wind
 
     with pytest.raises(ValueError, match="positive total"):
         train_model(
-            data=data,
+            splitter=validation(data),
             params={},
             model_factory=Model,
             metric=mae,
             run_name="invalid-window",
-            config=TrainingConfig(validation=validation),
+            config=TrainingConfig(),
         )
     assert fits == []
     assert mlflow.search_runs(output_format="list") == []
@@ -576,7 +490,7 @@ def test_split_searches_are_independent_and_final_uses_last_post_tuning_fit(tmp_
         "use_best_model": True,
     }
     result = train_model(
-        data=data,
+        splitter=TimeSeriesCV(data, n_splits=2, test_size=4),
         params=base,
         model_factory=Model,
         metric=mae,
@@ -586,8 +500,6 @@ def test_split_searches_are_independent_and_final_uses_last_post_tuning_fit(tmp_
         },
         run_name="independent-searches",
         config=TrainingConfig(
-            validation=TimeSeriesCVConfig(n_splits=2),
-            test_size=4,
             tuning=TuningConfig(metric="mae", direction="minimize", n_trials=2),
             tracking=TrackingConfig(
                 log_trial_models=True,
@@ -681,17 +593,18 @@ def test_training_failure_preserves_exception_and_callers_active_run(tmp_path, s
     with mlflow.start_run(run_name="caller") as caller:
         with pytest.raises(RuntimeError) as raised:
             train_model(
-                data=make_data(),
+                splitter=Holdout(make_data()),
                 params={},
                 model_factory=Model,
                 metric=metric,
                 run_name="failed-training",
-                config=TrainingConfig(validation=HoldoutConfig()),
+                config=TrainingConfig(),
             )
         assert raised.value is original
         assert mlflow.active_run().info.run_id == caller.info.run_id
         children = [
-            run for run in mlflow.search_runs(output_format="list")
+            run
+            for run in mlflow.search_runs(output_format="list")
             if run.info.run_id != caller.info.run_id
         ]
         assert children

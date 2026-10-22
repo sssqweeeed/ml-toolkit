@@ -28,7 +28,9 @@ def test_documented_task_recipes_train_and_evaluate(
     from examples.gallery_data import bike_cache_available
     from examples.retail_data import retail_cache_available
 
-    available = retail_cache_available() if task == "Severity" else bike_cache_available()
+    available = (
+        retail_cache_available() if task == "Severity" else bike_cache_available()
+    )
     if not available:
         pytest.skip("Prepare real source data with python -m examples.prepare_data")
     docs = Path(__file__).resolve().parents[2] / "docs"
@@ -77,13 +79,15 @@ def test_documented_task_recipes_train_and_evaluate(
         assert set(namespace["data"].y.unique()) == {0.0, 1.0}
     if task == "Severity":
         assert (namespace["data"].y > 0).all()
-        assert namespace["config"].test_size.isoformat() == "2011-10-01"
+        assert namespace["splitter"].test_size.isoformat() == "2011-10-01"
     assert np.isfinite(predictions).all()
     if recipe_style == "full":
         for split in result.validation.splits:
             assert split.feature_selection is not None
             assert len(split.feature_selection.steps) == 2
-            assert split.feature_selection.steps[0].features == tuple(namespace["data"].X.columns)
+            assert split.feature_selection.steps[0].features == tuple(
+                namespace["data"].X.columns
+            )
             assert len(split.feature_selection.steps[-1].features) == 1
             assert split.tuning is not None
             assert np.isfinite(split.tuning.best_score)
@@ -95,10 +99,10 @@ def test_documented_task_recipes_train_and_evaluate(
         final_run = next(
             run for run in runs if run.data.tags["mlflow.runName"] == "final_fit"
         )
-        figures = client.list_artifacts(final_run.info.run_id, "figures/shap/test")
+        figures = client.list_artifacts(final_run.info.run_id, "shap/test")
         assert {item.path for item in figures} == {
-            "figures/shap/test/importance.png",
-            "figures/shap/test/beeswarm.png",
+            "shap/test/importance.png",
+            "shap/test/beeswarm.png",
         }
         models = mlflow.search_logged_models(
             experiment_ids=[experiment.experiment_id],
@@ -121,23 +125,36 @@ def test_complete_frequency_example_output_and_figure():
     from examples.retail_data import retail_cache_available
 
     if not bike_cache_available() or not retail_cache_available():
-        pytest.skip("Configuration recipes require cached Bike Sharing and Online Retail data")
+        pytest.skip(
+            "Configuration recipes require cached Bike Sharing and Online Retail data"
+        )
     pytest.importorskip("shap", reason="Full recipes enable SHAP diagnostics")
     render(check=True, pages=("docs/configuration.md",))
 
 
 @pytest.mark.parametrize("recipe_style", ["base", "full"])
-def test_pu_recipe_requires_real_pu_data_and_does_not_train_on_supervised_targets(recipe_style):
+def test_pu_recipe_requires_real_pu_data_and_does_not_train_on_supervised_targets(
+    recipe_style,
+):
     docs = Path(__file__).resolve().parents[2] / "docs"
     document = (docs / "configuration.md").read_text()
-    sections = dict(re.findall(r"^## ([^\n]+)\n(.*?)(?=^## |\Z)", document, re.MULTILINE | re.DOTALL))
+    sections = dict(
+        re.findall(
+            r"^## ([^\n]+)\n(.*?)(?=^## |\Z)", document, re.MULTILINE | re.DOTALL
+        )
+    )
     namespace = {}
     if recipe_style == "base":
-        for block in re.findall(r"```python\n(.*?)\n```", sections["Imports and shared behavior"], re.DOTALL):
+        for block in re.findall(
+            r"```python\n(.*?)\n```", sections["Imports and shared behavior"], re.DOTALL
+        ):
             exec(block, namespace)
-    blocks = re.findall(r"```python\n(.*?)\n```", sections["Positive–unlabeled classification"], re.DOTALL)
-    exec(blocks[0 if recipe_style == "base" else 1], namespace)
+    blocks = re.findall(
+        r"```python\n(.*?)\n```",
+        sections["Positive–unlabeled classification"],
+        re.DOTALL,
+    )
+    with pytest.raises(NameError, match="data"):
+        exec(blocks[0 if recipe_style == "base" else 1], namespace)
     assert "data" not in namespace
-    assert namespace["params"]["pu_prior"] == 0.2
-    assert namespace["config"].reporting.diagnostics.plots.common.observed_fitted is False
-    assert "configuration assumption" in sections["Positive–unlabeled classification"]
+    assert "example prior" in sections["Positive–unlabeled classification"]

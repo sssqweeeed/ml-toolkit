@@ -22,7 +22,6 @@ FIGURE_NAMES = (
     "precision-recall.png",
     "f1-threshold.png",
     "calibration.png",
-    "observed-fitted.png",
     "observed-fitted-levels.png",
     "time-observed-fitted.png",
     "gains.png",
@@ -128,21 +127,18 @@ def _validate_plot_results(namespace: dict[str, object]) -> None:
     assert calibration["count"].sum() == len(digits.observed)
     assert calibration["count"].between(60, 85).all()
 
-    by_feature = cast(pd.DataFrame, namespace["by_feature"])
-    assert 8 <= len(by_feature) <= 10
-    assert by_feature["volume"].min() >= 200
-    assert by_feature["volume"].sum() == len(bikes.reference.observed)
-    np.testing.assert_allclose(
-        np.average(by_feature["observed"], weights=by_feature["volume"]),
-        bikes.reference.observed.mean(),
-    )
     by_level = cast(pd.DataFrame, namespace["by_level"])
-    for sample, expected_count in (
-        ("reference", len(bikes.reference.observed)),
-        ("current", len(bikes.current.observed)),
+    for sample, expected in (
+        ("reference", bikes.reference.observed),
+        ("current", bikes.current.observed),
     ):
         part = by_level.loc[by_level["sample"] == sample]
-        assert part["volume"].sum() == expected_count
+        assert part["volume"].sum() == len(expected)
+        populated = part.loc[part["volume"] > 0]
+        np.testing.assert_allclose(
+            np.average(populated["observed"], weights=populated["volume"]),
+            expected.mean(),
+        )
         assert (part["volume"] > 0).sum() >= 8
     monthly = cast(pd.DataFrame, namespace["temporal"])
     assert len(monthly) == 18
@@ -229,9 +225,7 @@ def _compare_gallery_assets(expected: Path, generated: Path) -> None:
     from matplotlib.testing.compare import compare_images
 
     for name in FIGURE_NAMES:
-        difference = compare_images(
-            str(expected / name), str(generated / name), tol=1
-        )
+        difference = compare_images(str(expected / name), str(generated / name), tol=1)
         if difference is not None:
             raise AssertionError(
                 f"Stale gallery figure: {name}; run python -m examples.render_plots"

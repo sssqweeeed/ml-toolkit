@@ -94,7 +94,7 @@ def render_page(path: Path, *, check: bool) -> None:
             frequency[recipe.name] = {
                 name: namespace[name]
                 for name in (
-                    'data', 'config', 'params', 'metric', 'model_factory',
+                    'data', 'splitter', 'config', 'params', 'metric', 'model_factory',
                     'feature_selector', 'param_space', 'prediction_evaluators',
                 )
             }

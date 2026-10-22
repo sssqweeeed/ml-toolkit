@@ -1,5 +1,7 @@
 """The complete example adapter preserves its transformation during serving."""
 
+from ml_toolkit.training import Holdout
+
 from datetime import date, timedelta
 
 import mlflow
@@ -14,9 +16,8 @@ from polars.testing import assert_series_equal
 from examples.custom_model import TargetScaledRegressor, model_factory, weighted_mae
 from examples.project_pool import ProjectPool
 from ml_toolkit import train_model
-from ml_toolkit.config import HoldoutConfig, TrackingConfig, TrainingConfig
+from ml_toolkit.config import TrackingConfig, TrainingConfig
 from ml_toolkit.models import CatBoostRegressionModel
-from ml_toolkit.training import split_holdout
 
 
 @pytest.fixture
@@ -70,12 +71,14 @@ def tracking_store(tmp_path):
 
 def test_adapter_scales_both_fit_samples_and_inverts_predictions(data, params):
     original_target = data.y.clone()
-    part = split_holdout(data, HoldoutConfig(val_size=0.25))
+    part = next(Holdout(data, val_size=0.25).get_validation())
     scale = 250.0
-    adapter = TargetScaledRegressor(params, target_scale=scale).fit(part.train, part.val)
+    adapter = TargetScaledRegressor(params, target_scale=scale).fit(
+        part.train, part.heldout
+    )
     native_reference = CatBoostRegressionModel(params).fit(
         part.train.with_target(part.train.y / scale),
-        part.val.with_target(part.val.y / scale),
+        part.heldout.with_target(part.heldout.y / scale),
     )
     native_predictions = native_reference.predict_pool(data)
     np.testing.assert_allclose(
@@ -107,16 +110,12 @@ def test_workflow_refits_a_fresh_adapter_with_validation_iteration_budget(
         return adapter
 
     result = train_model(
-        data=data,
+        splitter=Holdout(data, val_size=0.25, test_size=0.2),
         params=params,
         model_factory=factory,
         metric=weighted_mae,
         run_name="custom-model-refit",
-        config=TrainingConfig(
-            validation=HoldoutConfig(val_size=0.25),
-            test_size=0.2,
-            tracking=TrackingConfig(log_final_model=False),
-        ),
+        config=TrainingConfig(tracking=TrackingConfig(log_final_model=False)),
     )
     assert len(adapters) == 2
     validation_adapter, final_adapter = adapters
