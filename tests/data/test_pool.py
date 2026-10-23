@@ -276,6 +276,65 @@ def test_reordered_pool_is_allowed_until_training(pool):
         validate_training_data(data)
 
 
+@pytest.mark.parametrize("dtype", [pl.Float64, pl.Float32, pl.Int64, pl.String])
+@pytest.mark.parametrize("positive_index", [0, -1, None])
+def test_training_validation_bounds_numpy_conversions(dtype, positive_index, monkeypatch):
+    size = 300_003
+    # Multiple physical chunks must not force a whole-column conversion.
+    values = pl.concat([pl.Series(np.ones(size // 3)).cast(dtype)] * 3)
+    weights = pl.Series(np.zeros(size))
+    if positive_index is not None:
+        weights.scatter([positive_index % size], 1.0)
+    data = Pool(
+        X=pl.DataFrame({"x": np.zeros(size, dtype=np.uint8)}),
+        y=values,
+        weight=weights.cast(dtype),
+        time=pl.Series(np.zeros(size, dtype="datetime64[D]")),
+    )
+    original_to_numpy = pl.Series.to_numpy
+    converted_lengths = []
+
+    def bounded_to_numpy(series, *args, **kwargs):
+        # No single float64 conversion may need more than 1 MiB.
+        assert len(series) * 8 <= 1024 * 1024
+        converted_lengths.append(len(series))
+        return original_to_numpy(series, *args, **kwargs)
+
+    monkeypatch.setattr(pl.Series, "to_numpy", bounded_to_numpy)
+    if positive_index is None:
+        with pytest.raises(ValueError, match="Weights must be finite"):
+            validate_training_data(data)
+    else:
+        validate_training_data(data)
+    assert sum(converted_lengths) == 2 * size
+
+
+@pytest.mark.parametrize(
+    "field, invalid, message",
+    [
+        ("y", np.nan, "Target values must be finite"),
+        ("y", np.inf, "Target values must be finite"),
+        ("y", None, "Target values must be finite"),
+        ("weight", np.nan, "Weights must be finite"),
+        ("weight", np.inf, "Weights must be finite"),
+        ("weight", -1.0, "Weights must be finite"),
+        ("weight", None, "Weights must be finite"),
+    ],
+)
+def test_training_validation_checks_final_partial_batch(field, invalid, message):
+    size = 131_073
+    values = pl.Series(np.ones(size))
+    data = Pool(
+        X=pl.DataFrame({"x": np.zeros(size, dtype=np.uint8)}),
+        y=values,
+        weight=values,
+        time=pl.Series(np.zeros(size, dtype="datetime64[D]")),
+    )
+    data = replace(data, **{field: values.clone().scatter([size - 1], invalid)})
+    with pytest.raises(ValueError, match=message):
+        validate_training_data(data)
+
+
 @pytest.mark.parametrize(
     "ids",
     [

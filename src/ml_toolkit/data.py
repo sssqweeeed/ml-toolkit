@@ -288,11 +288,23 @@ def validate_training_data(data: Pool) -> None:
         raise ValueError("Training time must have Date or Datetime dtype")
     if data.time.null_count() or not data.time.is_sorted():
         raise ValueError("Training data must have non-null, ascending timestamps")
-    target = data.y.to_numpy().astype(float)
-    weight = data.weight.to_numpy().astype(float)
-    if not np.isfinite(target).all():
-        raise ValueError("Target values must be finite")
-    if not np.isfinite(weight).all() or (weight < 0).any() or weight.sum() <= 0:
+    # Bound conversion and mask allocations even for chunked or non-float data.
+    batch_size = 65_536
+    for offset in range(0, size, batch_size):
+        target = data.y.slice(offset, batch_size).to_numpy().astype(float, copy=False)
+        if not np.isfinite(target).all():
+            raise ValueError("Target values must be finite")
+    has_positive_weight = False
+    for offset in range(0, size, batch_size):
+        weight = (
+            data.weight.slice(offset, batch_size).to_numpy().astype(float, copy=False)
+        )
+        if not np.isfinite(weight).all() or (weight < 0).any():
+            raise ValueError(
+                "Weights must be finite, nonnegative, and have positive total"
+            )
+        has_positive_weight |= bool((weight > 0).any())
+    if not has_positive_weight:
         raise ValueError("Weights must be finite, nonnegative, and have positive total")
     if data.object_id is not None:
         validate_object_ids(data.object_id, size)
