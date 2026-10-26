@@ -11,21 +11,17 @@ import polars as pl
 from .._console import Logger
 from ..config import ReportingConfig
 from ..data import Pool
-from ..data_analysis import DataAnalyzer
-from .._reporting import (
-    data_comparison_pair,
-    validate_split,
-    feature_definitions,
-    feature_filename,
-)
+from ..data_analysis import DataAnalyzer, data_comparison_pair, validate_split
 from ..evaluation import (
     PredictionEvaluator,
     comparison_pair,
     validate_inputs,
 )
 from ..feature_levels import LevelTransformer
+from ..feature_levels.config import feature_definitions
 from ..models.base import Model
 from ..plots import psi as psi_plots
+from ..plots.utils import feature_filename
 from ..psi import PSIBaseline, compare_psi
 from ..tracking import runs as tracking
 from ..types import FloatArray

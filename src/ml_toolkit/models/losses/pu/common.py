@@ -15,7 +15,7 @@ def pu_risks(
     prior: float,
 ) -> tuple[float, float]:
     """Return the positive and estimated negative logistic PU risks."""
-    from ....metrics._pu import risk_components
+    from ....metrics.pu import risk_components
 
     logits = np.asarray(logits, dtype=float).reshape(-1)
     labels = np.asarray(labels).reshape(-1)

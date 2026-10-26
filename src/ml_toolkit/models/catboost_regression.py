@@ -14,14 +14,13 @@ from mlflow.pyfunc.model import PythonModel
 
 from .._console import Logger
 from ..data import validate_training_categories
-from ..tracking.state import RegressionState
+from ..tracking.state import RegressionState, read_state
 from ..types import FloatArray, ModelParams
 from ._catboost import (
     feature_importances,
     native_fit,
     normalize_loss,
     prepare_frame,
-    read_state,
     refit_parameters,
 )
 
@@ -359,7 +358,7 @@ class CatBoostRegressionModel(PythonModel):
         metadata: dict[str, object] | None = None,
         extra_artifacts: Mapping[str, str] | None = None,
     ) -> ModelInfo:
-        from ..tracking._model_state import log_catboost
+        from ..tracking.model_artifacts import log_catboost
 
         return log_catboost(
             self,

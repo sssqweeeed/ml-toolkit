@@ -7,7 +7,6 @@ import numpy as np
 from numpy.typing import ArrayLike
 
 from ..types import FloatArray
-from ._pu import risk_components
 from .base import MetricScores
 
 
@@ -199,3 +198,21 @@ class PUMetric:
                 w[unlabeled & (p >= cutoff)].sum() / w[unlabeled].sum()
             )
         return MetricScores(result)
+
+
+def risk_components(
+    positive_loss: FloatArray,
+    negative_loss: FloatArray,
+    labels: FloatArray,
+    weights: FloatArray,
+    prior: float,
+) -> tuple[float, float]:
+    positive = labels == 1
+    unlabeled = ~positive
+    positive_risk = prior * np.average(
+        positive_loss[positive], weights=weights[positive]
+    )
+    negative_risk = np.average(
+        negative_loss[unlabeled], weights=weights[unlabeled]
+    ) - prior * np.average(negative_loss[positive], weights=weights[positive])
+    return float(positive_risk), float(negative_risk)
