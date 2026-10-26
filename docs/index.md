@@ -45,6 +45,7 @@ The caller prepares features and targets and selects the MLflow experiment.
 | Find experiment results | [Tracking](api/tracking.md) |
 | Configure shared settings | [Configuration](api/configuration.md) |
 
-Each guide includes executable usage and the relevant API reference. The site
-follows the `main` branch; source and examples are in the
+Each guide includes executable usage and the relevant API reference. Use the
+version selector to switch between `stable` (the latest release), `dev`
+(unreleased changes), and archived releases. Source and examples are in the
 [GitHub repository](https://github.com/sssqweeeed/ml-toolkit).
