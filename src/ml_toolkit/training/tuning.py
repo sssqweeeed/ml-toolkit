@@ -1,17 +1,17 @@
 """Optuna optimization over an injected scalar scoring callback."""
 
-import logging
 from collections.abc import Callable, Mapping
 
 import numpy as np
 import optuna
 
+from .._console import Logger
 from ..config import TuningConfig
 from ..tracking import runs as tracking
 from ..types import ModelParams
 from .results import TuningResult
 
-logger = logging.getLogger(__name__)
+logger = Logger(__name__)
 
 
 def tune_optuna(
@@ -62,7 +62,8 @@ def tune_optuna(
             value = float(value)
             tracking.log_metrics({"objective": value})
             logger.debug(
-                "Completed tuning trial %s: objective=%s", trial.number + 1, value
+                "Completed tuning trial %s: objective=%.6g", trial.number + 1, value,
+                verbosity="verbose",
             )
             return value
 
@@ -77,7 +78,7 @@ def tune_optuna(
             objective, n_trials=config.n_trials, timeout=config.timeout_seconds
         )
     logger.info(
-        "Completed Optuna tuning: best objective=%s at trial %s",
+        "Completed Optuna tuning: best objective=%.6g at trial %s",
         study.best_value,
         study.best_trial.number + 1,
     )

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Self, cast
 
@@ -13,6 +12,7 @@ import polars as pl
 from mlflow.models.model import ModelInfo
 from mlflow.pyfunc.model import PythonModel
 
+from .._console import Logger
 from ..data import validate_training_categories
 from ..tracking.state import RegressionState
 from ..types import FloatArray, ModelParams
@@ -29,7 +29,7 @@ if TYPE_CHECKING:
     from ..config import TrackingConfig
     from ..training.contracts import Pool
 
-logger = logging.getLogger(__name__)
+logger = Logger(__name__)
 
 
 class CatBoostRegressionModel(PythonModel):

@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from math import isfinite
 from typing import Literal
 
+from .._console import Verbosity
 from .reporting import ReportingConfig
 from .tracking import TrackingConfig
 
@@ -60,6 +61,11 @@ class TrainingConfig:
     fit_on_test : bool, default False
         After independent test evaluation, fit an additional fresh model on
         all eligible data including test. Requires a held-out test sample.
+    verbosity : {'silent', 'normal', 'verbose', 'debug'}, default 'normal'
+        Console output for this training run: none, milestones and summary,
+        split/trial details, or internal diagnostics. Writes to stderr without
+        configuring Python logging or changing CatBoost, Optuna or MLflow output.
+        Warnings, exceptions and application logging remain independent.
 
     Notes
     -----
@@ -70,3 +76,8 @@ class TrainingConfig:
     reporting: ReportingConfig = field(default_factory=ReportingConfig)
     tracking: TrackingConfig = field(default_factory=TrackingConfig)
     fit_on_test: bool = False
+    verbosity: Verbosity = "normal"
+
+    def __post_init__(self) -> None:
+        if self.verbosity not in ("silent", "normal", "verbose", "debug"):
+            raise ValueError("verbosity must be one of: silent, normal, verbose, debug")

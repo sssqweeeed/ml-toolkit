@@ -1,6 +1,5 @@
 """Common MLflow models-from-code packaging for native model artifacts."""
 
-import logging
 from collections.abc import Mapping
 import shutil
 from importlib.metadata import version
@@ -12,6 +11,7 @@ import pandas as pd
 from mlflow.models import infer_signature
 from mlflow.models.model import ModelInfo
 
+from .._console import Logger
 from ..types import FloatArray, ModelParams
 
 PACKAGES = (
@@ -22,7 +22,7 @@ PACKAGES = (
     "scikit-learn",
 )
 
-logger = logging.getLogger(__name__)
+logger = Logger(__name__)
 
 
 def log_model_from_code(

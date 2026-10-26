@@ -85,6 +85,10 @@ def metric_contracts(y: FloatArray, prediction: FloatArray, weight: FloatArray) 
 
 
 def contracts(data: Pool) -> None:
+    TrainingConfig(verbosity="silent")
+    TrainingConfig(verbosity="normal")
+    TrainingConfig(verbosity="verbose")
+    TrainingConfig(verbosity="debug")
     assert_type(data.to_model_input(), pd.DataFrame)
     assert_type(data.to_model_input(5, categorical_as_strings=True), pd.DataFrame)
     reporting = ReportingConfig(on_tuning=True)

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import logging
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -15,13 +14,14 @@ import pandas as pd
 from mlflow.models.model import ModelInfo
 from mlflow.pyfunc.model import PythonModel
 
+from .._console import Logger
 from ..types import FloatArray, ModelParams
 
 if TYPE_CHECKING:
     from ..config import TrackingConfig
     from ..training.contracts import Pool
 
-logger = logging.getLogger("ml_toolkit.models.lightgbm")
+logger = Logger("ml_toolkit.models.lightgbm")
 
 
 class LightGBMServingModel(PythonModel):

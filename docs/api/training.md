@@ -144,6 +144,14 @@ Pass a [model factory](models.md), [metric](metrics.md) and prepared splitter.
 `TrainingConfig` controls tuning, shared reporting and packaging. The
 [task recipes](../configuration.md) show complete combinations.
 
+Training shows stage progress and an evaluation summary by default. Use
+`TrainingConfig(verbosity="verbose")` for split sizes, date ranges, per-split
+metrics and tuning trials, or `TrainingConfig(verbosity="silent")` to disable
+automatic ml-toolkit output. With an existing configuration, use
+`replace(config, verbosity="verbose")`. See the
+[four verbosity levels](configuration.md#console-verbosity) for details and
+their relationship to Python logging and backend output.
+
 | Need | Guide |
 | --- | --- |
 | Holdout, time-series CV or custom windows | [Data splitting](splitting.md) |
