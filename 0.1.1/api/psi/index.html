@@ -1,0 +1,3801 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Training, validation, metrics, diagnostics, and MLflow for Python ML projects.">
+      
+      
+      
+        <link rel="canonical" href="https://sssqweeeed.github.io/ml-toolkit/0.1.1/api/psi/">
+      
+      
+        <link rel="prev" href="../../data-analysis/distributions/">
+      
+      
+        <link rel="next" href="../../data-analysis/custom/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>PSI and feature levels - ml-toolkit</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#psi-and-feature-levels" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="ml-toolkit" class="md-header__button md-logo" aria-label="ml-toolkit" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            ml-toolkit
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              PSI and feature levels
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/sssqweeeed/ml-toolkit" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    sssqweeeed/ml-toolkit
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="ml-toolkit" class="md-nav__button md-logo" aria-label="ml-toolkit" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    ml-toolkit
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/sssqweeeed/ml-toolkit" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    sssqweeeed/ml-toolkit
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Task recipes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../data/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Training
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Training
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../training/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Workflow and results
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../splitting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data splitting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../feature-selection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Feature selection
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tuning/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Parameter tuning
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Models
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Models
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../models/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Built-in adapters
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../custom-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Build a model adapter
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../inflation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Inflation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Evaluation
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Evaluation
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../evaluation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../evaluation/classification/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Classification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../evaluation/observed-fitted/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Observed versus fitted
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../evaluation/ranking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ranking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../evaluation/pu/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Positive-unlabeled
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../evaluation/explainability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Feature importance and SHAP
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../evaluation/custom/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Build an evaluator
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data analysis
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Data analysis
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../data-analysis/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../data-analysis/distributions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Numerical distributions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PSI and feature levels
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PSI and feature levels
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#compare-two-samples" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Compare two samples
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reuse-feature-levels" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reuse feature levels
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-psi-and-observedfitted-share-levels" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How PSI and observed/fitted share levels
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#compare-recorded-weather-and-calendar-features" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Compare recorded weather and calendar features
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#enable-psi-during-training" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Enable PSI during training
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#api-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        API reference
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="API reference">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#drift-analysis" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Drift analysis
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#configuration-and-results" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configuration and results
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#discrete-series-comparison" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Discrete-series comparison
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reference-fitted-feature-levels" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reference-fitted feature levels
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#level-definitions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Level definitions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#psi-plots" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PSI plots
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ml_toolkit.plots.psi" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        psi
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../data-analysis/custom/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Build a data analyzer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../metrics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Metrics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tracking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tracking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#compare-two-samples" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Compare two samples
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reuse-feature-levels" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reuse feature levels
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-psi-and-observedfitted-share-levels" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How PSI and observed/fitted share levels
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#compare-recorded-weather-and-calendar-features" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Compare recorded weather and calendar features
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#enable-psi-during-training" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Enable PSI during training
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#api-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        API reference
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="API reference">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#drift-analysis" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Drift analysis
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#configuration-and-results" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configuration and results
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#discrete-series-comparison" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Discrete-series comparison
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reference-fitted-feature-levels" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reference-fitted feature levels
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#level-definitions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Level definitions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#psi-plots" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PSI plots
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ml_toolkit.plots.psi" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        psi
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="psi-and-feature-levels">PSI and feature levels<a class="headerlink" href="#psi-and-feature-levels" title="Permanent link">&para;</a></h1>
+<p>Part of <a href="../../data-analysis/">Data analysis</a>, Population Stability Index
+(PSI) measures how feature distributions change
+between a reference sample and a current sample. Fit categories and numerical
+bins on the reference once, then reuse them for every comparison.</p>
+<h2 id="compare-two-samples">Compare two samples<a class="headerlink" href="#compare-two-samples" title="Permanent link">&para;</a></h2>
+<p>This small calculation makes the level counts easy to inspect; four rows per
+sample are not enough to establish population drift. For monitoring real
+observations, see the <a href="#compare-recorded-weather-and-calendar-features">recorded-hour comparison</a>.</p>
+<!-- example: psi-compare -->
+
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">polars</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pl</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">FeatureLevelConfig</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.psi</span><span class="w"> </span><span class="kn">import</span> <span class="n">PSIAnalysis</span><span class="p">,</span> <span class="n">PSIConfig</span>
+
+<span class="n">reference</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span>
+    <span class="p">{</span><span class="s2">"age"</span><span class="p">:</span> <span class="p">[</span><span class="mi">20</span><span class="p">,</span> <span class="mi">30</span><span class="p">,</span> <span class="mi">40</span><span class="p">,</span> <span class="mi">50</span><span class="p">],</span> <span class="s2">"region"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"north"</span><span class="p">,</span> <span class="s2">"north"</span><span class="p">,</span> <span class="s2">"south"</span><span class="p">,</span> <span class="s2">"south"</span><span class="p">]}</span>
+<span class="p">)</span>
+<span class="n">current</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span>
+    <span class="p">{</span><span class="s2">"age"</span><span class="p">:</span> <span class="p">[</span><span class="mi">45</span><span class="p">,</span> <span class="mi">55</span><span class="p">,</span> <span class="mi">65</span><span class="p">,</span> <span class="mi">75</span><span class="p">],</span> <span class="s2">"region"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"north"</span><span class="p">,</span> <span class="s2">"south"</span><span class="p">,</span> <span class="s2">"west"</span><span class="p">,</span> <span class="s2">"west"</span><span class="p">]}</span>
+<span class="p">)</span>
+<span class="n">analysis</span> <span class="o">=</span> <span class="n">PSIAnalysis</span><span class="p">(</span>
+    <span class="n">PSIConfig</span><span class="p">(</span>
+        <span class="n">features</span><span class="o">=</span><span class="p">(</span>
+            <span class="n">FeatureLevelConfig</span><span class="p">(</span><span class="s2">"age"</span><span class="p">,</span> <span class="s2">"numerical"</span><span class="p">,</span> <span class="n">lower_bound</span><span class="o">=</span><span class="mi">0</span><span class="p">),</span>
+            <span class="n">FeatureLevelConfig</span><span class="p">(</span><span class="s2">"region"</span><span class="p">,</span> <span class="s2">"categorical"</span><span class="p">),</span>
+        <span class="p">),</span>
+        <span class="n">n_bins</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+    <span class="p">)</span>
+<span class="p">)</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">reference</span><span class="p">)</span>
+<span class="n">comparison</span> <span class="o">=</span> <span class="n">analysis</span><span class="o">.</span><span class="n">compare</span><span class="p">(</span><span class="n">current</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span>
+    <span class="n">comparison</span><span class="o">.</span><span class="n">psi</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="s2">"feature"</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">with_columns</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"psi"</span><span class="p">)</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="mi">4</span><span class="p">))</span>
+    <span class="o">.</span><span class="n">write_csv</span><span class="p">(),</span>
+    <span class="n">end</span><span class="o">=</span><span class="s2">""</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="n">region_shares</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">comparison</span><span class="o">.</span><span class="n">level_distribution</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span>
+        <span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"feature"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"region"</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"level"</span><span class="p">)</span> <span class="o">!=</span> <span class="s2">"__NULL__"</span><span class="p">)</span>
+    <span class="p">)</span>
+    <span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="s2">"level"</span><span class="p">,</span> <span class="s2">"sample"</span><span class="p">,</span> <span class="s2">"share"</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">pivot</span><span class="p">(</span><span class="n">on</span><span class="o">=</span><span class="s2">"sample"</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="s2">"level"</span><span class="p">,</span> <span class="n">values</span><span class="o">=</span><span class="s2">"share"</span><span class="p">)</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">region_shares</span><span class="o">.</span><span class="n">write_csv</span><span class="p">(),</span> <span class="n">end</span><span class="o">=</span><span class="s2">""</span><span class="p">)</span>
+</code></pre></div>
+<!-- output: psi-compare -->
+<div class="highlight"><pre><span></span><code>feature,psi
+age,6.9077
+region,6.9077
+level,reference,current
+north,0.5,0.25
+south,0.5,0.25
+__UNSEEN__,0.0,0.5
+</code></pre></div>
+<!-- /output -->
+
+<p><code>comparison.psi</code> has one score per feature. Larger values mean a greater change
+in fitted-level shares. <code>level_distribution</code> shows the reference/current counts
+and shares behind each score. The new <code>"west"</code> category uses the fitted unseen
+level; numerical bins retain the reference boundaries. Here north and south
+each fall from 50% to 25%, and unseen categories account for 50% of current
+rows. Empty levels make the score sensitive to the configured <code>epsilon</code> share
+floor; this value is an arithmetic demonstration, not a universal alert threshold.</p>
+<p>Call <code>analysis.compare(next_sample)</code> for later batches. Re-fitting on each batch
+would change the reference. For temporal distributions, set <code>PSIConfig(period="week")</code> (default <code>"month"</code>)
+and provide aligned
+<code>Date</code>/<code>Datetime</code> timestamps with <code>time=</code> in both <code>fit</code> and <code>compare</code>.
+The original ranges must satisfy <code>max(reference_time) &lt;= min(current_time)</code>.
+Equal endpoints are allowed; overlap beyond the shared endpoint and reversed
+ranges raise <code>ValueError</code>. The split
+may fall inside one grouping period. Comparisons without timestamps do not
+have this restriction.</p>
+<h2 id="reuse-feature-levels">Reuse feature levels<a class="headerlink" href="#reuse-feature-levels" title="Permanent link">&para;</a></h2>
+<p><code>LevelTransformer</code> exposes the same fit/transform operations when you need
+consistent bins for another report. Continue with <code>reference</code> and <code>current</code>
+above to transform both samples and compare their existing levels:</p>
+<p><code>FeatureLevelConfig</code> supplies the rules for each column. <code>fit(reference)</code>
+determines categories or numerical intervals from the reference sample;
+it does not train a prediction model. The resulting <code>feature_levels</code> tuple
+contains one <code>FeatureLevels</code> per configured column, in the same order.
+Each result holds its original rules in <code>config</code>, its labels in <code>levels</code>,
+and its numerical <code>boundaries</code> or categorical <code>categories</code>.</p>
+<!-- example: psi-levels -->
+
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.feature_levels</span><span class="w"> </span><span class="kn">import</span> <span class="n">LevelTransformer</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.psi</span><span class="w"> </span><span class="kn">import</span> <span class="n">compare_psi</span>
+
+<span class="n">levels</span> <span class="o">=</span> <span class="n">LevelTransformer</span><span class="p">(</span><span class="n">analysis</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">features</span><span class="p">,</span> <span class="n">n_bins</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">reference</span><span class="p">)</span>
+<span class="n">reference_levels</span> <span class="o">=</span> <span class="n">levels</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">reference</span><span class="p">)</span>
+<span class="n">current_levels</span> <span class="o">=</span> <span class="n">levels</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">current</span><span class="p">)</span>
+<span class="k">assert</span> <span class="n">levels</span><span class="o">.</span><span class="n">feature_levels</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+<span class="n">level_comparison</span> <span class="o">=</span> <span class="n">compare_psi</span><span class="p">(</span>
+    <span class="n">reference_levels</span><span class="p">,</span> <span class="n">current_levels</span><span class="p">,</span> <span class="n">feature_levels</span><span class="o">=</span><span class="n">levels</span><span class="o">.</span><span class="n">feature_levels</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"Age boundaries:"</span><span class="p">,</span> <span class="n">levels</span><span class="o">.</span><span class="n">feature_levels</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">boundaries</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span>
+    <span class="s2">"Current region levels:"</span><span class="p">,</span> <span class="n">current_levels</span><span class="p">[</span><span class="s2">"region"</span><span class="p">]</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">String</span><span class="p">)</span><span class="o">.</span><span class="n">to_list</span><span class="p">()</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"Same PSI scores:"</span><span class="p">,</span> <span class="n">level_comparison</span><span class="o">.</span><span class="n">psi</span><span class="o">.</span><span class="n">equals</span><span class="p">(</span><span class="n">comparison</span><span class="o">.</span><span class="n">psi</span><span class="p">))</span>
+</code></pre></div>
+<!-- output: psi-levels -->
+<div class="highlight"><pre><span></span><code>Age boundaries: (35.0,)
+Current region levels: ['north', 'south', '__UNSEEN__', '__UNSEEN__']
+Same PSI scores: True
+</code></pre></div>
+<!-- /output -->
+
+<p>Configured columns become Polars <code>Categorical</code> columns; other columns retain
+their values and order. Reuse the fitted transformer for subsequent samples.
+Calling <code>fit</code> again replaces its levels; previously returned comparison results
+retain their original immutable rules and levels.</p>
+<h2 id="how-psi-and-observedfitted-share-levels">How PSI and observed/fitted share levels<a class="headerlink" href="#how-psi-and-observedfitted-share-levels" title="Permanent link">&para;</a></h2>
+<p>During training, PSI and <code>ObservedFitted</code> receive the same
+<code>ReportingConfig.features</code> rules and <code>ReportingConfig.n_bins</code>. Each report
+creates its own <code>LevelTransformer</code> and calls <code>fit(train.X)</code> on the same training
+rows for that fit. They do not share a fitted transformer, a cached level object,
+or fitted state between reports.</p>
+<p>The same rules, bin count and reference data produce identical categories and
+numerical boundaries for matching features. Identical configuration alone is
+insufficient when the reference data differs. <code>ObservedFitted(features=...)</code>
+can select a subset of the shared feature definitions without changing how
+those features are binned.</p>
+<p>Each report applies its training-fitted levels to both train and validation/test
+rows. Held-out rows do not influence the learned levels. Every enabled fit
+learns levels afresh from its own training rows, so boundaries can differ across
+folds and the final fit. See the
+<a href="../../evaluation/observed-fitted/#compare-feature-levels">observed/fitted guide</a>
+for the corresponding prediction report.</p>
+<h2 id="compare-recorded-weather-and-calendar-features">Compare recorded weather and calendar features<a class="headerlink" href="#compare-recorded-weather-and-calendar-features" title="Permanent link">&para;</a></h2>
+<p>Prepare the <a href="../../evaluation/#example-data">Bike Sharing cache</a>. These
+figures fit levels on 2011 training hours and compare 2012 test hours. Calendar
+changes can be expected; PSI measures distribution differences, not their cause.
+Shares count rows, independent of model weights.</p>
+<!-- example: psi-gallery-setup -->
+
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">polars</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pl</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">examples.gallery_data</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_bike_pool</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.training</span><span class="w"> </span><span class="kn">import</span> <span class="n">Holdout</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">FigureConfig</span>
+
+<span class="n">data</span> <span class="o">=</span> <span class="n">load_bike_pool</span><span class="p">(</span><span class="n">download_if_missing</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<span class="n">partition</span> <span class="o">=</span> <span class="n">Holdout</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">test_size</span><span class="o">=</span><span class="s2">"2012-01-01"</span><span class="p">)</span><span class="o">.</span><span class="n">get_test</span><span class="p">()</span>
+<span class="n">train</span><span class="p">,</span> <span class="n">test</span> <span class="o">=</span> <span class="n">partition</span><span class="o">.</span><span class="n">train</span><span class="p">,</span> <span class="n">partition</span><span class="o">.</span><span class="n">heldout</span>
+<span class="k">assert</span> <span class="n">test</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+<span class="n">output</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="s2">"figures"</span><span class="p">)</span>
+<span class="n">figure</span> <span class="o">=</span> <span class="n">FigureConfig</span><span class="p">(</span><span class="n">dpi</span><span class="o">=</span><span class="mi">150</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"2011 train hours: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">train</span><span class="p">)</span><span class="si">}</span><span class="s2">; 2012 test hours: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">test</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+</code></pre></div>
+<!-- output: psi-gallery-setup -->
+<div class="highlight"><pre><span></span><code>2011 train hours: 8645; 2012 test hours: 8734
+</code></pre></div>
+<!-- /output -->
+
+<!-- example: psi-gallery-scores -->
+
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.plots</span><span class="w"> </span><span class="kn">import</span> <span class="n">psi</span>
+
+<span class="n">categorical_features</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">"hour"</span><span class="p">,</span>
+    <span class="s2">"working_day"</span><span class="p">,</span>
+    <span class="s2">"weekday"</span><span class="p">,</span>
+    <span class="s2">"holiday"</span><span class="p">,</span>
+    <span class="s2">"season"</span><span class="p">,</span>
+    <span class="s2">"weather"</span><span class="p">,</span>
+    <span class="s2">"month"</span><span class="p">,</span>
+<span class="p">}</span>
+<span class="n">weather_analysis</span> <span class="o">=</span> <span class="n">PSIAnalysis</span><span class="p">(</span>
+    <span class="n">PSIConfig</span><span class="p">(</span>
+        <span class="n">features</span><span class="o">=</span><span class="nb">tuple</span><span class="p">(</span>
+            <span class="n">FeatureLevelConfig</span><span class="p">(</span>
+                <span class="n">name</span><span class="p">,</span>
+                <span class="s2">"categorical"</span> <span class="k">if</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">categorical_features</span> <span class="k">else</span> <span class="s2">"numerical"</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">train</span><span class="o">.</span><span class="n">X</span><span class="o">.</span><span class="n">columns</span>
+        <span class="p">),</span>
+        <span class="n">n_bins</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
+    <span class="p">)</span>
+<span class="p">)</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">train</span><span class="o">.</span><span class="n">X</span><span class="p">,</span> <span class="n">time</span><span class="o">=</span><span class="n">train</span><span class="o">.</span><span class="n">time</span><span class="p">)</span>
+<span class="n">weather_comparison</span> <span class="o">=</span> <span class="n">weather_analysis</span><span class="o">.</span><span class="n">compare</span><span class="p">(</span><span class="n">test</span><span class="o">.</span><span class="n">X</span><span class="p">,</span> <span class="n">time</span><span class="o">=</span><span class="n">test</span><span class="o">.</span><span class="n">time</span><span class="p">)</span>
+<span class="n">psi</span><span class="o">.</span><span class="n">feature_psi_plot</span><span class="p">(</span>
+    <span class="n">weather_comparison</span><span class="o">.</span><span class="n">psi</span><span class="p">,</span> <span class="n">output</span> <span class="o">/</span> <span class="s2">"psi-scores.png"</span><span class="p">,</span> <span class="n">figure</span><span class="o">=</span><span class="n">figure</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span>
+    <span class="n">weather_comparison</span><span class="o">.</span><span class="n">psi</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="s2">"psi"</span><span class="p">,</span> <span class="n">descending</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">with_columns</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"psi"</span><span class="p">)</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="mi">3</span><span class="p">))</span>
+    <span class="o">.</span><span class="n">write_csv</span><span class="p">(),</span>
+    <span class="n">end</span><span class="o">=</span><span class="s2">""</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
+<!-- output: psi-gallery-scores -->
+<div class="highlight"><pre><span></span><code>feature,psi
+humidity,0.048
+temperature,0.036
+feels_like_temperature,0.033
+weather,0.004
+wind_speed,0.004
+</code></pre></div>
+<!-- /output -->
+
+<p><img alt="Feature PSI scores comparing recorded 2011 and 2012 weather and calendar distributions." src="../../assets/plots/psi-scores.png" /></p>
+<p>The bars show one PSI score per feature. Inspect its level shares to understand
+which values contribute to the difference; a universal alert cutoff is not
+implied by this illustration.</p>
+<!-- example: psi-gallery-time -->
+
+<div class="highlight"><pre><span></span><code><span class="n">psi</span><span class="o">.</span><span class="n">time_psi_level_distribution</span><span class="p">(</span>
+    <span class="n">weather_comparison</span><span class="o">.</span><span class="n">time_distribution</span><span class="p">,</span>
+    <span class="s2">"temperature"</span><span class="p">,</span>
+    <span class="n">output</span> <span class="o">/</span> <span class="s2">"psi-time.png"</span><span class="p">,</span>
+    <span class="n">figure</span><span class="o">=</span><span class="n">figure</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
+<p><img alt="Monthly temperature shares on the same 2011-fitted numerical levels." src="../../assets/plots/psi-time.png" /></p>
+<p>Each bar shows period-specific shares on the fitted levels. The dashed boundary
+marks the first current bar. When the split falls inside a period, that period
+has two equal-width bars, reference then current; the separator marks their
+visual boundary, not the exact split date. Entirely missing periods stay empty.
+Both plotting calls return <code>None</code>; their tables come from <code>PSIAnalysis</code>.</p>
+<h2 id="enable-psi-during-training">Enable PSI during training<a class="headerlink" href="#enable-psi-during-training" title="Permanent link">&para;</a></h2>
+<!-- example: psi-reporting -->
+
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">ReportingConfig</span>
+
+<span class="n">reporting</span> <span class="o">=</span> <span class="n">ReportingConfig</span><span class="p">(</span>
+    <span class="n">psi</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">features</span><span class="o">=</span><span class="n">weather_analysis</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">features</span><span class="p">,</span> <span class="n">n_bins</span><span class="o">=</span><span class="mi">10</span>
+<span class="p">)</span>
+</code></pre></div>
+<p>Pass this reporting config to <code>TrainingConfig(reporting=reporting)</code>. The
+workflow compares train with the current held-out sample, writes <code>psi/scores.png</code>
+and per-feature time distributions, and saves the score and distribution tables
+as JSON. PSI uses feature values and timestamps only; no predictions are
+passed to the analysis. A train-only fit has no PSI report. <code>features=None</code> infers feature
+rules; <code>features=()</code> disables feature diagnostics. <code>epsilon</code> is the PSI share
+floor, and <code>period</code> sets temporal grouping. Scheduling and shared figure settings
+are described in the <a href="../../data-analysis/">data analysis overview</a>.</p>
+<h2 id="api-reference">API reference<a class="headerlink" href="#api-reference" title="Permanent link">&para;</a></h2>
+<p>Import PSI analysis from <code>ml_toolkit.psi</code>.</p>
+<h3 id="drift-analysis">Drift analysis<a class="headerlink" href="#drift-analysis" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h4 id="ml_toolkit.psi.PSIAnalysis" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">PSIAnalysis</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#ml_toolkit.psi.PSIAnalysis" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">PSIAnalysis</span><span class="p">(</span><span class="n">config</span><span class="p">:</span> <span class="n">PSIConfig</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>Compare a current population against fitted reference feature levels.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>config</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="PSIConfig
+
+
+  
+      dataclass
+   (ml_toolkit.psi.config.PSIConfig)" href="#ml_toolkit.psi.PSIConfig">PSIConfig</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Feature definitions, numerical bin count, and share floor.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.psi.PSIAnalysis.transformer">transformer</span></code></td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="LevelTransformer
+
+
+  
+      dataclass
+   (ml_toolkit.feature_levels.LevelTransformer)" href="#ml_toolkit.feature_levels.LevelTransformer">LevelTransformer</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Transformer learning levels from reference data.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.psi.PSIAnalysis.reference_levels">reference_levels</span></code></td>
+            <td>
+                  <code><span title="polars.DataFrame">DataFrame</span> or None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Transformed reference frame; None before fitting.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.psi.PSIAnalysis.reference_time">reference_time</span></code></td>
+            <td>
+                  <code><span title="polars.Series">Series</span> or None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Optional reference timestamps for time-based distributions.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Examples:</span></p>
+    <p>In this small calculation, the north share falls from 75% to 25%.</p>
+    <div class="highlight"><pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">polars</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pl</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.feature_levels</span><span class="w"> </span><span class="kn">import</span> <span class="n">FeatureLevelConfig</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.psi</span><span class="w"> </span><span class="kn">import</span> <span class="n">PSIAnalysis</span><span class="p">,</span> <span class="n">PSIConfig</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">reference</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span><span class="s2">"segment"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"north"</span><span class="p">]</span> <span class="o">*</span> <span class="mi">3</span> <span class="o">+</span> <span class="p">[</span><span class="s2">"south"</span><span class="p">]})</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">current</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span><span class="s2">"segment"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"north"</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="s2">"south"</span><span class="p">]</span> <span class="o">*</span> <span class="mi">3</span><span class="p">})</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">analysis</span> <span class="o">=</span> <span class="n">PSIAnalysis</span><span class="p">(</span><span class="n">PSIConfig</span><span class="p">((</span><span class="n">FeatureLevelConfig</span><span class="p">(</span><span class="s2">"segment"</span><span class="p">,</span> <span class="s2">"categorical"</span><span class="p">),)))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">result</span> <span class="o">=</span> <span class="n">analysis</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">reference</span><span class="p">)</span><span class="o">.</span><span class="n">compare</span><span class="p">(</span><span class="n">current</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">result</span><span class="o">.</span><span class="n">psi</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"psi"</span><span class="p">)</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="mi">4</span><span class="p">))</span><span class="o">.</span><span class="n">to_dicts</span><span class="p">()</span>
+<span class="go">[{'psi': 1.0986}]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">result</span><span class="o">.</span><span class="n">level_distribution</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"level"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"north"</span><span class="p">)</span><span class="o">.</span><span class="n">select</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="s2">"sample"</span><span class="p">,</span> <span class="s2">"share"</span>
+<span class="gp">... </span><span class="p">)</span><span class="o">.</span><span class="n">to_dicts</span><span class="p">()</span>
+<span class="go">[{'sample': 'reference', 'share': 0.75}, {'sample': 'current', 'share': 0.25}]</span>
+</code></pre></div>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h5 id="ml_toolkit.psi.PSIAnalysis.fit" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">fit</span>
+
+
+<a href="#ml_toolkit.psi.PSIAnalysis.fit" class="headerlink" title="Permanent link">&para;</a></h5>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">fit</span><span class="p">(</span>
+    <span class="n">reference</span><span class="p">:</span> <span class="n">DataFrame</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">time</span><span class="p">:</span> <span class="n">Series</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">PSIAnalysis</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Learn feature levels from reference data and optionally record dates.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>reference</code>
+            </td>
+            <td>
+                  <code><span title="polars.DataFrame">DataFrame</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Reference frame containing all configured features. An empty typed
+frame can be fitted, but comparison requires a nonempty reference.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>time</code>
+            </td>
+            <td>
+                  <code>polars.Series, str, or None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Optional non-null Date/Datetime Series aligned with rows, or the name
+of a timestamp column. Provide time for both samples or neither.
+Current timestamps must all be at or after the latest
+reference timestamp; a split inside one grouping period is allowed.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="Self">Self</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Analysis with stored reference levels and optional timestamps.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="ValueError">ValueError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Features are missing, or supplied timestamps
+are null or misaligned.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="TypeError">TypeError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Supplied timestamps are not Date or Datetime.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h5 id="ml_toolkit.psi.PSIAnalysis.compare" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">compare</span>
+
+
+<a href="#ml_toolkit.psi.PSIAnalysis.compare" class="headerlink" title="Permanent link">&para;</a></h5>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">compare</span><span class="p">(</span>
+    <span class="n">current</span><span class="p">:</span> <span class="n">DataFrame</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">time</span><span class="p">:</span> <span class="n">Series</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">PSIResult</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Score current data using the fitted reference levels.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>current</code>
+            </td>
+            <td>
+                  <code><span title="polars.DataFrame">DataFrame</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Nonempty current frame containing all configured features.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>time</code>
+            </td>
+            <td>
+                  <code>polars.Series, str, or None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Optional non-null Date/Datetime Series aligned with rows, or the name
+of a timestamp column. Provide time for both samples or neither.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="PSIResult
+
+
+  
+      dataclass
+   (ml_toolkit.psi.results.PSIResult)" href="#ml_toolkit.psi.PSIResult">PSIResult</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Per-feature PSI, level shares for both samples, optional time-based
+shares, and fitted level definitions.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="RuntimeError">RuntimeError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The analysis has not been fitted.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="ValueError">ValueError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Data is empty, required features are missing, timestamps are invalid,
+only one sample supplies time, or max(reference_time) exceeds
+min(current_time). Shared endpoints and a split inside one period
+are allowed.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="ml_toolkit.psi.compare_psi" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">compare_psi</span>
+
+
+<a href="#ml_toolkit.psi.compare_psi" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">compare_psi</span><span class="p">(</span>
+    <span class="n">reference_levels</span><span class="p">:</span> <span class="n">DataFrame</span><span class="p">,</span>
+    <span class="n">current_levels</span><span class="p">:</span> <span class="n">DataFrame</span><span class="p">,</span>
+    <span class="n">feature_levels</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">FeatureLevels</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">epsilon</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1e-06</span><span class="p">,</span>
+    <span class="n">period</span><span class="p">:</span> <span class="n">TimePeriod</span> <span class="o">=</span> <span class="s2">"month"</span><span class="p">,</span>
+    <span class="n">reference_time</span><span class="p">:</span> <span class="n">Series</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">current_time</span><span class="p">:</span> <span class="n">Series</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">PSIResult</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Compare populations already transformed using shared reference levels.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>reference_levels</code>
+            </td>
+            <td>
+                  <code><span title="polars.DataFrame">DataFrame</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Nonempty frames with the configured columns transformed by the same
+LevelTransformer. Extra columns are ignored.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>current_levels</code>
+            </td>
+            <td>
+                  <code><span title="polars.DataFrame">DataFrame</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Nonempty frames with the configured columns transformed by the same
+LevelTransformer. Extra columns are ignored.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>feature_levels</code>
+            </td>
+            <td>
+                  <code><span title="tuple">tuple</span>[<a class="autorefs autorefs-internal" title="FeatureLevels
+
+
+  
+      dataclass
+   (ml_toolkit.feature_levels.FeatureLevels)" href="#ml_toolkit.feature_levels.FeatureLevels">FeatureLevels</a>, ...]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Fitted definitions, including the order of features and levels.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>period</code>
+            </td>
+            <td>
+                  <code><span title="ml_toolkit.types.TimePeriod">TimePeriod</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Calendar grouping in the input timezone. Both time zones must match;
+minute/hour require Datetime. Missing periods are not filled.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#34;month&#34;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>epsilon</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Share floor strictly between zero and one for PSI logarithms.</p>
+              </div>
+            </td>
+            <td>
+                  <code>1e-6</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>reference_time</code>
+            </td>
+            <td>
+                  <code><span title="polars.Series">Series</span> or None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Aligned, non-null Date/Datetime values. Supply both to include time-based
+distributions, or neither. max(reference_time) must be less than or equal
+to min(current_time); a split inside one grouping period is allowed.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>current_time</code>
+            </td>
+            <td>
+                  <code><span title="polars.Series">Series</span> or None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Aligned, non-null Date/Datetime values. Supply both to include time-based
+distributions, or neither. max(reference_time) must be less than or equal
+to min(current_time); a split inside one grouping period is allowed.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="PSIResult
+
+
+  
+      dataclass
+   (ml_toolkit.psi.results.PSIResult)" href="#ml_toolkit.psi.PSIResult">PSIResult</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Per-feature scores, level distributions, optional time-based distributions,
+and the supplied fitted definitions. No levels are fitted here.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="ValueError">ValueError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Frames or feature definitions are empty, configured columns or levels
+are missing or invalid, timestamps are misaligned, max(reference_time)
+exceeds min(current_time), or epsilon is invalid.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="TypeError">TypeError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Feature columns are not Categorical or timestamps have an invalid dtype.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div><h3 id="configuration-and-results">Configuration and results<a class="headerlink" href="#configuration-and-results" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h4 id="ml_toolkit.psi.PSIConfig" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">PSIConfig</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#ml_toolkit.psi.PSIConfig" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">PSIConfig</span><span class="p">(</span>
+    <span class="n">features</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">FeatureLevelConfig</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span>
+    <span class="n">period</span><span class="p">:</span> <span class="n">TimePeriod</span> <span class="o">=</span> <span class="s2">"month"</span><span class="p">,</span>
+    <span class="n">n_bins</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span><span class="p">,</span>
+    <span class="n">epsilon</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1e-06</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>Configure reference-based population stability analysis.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>features</code>
+            </td>
+            <td>
+                  <code><span title="tuple">tuple</span>[<a class="autorefs autorefs-internal" title="FeatureLevelConfig
+
+
+  
+      dataclass
+   (ml_toolkit.feature_levels.FeatureLevelConfig)" href="../configuration/#ml_toolkit.config.FeatureLevelConfig">FeatureLevelConfig</a>, ...]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Nonempty collection of uniquely named feature definitions, normalized
+to a tuple.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>period</code>
+            </td>
+            <td>
+                  <code><span title="ml_toolkit.types.TimePeriod">TimePeriod</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Calendar period for temporal distributions, preserving the input timezone.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#34;month&#34;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>n_bins</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Positive requested number of numerical quantile bins. Ties and constant
+features may produce fewer bins.</p>
+              </div>
+            </td>
+            <td>
+                  <code>10</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>epsilon</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Share floor strictly between zero and one, applied before logarithms.</p>
+              </div>
+            </td>
+            <td>
+                  <code>1e-6</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h4 id="ml_toolkit.psi.PSIResult" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">PSIResult</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#ml_toolkit.psi.PSIResult" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">PSIResult</span><span class="p">(</span>
+    <span class="n">psi</span><span class="p">:</span> <span class="n">DataFrame</span><span class="p">,</span>
+    <span class="n">level_distribution</span><span class="p">:</span> <span class="n">DataFrame</span><span class="p">,</span>
+    <span class="n">time_distribution</span><span class="p">:</span> <span class="n">DataFrame</span><span class="p">,</span>
+    <span class="n">feature_levels</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">FeatureLevels</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>Store PSI scores and distribution tables as Polars DataFrames.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.psi.PSIResult.psi">psi</span></code></td>
+            <td>
+                  <code><span title="polars.DataFrame">DataFrame</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>One row per feature with feature (String) and psi (Float64) columns.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.psi.PSIResult.level_distribution">level_distribution</span></code></td>
+            <td>
+                  <code><span title="polars.DataFrame">DataFrame</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Columns feature, sample, and level (String), rows (Int64), and share
+(Float64). Samples are reference and current; every fitted level is
+present, including zero-share levels.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.psi.PSIResult.time_distribution">time_distribution</span></code></td>
+            <td>
+                  <code><span title="polars.DataFrame">DataFrame</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Columns feature, sample, and level (String), period_start (Datetime), and share
+(Float64). Contains every fitted level in each observed sample period;
+preserves the input timezone. Empty with naive Datetime when time was omitted.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.psi.PSIResult.feature_levels">feature_levels</span></code></td>
+            <td>
+                  <code><span title="tuple">tuple</span>[<a class="autorefs autorefs-internal" title="FeatureLevels
+
+
+  
+      dataclass
+   (ml_toolkit.feature_levels.FeatureLevels)" href="#ml_toolkit.feature_levels.FeatureLevels">FeatureLevels</a>, ...]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Reference-fitted categories, interval boundaries, and special level
+definitions.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div><h3 id="discrete-series-comparison">Discrete-series comparison<a class="headerlink" href="#discrete-series-comparison" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="ml_toolkit.psi.psi" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">psi</span>
+
+
+<a href="#ml_toolkit.psi.psi" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">psi</span><span class="p">(</span>
+    <span class="n">reference</span><span class="p">:</span> <span class="n">Series</span><span class="p">,</span>
+    <span class="n">current</span><span class="p">:</span> <span class="n">Series</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">epsilon</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1e-06</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Calculate PSI for two categorical feature distributions.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>reference</code>
+            </td>
+            <td>
+                  <code><span title="polars.Series">Series</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Nonempty Series of discrete reference levels, compared after casting
+to String. Bin continuous numerical values before calling.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>current</code>
+            </td>
+            <td>
+                  <code><span title="polars.Series">Series</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Nonempty Series of discrete current levels, compared after casting to
+String; sample sizes may differ. Null is counted as a separate level.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>epsilon</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Minimum share strictly between zero and one used to avoid logarithms of
+zero.</p>
+              </div>
+            </td>
+            <td>
+                  <code>1e-6</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Sum of (current_share - reference_share) * log(current_share /
+reference_share) over the union of observed levels.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="ValueError">ValueError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Either sample is empty or epsilon is invalid.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="note" open>
+  <summary>Notes</summary>
+  <p>Shares are floored independently without renormalization. Use
+LevelTransformer or PSIAnalysis to bin raw numerical values first.</p>
+</details>
+
+<p><span class="doc-section-title">Examples:</span></p>
+    <p>Compare category shares: north falls from 75% to 25%, while south rises.</p>
+    <div class="highlight"><pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">polars</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pl</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.psi</span><span class="w"> </span><span class="kn">import</span> <span class="n">psi</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">reference</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">Series</span><span class="p">([</span><span class="s2">"north"</span><span class="p">]</span> <span class="o">*</span> <span class="mi">3</span> <span class="o">+</span> <span class="p">[</span><span class="s2">"south"</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">pl</span><span class="o">.</span><span class="n">Categorical</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">current</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">Series</span><span class="p">([</span><span class="s2">"north"</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="s2">"south"</span><span class="p">]</span> <span class="o">*</span> <span class="mi">3</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">pl</span><span class="o">.</span><span class="n">Categorical</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">round</span><span class="p">(</span><span class="n">psi</span><span class="p">(</span><span class="n">reference</span><span class="p">,</span> <span class="n">current</span><span class="p">),</span> <span class="mi">4</span><span class="p">)</span>
+<span class="go">1.0986</span>
+</code></pre></div>
+
+
+    </div>
+
+</div><h3 id="reference-fitted-feature-levels">Reference-fitted feature levels<a class="headerlink" href="#reference-fitted-feature-levels" title="Permanent link">&para;</a></h3>
+<p>Import these lower-level types from <code>ml_toolkit.feature_levels</code>.
+<code>FeatureLevelConfig</code> is also exported from <code>ml_toolkit.config</code> and documented in the
+<a href="../configuration/">configuration reference</a>.</p>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h4 id="ml_toolkit.feature_levels.LevelTransformer" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">LevelTransformer</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#ml_toolkit.feature_levels.LevelTransformer" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">LevelTransformer</span><span class="p">(</span>
+    <span class="n">features</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">FeatureLevelConfig</span><span class="p">],</span> <span class="n">n_bins</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>Learn reference categories and quantile boundaries for diagnostics.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>features</code>
+            </td>
+            <td>
+                  <code>sequence of FeatureLevelConfig</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Feature definitions with unique names; stored as a tuple.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>n_bins</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Positive requested number of numerical intervals.</p>
+              </div>
+            </td>
+            <td>
+                  <code>10</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.feature_levels.LevelTransformer.feature_levels">feature_levels</span></code></td>
+            <td>
+                  <code><span title="tuple">tuple</span>[<a class="autorefs autorefs-internal" title="FeatureLevels
+
+
+  
+      dataclass
+   (ml_toolkit.feature_levels.config.FeatureLevels)" href="#ml_toolkit.feature_levels.FeatureLevels">FeatureLevels</a>, ...] or None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Levels in feature order; None until fit is called.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="note" open>
+  <summary>Notes</summary>
+  <p>Numerical ties can reduce the number of quantile boundaries. Nulls,
+floating NaNs, and configured missing sentinels map to <strong>NULL</strong>.
+Categorical values absent from the reference map to <strong>UNSEEN</strong>; configured
+error sentinels and out-of-bound numerical values map to <strong>ERROR</strong>.
+Transformation retains unconfigured columns.</p>
+</details>
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h5 id="ml_toolkit.feature_levels.LevelTransformer.fit" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">fit</span>
+
+
+<a href="#ml_toolkit.feature_levels.LevelTransformer.fit" class="headerlink" title="Permanent link">&para;</a></h5>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">fit</span><span class="p">(</span><span class="n">reference</span><span class="p">:</span> <span class="n">DataFrame</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">LevelTransformer</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Learn levels and numerical boundaries from reference data.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>reference</code>
+            </td>
+            <td>
+                  <code><span title="polars.DataFrame">DataFrame</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Frame containing every configured feature. Regular numerical
+values must be finite and castable to Float64.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="Self">Self</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Transformer with reference-based levels. Calling fit again replaces
+its levels; previously returned tuples retain their original values.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="ValueError">ValueError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Features are missing, regular numerical values
+are non-finite, or categories use reserved level names.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="note" open>
+  <summary>Notes</summary>
+  <p>An empty frame must still supply typed feature columns. Features with
+no regular reference values learn no categories or numerical cut points.</p>
+</details>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h5 id="ml_toolkit.feature_levels.LevelTransformer.transform" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">transform</span>
+
+
+<a href="#ml_toolkit.feature_levels.LevelTransformer.transform" class="headerlink" title="Permanent link">&para;</a></h5>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">transform</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="n">DataFrame</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Replace configured features with fitted categorical level labels.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>data</code>
+            </td>
+            <td>
+                  <code><span title="polars.DataFrame">DataFrame</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Frame containing the configured features; may have zero rows.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="polars.DataFrame">DataFrame</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Frame with configured columns cast to Categorical; unconfigured columns
+and row order are retained.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="RuntimeError">RuntimeError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The transformer has not been fitted.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="ValueError">ValueError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Configured features are missing.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="note" open>
+  <summary>Notes</summary>
+  <p>Numerical intervals are left-inclusive. A value equal to an internal
+boundary enters the interval on its right.</p>
+</details>
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div><h3 id="level-definitions">Level definitions<a class="headerlink" href="#level-definitions" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h4 id="ml_toolkit.feature_levels.FeatureLevels" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">FeatureLevels</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#ml_toolkit.feature_levels.FeatureLevels" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">FeatureLevels</span><span class="p">(</span>
+    <span class="n">config</span><span class="p">:</span> <span class="n">FeatureLevelConfig</span><span class="p">,</span>
+    <span class="n">levels</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span>
+    <span class="n">boundaries</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
+    <span class="n">categories</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">FeatureScalar</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>Store categories and intervals determined from reference data.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.feature_levels.FeatureLevels.config">config</span></code></td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="FeatureLevelConfig
+
+
+  
+      dataclass
+   (ml_toolkit.feature_levels.config.FeatureLevelConfig)" href="../configuration/#ml_toolkit.config.FeatureLevelConfig">FeatureLevelConfig</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Immutable rules used to determine and apply these levels.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.feature_levels.FeatureLevels.levels">levels</span></code></td>
+            <td>
+                  <code><span title="tuple">tuple</span>[<span title="str">str</span>, ...]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Ordered interval or category labels followed by applicable special
+levels.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.feature_levels.FeatureLevels.boundaries">boundaries</span></code></td>
+            <td>
+                  <code><span title="tuple">tuple</span>[<span title="float">float</span>, ...]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Internal numerical cut points; empty for categorical or single-interval
+features.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.feature_levels.FeatureLevels.categories">categories</span></code></td>
+            <td>
+                  <code><span title="tuple">tuple</span>[<span title="ml_toolkit.feature_levels.config.FeatureScalar">FeatureScalar</span>, ...]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Reference categories in first-occurrence order; empty for numerical
+features.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div><p><code>FeatureType</code> identifies numerical and categorical features. <code>FeatureScalar</code>
+describes the values retained by learned levels. <code>NULL_LEVEL</code>, <code>ERROR_LEVEL</code>,
+and <code>UNSEEN_LEVEL</code> are the default missing, invalid, and unseen-category labels.</p>
+<h3 id="psi-plots">PSI plots<a class="headerlink" href="#psi-plots" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-module">
+
+
+
+<h3 id="ml_toolkit.plots.psi" class="doc doc-heading">
+            <span class="doc doc-object-name doc-module-name">psi</span>
+
+
+<a href="#ml_toolkit.plots.psi" class="headerlink" title="Permanent link">&para;</a></h3>
+
+    <div class="doc doc-contents first">
+
+        <p>PSI score and time-based level-distribution figures.</p>
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="ml_toolkit.plots.psi.feature_psi_plot" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">feature_psi_plot</span>
+
+
+<a href="#ml_toolkit.plots.psi.feature_psi_plot" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">feature_psi_plot</span><span class="p">(</span>
+    <span class="n">scores</span><span class="p">:</span> <span class="n">DataFrame</span><span class="p">,</span>
+    <span class="n">save_fig</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">figure</span><span class="p">:</span> <span class="n">FigureConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Save a horizontal bar chart of PSI values by feature.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>scores</code>
+            </td>
+            <td>
+                  <code><span title="polars.DataFrame">DataFrame</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Nonempty frame with feature and finite psi columns, such as
+PSIResult.psi.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>save_fig</code>
+            </td>
+            <td>
+                  <code><span title="pathlib.Path">Path</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Output figure path; pass a Path object, not a string.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>figure</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="FigureConfig
+
+
+  
+      dataclass
+   (ml_toolkit.config.FigureConfig)" href="../configuration/#ml_toolkit.config.FigureConfig">FigureConfig</a> or None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Optional export dimensions, DPI, and format. None preserves native
+dimensions and the requested path format.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code>None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The figure is saved to disk; no table is returned.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="ValueError">ValueError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Required columns are missing, scores are empty, or PSI values are
+non-finite.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="note" open>
+  <summary>Notes</summary>
+  <p>Creates parent directories for save_fig and closes the figure after saving.</p>
+</details>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="ml_toolkit.plots.psi.time_psi_level_distribution" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">time_psi_level_distribution</span>
+
+
+<a href="#ml_toolkit.plots.psi.time_psi_level_distribution" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">time_psi_level_distribution</span><span class="p">(</span>
+    <span class="n">distribution</span><span class="p">:</span> <span class="n">DataFrame</span><span class="p">,</span>
+    <span class="n">feature</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">save_fig</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">period</span><span class="p">:</span> <span class="n">TimePeriod</span> <span class="o">=</span> <span class="s2">"month"</span><span class="p">,</span>
+    <span class="n">figure</span><span class="p">:</span> <span class="n">FigureConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Save time-based fitted-level shares as stacked bars at calendar-period starts.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>distribution</code>
+            </td>
+            <td>
+                  <code><span title="polars.DataFrame">DataFrame</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Time share table with feature, period_start, sample, level, and share
+columns, such as PSIResult.time_distribution. Reference must precede
+current; only their boundary period may be shared.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>feature</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Feature name present in the distribution table.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>save_fig</code>
+            </td>
+            <td>
+                  <code><span title="pathlib.Path">Path</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Output figure path; pass a Path object, not a string.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>period</code>
+            </td>
+            <td>
+                  <code><span title="ml_toolkit.types.TimePeriod">TimePeriod</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Period used to build the table; determines calendar bar widths.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#34;month&#34;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>figure</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="FigureConfig
+
+
+  
+      dataclass
+   (ml_toolkit.config.FigureConfig)" href="../configuration/#ml_toolkit.config.FigureConfig">FigureConfig</a> or None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Optional export dimensions, DPI, and format. None preserves native
+dimensions and the requested path format.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code>None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The figure is saved to disk; no table is returned.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="ValueError">ValueError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Required columns or the requested feature are missing, or reference
+periods extend beyond the first current period.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="note" open>
+  <summary>Notes</summary>
+  <p>Creates parent directories for save_fig and closes the figure after saving.
+Samples share one calendar axis, with a boundary at the first current bar.
+Missing periods remain empty. A shared boundary period is split into two
+equal-width bars, reference then current. This is a display convention,
+not the exact timestamp of the split. PSIAnalysis and compare_psi validate
+the original time ranges before aggregation; a manually prepared table
+must satisfy the same constraint, which period starts alone cannot verify.</p>
+</details>
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.code.copy", "navigation.sections", "navigation.top", "search.highlight"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"alias": true, "default": "stable", "provider": "mike"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
