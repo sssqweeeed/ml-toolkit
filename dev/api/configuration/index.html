@@ -1723,8 +1723,9 @@ all eligible data including test. Requires a held-out test sample.</p>
 
         <p>Enable reporting by training stage and configure PSI, SHAP and exports.</p>
 <p>Stage switches gate prediction evaluators, data analyzers, PSI and SHAP,
-including all additional metrics and artifacts, not training
-metrics or optimization. All validation folds use the same settings.
+including their additional metrics and report artifacts, not training
+metrics or optimization. PSI baseline packaging follows model logging flags
+independently of stage report switches. All validation folds use the same settings.
 PSI and observed/fitted use feature levels fitted on training rows.
 <code>features=None</code> infers all input features; <code>()</code> disables level reports.
 <code>period</code> and <code>epsilon</code> apply only to PSI.</p>
@@ -1814,7 +1815,8 @@ PSI and observed/fitted use feature levels fitted on training rows.
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Enable data analysis of population stability; uses no predictions.</p>
+                <p>Enable population stability reports and baseline packaging with saved
+models; uses no predictions. features=() disables the baseline too.</p>
               </div>
             </td>
             <td>

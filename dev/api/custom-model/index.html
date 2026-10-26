@@ -1476,6 +1476,13 @@ after the check. No remote tracking service or registry is required.</p>
 </tr>
 </tbody>
 </table>
+<p>To support PSI baseline packaging, implement the optional keyword argument
+<code>extra_artifacts: Mapping[str, str] | None = None</code> in <code>log</code>. Merge those artifacts
+with the adapter's native files and pass them to <code>mlflow.pyfunc.log_model</code> before
+registration. Reject duplicate artifact names rather than overwriting model
+state. The complete example demonstrates this contract. Existing workflow calls
+omit this keyword when no baseline is attached; custom adapters enabling PSI
+packaging must accept and preserve it.</p>
 <p><code>fit</code> uses <code>Pool.with_target</code>, so timestamps, weights, IDs, and categorical
 metadata stay aligned. The scale is fixed project configuration; it is never
 estimated from the validation or test rows. The factory supplies that same scale
@@ -1484,6 +1491,8 @@ the original target units.</p>
 <details class="note">
 <summary>Complete adapter and factory source</summary>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Mapping</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.training</span><span class="w"> </span><span class="kn">import</span> <span class="n">Holdout</span>
 
@@ -1504,6 +1513,7 @@ the original target units.</p>
 <span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit</span><span class="w"> </span><span class="kn">import</span> <span class="n">Pool</span><span class="p">,</span> <span class="n">train_model</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">TrackingConfig</span><span class="p">,</span> <span class="n">TrainingConfig</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">CatBoostRegressionModel</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.tracking.model_artifacts</span><span class="w"> </span><span class="kn">import</span> <span class="n">merge_artifacts</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">FloatArray</span><span class="p">,</span> <span class="n">ModelParams</span>
 
 
@@ -1608,7 +1618,13 @@ the original target units.</p>
 <span class="sd">        """</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_inner</span><span class="o">.</span><span class="n">get_refit_params</span><span class="p">()</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="nf">log</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sample</span><span class="p">:</span> <span class="n">Pool</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">config</span><span class="p">:</span> <span class="n">TrackingConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ModelInfo</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">log</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">sample</span><span class="p">:</span> <span class="n">Pool</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">config</span><span class="p">:</span> <span class="n">TrackingConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">extra_artifacts</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ModelInfo</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">"""Log native artifacts and an entrypoint that reverses target scaling.</span>
 
 <span class="sd">        Parameters</span>
@@ -1617,6 +1633,10 @@ the original target units.</p>
 <span class="sd">            Representative serving rows in fitted feature order.</span>
 <span class="sd">        config : TrackingConfig or None, default None</span>
 <span class="sd">            Artifact name, registry, example size, and optional environment file.</span>
+
+<span class="sd">        extra_artifacts : Mapping[str, str] or None, default None</span>
+<span class="sd">            Additional files or directories bundled with the model. Names must</span>
+<span class="sd">            not conflict with the adapter's own artifacts.</span>
 
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>
@@ -1652,7 +1672,10 @@ the original target units.</p>
             <span class="k">return</span> <span class="n">mlflow</span><span class="o">.</span><span class="n">pyfunc</span><span class="o">.</span><span class="n">log_model</span><span class="p">(</span>
                 <span class="n">name</span><span class="o">=</span><span class="n">config</span><span class="o">.</span><span class="n">model_name</span><span class="p">,</span>
                 <span class="n">python_model</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">with_name</span><span class="p">(</span><span class="s2">"custom_model_serving.py"</span><span class="p">)),</span>
-                <span class="n">artifacts</span><span class="o">=</span><span class="p">{</span><span class="s2">"model"</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">model_path</span><span class="p">),</span> <span class="s2">"settings"</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">state_path</span><span class="p">)},</span>
+                <span class="n">artifacts</span><span class="o">=</span><span class="n">merge_artifacts</span><span class="p">(</span>
+                    <span class="p">{</span><span class="s2">"model"</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">model_path</span><span class="p">),</span> <span class="s2">"settings"</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">state_path</span><span class="p">)},</span>
+                    <span class="n">extra_artifacts</span><span class="p">,</span>
+                <span class="p">),</span>
                 <span class="n">signature</span><span class="o">=</span><span class="n">infer_signature</span><span class="p">(</span><span class="n">frame</span><span class="p">,</span> <span class="n">prediction</span><span class="p">),</span>
                 <span class="n">input_example</span><span class="o">=</span><span class="n">frame</span><span class="p">,</span>
                 <span class="n">params</span><span class="o">=</span><span class="p">{},</span>
@@ -2270,7 +2293,10 @@ Learned model state and data-derived baselines are excluded.</p>
 
 <a href="#ml_toolkit.models.Model.log" class="headerlink" title="Permanent link">&para;</a></h5>
 <div class="doc-signature highlight"><pre><span></span><code><span class="nf">log</span><span class="p">(</span>
-    <span class="n">sample</span><span class="p">:</span> <span class="n">Pool</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">config</span><span class="p">:</span> <span class="n">TrackingConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">sample</span><span class="p">:</span> <span class="n">Pool</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">config</span><span class="p">:</span> <span class="n">TrackingConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">extra_artifacts</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ModelInfo</span> <span class="o">|</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">ModelInfo</span><span class="p">,</span> <span class="n">ModelInfo</span><span class="p">]</span>
 </code></pre></div>
 
@@ -2326,6 +2352,23 @@ Learned model state and data-derived baselines are excluded.</p>
             <td>
               <div class="doc-md-description">
                 <p>Model artifact name, sample size, registry, and environment settings.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>extra_artifacts</code>
+            </td>
+            <td>
+                  <code><span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <span title="str">str</span>] or None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Additional files or directories bundled with the model. Names must
+not conflict with the adapter's own artifacts.</p>
               </div>
             </td>
             <td>

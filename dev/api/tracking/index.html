@@ -1217,6 +1217,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#load-a-models-psi-baseline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Load a model's PSI baseline
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1316,6 +1327,17 @@
     <span class="md-ellipsis">
       
         API reference
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#load-a-models-psi-baseline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Load a model's PSI baseline
       
     </span>
   </a>
@@ -1488,6 +1510,30 @@ own model-packaging methods in the <a href="../models/">model reference</a>.</p>
 <div class="doc doc-object doc-function">
 
 
+<h4 id="ml_toolkit.tracking.load_psi_baseline" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">load_psi_baseline</span>
+
+
+<a href="#ml_toolkit.tracking.load_psi_baseline" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">load_psi_baseline</span><span class="p">(</span><span class="n">model_uri</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">PSIBaseline</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Load the named PSI artifact from a model URI or local model directory.</p>
+<p>Accepts MLflow model IDs, registered versions and run model URIs. Prefer
+immutable versions when loading predictions and monitoring separately.
+Does not import or instantiate the predictive model. Missing baselines
+raise FileNotFoundError; malformed or unsupported state raises ValueError.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
 <h4 id="ml_toolkit.tracking.log_polars_table" class="doc doc-heading">
             <span class="doc doc-object-name doc-function-name">log_polars_table</span>
 
@@ -1558,7 +1604,81 @@ active run, or MLflow's implicit run if no run is active.</p>
 
     </div>
 
-</div>
+</div><h2 id="load-a-models-psi-baseline">Load a model's PSI baseline<a class="headerlink" href="#load-a-models-psi-baseline" title="Permanent link">&para;</a></h2>
+<p>With <code>ReportingConfig(psi=True)</code>, each saved model includes a <code>psi_baseline</code>
+artifact containing fitted feature levels and unweighted reference counts.
+The existing <code>TrackingConfig.log_trial_models</code>, <code>log_validation_models</code>,
+<code>log_test_model</code>, and <code>log_final_model</code> switches control this packaging; no
+additional tracking switch is needed. <code>ReportingConfig.on_*</code> controls reports,
+so disabling a stage's reports does not remove the saved model's baseline.
+<code>features=()</code> explicitly disables both levels and their baseline.</p>
+<p>The training workflow prepares this artifact automatically. For the model fitted
+above outside the workflow, attach it explicitly when logging:</p>
+<!-- example: tracking-psi-package -->
+
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">tempfile</span><span class="w"> </span><span class="kn">import</span> <span class="n">TemporaryDirectory</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">FeatureLevelConfig</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.psi</span><span class="w"> </span><span class="kn">import</span> <span class="n">PSIBaseline</span><span class="p">,</span> <span class="n">PSIConfig</span>
+
+<span class="n">reference</span> <span class="o">=</span> <span class="n">PSIBaseline</span><span class="o">.</span><span class="n">from_reference</span><span class="p">(</span>
+    <span class="n">part</span><span class="o">.</span><span class="n">train</span><span class="o">.</span><span class="n">X</span><span class="p">,</span>
+    <span class="n">config</span><span class="o">=</span><span class="n">PSIConfig</span><span class="p">(</span>
+        <span class="n">features</span><span class="o">=</span><span class="nb">tuple</span><span class="p">(</span>
+            <span class="n">FeatureLevelConfig</span><span class="p">(</span>
+                <span class="n">name</span><span class="p">,</span>
+                <span class="s2">"categorical"</span> <span class="k">if</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">part</span><span class="o">.</span><span class="n">train</span><span class="o">.</span><span class="n">cat_features</span> <span class="k">else</span> <span class="s2">"numerical"</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">part</span><span class="o">.</span><span class="n">train</span><span class="o">.</span><span class="n">X</span><span class="o">.</span><span class="n">columns</span>
+        <span class="p">)</span>
+    <span class="p">),</span>
+    <span class="n">time</span><span class="o">=</span><span class="n">part</span><span class="o">.</span><span class="n">train</span><span class="o">.</span><span class="n">time</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="k">with</span> <span class="n">TemporaryDirectory</span><span class="p">()</span> <span class="k">as</span> <span class="n">directory</span><span class="p">:</span>
+    <span class="n">reference</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">directory</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">mlflow</span><span class="o">.</span><span class="n">start_run</span><span class="p">(</span><span class="n">run_name</span><span class="o">=</span><span class="s2">"psi-monitoring"</span><span class="p">):</span>
+        <span class="n">info</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">log</span><span class="p">(</span>
+            <span class="n">part</span><span class="o">.</span><span class="n">train</span><span class="p">,</span> <span class="n">extra_artifacts</span><span class="o">=</span><span class="p">{</span><span class="s2">"psi_baseline"</span><span class="p">:</span> <span class="n">directory</span><span class="p">}</span>
+        <span class="p">)</span>
+</code></pre></div>
+<p>Use the same immutable model URI for serving and monitoring. The saved package
+remains available after the temporary source directory has been removed:</p>
+<!-- example: tracking-psi-load -->
+
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">polars.testing</span><span class="w"> </span><span class="kn">import</span> <span class="n">assert_frame_equal</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.tracking</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_psi_baseline</span>
+
+<span class="n">model_uri</span> <span class="o">=</span> <span class="n">info</span><span class="o">.</span><span class="n">model_uri</span>
+<span class="n">served</span> <span class="o">=</span> <span class="n">mlflow</span><span class="o">.</span><span class="n">pyfunc</span><span class="o">.</span><span class="n">load_model</span><span class="p">(</span><span class="n">model_uri</span><span class="p">)</span>
+<span class="n">baseline</span> <span class="o">=</span> <span class="n">load_psi_baseline</span><span class="p">(</span><span class="n">model_uri</span><span class="p">)</span>
+
+<span class="c1"># Use the original training feature representation for monitoring.</span>
+<span class="n">current_X</span> <span class="o">=</span> <span class="n">test</span><span class="o">.</span><span class="n">X</span>
+<span class="n">current_levels</span> <span class="o">=</span> <span class="n">baseline</span><span class="o">.</span><span class="n">transformer</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">current_X</span><span class="p">)</span>
+<span class="n">result</span> <span class="o">=</span> <span class="n">baseline</span><span class="o">.</span><span class="n">compare</span><span class="p">(</span><span class="n">current_X</span><span class="p">)</span>
+<span class="n">assert_frame_equal</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">psi</span><span class="p">,</span> <span class="n">reference</span><span class="o">.</span><span class="n">compare</span><span class="p">(</span><span class="n">current_X</span><span class="p">)</span><span class="o">.</span><span class="n">psi</span><span class="p">)</span>
+<span class="n">np</span><span class="o">.</span><span class="n">testing</span><span class="o">.</span><span class="n">assert_allclose</span><span class="p">(</span>
+    <span class="n">served</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">test</span><span class="o">.</span><span class="n">to_model_input</span><span class="p">(</span><span class="n">categorical_as_strings</span><span class="o">=</span><span class="kc">True</span><span class="p">)),</span>
+    <span class="n">model</span><span class="o">.</span><span class="n">predict_pool</span><span class="p">(</span><span class="n">test</span><span class="p">),</span>
+<span class="p">)</span>
+</code></pre></div>
+<p>The loader also accepts a registered version such as <code>models:/risk_model/17</code>
+or a local model package. It reads the named artifact from
+<code>MLmodel</code> without loading native model weights or executing serving code. Install
+a compatible <code>ml-toolkit</code> in the monitoring environment. Use a fixed model
+version instead of independently resolving a mutable registry alias for serving
+and monitoring.</p>
+<p>Each baseline uses all training rows after feature selection, independently of
+<code>input_example_rows</code>. Validation/test rows are excluded unless they are part of
+the subsequent final fit's training population. A train-only final fit still
+packages its baseline. Inflation-adjusted models include the same reference in
+both their native and wrapper packages.</p>
+<p>The package contains <code>manifest.json</code> (format version, scoring settings and
+reference metadata), <code>levels.json</code> (typed fitted transformation rules), and
+<code>reference_counts.parquet</code> (feature/level counts, including zero counts).
+It contains no source rows and requires no separate PyFunc model. Graphs and
+evaluation distributions remain run artifacts. Missing baselines raise
+<code>FileNotFoundError</code>; malformed or unsupported state raises <code>ValueError</code>.
+Existing models remain loadable for predictions without migration.</p>
 
 
 

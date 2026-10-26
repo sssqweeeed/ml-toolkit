@@ -2500,7 +2500,10 @@ workflow accepts only a single numeric prediction per row.</p>
 
 <a href="#ml_toolkit.models.CatBoostRegressionModel.log" class="headerlink" title="Permanent link">&para;</a></h5>
 <div class="doc-signature highlight"><pre><span></span><code><span class="nf">log</span><span class="p">(</span>
-    <span class="n">sample</span><span class="p">:</span> <span class="n">Pool</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">config</span><span class="p">:</span> <span class="n">TrackingConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">sample</span><span class="p">:</span> <span class="n">Pool</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">config</span><span class="p">:</span> <span class="n">TrackingConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">extra_artifacts</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ModelInfo</span>
 </code></pre></div>
 
@@ -2557,6 +2560,23 @@ workflow accepts only a single numeric prediction per row.</p>
               <div class="doc-md-description">
                 <p>Artifact name, positive example-row limit, registry name, and serving
 environment. None uses TrackingConfig defaults.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>extra_artifacts</code>
+            </td>
+            <td>
+                  <code><span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <span title="str">str</span>] or None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Additional files or directories bundled with the model. Names must
+not conflict with the adapter's own artifacts.</p>
               </div>
             </td>
             <td>
@@ -3284,7 +3304,10 @@ workflow accepts only a single numeric prediction per row.</p>
 
 <a href="#ml_toolkit.models.CatBoostLogLinkRegressionModel.log" class="headerlink" title="Permanent link">&para;</a></h5>
 <div class="doc-signature highlight"><pre><span></span><code><span class="nf">log</span><span class="p">(</span>
-    <span class="n">sample</span><span class="p">:</span> <span class="n">Pool</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">config</span><span class="p">:</span> <span class="n">TrackingConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">sample</span><span class="p">:</span> <span class="n">Pool</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">config</span><span class="p">:</span> <span class="n">TrackingConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">extra_artifacts</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ModelInfo</span>
 </code></pre></div>
 
@@ -3341,6 +3364,23 @@ workflow accepts only a single numeric prediction per row.</p>
               <div class="doc-md-description">
                 <p>Artifact name, positive example-row limit, registry name, and serving
 environment. None uses TrackingConfig defaults.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>extra_artifacts</code>
+            </td>
+            <td>
+                  <code><span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <span title="str">str</span>] or None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Additional files or directories bundled with the model. Names must
+not conflict with the adapter's own artifacts.</p>
               </div>
             </td>
             <td>
@@ -4319,7 +4359,10 @@ soft CrossEntropy labels retain the default cutoff of 0.5.</p>
 
 <a href="#ml_toolkit.models.CatBoostClassificationModel.log" class="headerlink" title="Permanent link">&para;</a></h5>
 <div class="doc-signature highlight"><pre><span></span><code><span class="nf">log</span><span class="p">(</span>
-    <span class="n">sample</span><span class="p">:</span> <span class="n">Pool</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">config</span><span class="p">:</span> <span class="n">TrackingConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">sample</span><span class="p">:</span> <span class="n">Pool</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">config</span><span class="p">:</span> <span class="n">TrackingConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">extra_artifacts</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ModelInfo</span>
 </code></pre></div>
 
@@ -4376,6 +4419,23 @@ soft CrossEntropy labels retain the default cutoff of 0.5.</p>
               <div class="doc-md-description">
                 <p>Artifact name, positive example-row limit, registry name, and serving
 environment. None uses TrackingConfig defaults.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>extra_artifacts</code>
+            </td>
+            <td>
+                  <code><span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <span title="str">str</span>] or None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Additional files or directories bundled with the model. Names must
+not conflict with the adapter's own artifacts.</p>
               </div>
             </td>
             <td>
@@ -5396,7 +5456,10 @@ soft CrossEntropy labels retain the default cutoff of 0.5.</p>
 
 <a href="#ml_toolkit.models.CatBoostPUClassificationModel.log" class="headerlink" title="Permanent link">&para;</a></h5>
 <div class="doc-signature highlight"><pre><span></span><code><span class="nf">log</span><span class="p">(</span>
-    <span class="n">sample</span><span class="p">:</span> <span class="n">Pool</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">config</span><span class="p">:</span> <span class="n">TrackingConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">sample</span><span class="p">:</span> <span class="n">Pool</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">config</span><span class="p">:</span> <span class="n">TrackingConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">extra_artifacts</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ModelInfo</span>
 </code></pre></div>
 
@@ -5453,6 +5516,23 @@ soft CrossEntropy labels retain the default cutoff of 0.5.</p>
               <div class="doc-md-description">
                 <p>Artifact name, positive example-row limit, registry name, and serving
 environment. None uses TrackingConfig defaults.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>extra_artifacts</code>
+            </td>
+            <td>
+                  <code><span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <span title="str">str</span>] or None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Additional files or directories bundled with the model. Names must
+not conflict with the adapter's own artifacts.</p>
               </div>
             </td>
             <td>
@@ -6106,7 +6186,10 @@ in time.</p>
 
 <a href="#ml_toolkit.models.InflationAdjustedModel.log" class="headerlink" title="Permanent link">&para;</a></h5>
 <div class="doc-signature highlight"><pre><span></span><code><span class="nf">log</span><span class="p">(</span>
-    <span class="n">sample</span><span class="p">:</span> <span class="n">Pool</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">config</span><span class="p">:</span> <span class="n">TrackingConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">sample</span><span class="p">:</span> <span class="n">Pool</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">config</span><span class="p">:</span> <span class="n">TrackingConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">extra_artifacts</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">ModelInfo</span><span class="p">,</span> <span class="n">ModelInfo</span><span class="p">]</span>
 </code></pre></div>
 
@@ -6163,6 +6246,23 @@ in time.</p>
               <div class="doc-md-description">
                 <p>Artifact name, positive example-row limit, registry name, and serving
 environment. None uses TrackingConfig defaults.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>extra_artifacts</code>
+            </td>
+            <td>
+                  <code><span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <span title="str">str</span>] or None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Additional files or directories bundled with the model. Names must
+not conflict with the adapter's own artifacts.</p>
               </div>
             </td>
             <td>
@@ -6691,7 +6791,10 @@ columns are cast to pandas category dtype.</p>
 
 <a href="#ml_toolkit.models.lightgbm.LightGBMServingModel.log" class="headerlink" title="Permanent link">&para;</a></h5>
 <div class="doc-signature highlight"><pre><span></span><code><span class="nf">log</span><span class="p">(</span>
-    <span class="n">sample</span><span class="p">:</span> <span class="n">Pool</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">config</span><span class="p">:</span> <span class="n">TrackingConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">sample</span><span class="p">:</span> <span class="n">Pool</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">config</span><span class="p">:</span> <span class="n">TrackingConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">extra_artifacts</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ModelInfo</span>
 </code></pre></div>
 
@@ -6749,6 +6852,23 @@ to config.input_example_rows rows are used.</p>
               <div class="doc-md-description">
                 <p>Artifact name, serving example row count, registry, and environment.
 None uses TrackingConfig defaults, including no registration.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>extra_artifacts</code>
+            </td>
+            <td>
+                  <code><span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <span title="str">str</span>] or None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Additional files or directories bundled with the model. Names must
+not conflict with the adapter's own artifacts.</p>
               </div>
             </td>
             <td>

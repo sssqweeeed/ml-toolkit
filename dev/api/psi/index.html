@@ -1141,6 +1141,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#persist-a-reference-for-monitoring" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Persist a reference for monitoring
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#api-reference" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1441,6 +1452,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#persist-a-reference-for-monitoring" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Persist a reference for monitoring
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#api-reference" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1670,9 +1692,10 @@ retain their original immutable rules and levels.</p>
 <h2 id="how-psi-and-observedfitted-share-levels">How PSI and observed/fitted share levels<a class="headerlink" href="#how-psi-and-observedfitted-share-levels" title="Permanent link">&para;</a></h2>
 <p>During training, PSI and <code>ObservedFitted</code> receive the same
 <code>ReportingConfig.features</code> rules and <code>ReportingConfig.n_bins</code>. Each report
-creates its own <code>LevelTransformer</code> and calls <code>fit(train.X)</code> on the same training
-rows for that fit. They do not share a fitted transformer, a cached level object,
-or fitted state between reports.</p>
+uses levels fitted on the same training rows for that fit. PSI reuses the fitted
+transformer from the model's baseline when that model is being saved;
+<code>ObservedFitted</code> creates its own transformer. PSI and observed/fitted do not
+share a fitted transformer with each other.</p>
 <p>The same rules, bin count and reference data produce identical categories and
 numerical boundaries for matching features. Identical configuration alone is
 insufficient when the reference data differs. <code>ObservedFitted(features=...)</code>
@@ -1795,6 +1818,40 @@ passed to the analysis. A train-only fit has no PSI report. <code>features=None<
 rules; <code>features=()</code> disables feature diagnostics. <code>epsilon</code> is the PSI share
 floor, and <code>period</code> sets temporal grouping. Scheduling and shared figure settings
 are described in the <a href="../../data-analysis/">data analysis overview</a>.</p>
+<h2 id="persist-a-reference-for-monitoring">Persist a reference for monitoring<a class="headerlink" href="#persist-a-reference-for-monitoring" title="Permanent link">&para;</a></h2>
+<p><code>PSIBaseline</code> stores fitted feature rules and aggregate counts rather than
+retaining a row-level reference frame. Continue with the small <code>reference</code> and
+<code>current</code> samples above to save and reload it locally without MLflow:</p>
+<!-- example: psi-baseline -->
+
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">tempfile</span><span class="w"> </span><span class="kn">import</span> <span class="n">TemporaryDirectory</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">polars.testing</span><span class="w"> </span><span class="kn">import</span> <span class="n">assert_frame_equal</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.psi</span><span class="w"> </span><span class="kn">import</span> <span class="n">PSIBaseline</span>
+
+<span class="n">baseline</span> <span class="o">=</span> <span class="n">PSIBaseline</span><span class="o">.</span><span class="n">from_reference</span><span class="p">(</span>
+    <span class="n">reference</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">analysis</span><span class="o">.</span><span class="n">config</span>
+<span class="p">)</span>
+<span class="k">with</span> <span class="n">TemporaryDirectory</span><span class="p">()</span> <span class="k">as</span> <span class="n">directory</span><span class="p">:</span>
+    <span class="n">baseline</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">directory</span><span class="p">)</span>
+    <span class="n">restored</span> <span class="o">=</span> <span class="n">PSIBaseline</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">directory</span><span class="p">)</span>
+
+<span class="n">result</span> <span class="o">=</span> <span class="n">restored</span><span class="o">.</span><span class="n">compare</span><span class="p">(</span><span class="n">current</span><span class="p">)</span>
+<span class="n">assert_frame_equal</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">psi</span><span class="p">,</span> <span class="n">comparison</span><span class="o">.</span><span class="n">psi</span><span class="p">)</span>
+<span class="n">assert_frame_equal</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">level_distribution</span><span class="p">,</span> <span class="n">comparison</span><span class="o">.</span><span class="n">level_distribution</span><span class="p">)</span>
+</code></pre></div>
+<p>Numerical boundaries, typed categories, missing/error sentinels and feature order
+survive serialization. <code>LevelTransformer.to_dict()</code> and <code>from_dict()</code> also expose
+the fitted transformation state separately. Loading does not refit any levels.</p>
+<p><code>compare</code> returns the existing <code>PSIResult</code> with feature scores and reference/current
+distributions. Counts are unweighted, and <code>epsilon</code> floors shares independently
+without renormalization, exactly as in <code>PSIAnalysis</code>. The batch must be nonempty
+and contain all configured features; extra columns are allowed.</p>
+<p><code>time=</code> in <code>from_reference</code> records the reference date range as metadata.
+The baseline's <code>time_distribution</code> is empty: compare each incoming monitoring
+window separately against the same fixed reference. Existing temporal reports
+in <code>PSIAnalysis</code> and training remain available.</p>
+<p>During training, enabled PSI is bundled automatically with saved models. See
+<a href="../tracking/#load-a-models-psi-baseline">loading a model's baseline</a>.</p>
 <h2 id="api-reference">API reference<a class="headerlink" href="#api-reference" title="Permanent link">&para;</a></h2>
 <p>Import PSI analysis from <code>ml_toolkit.psi</code>.</p>
 <h3 id="drift-analysis">Drift analysis<a class="headerlink" href="#drift-analysis" title="Permanent link">&para;</a></h3>
@@ -2210,6 +2267,158 @@ are allowed.</p>
           </tr>
       </tbody>
     </table>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h4 id="ml_toolkit.psi.PSIBaseline" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">PSIBaseline</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#ml_toolkit.psi.PSIBaseline" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">PSIBaseline</span><span class="p">(</span>
+    <span class="n">transformer</span><span class="p">:</span> <span class="n">LevelTransformer</span><span class="p">,</span>
+    <span class="n">reference_counts</span><span class="p">:</span> <span class="n">DataFrame</span><span class="p">,</span>
+    <span class="n">metadata</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">object</span><span class="p">],</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>A fitted transformer and unweighted reference counts, without source rows.</p>
+<p>Use <code>from_reference</code> to fit, <code>save</code>/<code>load</code> for local persistence, and
+<code>compare</code> for each monitoring window. Time metadata describes the reference;
+comparisons return an empty time_distribution rather than refitting levels.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h5 id="ml_toolkit.psi.PSIBaseline.from_reference" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">from_reference</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
+  </span>
+
+<a href="#ml_toolkit.psi.PSIBaseline.from_reference" class="headerlink" title="Permanent link">&para;</a></h5>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">from_reference</span><span class="p">(</span>
+    <span class="n">reference</span><span class="p">:</span> <span class="n">DataFrame</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">config</span><span class="p">:</span> <span class="n">PSIConfig</span><span class="p">,</span>
+    <span class="n">time</span><span class="p">:</span> <span class="n">Series</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">stage</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">PSIBaseline</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Fit on all reference rows; weights and serving-example limits do not apply.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h5 id="ml_toolkit.psi.PSIBaseline.save" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">save</span>
+
+
+<a href="#ml_toolkit.psi.PSIBaseline.save" class="headerlink" title="Permanent link">&para;</a></h5>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">save</span><span class="p">(</span><span class="n">directory</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Write a versioned three-file baseline, preserving exact fitted state.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h5 id="ml_toolkit.psi.PSIBaseline.load" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">load</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
+  </span>
+
+<a href="#ml_toolkit.psi.PSIBaseline.load" class="headerlink" title="Permanent link">&para;</a></h5>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">load</span><span class="p">(</span><span class="n">directory</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">PSIBaseline</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Restore and validate an aggregate baseline without fitting or source data.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h5 id="ml_toolkit.psi.PSIBaseline.compare" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">compare</span>
+
+
+<a href="#ml_toolkit.psi.PSIBaseline.compare" class="headerlink" title="Permanent link">&para;</a></h5>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">compare</span><span class="p">(</span><span class="n">current</span><span class="p">:</span> <span class="n">DataFrame</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">PSIResult</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Compare a nonempty batch against fixed levels and reference frequencies.</p>
 
 
     </div>
@@ -3229,6 +3438,50 @@ and row order are retained.</p>
   <p>Numerical intervals are left-inclusive. A value equal to an internal
 boundary enters the interval on its right.</p>
 </details>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h5 id="ml_toolkit.feature_levels.LevelTransformer.to_dict" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">to_dict</span>
+
+
+<a href="#ml_toolkit.feature_levels.LevelTransformer.to_dict" class="headerlink" title="Permanent link">&para;</a></h5>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">to_dict</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">object</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Serialize fitted state without rounding boundaries or losing scalar types.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h5 id="ml_toolkit.feature_levels.LevelTransformer.from_dict" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">from_dict</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
+  </span>
+
+<a href="#ml_toolkit.feature_levels.LevelTransformer.from_dict" class="headerlink" title="Permanent link">&para;</a></h5>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">from_dict</span><span class="p">(</span><span class="n">payload</span><span class="p">:</span> <span class="nb">object</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">LevelTransformer</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Restore validated fitted state; never refit on new observations.</p>
+
 
     </div>
 

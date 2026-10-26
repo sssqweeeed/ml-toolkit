@@ -1497,6 +1497,11 @@
 
 
 <h1 id="task-recipes">Task recipes<a class="headerlink" href="#task-recipes" title="Permanent link">&para;</a></h1>
+<p>When <code>ReportingConfig.psi=True</code>, every model saved by the existing tracking
+flags includes its fitted PSI baseline. <code>ReportingConfig.on_*</code> switches govern
+report generation; they do not disable this model attachment. <code>features=()</code>
+disables levels and baseline packaging. No additional tracking flag is needed.
+See <a href="../api/tracking/#load-a-models-psi-baseline">PSI baseline loading</a>.</p>
 <p>Choose the model, primary metric and reports for your target, then pass them to
 <code>train_model</code>. The short recipes share the setup below. A
 <a href="#complete-frequency-example">complete Frequency example</a> spells out selection,
