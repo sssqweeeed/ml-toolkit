@@ -7,7 +7,6 @@ repo_name: sssqweeeed/ml-toolkit
 edit_uri: !ENV [DOCS_EDIT_URI, edit/dev/docs/]
 
 extra:
-  docs_channel: !ENV [DOCS_CHANNEL, dev]
   version:
     provider: mike
     default: stable
@@ -15,7 +14,6 @@ extra:
 
 theme:
   name: material
-  custom_dir: docs/overrides
   features:
     - content.code.copy
     - navigation.sections

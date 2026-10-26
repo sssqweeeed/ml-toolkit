@@ -1,4 +1,3 @@
-import argparse
 import html
 import json
 import os
@@ -16,6 +15,8 @@ def redirect(target: str) -> str:
 
 
 def add_legacy_redirects(site: Path, version: str) -> None:
+    (site / "dev").mkdir(exist_ok=True)
+    (site / "dev/index.html").write_text(redirect("../stable/"))
     for page in (site / version).rglob("*.html"):
         relative = page.relative_to(site / version)
         if relative.as_posix() in {"index.html", "404.html"}:
@@ -27,6 +28,11 @@ def add_legacy_redirects(site: Path, version: str) -> None:
         destination.parent.mkdir(parents=True, exist_ok=True)
         prefix = "../" * (len(relative.parts) - 1)
         destination.write_text(redirect(f"{prefix}stable/{quote(relative.as_posix())}"))
+        destination = site / "dev" / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text(
+            redirect(f"../{prefix}stable/{quote(relative.as_posix())}")
+        )
     # Paths retired before versioned documentation was introduced.
     for old, new in {
         "custom-model": "api/custom-model",
@@ -37,15 +43,16 @@ def add_legacy_redirects(site: Path, version: str) -> None:
         destination.write_text(
             redirect("../" * len(Path(old).parts) + f"stable/{new}/")
         )
+        destination = site / "dev" / old / "index.html"
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text(
+            redirect("../" * (len(Path(old).parts) + 1) + f"stable/{new}/")
+        )
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("channel", choices=["dev", "stable"])
-    args = parser.parse_args()
     source = git("rev-parse", "HEAD")
-    branch = "dev" if args.channel == "dev" else "main"
-    remote = git("ls-remote", "origin", f"refs/heads/{branch}").split()[0]
+    remote = git("ls-remote", "origin", "refs/heads/main").split()[0]
     if source != remote:
         raise ValueError("Refusing to deploy stale documentation")
     existing = git("ls-remote", "--heads", "origin", "gh-pages")
@@ -53,27 +60,17 @@ def main() -> None:
         subprocess.run(["git", "fetch", "origin", "gh-pages:gh-pages"], check=True)
     version = package_version()
     environment = os.environ.copy()
-    environment["DOCS_CHANNEL"] = args.channel
-    environment["DOCS_EDIT_URI"] = (
-        "edit/dev/docs/" if args.channel == "dev" else f"blob/v{version}/docs/"
-    )
-    if (
-        args.channel == "stable"
-        and git("rev-parse", f"v{version}^{{commit}}") != source
-    ):
+    environment["DOCS_EDIT_URI"] = f"blob/v{version}/docs/"
+    if git("rev-parse", f"v{version}^{{commit}}") != source:
         raise ValueError("Stable documentation must match its release tag")
     versions = (
         json.loads(subprocess.check_output(["mike", "list", "--json"], text=True))
         if existing
         else []
     )
-    if args.channel == "dev":
-        subprocess.run(
-            ["mike", "deploy", "--title", "dev (unstable)", "dev"],
-            env=environment,
-            check=True,
-        )
-    elif not any(item["version"] == version for item in versions):
+    if any(item["version"] == "dev" for item in versions):
+        subprocess.run(["mike", "delete", "dev"], check=True)
+    if not any(item["version"] == version for item in versions):
         subprocess.run(
             [
                 "mike",
@@ -108,9 +105,7 @@ def main() -> None:
         None,
     )
     if stable is None:
-        raise ValueError(
-            "Publish the first stable release before development documentation"
-        )
+        raise ValueError("No stable documentation version was published")
     subprocess.run(["mike", "set-default", "stable"], check=True)
     with tempfile.TemporaryDirectory() as directory:
         subprocess.run(["git", "worktree", "add", directory, "gh-pages"], check=True)
@@ -134,7 +129,7 @@ def main() -> None:
                 )
         finally:
             subprocess.run(["git", "worktree", "remove", directory], check=True)
-    if source != git("ls-remote", "origin", f"refs/heads/{branch}").split()[0]:
+    if source != git("ls-remote", "origin", "refs/heads/main").split()[0]:
         raise ValueError("Source branch changed while documentation was building")
     subprocess.run(["git", "push", "origin", "gh-pages"], check=True)
     output = Path(os.environ["RUNNER_TEMP"]) / "pages"

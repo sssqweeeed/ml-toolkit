@@ -68,16 +68,17 @@ and figures. The documentation suite uses `worksteal` to distribute individual
 recipes of different durations between workers, instead of keeping a whole
 module on one worker. The duration report highlights the remaining slow tests.
 
-The `Tests` workflow validates documentation in a dedicated Python 3.12 job on
-pull requests and manual runs. Its Python 3.11/3.12 test matrix excludes
-`tests/documentation`, so each PR revision executes the documentation suite only
-once. New commits cancel obsolete documentation checks for the same PR.
+During development, select and run the checks relevant to the change locally.
+PRs and pushes to `dev` do not start automatic validation or documentation
+publication. The `Tests` workflow runs the complete release gate for PRs into
+`main`: package tests and strict Pyright on Python 3.11/3.12, documentation
+recipes once on Python 3.12, a strict site build, and distribution installation
+checks. New commits cancel obsolete checks for the same release PR.
 
-The `Documentation` workflow only builds the site and publishes it from `main`.
-Merging a PR does not rerun the ML documentation checks; it builds and publishes
-the committed examples and figures. Use a manual run of `Tests` to revalidate
-examples on `main` when needed. Direct pushes to `main` also skip these checks;
-the automatic validation happens in PRs.
+The `Documentation` workflow publishes versioned release documentation and the
+`stable` alias after release validation. Manual publication retries run on
+`main`. Merging a release reuses its successful PR validation instead of
+rerunning the ML documentation checks. Development documentation stays local.
 
 ## Gamma and PU loss checks
 

@@ -57,4 +57,3 @@ jobs:
       id-token: write
     with:
       source: ${{ github.sha }}
-      channel: stable

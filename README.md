@@ -4,7 +4,7 @@ A Python toolkit for model training, time-series validation, feature selection,
 Optuna tuning, metrics, diagnostic plots, PSI, inflation adjustment, and MLflow
 integration.
 
-[Stable documentation](https://sssqweeeed.github.io/ml-toolkit/stable/) · [Development documentation](https://sssqweeeed.github.io/ml-toolkit/dev/) · [Getting started](https://sssqweeeed.github.io/ml-toolkit/stable/getting-started/)
+[Stable documentation](https://sssqweeeed.github.io/ml-toolkit/stable/) · [Getting started](https://sssqweeeed.github.io/ml-toolkit/stable/getting-started/)
 
 ## Installation
 
