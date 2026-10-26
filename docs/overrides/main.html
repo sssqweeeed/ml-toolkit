@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 
-{% block announce %}
-  {% if config.extra.docs_channel == "dev" %}
+{%- block announce -%}
+  {%- if config.extra.docs_channel == "dev" -%}
     Development documentation — these features have not been released yet.
     <a href="https://sssqweeeed.github.io/ml-toolkit/stable/">Read the stable documentation</a>
-  {% endif %}
-{% endblock %}
+  {%- endif -%}
+{%- endblock -%}
