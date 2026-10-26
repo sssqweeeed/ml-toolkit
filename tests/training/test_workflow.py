@@ -361,9 +361,12 @@ def test_final_relearns_inflation_and_baseline_on_all_rows_before_test(
     reference_date = date(2024, 1, 1)
 
     class Inflation(ConstantRateInflation):
-        def fit(self, dates, y, sample_weight=None):
-            inflation_fits.append((dates.to_list(), y.copy(), sample_weight.copy()))
-            return super().fit(dates, y, sample_weight)
+        def fit(self, data):
+            inflation_fits.append(
+                (data.time.to_list(), data.y.to_numpy().copy(),
+                 data.weight.to_numpy().copy())
+            )
+            return super().fit(data)
 
     def factory(params):
         model = InflationAdjustedModel(

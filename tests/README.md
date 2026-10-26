@@ -80,6 +80,16 @@ The `Documentation` workflow publishes versioned release documentation and the
 `main`. Merging a release reuses its successful PR validation instead of
 rerunning the ML documentation checks. Development documentation stays local.
 
+## Learned inflation checks
+
+`tests/models/test_learned_inflation.py` checks known-index recovery despite
+changing product composition, weights, zero-weight exclusions, preprocessing,
+extrapolation, reversible conversion and JSON persistence. Serving checks reload
+both learned strategies outside the repository without training modules.
+`tests/documentation/test_inflation_benchmark.py` checks chronological benchmark
+origins and calendar forecast horizons. The inflation documentation recipes also
+fit a learned strategy on the explicitly prepared Online Retail cache.
+
 ## Gamma and PU loss checks
 
 `tests/models/test_gamma.py` checks Gamma derivatives, deviance, input validation,

@@ -1,8 +1,8 @@
 # Inflation
 
 Inflation strategies convert monetary values between price dates. Use a
-constant annual rate for a simple assumption or a monthly index when you have
-historical or planned index levels.
+constant annual rate for a supplied assumption, a monthly index for historical
+or planned levels, or a learned common index estimated from project observations.
 
 ## Convert to a later price date
 
@@ -63,6 +63,103 @@ Continuing with the imports above, February's interpolated index is `1.1`.
 Every date within a month uses that month's level. Missing months between
 anchors are interpolated in log space; requested months must stay within the
 anchor range.
+
+## Learn a common price index
+
+`LogLinearInflation` and `SplineInflation` estimate a weighted Gamma mean with
+a log link:
+
+`log(E[amount | features, date]) = intercept + feature effects + trend(date)`
+
+The first strategy has a linear time effect, giving a constant compound growth
+rate inside training. The second uses a regularized cubic B-spline to represent
+a changing growth rate. Both fit original positive amounts, rather than a
+regression on log-transformed targets.
+
+**The proportional price change is shared by all objects.** Features help
+distinguish a change in product composition from price growth: an increasing
+share of expensive products need not imply inflation. When comparing the same
+object at two dates, its feature effect cancels, leaving the multiplier
+`exp(trend(to_date) - trend(from_date))`. Features are required only for fitting;
+`factor()` and `adjust()` still accept dates without features.
+
+Numeric controls have standardized linear effects; categorical controls use
+sparse one-hot encoding according to `Pool.cat_features`. Numeric missing values
+use training medians; all-missing numeric columns are dropped. Interactions,
+object-specific trends and separate seasonal components are not modeled.
+Missing price-determining characteristics or a strong relationship between time
+and the available characteristics can limit interpretation of the estimated trend.
+
+The following reproducible data is synthetic, with Gamma price variation,
+changing product composition and a known time effect; it is not measured
+inflation. Continue with the NumPy, Polars and date imports above:
+
+<!-- example: inflation-learned -->
+
+```python
+import json
+
+from examples.inflation_benchmark import synthetic_pool
+from ml_toolkit.inflation import (
+    LogLinearInflation,
+    SplineInflation,
+    inflation_from_config,
+)
+
+training = synthetic_pool(months=36, rows_per_month=25)
+linear = LogLinearInflation(control_features=["size", "category"]).fit(training)
+smooth = SplineInflation(
+    n_knots=5,
+    alpha=0.001,
+    extrapolation="damped",
+    damping_half_life_years=1.0,
+).fit(training)
+original = pl.Series([date(2017, 1, 1)])
+requested = pl.Series([date(2018, 1, 1)])
+for strategy in (linear, smooth):
+    changed = strategy.adjust(np.array([100.0]), original, requested)
+    np.testing.assert_allclose(
+        strategy.adjust(changed, requested, original), [100.0]
+    )
+
+saved = json.loads(json.dumps(smooth.to_config(), allow_nan=False))
+restored = inflation_from_config(saved)
+np.testing.assert_allclose(
+    restored.factor(original, requested), smooth.factor(original, requested)
+)
+```
+
+`fit(data)` takes a `Pool`. `control_features=None` uses every available column,
+an explicit sequence chooses controls, and `control_features=[]` fits dates
+only. Every preprocessing step uses positive-weight training rows only. Targets
+must be finite and strictly positive; weights must be finite and nonnegative
+with positive total. Zero-weight rows do not set the fitted time range or knots.
+The linear method needs at least two distinct positive-weight timestamps; the
+spline needs at least `n_knots` (default five). These target and weight restrictions
+do not apply to the fixed strategies' no-op fit.
+
+Both methods use elapsed time in 365.25-day years, including fractional days.
+Timezone-aware timestamps refer to UTC instants. Defaults are `alpha=0.001`
+(L2 regularization of time and control coefficients), `extrapolation="linear"`,
+and `damping_half_life_years=1.0`; the spline degree is fixed at three.
+
+### Choose an extrapolation policy
+
+The forecast horizon is determined by the requested dates; there is no fixed
+one-year limit. `extrapolation` selects behavior outside positive-weight training:
+
+| Policy | Behavior |
+| --- | --- |
+| `linear` | Continue the boundary log-index tangent, preserving its growth rate |
+| `constant` | Hold the boundary index level |
+| `error` | Reject dates outside the fitted range |
+| `damped` | After the last training date, exponentially decay the boundary log-index slope toward zero; before the first date, extrapolate linearly |
+
+For `damped`, the future slope halves every `damping_half_life_years`. This
+approaches a constant price level, not a long-run inflation target. The spline
+polynomial is never continued beyond its training boundaries. Policies define
+one index function, so conversions remain reversible and agree when performed
+through an intermediate date. Unrepresentable factors raise `ValueError`.
 
 ## Prepare recorded retail prices
 
@@ -178,6 +275,83 @@ Pool predictions use each row's observation date. Frame predictions require
 `ManualInflation`, all training, reference, and requested months must lie within
 the supplied index range.
 
+### Use a learned strategy in a model factory
+
+Keep strategy settings in the factory, and create a fresh strategy on every
+call. The workflow can then refit it independently for feature selection,
+validation and final fitting. Continue with `retail`, `adjusted_model` and the
+model imports above:
+
+<!-- example: inflation-learned-model -->
+
+```python
+from ml_toolkit.types import ModelParams
+
+
+def learned_model(params: ModelParams) -> InflationAdjustedModel:
+    return InflationAdjustedModel(
+        CatBoostRegressionModel(params),
+        inflation=LogLinearInflation(alpha=0.001),
+        reference_date=date(2011, 9, 1),
+    )
+
+
+learned_retail = learned_model(adjusted_model.model.params).fit(
+    retail.train, retail.validation
+)
+assert np.isfinite(learned_retail.predict_pool(retail.test)).all()
+```
+
+`InflationAdjustedModel` passes only the original training pool to the strategy.
+Validation amounts are normalized using that fitted index. With
+`control_features=None`, feature selection also determines the controls available
+to each strategy fit. Explicit controls must be present in each supplied pool.
+Do not pass strategy settings as native CatBoost parameters.
+
+### Compare strategies at calendar forecast horizons
+
+Start with the linear strategy and compare the spline and extrapolation settings
+on chronological validation. The benchmark holds CatBoost parameters fixed for
+four methods: no adjustment, an assumed constant rate, a learned linear trend,
+and a learned spline trend. Each origin fits on preceding observations only.
+
+```bash
+python -m examples.inflation_benchmark --output inflation-benchmark.csv
+python -m examples.inflation_benchmark --extrapolation damped --damping-half-life-years 1
+python -m examples.inflation_benchmark --dataset retail --min-train-months 6 --step-months 1 --horizons 1 3
+```
+
+The default synthetic benchmark tests 1, 3, 6 and 12 months. Horizon 12 evaluates
+the twelfth month after the training cutoff, rather than accumulating twelve
+months of observations. Incomplete horizons are skipped. The real-data command
+requires the explicitly prepared Online Retail cache above and never downloads
+implicitly. Its history is shorter than a year and cannot establish twelve-month
+forecast quality.
+
+Individual fold results include weighted MAE, RMSE, Gamma deviance and predicted
+over observed total amounts. Synthetic results also measure error in the known
+log-index, relative to the final training date. Printed summaries average fold
+metrics equally across origins. The constant rate defaults to an assumed 8%,
+not an estimate. There is no guarantee a learned adjustment improves the final
+regressor, and synthetic index recovery is not evidence of real-world superiority.
+
+For reference, running the synthetic and retail commands above with
+`--iterations 60` and the default strategy settings produced these mean fold
+MAEs. Synthetic monetary units are arbitrary; retail units are GBP per item.
+
+| Strategy | Synthetic, 12 months | Retail, 1 month | Retail, 3 months |
+| --- | ---: | ---: | ---: |
+| No adjustment | 113.360 | 1.879 | 2.061 |
+| Assumed 8% rate | 88.364 | 1.852 | 2.063 |
+| Learned linear | 72.337 | 1.805 | 1.941 |
+| Learned spline | 93.952 | 1.846 | 2.067 |
+
+These settings illustrate a tradeoff: the retail linear adjustment reduced MAE
+but its predicted/observed amount ratio moved further below one (from 0.900 to
+0.850 at one month and from 0.888 to 0.783 at three months). The spline did not
+outperform the linear strategy. Select settings using the metric appropriate to
+the project rather than assuming any adjustment is uniformly better.
+
 ## Log and reload for serving
 
 Continue with the fitted `adjusted_model`, `retail`, and `future` above. `log()`
@@ -203,13 +377,17 @@ np.testing.assert_allclose(
 
 This writes a local tracking database and model artifacts. The assertion checks
 that the reloaded model preserves both requested price-date predictions.
+The same logging API supports the two learned strategies: their settings,
+temporal coefficients, spline knots and fitted boundaries are saved as JSON.
+Feature transformers and the Gamma estimator are not needed for serving, and
+loading does not refit either estimator.
 
 ## Implement an inflation strategy
 
 Subclass `InflationAdjuster` and implement `factor(from_dates, to_dates)`:
 return one finite positive multiplier per aligned date pair. The inherited
 `adjust()` multiplies amounts by these factors. Override `fit()` when learning
-parameters, using only its training dates, targets and weights; keep learned
+parameters from `fit(data: Pool)`, using only its training pool; keep learned
 state in that strategy instance. A model factory must create a fresh strategy
 for each fit, including final refitting.
 
@@ -318,8 +496,8 @@ The final model includes September's validation rows and predicts prices at
 October–November transaction dates. Metrics and configuration are logged to the
 local MLflow store configured above.
 
-Bundled model packaging reconstructs `ConstantRateInflation` and
-`ManualInflation` only. A custom strategy such as `AnnualRateTable` works for
+Bundled model packaging reconstructs `ConstantRateInflation`, `ManualInflation`,
+`LogLinearInflation`, and `SplineInflation`. A custom strategy such as `AnnualRateTable` works for
 fitting and prediction, but `InflationAdjustedModel.log()` raises `ValueError`
 for it. Keep trial, validation and final model logging disabled, as above, or
 provide your own serving implementation that saves and restores the strategy.
@@ -345,3 +523,19 @@ Import strategies from `ml_toolkit.inflation`.
 ::: ml_toolkit.inflation.ManualInflation
     options:
       members: [fit, factor, adjust]
+
+::: ml_toolkit.inflation.LogLinearInflation
+    options:
+      members: [fit, factor, adjust, to_config]
+
+::: ml_toolkit.inflation.SplineInflation
+    options:
+      members: [fit, factor, adjust, to_config]
+
+### Migrating custom strategies
+
+`InflationAdjuster.fit(dates, y, sample_weight)` has been replaced by
+`fit(data: Pool)`. Update overrides to read `data.time`, `data.y`, `data.weight`,
+and optionally `data.X`. Fixed strategies can continue inheriting the no-op fit,
+which now validates `data.time`. There is no `fit_pool` compatibility method;
+the date-pair APIs and existing fixed-strategy artifact formats are unchanged.

@@ -141,11 +141,7 @@ class InflationAdjustedModel(PythonModel):
             raise RuntimeError(
                 "Configure model, inflation and reference_date before fitting"
             )
-        self.inflation.fit(
-            dates=train.time,
-            y=train.y.to_numpy(),
-            sample_weight=train.weight.to_numpy(),
-        )
+        self.inflation.fit(train)
         normalized_train = self._at_reference_date(train)
         normalized_validation = (
             None if validation is None else self._at_reference_date(validation)

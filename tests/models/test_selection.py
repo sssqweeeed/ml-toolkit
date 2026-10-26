@@ -83,9 +83,12 @@ def test_inflation_selection_fits_strategy_on_supplied_training_only(data):
     seen = []
 
     class RecordingInflation(ConstantRateInflation):
-        def fit(self, dates, y, sample_weight=None):
-            seen.append((dates.clone(), y.copy(), sample_weight.copy()))
-            return super().fit(dates, y, sample_weight)
+        def fit(self, data):
+            seen.append(
+                (data.time.clone(), data.y.to_numpy().copy(),
+                 data.weight.to_numpy().copy(), tuple(data.X.columns))
+            )
+            return super().fit(data)
 
     partition = next(Holdout(data.take(range(32)), val_size=0.25).get_validation())
     RFESelector(
@@ -100,7 +103,8 @@ def test_inflation_selection_fits_strategy_on_supplied_training_only(data):
         ),
     )
     assert len(seen) == 2
-    for dates, target, weights in seen:
+    assert [len(item[3]) for item in seen] == [3, 2]
+    for dates, target, weights, _ in seen:
         assert dates.to_list() == partition.train.time.to_list()
         np.testing.assert_array_equal(target, partition.train.y.to_numpy())
         np.testing.assert_array_equal(weights, partition.train.weight.to_numpy())

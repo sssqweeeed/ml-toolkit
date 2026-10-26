@@ -36,6 +36,7 @@ from ml_toolkit.metrics import (
 )
 from ml_toolkit.models import CatBoostPUClassificationModel, CatBoostRegressionModel
 from ml_toolkit.models.base import Model
+from ml_toolkit.inflation import ConstantRateInflation, LogLinearInflation, SplineInflation
 from ml_toolkit.evaluation import PredictionEvaluator
 from ml_toolkit.config import FigureConfig, FeatureLevelConfig
 from ml_toolkit.training import Pool as TrainingPool
@@ -85,6 +86,9 @@ def metric_contracts(y: FloatArray, prediction: FloatArray, weight: FloatArray) 
 
 
 def contracts(data: Pool) -> None:
+    assert_type(ConstantRateInflation(0.03).fit(data), ConstantRateInflation)
+    assert_type(LogLinearInflation(control_features=[]).fit(data), LogLinearInflation)
+    assert_type(SplineInflation(n_knots=3).fit(data), SplineInflation)
     TrainingConfig(verbosity="silent")
     TrainingConfig(verbosity="normal")
     TrainingConfig(verbosity="verbose")
