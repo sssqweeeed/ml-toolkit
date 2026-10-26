@@ -1,4 +1,5 @@
 import importlib.util
+import json
 from pathlib import Path
 import sys
 
@@ -45,6 +46,22 @@ def test_docs_changes_keep_core_and_enable_recipes():
     selected, documentation = checks.select_tests(["docs/getting-started.md"])
     assert set(selected) == checks.CORE
     assert documentation
+
+
+def test_dev_push_uses_core_after_pr_validation(tmp_path, monkeypatch):
+    event = tmp_path / "event.json"
+    event.write_text(json.dumps({"before": "0" * 40}))
+    output = tmp_path / "output"
+    monkeypatch.setenv("GITHUB_EVENT_PATH", str(event))
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output))
+    monkeypatch.setenv("GITHUB_EVENT_NAME", "push")
+    monkeypatch.setenv("GITHUB_REF_NAME", "dev")
+    monkeypatch.setattr(checks, "git", lambda *args: "revision")
+    monkeypatch.setattr(checks, "package_version", lambda: "0.1.0")
+    checks.plan()
+    values = dict(line.split("=", 1) for line in output.read_text().splitlines())
+    assert set(json.loads(values["tests"])) == checks.CORE
+    assert values["full"] == values["docs"] == "false"
 
 
 @pytest.mark.parametrize(

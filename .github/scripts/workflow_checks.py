@@ -115,6 +115,10 @@ def plan() -> None:
     else:
         paths = git("diff", "--name-only", base, "HEAD").splitlines()
     tests, docs = select_tests(paths)
+    # Protected dev merges have already passed their affected PR checks.
+    # Recheck integration with the core suite instead of repeating release tests.
+    if not pr and os.environ["GITHUB_EVENT_NAME"] == "push" and not full:
+        tests, docs = sorted(CORE), False
     version = package_version()
     if full:
         validate_version(version, git("tag", "--list").splitlines())
