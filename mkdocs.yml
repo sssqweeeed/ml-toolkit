@@ -1,12 +1,21 @@
 site_name: ml-toolkit
+strict: true
 site_description: Training, validation, metrics, diagnostics, and MLflow for Python ML projects.
 site_url: https://sssqweeeed.github.io/ml-toolkit/
 repo_url: https://github.com/sssqweeeed/ml-toolkit
 repo_name: sssqweeeed/ml-toolkit
-edit_uri: edit/main/docs/
+edit_uri: !ENV [DOCS_EDIT_URI, edit/dev/docs/]
+
+extra:
+  docs_channel: !ENV [DOCS_CHANNEL, dev]
+  version:
+    provider: mike
+    default: stable
+    alias: true
 
 theme:
   name: material
+  custom_dir: docs/overrides
   features:
     - content.code.copy
     - navigation.sections

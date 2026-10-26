@@ -2,26 +2,35 @@
 
 ## Install
 
-Python 3.11 or later is required. Clone the repository and install the package:
+Python 3.11 or later is required. Install a specific release using Git:
 
 ```bash
-git clone https://github.com/sssqweeeed/ml-toolkit.git
-cd ml-toolkit
-python -m pip install -e .
+python -m pip install 'ml-toolkit @ git+https://github.com/sssqweeeed/ml-toolkit.git@v0.1.0'
 ```
 
 The distribution is named `ml-toolkit`; the Python import is `ml_toolkit`.
 CatBoost, Polars, NumPy, pandas, Matplotlib, scikit-learn, Optuna, Numba, and
 MLflow are installed by default.
 
-Optional integrations are installed from the same checkout:
+Alternatively, install a downloaded wheel from
+[GitHub Releases](https://github.com/sssqweeeed/ml-toolkit/releases) with
+`python -m pip install /path/to/ml_toolkit-0.1.0-py3-none-any.whl`; this does not
+require Git. The package is distributed through GitHub, not PyPI or Conda.
 
-| Extra | Command | Purpose |
+Optional integrations use these extra names:
+
+| Integration | Extra | Purpose |
 | --- | --- | --- |
-| SHAP | `python -m pip install -e '.[shap]'` | Diagnostic SHAP explanations |
-| LightGBM | `python -m pip install -e '.[lightgbm]'` | LightGBM integration |
-| Both | `python -m pip install -e '.[all]'` | SHAP and LightGBM |
-| CUDA | `python -m pip install -e '.[cuda]'` | Single-GPU CatBoost uPU training |
+| SHAP | `shap` | Diagnostic SHAP explanations |
+| LightGBM | `lightgbm` | LightGBM integration |
+| Both | `all` | SHAP and LightGBM |
+| CUDA | `cuda` | Single-GPU CatBoost uPU training |
+
+For example, install both SHAP and LightGBM with:
+
+```bash
+python -m pip install 'ml-toolkit[all] @ git+https://github.com/sssqweeeed/ml-toolkit.git@v0.1.0'
+```
 
 CUDA training requires a compatible NVIDIA GPU and driver. CPU training does
 not require CUDA, and the `all` extra does not include it.
@@ -29,10 +38,12 @@ not require CUDA, and the `all` extra does not include it.
 ## Train a model
 
 Predict hourly rental counts from the original [UCI Bike Sharing dataset](https://archive.ics.uci.edu/dataset/275/bike+sharing+dataset).
-Run from the installed checkout above: the reusable loader lives in `examples/`,
-not in the installed package. Explicitly download the source once:
+The reusable loader lives in the repository's `examples/` directory. Check out
+the matching release and explicitly download the source once:
 
 ```bash
+git clone --branch v0.1.0 --depth 1 https://github.com/sssqweeeed/ml-toolkit.git
+cd ml-toolkit
 python -m examples.prepare_data --dataset bike
 ```
 

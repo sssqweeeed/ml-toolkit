@@ -1,79 +1,62 @@
 name: Documentation
 
 on:
-  pull_request:
-    paths:
-      - 'docs/**'
-      - 'src/ml_toolkit/**'
-      - 'examples/**'
-      - 'tests/documentation/**'
-      - 'tests/conftest.py'
-      - 'README.md'
-      - 'pyproject.toml'
-      - 'requirements-examples.txt'
-      - 'mkdocs.yml'
-      - 'requirements-docs.txt'
-      - '.github/workflows/docs.yml'
-  push:
-    branches: [main]
-    paths:
-      - 'docs/**'
-      - 'src/ml_toolkit/**'
-      - 'examples/**'
-      - 'tests/documentation/**'
-      - 'tests/conftest.py'
-      - 'README.md'
-      - 'pyproject.toml'
-      - 'requirements-examples.txt'
-      - 'mkdocs.yml'
-      - 'requirements-docs.txt'
-      - '.github/workflows/docs.yml'
+  workflow_call:
+    inputs:
+      source:
+        required: true
+        type: string
+      channel:
+        required: true
+        type: string
+  workflow_run:
+    workflows: [Tests]
+    types: [completed]
+    branches: [dev]
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: documentation-publishing
+  cancel-in-progress: false
 
 jobs:
-  build:
+  deploy:
+    if: >-
+      inputs.source != '' ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success') ||
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/dev')
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.source || github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 0
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
           cache: pip
           cache-dependency-path: requirements-docs.txt
-      # mkdocstrings reads src/ statically (allow_inspection: false).
-      - name: Install documentation dependencies
-        run: python -m pip install -r requirements-docs.txt
-      - name: Build documentation
-        run: python -m mkdocs build --strict
-      - name: Upload site
-        if: github.event_name != 'pull_request'
-        uses: actions/upload-pages-artifact@v4
+      - run: python -m pip install -r requirements-docs.txt
+      - name: Build and preserve all documentation versions
+        env:
+          CHANNEL: ${{ inputs.channel || 'dev' }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          python .github/scripts/publish_docs.py "$CHANNEL"
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
         with:
-          path: site
-
-  deploy:
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-    needs: build
-    runs-on: ubuntu-latest
-    permissions:
-      pages: write
-      id-token: write
-    concurrency:
-      group: github-pages
-      cancel-in-progress: false
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Configure GitHub Pages
-        uses: actions/configure-pages@v5
-      - name: Deploy site
+          path: ${{ runner.temp }}/pages
+      - uses: actions/deploy-pages@v4
         id: deployment
-        uses: actions/deploy-pages@v4

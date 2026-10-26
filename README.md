@@ -4,25 +4,28 @@ A Python toolkit for model training, time-series validation, feature selection,
 Optuna tuning, metrics, diagnostic plots, PSI, inflation adjustment, and MLflow
 integration.
 
-[Documentation](https://sssqweeeed.github.io/ml-toolkit/) · [Getting started](https://sssqweeeed.github.io/ml-toolkit/getting-started/)
+[Stable documentation](https://sssqweeeed.github.io/ml-toolkit/stable/) · [Development documentation](https://sssqweeeed.github.io/ml-toolkit/dev/) · [Getting started](https://sssqweeeed.github.io/ml-toolkit/stable/getting-started/)
 
 ## Installation
 
 Requires Python 3.11 or later.
 
 ```bash
-git clone https://github.com/sssqweeeed/ml-toolkit.git
-cd ml-toolkit
-python -m pip install -e .
+python -m pip install 'ml-toolkit @ git+https://github.com/sssqweeeed/ml-toolkit.git@v0.1.0'
 ```
 
-The Python import is `ml_toolkit`.
+The Python import is `ml_toolkit`. Installation from a release tag requires Git.
+Wheels are also available from [GitHub Releases](https://github.com/sssqweeeed/ml-toolkit/releases).
 
 ## Quickstart
 
-From the checkout, cache the original [UCI Bike Sharing data](https://archive.ics.uci.edu/dataset/275/bike+sharing+dataset), then predict hourly rental counts using recorded weather and calendar features:
+Check out the matching release for its example loaders, then cache the original
+[UCI Bike Sharing data](https://archive.ics.uci.edu/dataset/275/bike+sharing+dataset)
+and predict hourly rental counts using recorded weather and calendar features:
 
 ```bash
+git clone --branch v0.1.0 --depth 1 https://github.com/sssqweeeed/ml-toolkit.git
+cd ml-toolkit
 python -m examples.prepare_data --dataset bike
 ```
 
