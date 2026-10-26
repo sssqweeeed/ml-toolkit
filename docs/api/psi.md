@@ -281,19 +281,26 @@ are described in the [data analysis overview](../data-analysis/index.md).
 ## Persist a reference for monitoring
 
 `PSIBaseline` stores fitted feature rules and aggregate counts rather than
-retaining a row-level reference frame. It can be saved locally without MLflow:
+retaining a row-level reference frame. Continue with the small `reference` and
+`current` samples above to save and reload it locally without MLflow:
+
+<!-- example: psi-baseline -->
 
 ```python
-from ml_toolkit.feature_levels import FeatureLevelConfig
-from ml_toolkit.psi import PSIBaseline, PSIConfig
+from tempfile import TemporaryDirectory
+from polars.testing import assert_frame_equal
+from ml_toolkit.psi import PSIBaseline
 
 baseline = PSIBaseline.from_reference(
-    reference_X,
-    config=PSIConfig((FeatureLevelConfig("age", "numerical"),), n_bins=10),
+    reference, config=analysis.config
 )
-baseline.save("psi_reference")
-restored = PSIBaseline.load("psi_reference")
-result = restored.compare(current_X)
+with TemporaryDirectory() as directory:
+    baseline.save(directory)
+    restored = PSIBaseline.load(directory)
+
+result = restored.compare(current)
+assert_frame_equal(result.psi, comparison.psi)
+assert_frame_equal(result.level_distribution, comparison.level_distribution)
 ```
 
 Numerical boundaries, typed categories, missing/error sentinels and feature order
