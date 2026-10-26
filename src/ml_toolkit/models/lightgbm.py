@@ -176,9 +176,9 @@ class LightGBMServingModel(PythonModel):
             / "entrypoints"
             / "LightGBMServingModel.py"
         )
-        sample_frame = sample.to_model_input(n_rows=config.input_example_rows).loc[
-            :, self.feature_names
-        ]
+        sample_frame = sample.to_model_input(
+            n_rows=config.input_example_rows, categorical_as_strings=True
+        ).loc[:, self.feature_names]
         if sample_frame.empty:
             raise ValueError("The logging sample must contain at least one row.")
         sample_prediction = self.predict(None, sample_frame)

@@ -138,11 +138,13 @@ Raw-score baseline: [0.25, 0.25, 0.25]
 ```
 <!-- /output -->
 
-`to_model_input()` returns pandas feature columns, converts categorical values
-to strings, and fills missing values with `"unknown"`. `to_catboost()` also
-carries targets, weights, and timestamps, broadcasting a scalar baseline to
-every row. The baseline is a raw model score, not a prediction on the response
-scale; a log-link model interprets 0.25 on the log scale.
+`to_model_input()` returns pandas feature columns with dictionary-encoded
+categories whose labels are strings, and fills missing categories with
+`"unknown"`. For MLflow serving or serialization, use
+`to_model_input(categorical_as_strings=True)` to expand categories to strings.
+`to_catboost()` also carries targets, weights, and timestamps, broadcasting a
+scalar baseline to every row. The baseline is a raw model score, not a prediction
+on the response scale; a log-link model interprets 0.25 on the log scale.
 
 Training reserves the literal category `"unknown"` for missing values. Raw
 categorical columns in training and validation inputs must not already contain

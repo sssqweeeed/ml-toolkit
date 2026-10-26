@@ -205,7 +205,9 @@ def test_bundled_catboost_model_runs_through_training(tmp_path, loss):
         run for run in runs if run.data.tags.get("mlflow.runName") == "final_fit"
     )
     loaded = mlflow.pyfunc.load_model(f"runs:/{final.info.run_id}/model")
-    loaded_prediction = np.asarray(loaded.predict(make_data().to_model_input()))
+    loaded_prediction = np.asarray(
+        loaded.predict(make_data().to_model_input(categorical_as_strings=True))
+    )
     assert np.allclose(loaded_prediction, prediction)
 
 
@@ -254,7 +256,9 @@ def test_bundled_classifier_and_classification_diagnostics(tmp_path):
         (run for run in runs if run.data.tags.get("mlflow.runName") == "final_fit")
     )
     loaded = mlflow.pyfunc.load_model(f"runs:/{final.info.run_id}/model")
-    loaded_prediction = np.asarray(loaded.predict(binary.to_model_input()))
+    loaded_prediction = np.asarray(
+        loaded.predict(binary.to_model_input(categorical_as_strings=True))
+    )
     assert np.allclose(loaded_prediction, result.model.predict_pool(binary))
 
 

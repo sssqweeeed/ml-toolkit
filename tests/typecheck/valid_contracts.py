@@ -15,6 +15,7 @@ from collections.abc import Callable, Iterator
 from typing import assert_type
 
 import polars as pl
+import pandas as pd
 
 from examples.project_pool import ProjectPool
 from examples.custom_model import model_factory
@@ -84,6 +85,8 @@ def metric_contracts(y: FloatArray, prediction: FloatArray, weight: FloatArray) 
 
 
 def contracts(data: Pool) -> None:
+    assert_type(data.to_model_input(), pd.DataFrame)
+    assert_type(data.to_model_input(5, categorical_as_strings=True), pd.DataFrame)
     reporting = ReportingConfig(on_tuning=True)
     assert_type(reporting.on_tuning, bool)
     ReportingConfig(on_validation=False, on_test=False, on_final_fit=False)

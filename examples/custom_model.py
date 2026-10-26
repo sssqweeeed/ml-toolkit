@@ -147,7 +147,9 @@ class TargetScaledRegressor:
         pandas, NumPy, and MLflow; it does not import the training example.
         """
         config = TrackingConfig() if config is None else config
-        frame = sample.to_model_input(n_rows=config.input_example_rows)
+        frame = sample.to_model_input(
+            n_rows=config.input_example_rows, categorical_as_strings=True
+        )
         frame = frame.loc[:, self._inner.feature_names]
         prediction = self._inner.predict_frame(frame) * self.target_scale
         with TemporaryDirectory(prefix="target-scaled-model-") as directory:
@@ -260,7 +262,10 @@ def demo() -> None:
         served = mlflow.pyfunc.load_model(info.model_uri)
         expected = fitted.predict_pool(partition.heldout)
         np.testing.assert_allclose(
-            served.predict(partition.heldout.to_model_input()), expected
+            served.predict(
+                partition.heldout.to_model_input(categorical_as_strings=True)
+            ),
+            expected,
         )
         native_predictions = fitted.native_model.predict(
             partition.heldout.to_model_input()

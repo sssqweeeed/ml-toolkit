@@ -143,7 +143,7 @@ def test_catboost_pool_training_and_serving_roundtrip(pool, tmp_path, classifier
     artifact = "model"
     loaded = mlflow.pyfunc.load_model(f"runs:/{final.info.run_id}/{artifact}")
     np.testing.assert_allclose(
-        loaded.predict(pool.to_model_input()),
+        loaded.predict(pool.to_model_input(categorical_as_strings=True)),
         result.model.predict_pool(pool),
     )
 

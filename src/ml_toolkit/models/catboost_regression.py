@@ -321,9 +321,9 @@ class CatBoostRegressionModel(PythonModel):
         name = config.model_name
         registered_model_name = config.registered_model_name
         conda_env = config.conda_env
-        sample_frame = sample.to_model_input(n_rows=config.input_example_rows).loc[
-            :, self.feature_names
-        ]
+        sample_frame = sample.to_model_input(
+            n_rows=config.input_example_rows, categorical_as_strings=True
+        ).loc[:, self.feature_names]
         model_info = self.log_artifacts(
             sample_frame,
             self.predict_frame(sample_frame),
