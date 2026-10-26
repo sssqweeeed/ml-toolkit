@@ -2,6 +2,7 @@
 
 from collections.abc import Sized
 from pathlib import Path
+import re
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -67,3 +68,8 @@ def save_figure(
         plt.close(fig)
     logger.debug("Saved figure to %s", path)
     return path
+
+
+def feature_filename(index: int, feature: str, format: str) -> str:
+    safe = re.sub(r"[^A-Za-z0-9_.-]+", "_", feature).strip("._")[:60] or "feature"
+    return f"{index:03d}_{safe}.{format}"

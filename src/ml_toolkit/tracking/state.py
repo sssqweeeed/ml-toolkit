@@ -1,6 +1,8 @@
-"""Schemas for persisted native-model serving state."""
+"""Schemas and loading checks for persisted native-model serving state."""
 
-from typing import NotRequired, TypedDict
+import json
+from pathlib import Path
+from typing import Any, NotRequired, TypedDict, cast
 
 from ..inflation import InflationConfig
 from ..types import ModelParams
@@ -41,3 +43,16 @@ class InflationState(TypedDict):
 
 
 ModelState = RegressionState | ClassificationState | InflationState
+
+
+def read_state(
+    context: Any, expected_type: str, baseline_mode: str
+) -> dict[str, object]:
+    state = cast(
+        dict[str, object], json.loads(Path(context.artifacts["config"]).read_text())
+    )
+    if state.get("version") != 1 or state.get("model_type") != expected_type:
+        raise ValueError("Unsupported model state version or model type")
+    if state.get("baseline_mode") != baseline_mode:
+        raise ValueError("Invalid baseline application mode")
+    return state

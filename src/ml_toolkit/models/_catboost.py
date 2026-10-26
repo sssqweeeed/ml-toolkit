@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import json
-from pathlib import Path
-from typing import Any, TypeVar, cast
+from typing import TypeVar, cast
 
 import catboost
 import numpy as np
@@ -82,19 +80,6 @@ def native_fit(
     model = model_type(**params)
     model.fit(train_data, eval_set=validation_data)
     return model
-
-
-def read_state(
-    context: Any, expected_type: str, baseline_mode: str
-) -> dict[str, object]:
-    state = cast(
-        dict[str, object], json.loads(Path(context.artifacts["config"]).read_text())
-    )
-    if state.get("version") != 1 or state.get("model_type") != expected_type:
-        raise ValueError("Unsupported model state version or model type")
-    if state.get("baseline_mode") != baseline_mode:
-        raise ValueError("Invalid baseline application mode")
-    return state
 
 
 def refit_parameters(params: ModelParams, best_iteration: int | None) -> ModelParams:
