@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, Any
@@ -126,6 +126,7 @@ class LightGBMServingModel(PythonModel):
         sample: Pool,
         *,
         config: TrackingConfig | None = None,
+        extra_artifacts: Mapping[str, str] | None = None,
     ) -> ModelInfo:
         """Log native LightGBM artifacts and a serving signature to MLflow.
 
@@ -137,6 +138,10 @@ class LightGBMServingModel(PythonModel):
         config : TrackingConfig or None, default None
             Artifact name, serving example row count, registry, and environment.
             None uses TrackingConfig defaults, including no registration.
+
+        extra_artifacts : Mapping[str, str] or None, default None
+            Additional files or directories bundled with the model. Names must
+            not conflict with the adapter's own artifacts.
 
         Returns
         -------
@@ -208,6 +213,7 @@ class LightGBMServingModel(PythonModel):
                     "features": str(features_path),
                 },
                 metadata=metadata,
+                extra_artifacts=extra_artifacts,
                 packages=("lightgbm",),
             )
 

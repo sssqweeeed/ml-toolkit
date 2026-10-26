@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from itertools import pairwise
+from typing import cast
 
 import numpy as np
 import polars as pl
@@ -13,7 +14,10 @@ from .config import (
     UNSEEN_LEVEL,
     FeatureLevels,
     FeatureLevelConfig,
+    FeatureType,
+    FeatureScalar,
 )
+from ._serialization import decode_scalar, encode_scalar, mapping
 
 
 @dataclass
@@ -259,3 +263,125 @@ class LevelTransformer:
             expressions.append(expression)
 
         return data.with_columns(expressions)
+
+    def to_dict(self) -> dict[str, object]:
+        """Serialize fitted state without rounding boundaries or losing scalar types."""
+        if self.feature_levels is None:
+            raise RuntimeError("LevelTransformer must be fitted before serialization")
+        return {
+            "version": 1,
+            "n_bins": self.n_bins,
+            "features": [
+                {
+                    "name": feature.config.name,
+                    "ftype": feature.config.ftype,
+                    "null_level": encode_scalar(feature.config.null_level),
+                    "error_level": encode_scalar(feature.config.error_level),
+                    "lower_bound": encode_scalar(feature.config.lower_bound),
+                    "upper_bound": encode_scalar(feature.config.upper_bound),
+                    "levels": list(feature.levels),
+                    "boundaries": [encode_scalar(x) for x in feature.boundaries],
+                    "categories": [encode_scalar(x) for x in feature.categories],
+                }
+                for feature in self.feature_levels
+            ],
+        }
+
+    @classmethod
+    def from_dict(cls, payload: object) -> LevelTransformer:
+        """Restore validated fitted state; never refit on new observations."""
+        try:
+            data = mapping(payload)
+            if type(data["version"]) is not int or data["version"] != 1:
+                raise ValueError("Unsupported LevelTransformer format version")
+            if type(data["n_bins"]) is not int or data["n_bins"] < 1:
+                raise ValueError("Invalid n_bins")
+            if not isinstance(data["features"], list):
+                raise ValueError("Invalid feature definitions")
+            fitted: list[FeatureLevels] = []
+            for raw in cast(list[object], data["features"]):
+                item = mapping(raw)
+                if not isinstance(item["name"], str):
+                    raise ValueError("Invalid feature name")
+                lower = decode_scalar(item["lower_bound"])
+                upper = decode_scalar(item["upper_bound"])
+                for bound in (lower, upper):
+                    if bound is not None and type(bound) not in (float, int):
+                        raise ValueError("Invalid numerical bound")
+                config = FeatureLevelConfig(
+                    name=item["name"],
+                    ftype=cast(FeatureType, item["ftype"]),
+                    null_level=decode_scalar(item["null_level"]),
+                    error_level=decode_scalar(item["error_level"]),
+                    lower_bound=cast(float | None, lower),
+                    upper_bound=cast(float | None, upper),
+                )
+                for key in ("levels", "boundaries", "categories"):
+                    if not isinstance(item[key], list):
+                        raise ValueError(f"Invalid {key}")
+                labels = tuple(item["levels"])
+                if not labels or any(not isinstance(x, str) for x in labels):
+                    raise ValueError("Invalid level labels")
+                cuts = tuple(decode_scalar(x) for x in item["boundaries"])
+                if any(type(x) is not float or not np.isfinite(x) for x in cuts):
+                    raise ValueError("Invalid numerical boundaries")
+                boundaries = cast(tuple[float, ...], cuts)
+                categories = tuple(decode_scalar(x) for x in item["categories"])
+                if any(x is None for x in categories):
+                    raise ValueError("Null is not a regular category")
+                if config.ftype == "numerical":
+                    left = -np.inf if lower is None else cast(float, lower)
+                    right = np.inf if upper is None else cast(float, upper)
+                    if (
+                        categories
+                        or len(boundaries) >= data["n_bins"]
+                        or any(not left < x < right for x in boundaries)
+                        or any(a >= b for a, b in pairwise(boundaries))
+                    ):
+                        raise ValueError("Inconsistent numerical levels")
+                    expected = [
+                        f"[{'-inf' if a == -np.inf else f'{a:g}'}, "
+                        f"{'inf' if b == np.inf else f'{b:g}'}"
+                        f"{']' if b == right and b != np.inf else ')'}"
+                        for a, b in pairwise((left, *boundaries, right))
+                    ] + [NULL_LEVEL]
+                    if (
+                        config.error_level is not None
+                        or left != -np.inf
+                        or right != np.inf
+                    ):
+                        expected.append(ERROR_LEVEL)
+                else:
+                    if boundaries:
+                        raise ValueError("Categorical features cannot have boundaries")
+                    # Labels retain the source dtype's display format (e.g.
+                    # Float32 or millisecond timestamps). Inferring a fresh
+                    # Polars dtype from Python scalars can change that format.
+                    expected = list(labels[: len(categories)])
+                    if (
+                        len(set(categories)) != len(categories)
+                        or any(isinstance(x, float) and np.isnan(x) for x in categories)
+                        or len(set(expected)) != len(expected)
+                        or set(expected).intersection(
+                            (NULL_LEVEL, ERROR_LEVEL, UNSEEN_LEVEL)
+                        )
+                    ):
+                        raise ValueError("Invalid reference categories")
+                    expected += [NULL_LEVEL, UNSEEN_LEVEL]
+                    if config.error_level is not None:
+                        expected.append(ERROR_LEVEL)
+                if list(labels) != expected:
+                    raise ValueError("Level labels do not match fitted definitions")
+                fitted.append(
+                    FeatureLevels(
+                        config,
+                        labels,
+                        boundaries,
+                        cast(tuple["FeatureScalar", ...], categories),
+                    )
+                )
+            result = cls(tuple(f.config for f in fitted), n_bins=data["n_bins"])
+            result.feature_levels = tuple(fitted)
+            return result
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError(f"Invalid LevelTransformer state: {exc}") from exc

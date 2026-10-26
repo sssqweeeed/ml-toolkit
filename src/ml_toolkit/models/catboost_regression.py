@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Self, cast
@@ -293,6 +294,7 @@ class CatBoostRegressionModel(PythonModel):
         sample: Pool,
         *,
         config: TrackingConfig | None = None,
+        extra_artifacts: Mapping[str, str] | None = None,
     ) -> ModelInfo:
         """Package and log the fitted model with a serving input example.
 
@@ -303,6 +305,10 @@ class CatBoostRegressionModel(PythonModel):
         config : TrackingConfig or None, default None
             Artifact name, positive example-row limit, registry name, and serving
             environment. None uses TrackingConfig defaults.
+
+        extra_artifacts : Mapping[str, str] or None, default None
+            Additional files or directories bundled with the model. Names must
+            not conflict with the adapter's own artifacts.
 
         Returns
         -------
@@ -330,6 +336,7 @@ class CatBoostRegressionModel(PythonModel):
             name=name,
             registered_model_name=registered_model_name,
             conda_env=conda_env,
+            extra_artifacts=extra_artifacts,
         )
         mlflow.log_param("baseline", self.baseline)
         mlflow.log_dict(
@@ -350,6 +357,7 @@ class CatBoostRegressionModel(PythonModel):
         registered_model_name: str | None = None,
         conda_env: Path | None = None,
         metadata: dict[str, object] | None = None,
+        extra_artifacts: Mapping[str, str] | None = None,
     ) -> ModelInfo:
         from ..tracking._model_state import log_catboost
 
@@ -360,6 +368,7 @@ class CatBoostRegressionModel(PythonModel):
             name=name,
             registered_model_name=registered_model_name,
             conda_env=conda_env,
+            extra_artifacts=extra_artifacts,
             metadata=metadata,
         )
 

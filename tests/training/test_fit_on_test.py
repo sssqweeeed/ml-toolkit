@@ -135,7 +135,7 @@ def test_model_logging_and_registration_no_fallback(
     saved = []
 
     class Model(MeanModel):
-        def log(self, sample, *, config=None):
+        def log(self, sample, *, config=None, extra_artifacts=None):
             saved.append(
                 (
                     mlflow.active_run().data.tags["mlflow.runName"],
@@ -173,7 +173,7 @@ def test_no_test_uses_final_logging_flag(tmp_path, log_test, log_final):
     saved = []
 
     class Model(MeanModel):
-        def log(self, sample, *, config=None):
+        def log(self, sample, *, config=None, extra_artifacts=None):
             saved.append((len(sample), config.registered_model_name))
 
     result = train_model(

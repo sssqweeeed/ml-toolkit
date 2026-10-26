@@ -135,10 +135,11 @@ reference  8645.0
 <!-- /output -->
 
 The pandas table uses `reference`/`current` sample keys even when the legend says
-Train/Test. During training, O/F and PSI each fit their own `LevelTransformer`
-using the same training rows, `ReportingConfig.features` rules and
-`ReportingConfig.n_bins`. They produce identical levels for matching features;
-there is no shared fitted transformer or cached level object. A direct
+Train/Test. During training, O/F and PSI use separate `LevelTransformer` instances
+fitted on the same training rows, `ReportingConfig.features` rules and
+`ReportingConfig.n_bins`. PSI reuses its model baseline transformer when packaging
+is enabled. O/F and PSI produce identical levels for matching features, but do
+not share fitted state with each other. A direct
 `LevelTransformer` fit also reproduces those levels when both its reference
 data and settings match. See [how levels are shared](../api/psi.md#how-psi-and-observedfitted-share-levels)
 for fitting and reuse across samples and folds.

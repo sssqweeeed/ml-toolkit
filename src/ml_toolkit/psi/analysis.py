@@ -21,7 +21,7 @@ from .score import psi
 logger = logging.getLogger(__name__)
 
 
-def _resolve_time(data: pl.DataFrame, time: pl.Series | str | None) -> pl.Series | None:
+def resolve_time(data: pl.DataFrame, time: pl.Series | str | None) -> pl.Series | None:
     if time is None:
         return None
     if isinstance(time, str):
@@ -114,7 +114,7 @@ class PSIAnalysis:
         TypeError
             Supplied timestamps are not Date or Datetime.
         """
-        reference_time = _resolve_time(reference, time)
+        reference_time = resolve_time(reference, time)
         logger.debug(
             "Fitting PSI reference: %s rows, %s features",
             len(reference),
@@ -160,7 +160,7 @@ class PSIAnalysis:
         """
         if self.reference_levels is None or self.transformer.feature_levels is None:
             raise RuntimeError("PSIAnalysis must be fitted before compare")
-        current_time = _resolve_time(current, time)
+        current_time = resolve_time(current, time)
         if (self.reference_time is None) != (current_time is None):
             raise ValueError(
                 "Both samples must provide time for time-based distributions"
@@ -250,8 +250,8 @@ def compare_psi(
                 raise ValueError(
                     f"Feature {feature.config.name!r} contains undefined levels"
                 )
-    reference_time = _resolve_time(reference_levels, reference_time)
-    current_time = _resolve_time(current_levels, current_time)
+    reference_time = resolve_time(reference_levels, reference_time)
+    current_time = resolve_time(current_levels, current_time)
     if (reference_time is None) != (current_time is None):
         raise ValueError("Both samples must provide time for time-based distributions")
     feature_scores = pl.DataFrame(

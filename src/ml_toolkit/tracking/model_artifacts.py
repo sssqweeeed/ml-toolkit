@@ -1,6 +1,7 @@
 """Common MLflow models-from-code packaging for native model artifacts."""
 
 import logging
+from collections.abc import Mapping
 import shutil
 from importlib.metadata import version
 from pathlib import Path
@@ -37,7 +38,9 @@ def log_model_from_code(
     conda_env: Path | None = None,
     code_paths: list[str] | None = None,
     packages: tuple[str, ...] = (),
+    extra_artifacts: Mapping[str, str] | None = None,
 ) -> ModelInfo:
+    artifacts = merge_artifacts(artifacts, extra_artifacts)
     if sample_frame.empty:
         raise ValueError("The logging sample must contain at least one row.")
 
@@ -95,3 +98,16 @@ def log_model_from_code(
         )
     logger.debug("Logged model artifact %s", name)
     return model_info
+
+
+def merge_artifacts(
+    artifacts: Mapping[str, str], extra_artifacts: Mapping[str, str] | None
+) -> dict[str, str]:
+    """Merge explicitly supplied artifacts without overwriting model state."""
+    extra: Mapping[str, str] = {} if extra_artifacts is None else extra_artifacts
+    overlap = artifacts.keys() & extra.keys()
+    if overlap:
+        raise ValueError(
+            f"Extra artifacts conflict with model artifacts: {sorted(overlap)}"
+        )
+    return {**artifacts, **extra}
