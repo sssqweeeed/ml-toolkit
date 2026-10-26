@@ -174,12 +174,15 @@ class InflationAdjustedModel(PythonModel):
             raise ValueError(
                 "prediction_date_column must not overwrite a model feature"
             )
-        frame[self.prediction_date_column] = pd.Series(
+        prediction_dates = pd.Series(
             data.time.to_list(),
             index=frame.index,
             dtype="datetime64[ns]",
+            name=self.prediction_date_column,
         )
-        return self.predict_frame(frame)
+        # Pool conversion keeps separate numeric blocks to share Arrow buffers.
+        # Concatenation adds dates without inserting into that fragmented frame.
+        return self.predict_frame(pd.concat([frame, prediction_dates], axis=1))
 
     def predict_frame(
         self,
@@ -335,11 +338,13 @@ class InflationAdjustedModel(PythonModel):
         sample_frame = sample.to_model_input(
             n_rows=config.input_example_rows, categorical_as_strings=True
         ).loc[:, self.model.feature_names]
-        sample_frame[self.prediction_date_column] = pd.Series(
+        prediction_dates = pd.Series(
             sample.time.head(len(sample_frame)).to_list(),
             dtype="datetime64[ns]",
             index=sample_frame.index,
+            name=self.prediction_date_column,
         )
+        sample_frame = pd.concat([sample_frame, prediction_dates], axis=1)
         sample_prediction = self.predict(None, sample_frame)
 
         wrapper_info = log_catboost(
