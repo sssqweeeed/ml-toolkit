@@ -1,0 +1,2594 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Training, validation, metrics, diagnostics, and MLflow for Python ML projects.">
+      
+      
+      
+        <link rel="canonical" href="https://sssqweeeed.github.io/ml-toolkit/0.2.0/api/training/">
+      
+      
+        <link rel="prev" href="../data/">
+      
+      
+        <link rel="next" href="../splitting/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Workflow and results - ml-toolkit</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#training" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="ml-toolkit" class="md-header__button md-logo" aria-label="ml-toolkit" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            ml-toolkit
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Workflow and results
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/sssqweeeed/ml-toolkit" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    sssqweeeed/ml-toolkit
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="ml-toolkit" class="md-nav__button md-logo" aria-label="ml-toolkit" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    ml-toolkit
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/sssqweeeed/ml-toolkit" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    sssqweeeed/ml-toolkit
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Task recipes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../data/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Training
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Training
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Workflow and results
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Workflow and results
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#run-a-holdout-experiment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Run a holdout experiment
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#understand-the-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Understand the run
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#use-the-result" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Use the result
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#optionally-train-including-test" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Optionally train including test
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configure-the-workflow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configure the workflow
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#api-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        API reference
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="API reference">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#workflow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Workflow
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#results" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Results
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../splitting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data splitting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../feature-selection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Feature selection
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tuning/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Parameter tuning
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Models
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Models
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../models/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Built-in adapters
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../custom-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Build a model adapter
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../inflation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Inflation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Evaluation
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Evaluation
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../evaluation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../evaluation/classification/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Classification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../evaluation/observed-fitted/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Observed versus fitted
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../evaluation/ranking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ranking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../evaluation/pu/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Positive-unlabeled
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../evaluation/explainability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Feature importance and SHAP
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../evaluation/custom/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Build an evaluator
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data analysis
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Data analysis
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../data-analysis/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../data-analysis/distributions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Numerical distributions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../psi/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PSI and feature levels
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../data-analysis/custom/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Build a data analyzer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../metrics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Metrics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tracking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tracking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#run-a-holdout-experiment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Run a holdout experiment
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#understand-the-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Understand the run
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#use-the-result" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Use the result
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#optionally-train-including-test" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Optionally train including test
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configure-the-workflow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configure the workflow
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#api-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        API reference
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="API reference">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#workflow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Workflow
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#results" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Results
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="training">Training<a class="headerlink" href="#training" title="Permanent link">&para;</a></h1>
+<p><code>train_model</code> runs validation, optional feature selection and parameter tuning,
+then fits a main model and evaluates optional test data. A
+<a href="../splitting/">splitter</a> supplies the rows for each fit.</p>
+<h2 id="run-a-holdout-experiment">Run a holdout experiment<a class="headerlink" href="#run-a-holdout-experiment" title="Permanent link">&para;</a></h2>
+<p>Run this page from an installed repository checkout after
+<code>python -m examples.prepare_data --dataset bike</code>. The shared
+<code>examples.training_setup.prepare_training</code> loads all 17,379 original
+<a href="https://archive.ics.uci.edu/dataset/275/bike+sharing+dataset">UCI Bike Sharing hours</a>
+from 2011–2012, with eleven weather/calendar features, rental counts as targets
+and unit weights. Inputs exclude count components that reveal the target.
+It configures a local <code>mlflow.db</code> and disables automatic model packaging.
+The model uses a Poisson loss; predictions are rentals per recorded hour.</p>
+<!-- example: training-holdout -->
+
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">examples.training_setup</span><span class="w"> </span><span class="kn">import</span> <span class="n">prepare_training</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit</span><span class="w"> </span><span class="kn">import</span> <span class="n">train_model</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.metrics</span><span class="w"> </span><span class="kn">import</span> <span class="n">metrics_frequency</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">CatBoostLogLinkRegressionModel</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.training</span><span class="w"> </span><span class="kn">import</span> <span class="n">Holdout</span>
+
+<span class="n">data</span><span class="p">,</span> <span class="n">params</span><span class="p">,</span> <span class="n">config</span> <span class="o">=</span> <span class="n">prepare_training</span><span class="p">()</span>
+<span class="n">splitter</span> <span class="o">=</span> <span class="n">Holdout</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">val_size</span><span class="o">=</span><span class="mf">0.25</span><span class="p">,</span> <span class="n">test_size</span><span class="o">=</span><span class="mf">0.2</span><span class="p">)</span>
+<span class="n">result</span> <span class="o">=</span> <span class="n">train_model</span><span class="p">(</span>
+    <span class="n">splitter</span><span class="o">=</span><span class="n">splitter</span><span class="p">,</span>
+    <span class="n">params</span><span class="o">=</span><span class="n">params</span><span class="p">,</span>
+    <span class="n">model_factory</span><span class="o">=</span><span class="n">CatBoostLogLinkRegressionModel</span><span class="p">,</span>
+    <span class="n">metric</span><span class="o">=</span><span class="n">metrics_frequency</span><span class="p">,</span>
+    <span class="n">run_name</span><span class="o">=</span><span class="s2">"frequency-holdout"</span><span class="p">,</span>
+    <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span>
+    <span class="s2">"Validation Poisson deviance:"</span><span class="p">,</span>
+    <span class="nb">round</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">validation</span><span class="o">.</span><span class="n">mean_metrics</span><span class="p">[</span><span class="s2">"mean_poisson_deviance"</span><span class="p">],</span> <span class="mi">4</span><span class="p">),</span>
+<span class="p">)</span>
+<span class="k">assert</span> <span class="n">result</span><span class="o">.</span><span class="n">test_metrics</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+<span class="nb">print</span><span class="p">(</span>
+    <span class="s2">"Test Poisson deviance:"</span><span class="p">,</span>
+    <span class="nb">round</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">test_metrics</span><span class="p">[</span><span class="s2">"mean_poisson_deviance"</span><span class="p">],</span> <span class="mi">4</span><span class="p">),</span>
+<span class="p">)</span>
+</code></pre></div>
+<!-- output: training-holdout -->
+<div class="highlight"><pre><span></span><code>Validation Poisson deviance: 118.8938
+Test Poisson deviance: 111.7045
+</code></pre></div>
+<!-- /output -->
+
+<p>The latest 20% of rows are test; the last 25% of the remaining rows are
+validation. This <code>Holdout</code> uses all non-test rows for its test-stage fit. Fractions
+round upward. The workflow logs metrics and configuration to MLflow.</p>
+<h2 id="understand-the-run">Understand the run<a class="headerlink" href="#understand-the-run" title="Permanent link">&para;</a></h2>
+<ol>
+<li>Consume each validation pair in the splitter's iterator order.</li>
+<li>Select columns and tune parameters when those extensions are supplied.</li>
+<li>Fit the validation model and run enabled <a href="../../evaluation/">prediction reports</a> and
+   <a href="../../data-analysis/">data analysis</a>.</li>
+<li>Request <code>splitter.get_test()</code> once and fit a fresh main model on its <code>train</code>,
+   including former validation and gap rows, and evaluate its optional <code>heldout</code>
+   as test. This stage is <code>test</code> when heldout exists, otherwise <code>final_fit</code>.</li>
+<li>With <code>fit_on_test=True</code>, request <code>splitter.get_final()</code> after test evaluation
+   and fit a separate model on that full pool, including test.</li>
+</ol>
+<p>The last yielded validation split supplies the final features, parameters,
+iteration budget and classification threshold. The splitter determines final
+training rows; they need not match the last validation train. The workflow
+obtains the main training/test pair after validation; your splitter owns sample
+separation. Requesting <code>fit_on_test=True</code> without test raises <code>ValueError</code> at that
+point, before the main fit. Validation fits and their MLflow runs have already
+completed. <a href="../configuration/">Reporting stage flags</a>
+control additional reports; primary metrics always run.</p>
+<h2 id="use-the-result">Use the result<a class="headerlink" href="#use-the-result" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Result</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>result.model</code></td>
+<td>Main adapter fitted on all non-test rows, or all rows when test is absent</td>
+</tr>
+<tr>
+<td><code>result.final_model</code></td>
+<td>Additional model including test when <code>fit_on_test=True</code>, otherwise <code>None</code></td>
+</tr>
+<tr>
+<td><code>result.params</code></td>
+<td>Last validation split's refit settings, shared by both models</td>
+</tr>
+<tr>
+<td><code>result.features</code></td>
+<td>Selected columns in fitted order</td>
+</tr>
+<tr>
+<td><code>result.validation.splits</code></td>
+<td>Validation results in execution order</td>
+</tr>
+<tr>
+<td><code>result.validation.mean_metrics</code></td>
+<td>Mean validation metrics across splits</td>
+</tr>
+<tr>
+<td><code>result.test_metrics</code></td>
+<td>Independent test metrics from the main model, or <code>None</code> without test</td>
+</tr>
+<tr>
+<td><code>result.feature_selection</code>, <code>result.tuning</code></td>
+<td>Last split's optional search results</td>
+</tr>
+</tbody>
+</table>
+<p>Selection and tuning scores measure the data used to choose settings. The
+optional test scores describe independent held-out performance. Evaluator and
+analyzer metrics are logged separately and are not part of these result summaries.</p>
+<h2 id="optionally-train-including-test">Optionally train including test<a class="headerlink" href="#optionally-train-including-test" title="Permanent link">&para;</a></h2>
+<p><code>TrainingConfig(fit_on_test=True)</code> adds a fresh fit on all eligible data after
+independent test evaluation. Both models reuse the last validation split's
+features, iteration budget, threshold and parameters, without another search.
+Learned baselines and inflation state are fitted anew for each model.</p>
+<table>
+<thead>
+<tr>
+<th>Test sample</th>
+<th>fit_on_test</th>
+<th>Stages after validation</th>
+<th>model</th>
+<th>final_model</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Present</td>
+<td>False</td>
+<td>test</td>
+<td>All non-test rows</td>
+<td>None</td>
+</tr>
+<tr>
+<td>Present</td>
+<td>True</td>
+<td>test, then final_fit</td>
+<td>All non-test rows</td>
+<td>All eligible rows</td>
+</tr>
+<tr>
+<td>Absent</td>
+<td>False</td>
+<td>final_fit</td>
+<td>All eligible rows</td>
+<td>None</td>
+</tr>
+<tr>
+<td>Absent</td>
+<td>True</td>
+<td>ValueError after validation, before the main fit</td>
+<td>—</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<p>For example, reuse the holdout setup above:</p>
+<!-- example: training-including-test -->
+
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">replace</span>
+
+<span class="n">full_result</span> <span class="o">=</span> <span class="n">train_model</span><span class="p">(</span>
+    <span class="n">splitter</span><span class="o">=</span><span class="n">splitter</span><span class="p">,</span>
+    <span class="n">params</span><span class="o">=</span><span class="n">params</span><span class="p">,</span>
+    <span class="n">model_factory</span><span class="o">=</span><span class="n">CatBoostLogLinkRegressionModel</span><span class="p">,</span>
+    <span class="n">metric</span><span class="o">=</span><span class="n">metrics_frequency</span><span class="p">,</span>
+    <span class="n">run_name</span><span class="o">=</span><span class="s2">"frequency-including-test"</span><span class="p">,</span>
+    <span class="n">config</span><span class="o">=</span><span class="n">replace</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">fit_on_test</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span>
+<span class="p">)</span>
+<span class="k">assert</span> <span class="n">full_result</span><span class="o">.</span><span class="n">final_model</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+</code></pre></div>
+<p><code>test_metrics</code> always belongs to the main model and is never replaced with
+in-sample scores from the additional model. <code>final_fit</code> logs train metrics and
+applicable train-only custom reports; held-out comparisons are skipped.
+<code>ReportingConfig.on_test</code> and <code>on_final_fit</code> independently enable additional
+reports; primary metrics are always calculated.</p>
+<p><code>TrackingConfig.log_test_model</code> controls test-stage packaging, and
+<code>log_final_model</code> controls final_fit packaging, including the no-test case.
+Both default to True. <code>registered_model_name</code> applies to the additional model
+when requested, otherwise the main model, only if that model's packaging flag
+is enabled. Disabling its packaging never registers the other model instead.</p>
+<h2 id="configure-the-workflow">Configure the workflow<a class="headerlink" href="#configure-the-workflow" title="Permanent link">&para;</a></h2>
+<p>Pass a <a href="../models/">model factory</a>, <a href="../metrics/">metric</a> and prepared splitter.
+<code>TrainingConfig</code> controls tuning, shared reporting and packaging. The
+<a href="../../configuration/">task recipes</a> show complete combinations.</p>
+<table>
+<thead>
+<tr>
+<th>Need</th>
+<th>Guide</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Holdout, time-series CV or custom windows</td>
+<td><a href="../splitting/">Data splitting</a></td>
+</tr>
+<tr>
+<td>Select columns or provide a ranker</td>
+<td><a href="../feature-selection/">Feature selection</a></td>
+</tr>
+<tr>
+<td>Supply an Optuna search space or a standalone objective</td>
+<td><a href="../tuning/">Parameter tuning</a></td>
+</tr>
+<tr>
+<td>Add prediction reports or custom metrics/artifacts</td>
+<td><a href="../../evaluation/">Evaluation</a></td>
+</tr>
+<tr>
+<td>Analyze feature distributions and drift</td>
+<td><a href="../../data-analysis/">Data analysis</a></td>
+</tr>
+<tr>
+<td>Implement a training adapter</td>
+<td><a href="../models/">Models</a></td>
+</tr>
+<tr>
+<td>Save, reload or inspect MLflow artifacts</td>
+<td><a href="../tracking/">Tracking</a></td>
+</tr>
+</tbody>
+</table>
+<h2 id="api-reference">API reference<a class="headerlink" href="#api-reference" title="Permanent link">&para;</a></h2>
+<h3 id="workflow">Workflow<a class="headerlink" href="#workflow" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="ml_toolkit.training.train_model" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">train_model</span>
+
+
+<a href="#ml_toolkit.training.train_model" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">train_model</span><span class="p">(</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">splitter</span><span class="p">:</span> <span class="n">Splitter</span><span class="p">[</span><span class="n">Pool</span><span class="p">],</span>
+    <span class="n">params</span><span class="p">:</span> <span class="n">ModelParams</span><span class="p">,</span>
+    <span class="n">model_factory</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">ModelParams</span><span class="p">],</span> <span class="n">Model</span><span class="p">],</span>
+    <span class="n">metric</span><span class="p">:</span> <span class="n">Metric</span><span class="p">,</span>
+    <span class="n">run_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">config</span><span class="p">:</span> <span class="n">TrainingConfig</span><span class="p">,</span>
+    <span class="n">feature_selector</span><span class="p">:</span> <span class="n">FeatureSelector</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">param_space</span><span class="p">:</span> <span class="p">(</span>
+        <span class="n">Callable</span><span class="p">[[</span><span class="n">Trial</span><span class="p">],</span> <span class="n">ModelParams</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span>
+    <span class="p">)</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">prediction_evaluators</span><span class="p">:</span> <span class="p">(</span>
+        <span class="n">PredictionEvaluator</span>
+        <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="n">PredictionEvaluator</span><span class="p">]</span>
+        <span class="o">|</span> <span class="kc">None</span>
+    <span class="p">)</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">data_analyzers</span><span class="p">:</span> <span class="p">(</span>
+        <span class="n">DataAnalyzer</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="n">DataAnalyzer</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span>
+    <span class="p">)</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">TrainingResult</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Tune, validate, refit and optionally test a complete training workflow.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>splitter</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="Splitter (ml_toolkit.training.splits.Splitter)" href="../splitting/#ml_toolkit.training.Splitter">Splitter</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Supplies numbered validation pairs and final training/test data. Pools
+must have aligned features and metadata, ascending timestamps, finite
+targets and nonnegative weights with positive total. Raw categorical
+values must not stringify to the reserved "unknown".</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>params</code>
+            </td>
+            <td>
+                  <code><span title="ml_toolkit.types.ModelParams">ModelParams</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Base constructor parameters, copied without mutating the input.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>model_factory</code>
+            </td>
+            <td>
+                  <code><span title="collections.abc.Callable">Callable</span>[[<span title="ml_toolkit.types.ModelParams">ModelParams</span>], <a class="autorefs autorefs-internal" title="Model (ml_toolkit.models.base.Model)" href="../custom-model/#ml_toolkit.models.Model">Model</a>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Creates fresh adapters implementing fit, predict_pool, native_model,
+best_iteration, feature_importances, get_refit_params and log.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>metric</code>
+            </td>
+            <td>
+                  <code><span title="collections.abc.Callable">Callable</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Receives targets, predictions and weights; returns named scalar scores.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>run_name</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Enclosing MLflow experiment run name.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>config</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="TrainingConfig
+
+
+  
+      dataclass
+   (ml_toolkit.config.TrainingConfig)" href="../configuration/#ml_toolkit.config.TrainingConfig">TrainingConfig</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Parameter tuning, additional reporting and model packaging settings.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>feature_selector</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="FeatureSelector (ml_toolkit.feature_selection.FeatureSelector)" href="../feature-selection/#ml_toolkit.feature_selection.FeatureSelector">FeatureSelector</a> or None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Selects features independently before tuning on each split. None keeps
+all columns. The selector owns its settings and must not retain fitted state.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>param_space</code>
+            </td>
+            <td>
+                  <code><span title="collections.abc.Callable">Callable</span> or None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Optuna trial overrides; required when tuning is enabled.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>prediction_evaluators</code>
+            </td>
+            <td>
+                  <code>PredictionEvaluator, list[PredictionEvaluator], or None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Named evaluators called in list order with one combined pool and aligned
+train and optional val or test labels per fit. Names are unique ignoring
+case; object IDs are optional. ReportingConfig stage flags gate all reports.
+None or an empty list disables evaluator calls, not data analysis or PSI/SHAP.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>data_analyzers</code>
+            </td>
+            <td>
+                  <code>DataAnalyzer, list[DataAnalyzer], or None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Data reports receiving the same pool and split labels without predictions.
+Called in list order after prediction evaluators, using the same stage
+flags and selected features. Names must be unique across both lists and
+enabled PSI/SHAP. None or [] disables custom data reports, not PSI.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="TrainingResult
+
+
+  
+      dataclass
+   (ml_toolkit.training.results.TrainingResult)" href="#ml_toolkit.training.TrainingResult">TrainingResult</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Main model, split results, optional test scores and additional final model.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="note" open>
+  <summary>Notes</summary>
+  <p>Each split independently selects features using the base parameters, tunes
+on its validation rows, then fits the winning settings once for reporting.
+Validation averages are reports, not Optuna objectives. The main model
+fits splitter.get_test().train using the last split's features and refit
+parameters. With held-out test data this is the test stage; otherwise it
+is final_fit. fit_on_test adds a fresh final_fit on splitter.get_final()
+after test evaluation, without replacing the main model or its scores.
+No selection or tuning is repeated. MLflow configuration is caller-owned.</p>
+</details>
+
+<details class="see-also" open>
+  <summary>See Also</summary>
+  <p>ml_toolkit.training.Holdout : A trailing validation window and optional test.
+ml_toolkit.training.TimeSeriesCV : Chronological validation windows.</p>
+</details>
+
+<p><span class="doc-section-title">Examples:</span></p>
+    <p>For executable data preparation, configuration, fitting and interpretation
+of held-out scores, see the documentation's Training guide, "Run a holdout
+experiment". The Feature selection, Parameter tuning and Evaluation guides
+show how to extend that workflow with independently prepared examples.</p>
+
+
+    </div>
+
+</div><h3 id="results">Results<a class="headerlink" href="#results" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h4 id="ml_toolkit.training.TrainingResult" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">TrainingResult</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#ml_toolkit.training.TrainingResult" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">TrainingResult</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">Model</span><span class="p">,</span>
+    <span class="n">validation</span><span class="p">:</span> <span class="n">ValidationResult</span><span class="p">,</span>
+    <span class="n">params</span><span class="p">:</span> <span class="n">ModelParams</span><span class="p">,</span>
+    <span class="n">features</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span>
+    <span class="n">feature_selection</span><span class="p">:</span> <span class="n">FeatureSelectionResult</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">tuning</span><span class="p">:</span> <span class="n">TuningResult</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">test_metrics</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">final_model</span><span class="p">:</span> <span class="n">Model</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>Store the final fitted model and independent split workflows' results.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.training.TrainingResult.model">model</span></code></td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="Model (ml_toolkit.models.base.Model)" href="../custom-model/#ml_toolkit.models.Model">Model</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Main model fitted on splitter.get_test().train, never on held-out test.
+Without test this includes all eligible data.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.training.TrainingResult.validation">validation</span></code></td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="ValidationResult
+
+
+  
+      dataclass
+   (ml_toolkit.training.results.ValidationResult)" href="#ml_toolkit.training.ValidationResult">ValidationResult</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Per-split selection, tuning and post-tuning evaluation results.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.training.TrainingResult.params">params</span></code></td>
+            <td>
+                  <code><span title="ml_toolkit.types.ModelParams">ModelParams</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Final constructor parameters from the last validation split.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.training.TrainingResult.features">features</span></code></td>
+            <td>
+                  <code><span title="tuple">tuple</span>[<span title="str">str</span>, ...]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Features from the last validation split, in input order.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.training.TrainingResult.feature_selection">feature_selection</span></code></td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="FeatureSelectionResult
+
+
+  
+      dataclass
+   (ml_toolkit.feature_selection.FeatureSelectionResult)" href="../feature-selection/#ml_toolkit.feature_selection.FeatureSelectionResult">FeatureSelectionResult</a> or None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Last validation split's selection history.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.training.TrainingResult.tuning">tuning</span></code></td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="TuningResult
+
+
+  
+      dataclass
+   (ml_toolkit.training.results.TuningResult)" href="../tuning/#ml_toolkit.training.TuningResult">TuningResult</a> or None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Last validation split's optional optimization result.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.training.TrainingResult.test_metrics">test_metrics</span></code></td>
+            <td>
+                  <code><span title="dict">dict</span>[<span title="str">str</span>, <span title="float">float</span>] or None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Main model's independent test scores; None without a test sample.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.training.TrainingResult.final_model">final_model</span></code></td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="Model (ml_toolkit.models.base.Model)" href="../custom-model/#ml_toolkit.models.Model">Model</a> or None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Additional model fitted including test only when fit_on_test=True.
+Never replaces the main model or its test scores.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h4 id="ml_toolkit.training.ValidationResult" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">ValidationResult</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#ml_toolkit.training.ValidationResult" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">ValidationResult</span><span class="p">(</span><span class="n">splits</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">SplitResult</span><span class="p">,</span> <span class="o">...</span><span class="p">])</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>Collect split results in iterator order and their validation averages.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.training.ValidationResult.splits">splits</span></code></td>
+            <td>
+                  <code><span title="tuple">tuple</span>[<a class="autorefs autorefs-internal" title="SplitResult
+
+
+  
+      dataclass
+   (ml_toolkit.training.results.SplitResult)" href="#ml_toolkit.training.SplitResult">SplitResult</a>, ...]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Evaluated splits in splitter iterator order, without fitted models.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h5 id="ml_toolkit.training.ValidationResult.mean_metrics" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">mean_metrics</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+<a href="#ml_toolkit.training.ValidationResult.mean_metrics" class="headerlink" title="Permanent link">&para;</a></h5>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">mean_metrics</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Return the unweighted mean of each validation metric over splits.</p>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="dict">dict</span>[<span title="str">str</span>, <span title="float">float</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Named means; a single holdout returns its own validation metrics.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="ValueError">ValueError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>No splits exist or metric names differ between splits.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h5 id="ml_toolkit.training.ValidationResult.last_split" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">last_split</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+<a href="#ml_toolkit.training.ValidationResult.last_split" class="headerlink" title="Permanent link">&para;</a></h5>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">last_split</span><span class="p">:</span> <span class="n">SplitResult</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Return the latest evaluated split, used for final fitting.</p>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="SplitResult
+
+
+  
+      dataclass
+   (ml_toolkit.training.results.SplitResult)" href="#ml_toolkit.training.SplitResult">SplitResult</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Last validation result in the splitter iterator's order.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="ValueError">ValueError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>No validation splits exist.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+    </div>
+
+</div>
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h4 id="ml_toolkit.training.SplitResult" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">SplitResult</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#ml_toolkit.training.SplitResult" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">SplitResult</span><span class="p">(</span>
+    <span class="n">index</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">train_metrics</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
+    <span class="n">val_metrics</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
+    <span class="n">features</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span>
+    <span class="n">refit_params</span><span class="p">:</span> <span class="n">ModelParams</span><span class="p">,</span>
+    <span class="n">best_iteration</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">feature_selection</span><span class="p">:</span> <span class="n">FeatureSelectionResult</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">tuning</span><span class="p">:</span> <span class="n">TuningResult</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>Store one complete train/validation execution without retaining its model.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.training.SplitResult.index">index</span></code></td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Positive unique index supplied by the splitter.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.training.SplitResult.train_metrics">train_metrics</span></code></td>
+            <td>
+                  <code><span title="dict">dict</span>[<span title="str">str</span>, <span title="float">float</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Metrics on the training rows.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.training.SplitResult.val_metrics">val_metrics</span></code></td>
+            <td>
+                  <code><span title="dict">dict</span>[<span title="str">str</span>, <span title="float">float</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Metrics on held-out validation rows.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.training.SplitResult.features">features</span></code></td>
+            <td>
+                  <code><span title="tuple">tuple</span>[<span title="str">str</span>, ...]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Selected feature names in input order.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.training.SplitResult.refit_params">refit_params</span></code></td>
+            <td>
+                  <code><span title="ml_toolkit.types.ModelParams">ModelParams</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Constructor parameters for fitting a new model without validation.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.training.SplitResult.best_iteration">best_iteration</span></code></td>
+            <td>
+                  <code><span title="int">int</span> or None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Zero-based best iteration of the post-tuning fit, not an RFE iteration.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.training.SplitResult.feature_selection">feature_selection</span></code></td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="FeatureSelectionResult
+
+
+  
+      dataclass
+   (ml_toolkit.feature_selection.FeatureSelectionResult)" href="../feature-selection/#ml_toolkit.feature_selection.FeatureSelectionResult">FeatureSelectionResult</a> or None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Selection history from this split before tuning.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.training.SplitResult.tuning">tuning</span></code></td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="TuningResult
+
+
+  
+      dataclass
+   (ml_toolkit.training.results.TuningResult)" href="../tuning/#ml_toolkit.training.TuningResult">TuningResult</a> or None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Winning parameters and objective of this split's independent study.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.code.copy", "navigation.sections", "navigation.top", "search.highlight"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"alias": true, "default": "stable", "provider": "mike"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
