@@ -1635,6 +1635,13 @@ is enabled. Disabling its packaging never registers the other model instead.</p>
 <p>Pass a <a href="../models/">model factory</a>, <a href="../metrics/">metric</a> and prepared splitter.
 <code>TrainingConfig</code> controls tuning, shared reporting and packaging. The
 <a href="../../configuration/">task recipes</a> show complete combinations.</p>
+<p>Training shows stage progress and an evaluation summary by default. Use
+<code>TrainingConfig(verbosity="verbose")</code> for split sizes, date ranges, per-split
+metrics and tuning trials, or <code>TrainingConfig(verbosity="silent")</code> to disable
+automatic ml-toolkit output. With an existing configuration, use
+<code>replace(config, verbosity="verbose")</code>. See the
+<a href="../configuration/#console-verbosity">four verbosity levels</a> for details and
+their relationship to Python logging and backend output.</p>
 <table>
 <thead>
 <tr>
@@ -1822,7 +1829,7 @@ best_iteration, feature_importances, get_refit_params and log.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Parameter tuning, additional reporting and model packaging settings.</p>
+                <p>Parameter tuning, console verbosity, reporting and model packaging settings.</p>
               </div>
             </td>
             <td>

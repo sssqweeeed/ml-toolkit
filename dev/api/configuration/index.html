@@ -1210,6 +1210,34 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#console-verbosity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Console verbosity
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Console verbosity">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#python-logging-and-backend-output" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Python logging and backend output
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#api-reference" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1266,6 +1294,34 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#console-verbosity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Console verbosity
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Console verbosity">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#python-logging-and-backend-output" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Python logging and backend output
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#api-reference" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1297,7 +1353,7 @@
 
 
 <h1 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">&para;</a></h1>
-<p><code>TrainingConfig</code> controls tuning, shared reporting, model packaging and optional
+<p><code>TrainingConfig</code> controls console verbosity, tuning, shared reporting, model packaging and optional
 training including test via <code>fit_on_test=False</code>. Enabling this flag returns an
 additional <code>result.final_model</code> and requires a held-out test sample. See the
 <a href="../training/#optionally-train-including-test">training scenarios</a>.
@@ -1334,7 +1390,7 @@ fits a <code>LevelTransformer</code> on the same training rows. See
 <tbody>
 <tr>
 <td><code>TrainingConfig</code></td>
-<td>Tuning, reporting and model packaging settings</td>
+<td>Console verbosity, tuning, reporting and model packaging settings</td>
 </tr>
 <tr>
 <td><code>TuningConfig</code></td>
@@ -1365,6 +1421,78 @@ fits a <code>LevelTransformer</code> on the same training rows. See
 <p>See <a href="../../configuration/">Task recipes</a> for complete configuration in a training
 call, <a href="../../evaluation/custom/">Build an evaluator</a> for custom prediction reports,
 and <a href="../../data-analysis/custom/">Build a data analyzer</a> for custom data reports.</p>
+<h2 id="console-verbosity">Console verbosity<a class="headerlink" href="#console-verbosity" title="Permanent link">&para;</a></h2>
+<p>Set <code>TrainingConfig(verbosity="normal")</code> to see training progress without
+configuring a Python logger. <code>normal</code> is the default. Each setting applies only
+to the current <code>train_model</code> call, including its selection, tuning and reports.</p>
+<table>
+<thead>
+<tr>
+<th>Level</th>
+<th>Output</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>silent</code></td>
+<td>No automatic progress or result output from ml-toolkit. Warnings and exceptions remain visible.</td>
+</tr>
+<tr>
+<td><code>normal</code></td>
+<td>Run name, original dataset row/feature counts, stage and split milestones, selection/tuning summaries, and a final metric table.</td>
+</tr>
+<tr>
+<td><code>verbose</code></td>
+<td>Everything in <code>normal</code>, plus each split's row/feature counts and date range, selected feature count, best iteration, train/validation/test metrics, and each tuning trial's objective.</td>
+</tr>
+<tr>
+<td><code>debug</code></td>
+<td>Everything in <code>verbose</code>, plus selected feature names, built-in selection candidates, and internal model, PSI, SHAP, report and artifact diagnostics.</td>
+</tr>
+</tbody>
+</table>
+<!-- example: configuration-verbosity -->
+
+<div class="highlight"><pre><span></span><code><span class="n">normal_config</span> <span class="o">=</span> <span class="n">replace</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">verbosity</span><span class="o">=</span><span class="s2">"normal"</span><span class="p">)</span>
+<span class="n">detailed_config</span> <span class="o">=</span> <span class="n">replace</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">verbosity</span><span class="o">=</span><span class="s2">"verbose"</span><span class="p">)</span>
+<span class="n">quiet_config</span> <span class="o">=</span> <span class="n">replace</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">verbosity</span><span class="o">=</span><span class="s2">"silent"</span><span class="p">)</span>
+<span class="n">debug_config</span> <span class="o">=</span> <span class="n">replace</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">verbosity</span><span class="o">=</span><span class="s2">"debug"</span><span class="p">)</span>
+</code></pre></div>
+<p>Pass the chosen configuration as <code>train_model(..., config=detailed_config)</code>.
+Unknown levels raise <code>ValueError</code>. There is no numeric interval or per-tree
+progress bar. The selected level is recorded in MLflow's
+<code>configuration/requested.json</code> together with the other training settings.</p>
+<p>The plain-text output goes to <strong>stderr</strong>, including in notebooks and redirected
+terminal output. Tables use six significant digits; returned metrics retain
+their original precision. A compact final summary looks like this (illustrative
+values):</p>
+<div class="highlight"><pre><span></span><code>Evaluation summary (test scores belong to the main model)
+metric | validation mean | test
+-------+-----------------+-----
+mae    | 9               | 12
+Completed training run example
+</code></pre></div>
+<p>The <code>test</code> column is omitted when the splitter has no test sample. With
+<code>fit_on_test=True</code>, test scores still describe the main model evaluated before
+the additional fit. Its train-only metrics appear separately in <code>verbose</code> and
+<code>debug</code>. Missing best iterations are shown as <code>—</code>; available iterations use the
+model's zero-based <code>best_iteration</code>. Undefined existing metrics display as <code>nan</code>
+or <code>inf</code>. Empty metric dictionaries produce a short <code>no metrics</code> message.</p>
+<p>Dataset counts describe <code>splitter.data</code>; per-stage tables describe the actual
+pools supplied by the splitter. Splits appear as they are processed, with their
+original indices. Output uses existing results and inexpensive metadata; it
+does not calculate extra metrics, repeat predictions, or collect all split
+pools in memory. Evaluator/analyzer metrics remain in their existing reports.</p>
+<h3 id="python-logging-and-backend-output">Python logging and backend output<a class="headerlink" href="#python-logging-and-backend-output" title="Permanent link">&para;</a></h3>
+<p>Console verbosity does not change CatBoost parameters (such as <code>verbose=False</code>),
+Optuna verbosity, MLflow output, or experiment recording. Consequently, <code>silent</code>
+does not suppress messages from those libraries or from your callbacks.</p>
+<p>Standard records under the <code>ml_toolkit</code> Python logger remain independent and
+retain application-controlled levels and handlers. If your application already
+prints these records to the terminal, use <code>verbosity="silent"</code> to avoid seeing
+both the automatic console output and your own handler's messages. Standalone
+model, selector, tuning and diagnostic calls keep their existing Python logging
+behavior; this setting does not enable automatic output outside <code>train_model</code>.</p>
 <h2 id="api-reference">API reference<a class="headerlink" href="#api-reference" title="Permanent link">&para;</a></h2>
 
 
@@ -1386,7 +1514,8 @@ and <a href="../../data-analysis/custom/">Build a data analyzer</a> for custom d
     <span class="n">tuning</span><span class="p">:</span> <span class="n">TuningConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">reporting</span><span class="p">:</span> <span class="n">ReportingConfig</span> <span class="o">=</span> <span class="n">ReportingConfig</span><span class="p">(),</span>
     <span class="n">tracking</span><span class="p">:</span> <span class="n">TrackingConfig</span> <span class="o">=</span> <span class="n">TrackingConfig</span><span class="p">(),</span>
-    <span class="n">fit_on_test</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">fit_on_test</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">verbosity</span><span class="p">:</span> <span class="n">Verbosity</span> <span class="o">=</span> <span class="s2">"normal"</span>
 <span class="p">)</span>
 </code></pre></div>
 
@@ -1496,6 +1625,25 @@ all eligible data including test. Requires a held-out test sample.</p>
             </td>
             <td>
                   <code>False</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>verbosity</code>
+            </td>
+            <td>
+                  <code>(<span title="silent">silent</span>, <span title="normal">normal</span>, <span title="verbose">verbose</span>, <span title="debug">debug</span>)</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Console output for this training run: none, milestones and summary,
+split/trial details, or internal diagnostics. Writes to stderr without
+configuring Python logging or changing CatBoost, Optuna or MLflow output.
+Warnings, exceptions and application logging remain independent.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;silent&#39;</code>
             </td>
           </tr>
       </tbody>
