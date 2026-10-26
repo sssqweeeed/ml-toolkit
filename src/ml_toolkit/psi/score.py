@@ -3,6 +3,21 @@ from collections import Counter
 import numpy as np
 import polars as pl
 
+from ..types import FloatArray
+
+
+def psi_from_shares(
+    reference_share: FloatArray, current_share: FloatArray, *, epsilon: float
+) -> float:
+    """Shared scoring kernel for row-based and persisted aggregate references."""
+    reference_share = np.maximum(reference_share, epsilon)
+    current_share = np.maximum(current_share, epsilon)
+    return float(
+        np.sum(
+            (current_share - reference_share) * np.log(current_share / reference_share)
+        )
+    )
+
 
 def psi(
     reference: pl.Series,
@@ -66,11 +81,4 @@ def psi(
     current_share = np.asarray(
         [current_counts[level] / len(current) for level in levels], dtype=float
     )
-    reference_share = np.maximum(reference_share, epsilon)
-    current_share = np.maximum(current_share, epsilon)
-
-    return float(
-        np.sum(
-            (current_share - reference_share) * np.log(current_share / reference_share)
-        )
-    )
+    return psi_from_shares(reference_share, current_share, epsilon=epsilon)

@@ -130,7 +130,7 @@ class MeanModel:
             params["use_best_model"] = False
         return params
 
-    def log(self, sample, *, config=None):
+    def log(self, sample, *, config=None, extra_artifacts=None):
         mlflow.log_dict({"mean": self.mean}, "model.json")
 
 

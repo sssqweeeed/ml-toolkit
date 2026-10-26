@@ -131,9 +131,10 @@ retain their original immutable rules and levels.
 
 During training, PSI and `ObservedFitted` receive the same
 `ReportingConfig.features` rules and `ReportingConfig.n_bins`. Each report
-creates its own `LevelTransformer` and calls `fit(train.X)` on the same training
-rows for that fit. They do not share a fitted transformer, a cached level object,
-or fitted state between reports.
+uses levels fitted on the same training rows for that fit. PSI reuses the fitted
+transformer from the model's baseline when that model is being saved;
+`ObservedFitted` creates its own transformer. PSI and observed/fitted do not
+share a fitted transformer with each other.
 
 The same rules, bin count and reference data produce identical categories and
 numerical boundaries for matching features. Identical configuration alone is
@@ -277,6 +278,48 @@ rules; `features=()` disables feature diagnostics. `epsilon` is the PSI share
 floor, and `period` sets temporal grouping. Scheduling and shared figure settings
 are described in the [data analysis overview](../data-analysis/index.md).
 
+## Persist a reference for monitoring
+
+`PSIBaseline` stores fitted feature rules and aggregate counts rather than
+retaining a row-level reference frame. Continue with the small `reference` and
+`current` samples above to save and reload it locally without MLflow:
+
+<!-- example: psi-baseline -->
+
+```python
+from tempfile import TemporaryDirectory
+from polars.testing import assert_frame_equal
+from ml_toolkit.psi import PSIBaseline
+
+baseline = PSIBaseline.from_reference(
+    reference, config=analysis.config
+)
+with TemporaryDirectory() as directory:
+    baseline.save(directory)
+    restored = PSIBaseline.load(directory)
+
+result = restored.compare(current)
+assert_frame_equal(result.psi, comparison.psi)
+assert_frame_equal(result.level_distribution, comparison.level_distribution)
+```
+
+Numerical boundaries, typed categories, missing/error sentinels and feature order
+survive serialization. `LevelTransformer.to_dict()` and `from_dict()` also expose
+the fitted transformation state separately. Loading does not refit any levels.
+
+`compare` returns the existing `PSIResult` with feature scores and reference/current
+distributions. Counts are unweighted, and `epsilon` floors shares independently
+without renormalization, exactly as in `PSIAnalysis`. The batch must be nonempty
+and contain all configured features; extra columns are allowed.
+
+`time=` in `from_reference` records the reference date range as metadata.
+The baseline's `time_distribution` is empty: compare each incoming monitoring
+window separately against the same fixed reference. Existing temporal reports
+in `PSIAnalysis` and training remain available.
+
+During training, enabled PSI is bundled automatically with saved models. See
+[loading a model's baseline](tracking.md#load-a-models-psi-baseline).
+
 ## API reference
 
 Import PSI analysis from `ml_toolkit.psi`.
@@ -284,6 +327,8 @@ Import PSI analysis from `ml_toolkit.psi`.
 ### Drift analysis
 
 ::: ml_toolkit.psi.PSIAnalysis
+
+::: ml_toolkit.psi.PSIBaseline
 
 ::: ml_toolkit.psi.compare_psi
 

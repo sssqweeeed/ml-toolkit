@@ -18,6 +18,7 @@ from .contracts import (
     Pool,
 )
 from .evaluation import evaluate_model
+from .psi import prepare_psi_baseline, log_model_with_baseline
 from .reporting import prepare_evaluators, prepare_analyzers
 from ..evaluation import PredictionEvaluator
 from ..data_analysis import DataAnalyzer
@@ -211,6 +212,14 @@ def train_model(
                 last_split=last,
                 model_factory=model_factory,
             )
+            log_main = (
+                config.tracking.log_final_model
+                if test_heldout is None
+                else config.tracking.log_test_model
+            )
+            baseline = prepare_psi_baseline(
+                test_train, config.reporting, log_model=log_main, stage=stage
+            )
             scores = evaluate_model(
                 model,
                 test_train,
@@ -219,14 +228,10 @@ def train_model(
                 config.reporting,
                 evaluators,
                 analyzers=analyzers,
+                psi_baseline=baseline,
                 stage=stage,
                 name=stage,
                 split=DatasetSplit.TEST,
-            )
-            log_main = (
-                config.tracking.log_final_model
-                if test_heldout is None
-                else config.tracking.log_test_model
             )
             if log_main:
                 main_tracking = (
@@ -234,7 +239,7 @@ def train_model(
                     if config.fit_on_test
                     else config.tracking
                 )
-                model.log(test_train, config=main_tracking)
+                log_model_with_baseline(model, test_train, main_tracking, baseline)
         logger.info("Completed %s stage", stage)
         test_schema = (
             test_train.X.schema,
@@ -247,7 +252,11 @@ def train_model(
             full = splitter.get_final()
             validate_training_data(full)
             full = full.select_features(last.features)
-            if (full.X.schema, full.cat_features, full.numerical_features) != test_schema:
+            if (
+                full.X.schema,
+                full.cat_features,
+                full.numerical_features,
+            ) != test_schema:
                 raise ValueError(
                     "Final-fit data must match the selected training schema"
                 )
@@ -255,6 +264,12 @@ def train_model(
             with tracking.run("final_fit"):
                 final_model, _ = refit_model(
                     data=full, last_split=last, model_factory=model_factory
+                )
+                baseline = prepare_psi_baseline(
+                    full,
+                    config.reporting,
+                    log_model=config.tracking.log_final_model,
+                    stage="final_fit",
                 )
                 evaluate_model(
                     final_model,
@@ -264,11 +279,14 @@ def train_model(
                     config.reporting,
                     evaluators,
                     analyzers=analyzers,
+                    psi_baseline=baseline,
                     stage="final_fit",
                     name="final_fit",
                 )
                 if config.tracking.log_final_model:
-                    final_model.log(full, config=config.tracking)
+                    log_model_with_baseline(
+                        final_model, full, config.tracking, baseline
+                    )
             logger.info("Completed final_fit stage")
         logger.info("Completed training run %s", run_name)
         return TrainingResult(

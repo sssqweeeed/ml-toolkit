@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 import logging
 from datetime import date
 from typing import TYPE_CHECKING, Any, Self, cast
@@ -267,6 +268,7 @@ class InflationAdjustedModel(PythonModel):
         sample: Pool,
         *,
         config: TrackingConfig | None = None,
+        extra_artifacts: Mapping[str, str] | None = None,
     ) -> tuple[ModelInfo, ModelInfo]:
         """Log native and inflation-adjusted serving models to MLflow.
 
@@ -277,6 +279,10 @@ class InflationAdjustedModel(PythonModel):
         config : TrackingConfig or None, default None
             Artifact name, positive example-row limit, registry name, and serving
             environment. None uses TrackingConfig defaults.
+
+        extra_artifacts : Mapping[str, str] or None, default None
+            Additional files or directories bundled with the model. Names must
+            not conflict with the adapter's own artifacts.
 
         Returns
         -------
@@ -318,6 +324,7 @@ class InflationAdjustedModel(PythonModel):
 
         native_info = self.model.log(
             sample,
+            extra_artifacts=extra_artifacts,
             config=replace(
                 config,
                 model_name=f"{name}_native",
@@ -342,6 +349,7 @@ class InflationAdjustedModel(PythonModel):
             name=name,
             registered_model_name=registered_model_name,
             conda_env=conda_env,
+            extra_artifacts=extra_artifacts,
             metadata={
                 "reference_date": self.reference_date.isoformat(),
                 "prediction_date_column": self.prediction_date_column,

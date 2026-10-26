@@ -3,6 +3,8 @@
 # --8<-- [start:adapter]
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 from ml_toolkit.training import Holdout
 
 import json
@@ -22,6 +24,7 @@ from mlflow.models.model import ModelInfo
 from ml_toolkit import Pool, train_model
 from ml_toolkit.config import TrackingConfig, TrainingConfig
 from ml_toolkit.models import CatBoostRegressionModel
+from ml_toolkit.tracking.model_artifacts import merge_artifacts
 from ml_toolkit.types import FloatArray, ModelParams
 
 
@@ -126,7 +129,13 @@ class TargetScaledRegressor:
         """
         return self._inner.get_refit_params()
 
-    def log(self, sample: Pool, *, config: TrackingConfig | None = None) -> ModelInfo:
+    def log(
+        self,
+        sample: Pool,
+        *,
+        config: TrackingConfig | None = None,
+        extra_artifacts: Mapping[str, str] | None = None,
+    ) -> ModelInfo:
         """Log native artifacts and an entrypoint that reverses target scaling.
 
         Parameters
@@ -135,6 +144,10 @@ class TargetScaledRegressor:
             Representative serving rows in fitted feature order.
         config : TrackingConfig or None, default None
             Artifact name, registry, example size, and optional environment file.
+
+        extra_artifacts : Mapping[str, str] or None, default None
+            Additional files or directories bundled with the model. Names must
+            not conflict with the adapter's own artifacts.
 
         Returns
         -------
@@ -170,7 +183,10 @@ class TargetScaledRegressor:
             return mlflow.pyfunc.log_model(
                 name=config.model_name,
                 python_model=str(Path(__file__).with_name("custom_model_serving.py")),
-                artifacts={"model": str(model_path), "settings": str(state_path)},
+                artifacts=merge_artifacts(
+                    {"model": str(model_path), "settings": str(state_path)},
+                    extra_artifacts,
+                ),
                 signature=infer_signature(frame, prediction),
                 input_example=frame,
                 params={},

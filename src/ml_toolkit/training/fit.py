@@ -15,6 +15,7 @@ from .contracts import Pool
 from ..feature_selection import FeatureSelector
 from ..data import validate_training_categories
 from .evaluation import evaluate_model
+from .psi import prepare_psi_baseline, log_model_with_baseline
 from ..evaluation import PredictionEvaluator
 from ..data_analysis import DataAnalyzer
 from .results import SplitResult
@@ -100,6 +101,12 @@ def fit_split(
 
             def score(candidate: ModelParams) -> float:
                 trial_model = model_factory(candidate.copy()).fit(train, validation)
+                baseline = prepare_psi_baseline(
+                    train,
+                    config.reporting,
+                    log_model=config.tracking.log_trial_models,
+                    stage="tuning",
+                )
                 trial_scores = evaluate_model(
                     trial_model,
                     train,
@@ -108,11 +115,14 @@ def fit_split(
                     config.reporting,
                     evaluators,
                     analyzers=analyzers,
+                    psi_baseline=baseline,
                     stage="tuning",
                     name=f"validation/split_{index}/tuning",
                 )
                 if config.tracking.log_trial_models:
-                    trial_model.log(validation, config=model_tracking)
+                    log_model_with_baseline(
+                        trial_model, validation, model_tracking, baseline
+                    )
                 return (trial_scores.heldout_metrics or {})[tuning_config.metric]
 
             tuning = tune_optuna(
@@ -124,6 +134,12 @@ def fit_split(
             selected_params = tuning.best_params.copy()
         tracking.log_params(selected_params)
         model = model_factory(selected_params.copy()).fit(train, validation)
+        baseline = prepare_psi_baseline(
+            train,
+            config.reporting,
+            log_model=config.tracking.log_validation_models,
+            stage="validation",
+        )
         scores = evaluate_model(
             model,
             train,
@@ -132,11 +148,12 @@ def fit_split(
             config.reporting,
             evaluators,
             analyzers=analyzers,
+            psi_baseline=baseline,
             stage="validation",
             name=f"validation/split_{index}",
         )
         if config.tracking.log_validation_models:
-            model.log(validation, config=model_tracking)
+            log_model_with_baseline(model, validation, model_tracking, baseline)
         result = SplitResult(
             index=index,
             train_metrics=scores.train_metrics,

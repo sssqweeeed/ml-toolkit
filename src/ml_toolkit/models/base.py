@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Protocol, Self
 
 import catboost
@@ -96,7 +97,11 @@ class Model(Protocol):
         ...
 
     def log(
-        self, sample: Pool, *, config: TrackingConfig | None = None
+        self,
+        sample: Pool,
+        *,
+        config: TrackingConfig | None = None,
+        extra_artifacts: Mapping[str, str] | None = None,
     ) -> ModelInfo | tuple[ModelInfo, ModelInfo]:
         """Log a fitted model to the configured MLflow tracking store.
 
@@ -106,6 +111,10 @@ class Model(Protocol):
             Data supplying a representative serving input example.
         config : TrackingConfig or None, default None
             Model artifact name, sample size, registry, and environment settings.
+
+        extra_artifacts : Mapping[str, str] or None, default None
+            Additional files or directories bundled with the model. Names must
+            not conflict with the adapter's own artifacts.
 
         Returns
         -------

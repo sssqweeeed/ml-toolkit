@@ -121,4 +121,92 @@ own model-packaging methods in the [model reference](models.md).
 
 ## API reference
 
+::: ml_toolkit.tracking.load_psi_baseline
+
 ::: ml_toolkit.tracking.log_polars_table
+
+## Load a model's PSI baseline
+
+With `ReportingConfig(psi=True)`, each saved model includes a `psi_baseline`
+artifact containing fitted feature levels and unweighted reference counts.
+The existing `TrackingConfig.log_trial_models`, `log_validation_models`,
+`log_test_model`, and `log_final_model` switches control this packaging; no
+additional tracking switch is needed. `ReportingConfig.on_*` controls reports,
+so disabling a stage's reports does not remove the saved model's baseline.
+`features=()` explicitly disables both levels and their baseline.
+
+The training workflow prepares this artifact automatically. For the model fitted
+above outside the workflow, attach it explicitly when logging:
+
+<!-- example: tracking-psi-package -->
+
+```python
+from tempfile import TemporaryDirectory
+from ml_toolkit.config import FeatureLevelConfig
+from ml_toolkit.psi import PSIBaseline, PSIConfig
+
+reference = PSIBaseline.from_reference(
+    part.train.X,
+    config=PSIConfig(
+        features=tuple(
+            FeatureLevelConfig(
+                name,
+                "categorical" if name in part.train.cat_features else "numerical",
+            )
+            for name in part.train.X.columns
+        )
+    ),
+    time=part.train.time,
+)
+with TemporaryDirectory() as directory:
+    reference.save(directory)
+    with mlflow.start_run(run_name="psi-monitoring"):
+        info = model.log(
+            part.train, extra_artifacts={"psi_baseline": directory}
+        )
+```
+
+Use the same immutable model URI for serving and monitoring. The saved package
+remains available after the temporary source directory has been removed:
+
+<!-- example: tracking-psi-load -->
+
+```python
+from polars.testing import assert_frame_equal
+from ml_toolkit.tracking import load_psi_baseline
+
+model_uri = info.model_uri
+served = mlflow.pyfunc.load_model(model_uri)
+baseline = load_psi_baseline(model_uri)
+
+# Use the original training feature representation for monitoring.
+current_X = test.X
+current_levels = baseline.transformer.transform(current_X)
+result = baseline.compare(current_X)
+assert_frame_equal(result.psi, reference.compare(current_X).psi)
+np.testing.assert_allclose(
+    served.predict(test.to_model_input(categorical_as_strings=True)),
+    model.predict_pool(test),
+)
+```
+
+The loader also accepts a registered version such as `models:/risk_model/17`
+or a local model package. It reads the named artifact from
+`MLmodel` without loading native model weights or executing serving code. Install
+a compatible `ml-toolkit` in the monitoring environment. Use a fixed model
+version instead of independently resolving a mutable registry alias for serving
+and monitoring.
+
+Each baseline uses all training rows after feature selection, independently of
+`input_example_rows`. Validation/test rows are excluded unless they are part of
+the subsequent final fit's training population. A train-only final fit still
+packages its baseline. Inflation-adjusted models include the same reference in
+both their native and wrapper packages.
+
+The package contains `manifest.json` (format version, scoring settings and
+reference metadata), `levels.json` (typed fitted transformation rules), and
+`reference_counts.parquet` (feature/level counts, including zero counts).
+It contains no source rows and requires no separate PyFunc model. Graphs and
+evaluation distributions remain run artifacts. Missing baselines raise
+`FileNotFoundError`; malformed or unsupported state raises `ValueError`.
+Existing models remain loadable for predictions without migration.

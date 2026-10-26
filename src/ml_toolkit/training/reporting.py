@@ -26,7 +26,7 @@ from ..evaluation import (
 from ..feature_levels import LevelTransformer
 from ..models.base import Model
 from ..plots import psi as psi_plots
-from ..psi import compare_psi
+from ..psi import PSIBaseline, compare_psi
 from ..tracking import runs as tracking
 from ..types import FloatArray
 
@@ -125,6 +125,7 @@ def report_predictions(
     config: ReportingConfig,
     stage: str,
     analyzers: tuple[DataAnalyzer, ...] = (),
+    psi_baseline: PSIBaseline | None = None,
 ) -> None:
     """Run one already-enabled fit's reports; stage is only error context."""
     validate_inputs(data, prediction, split)
@@ -145,7 +146,14 @@ def report_predictions(
             ),
             context=f"Prediction evaluation evaluator={evaluator.name}, stage={stage}",
         )
-    report_data(data=data, split=split, analyzers=analyzers, config=config, stage=stage)
+    report_data(
+        data=data,
+        split=split,
+        analyzers=analyzers,
+        config=config,
+        stage=stage,
+        psi_baseline=psi_baseline,
+    )
     if config.shap is not None:
         try:
             with TemporaryDirectory(prefix="ml-toolkit-shap-") as directory:
@@ -199,6 +207,7 @@ def report_data(
     analyzers: tuple[DataAnalyzer, ...],
     config: ReportingConfig,
     stage: str,
+    psi_baseline: PSIBaseline | None = None,
 ) -> None:
     """Run data analysis and PSI without a model or predictions."""
     validate_split(data, split)
@@ -220,7 +229,9 @@ def report_data(
         try:
             with TemporaryDirectory(prefix="ml-toolkit-psi-") as directory:
                 root = Path(directory).resolve()
-                upload_artifacts(root, _psi_artifacts(data, split, root, config), "psi")
+                upload_artifacts(
+                    root, _psi_artifacts(data, split, root, config, psi_baseline), "psi"
+                )
         except Exception as exc:
             exc.add_note(f"Data analysis analyzer=psi, stage={stage}")
             raise
@@ -231,6 +242,7 @@ def _psi_artifacts(
     split: pl.Series,
     root: Path,
     config: ReportingConfig,
+    psi_baseline: PSIBaseline | None = None,
 ) -> list[Path]:
     paths: list[Path] = []
     pair = data_comparison_pair(data, split)
@@ -240,7 +252,11 @@ def _psi_artifacts(
     features = feature_definitions(train, config.features)
     if not features:
         return []
-    transformer = LevelTransformer(features, n_bins=config.n_bins).fit(train.X)
+    transformer = (
+        psi_baseline.transformer
+        if psi_baseline is not None
+        else LevelTransformer(features, n_bins=config.n_bins).fit(train.X)
+    )
     assert transformer.feature_levels is not None
     result = compare_psi(
         transformer.transform(train.X),
