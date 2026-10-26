@@ -512,7 +512,7 @@ def test_split_searches_are_independent_and_final_uses_last_post_tuning_fit(tmp_
         def get_refit_params(self):
             return {**super().get_refit_params(), "decision_threshold": self.threshold}
 
-        def log(self, sample, *, config=None):
+        def log(self, sample, *, config=None, extra_artifacts=None):
             packages.append(
                 (
                     mlflow.active_run().data.tags["mlflow.runName"],

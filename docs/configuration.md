@@ -1,5 +1,11 @@
 # Task recipes
 
+When `ReportingConfig.psi=True`, every model saved by the existing tracking
+flags includes its fitted PSI baseline. `ReportingConfig.on_*` switches govern
+report generation; they do not disable this model attachment. `features=()`
+disables levels and baseline packaging. No additional tracking flag is needed.
+See [PSI baseline loading](api/tracking.md#load-a-models-psi-baseline).
+
 Choose the model, primary metric and reports for your target, then pass them to
 `train_model`. The short recipes share the setup below. A
 [complete Frequency example](#complete-frequency-example) spells out selection,

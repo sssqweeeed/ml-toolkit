@@ -79,7 +79,7 @@ def test_final_iteration_and_model_packaging(tmp_path):
             fitted.append(self.params.copy())
             return super().fit(train, validation)
 
-        def log(self, sample, *, config=None):
+        def log(self, sample, *, config=None, extra_artifacts=None):
             logged.append((len(sample), config))
 
     tracking = TrackingConfig(
@@ -141,7 +141,7 @@ def test_tuning_budget_seed_and_trial_packaging(tmp_path, monkeypatch):
     monkeypatch.setattr(module.optuna, "create_study", create)
 
     class Model(MeanModel):
-        def log(self, sample, *, config=None):
+        def log(self, sample, *, config=None, extra_artifacts=None):
             logged.append(config)
 
     def param_space(trial):

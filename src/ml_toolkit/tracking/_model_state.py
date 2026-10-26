@@ -1,5 +1,7 @@
 """Auditable state for Models From Code."""
 
+from collections.abc import Mapping
+
 import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -29,6 +31,7 @@ def log_catboost(
     registered_model_name: str | None = None,
     conda_env: Path | None = None,
     metadata: dict[str, object] | None = None,
+    extra_artifacts: Mapping[str, str] | None = None,
 ) -> ModelInfo:
     state = model.export_state()
     with TemporaryDirectory(prefix="ml-toolkit-model-") as directory:
@@ -49,6 +52,7 @@ def log_catboost(
             sample_frame=sample_frame,
             sample_prediction=sample_prediction,
             artifacts={"model": str(model_path), "config": str(config_path)},
+            extra_artifacts=extra_artifacts,
             metadata={**logged_state, **(metadata or {})},
             params=model.native_model.get_all_params(),
             name=name,

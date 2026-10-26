@@ -202,8 +202,27 @@ def explicit_selection(data: Pool) -> None:
 
 from ml_toolkit.config import FeatureLevelConfig
 from ml_toolkit.feature_levels import FeatureLevels, LevelTransformer
+from ml_toolkit.psi import PSIBaseline, PSIConfig, PSIResult
+from ml_toolkit.tracking import load_psi_baseline
+
+
+def monitoring_contract(
+    reference: pl.DataFrame, current: pl.DataFrame, uri: str
+) -> None:
+    config = PSIConfig((FeatureLevelConfig("age", "numerical"),))
+    baseline = PSIBaseline.from_reference(reference, config=config)
+    assert_type(baseline, PSIBaseline)
+    assert_type(baseline.compare(current), PSIResult)
+    assert_type(baseline.transformer.transform(current), pl.DataFrame)
+    assert_type(load_psi_baseline(uri), PSIBaseline)
+    assert_type(PSIBaseline.load("baseline"), PSIBaseline)
+    assert_type(
+        LevelTransformer.from_dict(baseline.transformer.to_dict()), LevelTransformer
+    )
+
+
 from ml_toolkit.plots.regression import observed_fitted_by_level
-from ml_toolkit.psi import PSIResult, compare_psi
+from ml_toolkit.psi import compare_psi
 import pandas as pd
 
 

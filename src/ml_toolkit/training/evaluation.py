@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from ..psi import PSIBaseline
 from ..config import ReportingConfig
 from ..evaluation import PredictionEvaluator
 from ..data_analysis import DataAnalyzer
@@ -49,6 +50,7 @@ def evaluate_model(
     stage: TrainingStage,
     name: str,
     split: DatasetSplit = DatasetSplit.VAL,
+    psi_baseline: PSIBaseline | None = None,
 ) -> EvaluationResult:
     datasets = [(DatasetSplit.TRAIN, train)]
     if heldout is not None:
@@ -108,6 +110,7 @@ def evaluate_model(
             analyzers=analyzers,
             config=reporting,
             stage=name,
+            psi_baseline=psi_baseline,
         )
     return EvaluationResult(scores[DatasetSplit.TRAIN], scores.get(split))
 

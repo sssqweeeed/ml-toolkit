@@ -54,7 +54,7 @@ def test_threshold_example_demonstrates_precision_recall_tradeoff():
 def test_psi_guide_reuses_reference_bins_and_exposes_unseen_share():
     namespace = {}
     for recipe in recipes(ROOT / 'docs/api/psi.md'):
-        if recipe.name in {'psi-compare', 'psi-levels'}:
+        if recipe.name in {'psi-compare', 'psi-levels', 'psi-baseline'}:
             execute(recipe, namespace)
     assert namespace['levels'].feature_levels[0].boundaries == (35.0,)
     assert namespace['level_comparison'].psi.equals(namespace['comparison'].psi)

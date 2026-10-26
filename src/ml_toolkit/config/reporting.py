@@ -81,8 +81,9 @@ class ReportingConfig:
     """Enable reporting by training stage and configure PSI, SHAP and exports.
 
     Stage switches gate prediction evaluators, data analyzers, PSI and SHAP,
-    including all additional metrics and artifacts, not training
-    metrics or optimization. All validation folds use the same settings.
+    including their additional metrics and report artifacts, not training
+    metrics or optimization. PSI baseline packaging follows model logging flags
+    independently of stage report switches. All validation folds use the same settings.
     PSI and observed/fitted use feature levels fitted on training rows.
     ``features=None`` infers all input features; ``()`` disables level reports.
     ``period`` and ``epsilon`` apply only to PSI.
@@ -98,7 +99,8 @@ class ReportingConfig:
     on_final_fit : bool, default True
         Enable applicable train-only reports after fitting all eligible data.
     psi : bool, default False
-        Enable data analysis of population stability; uses no predictions.
+        Enable population stability reports and baseline packaging with saved
+        models; uses no predictions. features=() disables the baseline too.
     shap : ShapConfig or None, default None
         Optional native-model explanations of held-out rows.
     features : tuple[FeatureLevelConfig, ...] or None, default None

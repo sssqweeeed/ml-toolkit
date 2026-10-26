@@ -64,6 +64,14 @@ Explicit inheritance from `Model` is unnecessary. A factory accepts a
 | `get_refit_params()` | Reuses the selected iteration budget and disables early stopping | Return copied constructor settings, without learned state |
 | `log(sample, config=...)` | Saves native weights, scale settings, and serving source | Preserve the adapter's complete prediction behavior |
 
+To support PSI baseline packaging, implement the optional keyword argument
+`extra_artifacts: Mapping[str, str] | None = None` in `log`. Merge those artifacts
+with the adapter's native files and pass them to `mlflow.pyfunc.log_model` before
+registration. Reject duplicate artifact names rather than overwriting model
+state. The complete example demonstrates this contract. Existing workflow calls
+omit this keyword when no baseline is attached; custom adapters enabling PSI
+packaging must accept and preserve it.
+
 `fit` uses `Pool.with_target`, so timestamps, weights, IDs, and categorical
 metadata stay aligned. The scale is fixed project configuration; it is never
 estimated from the validation or test rows. The factory supplies that same scale

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ml-toolkit"
-version = "0.1.1"
+version = "0.2.0"
 description = "Reusable ML training, metrics, PSI, diagnostics, plots, and MLflow logging"
 readme = "README.md"
 requires-python = ">=3.11"
