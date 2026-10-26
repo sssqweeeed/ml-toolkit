@@ -165,7 +165,7 @@ def test_models_from_code_roundtrip_outside_repository(
         )
         model = InflationAdjustedModel(regressor, inflation, date(2024, 1, 1))
     model.fit(data.take(range(32)), data.take(range(32, 48)))
-    frame = data.to_model_input()
+    frame = data.to_model_input(categorical_as_strings=True)
     # Nonstandard index and shuffled feature order must not disturb dates or categories.
     frame.index = pd.Index(np.arange(len(frame)) + 100)
     frame = frame.loc[:, list(reversed(frame.columns))]

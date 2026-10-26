@@ -308,7 +308,7 @@ wrapper = LightGBMServingModel(
     numerical_features=split.train.numerical_features,
     cat_features=split.train.cat_features,
 )
-serving_input = test.to_model_input()
+serving_input = test.to_model_input(categorical_as_strings=True)
 predictions = wrapper.predict(None, serving_input)
 
 mlflow.set_tracking_uri("sqlite:///mlflow.db")

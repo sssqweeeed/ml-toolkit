@@ -9,7 +9,7 @@ import pytest
 from polars.testing import assert_frame_equal, assert_series_equal
 
 from ml_toolkit import Pool as PublicPool
-from ml_toolkit.data import validate_training_data
+from ml_toolkit.data import validate_training_categories, validate_training_data
 from ml_toolkit.training import Pool as TrainingPool
 from ml_toolkit.training.contracts import Pool as ContractPool
 from examples.project_pool import ProjectPool as Pool
@@ -202,6 +202,84 @@ def test_serving_input_preserves_order_and_source_data(pool, n_rows, expected):
 def test_negative_serving_limit_is_rejected(pool):
     with pytest.raises(ValueError, match="nonnegative"):
         pool.to_model_input(-1)
+
+
+@pytest.mark.parametrize("dtype", [pl.Categorical, pl.Enum(["a", "b"])])
+@pytest.mark.parametrize("values", [["a", None, "b"], [None] * 3, ["b", "a", "b"]])
+@pytest.mark.parametrize("chunked", [False, True])
+def test_encoded_categories_stay_compact_and_match_string_input(
+    pool, dtype, values, chunked
+):
+    frame = pool.X.with_columns(pl.Series("category", values, dtype=dtype))
+    if chunked:
+        frame = pl.concat([frame.head(1), frame.tail(2)], rechunk=False)
+    data = replace(pool, X=frame)
+    result = data.to_model_input()
+    assert isinstance(result["category"].dtype, pd.CategoricalDtype)
+    assert result["category"].tolist() == [
+        "unknown" if v is None else v for v in values
+    ]
+    strings = data.to_model_input(categorical_as_strings=True)
+    pd.testing.assert_frame_equal(result.astype({"category": str}), strings)
+    assert data.X["category"].to_list() == values
+    assert isinstance(data.to_model_input(0)["category"].dtype, pd.CategoricalDtype)
+
+
+@pytest.mark.parametrize(
+    "dtype", [pl.String, pl.Categorical, pl.Enum(["a", "unknown"])]
+)
+@pytest.mark.parametrize(
+    "values", [["a", None, "a"], [None] * 3, ["a", "unknown", None]]
+)
+def test_reserved_category_checks_observed_values(pool, dtype, values):
+    data = replace(
+        pool, X=pool.X.with_columns(pl.Series("category", values, dtype=dtype))
+    )
+    if "unknown" in values:
+        with pytest.raises(ValueError, match="category.*reserved"):
+            validate_training_categories(data)
+    else:
+        validate_training_categories(data)
+
+
+def test_reserved_category_check_accepts_enum_without_unknown(pool):
+    data = replace(
+        pool,
+        X=pool.X.with_columns(
+            pl.Series("category", ["a", None, "a"], dtype=pl.Enum(["a"]))
+        ),
+    )
+    validate_training_categories(data)
+
+
+@pytest.mark.parametrize("dtype", [pl.Float32, pl.Float64, pl.Int32, pl.Int64])
+@pytest.mark.parametrize("n_rows", [None, 2])
+def test_model_input_shares_numeric_buffers(pool, dtype, n_rows):
+    pool = replace(pool, X=pool.X.with_columns(pl.col("x", "extra").cast(dtype)))
+    result = pool.to_model_input(n_rows)
+    source = pool.X if n_rows is None else pool.X.head(n_rows)
+    expected = source.with_columns(
+        pl.col("category").cast(pl.String).fill_null("unknown").cast(pl.Categorical)
+    ).to_pandas()
+
+    pd.testing.assert_frame_equal(result, expected)
+    for name in ("x", "extra"):
+        assert np.shares_memory(result[name].to_numpy(), pool.X[name].to_numpy())
+
+
+@pytest.mark.parametrize("chunked", [False, True])
+def test_model_input_preserves_nullable_numeric_columns(pool, chunked):
+    frame = pool.X.with_columns(
+        pl.Series("x", [1.0, None, float("nan")], dtype=pl.Float32)
+    )
+    if chunked:
+        frame = pl.concat([frame.head(1), frame.tail(2)], rechunk=False)
+    pool = replace(pool, X=frame)
+    expected = frame.with_columns(
+        pl.col("category").cast(pl.String).fill_null("unknown").cast(pl.Categorical)
+    ).to_pandas()
+
+    pd.testing.assert_frame_equal(pool.to_model_input(), expected)
 
 
 @pytest.mark.parametrize(

@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 import polars as pl
 
+from ._model_input import categorical_frame
 from ._rows import row_indexer
 from .types import FloatArray, IntArray
 
@@ -188,17 +189,23 @@ class Pool:
             raise ValueError("Target must contain exactly one value per row")
         return replace(self, y=y)
 
-    def to_model_input(self, n_rows: int | None = None) -> pd.DataFrame:
+    def to_model_input(
+        self, n_rows: int | None = None, *, categorical_as_strings: bool = False
+    ) -> pd.DataFrame:
         """Return all or the first n_rows as a categorical-safe pandas frame.
 
         Oversized limits return all rows. Null categorical values become
-        ``"unknown"`` and categorical columns are cast to strings. Row order is
-        preserved so serving examples stay aligned with timestamp metadata.
+        ``"unknown"``. Categorical columns retain dictionary encoding with string
+        labels. Row order is preserved so inputs stay aligned with metadata.
 
         Parameters
         ----------
         n_rows : int or None, default None
             Nonnegative row limit; None includes all rows.
+        categorical_as_strings : bool, default False
+            Expand categorical columns to strings for serialization or MLflow
+            serving signatures. Model training and prediction accept the default
+            pandas categorical columns without this expansion.
 
         Returns
         -------
@@ -213,12 +220,13 @@ class Pool:
         if n_rows is not None and n_rows < 0:
             raise ValueError("n_rows must be nonnegative")
         frame = self.X if n_rows is None else self.X.head(n_rows)
-        if self.cat_features:
+        if categorical_as_strings:
             frame = frame.with_columns(
                 pl.col(name).cast(pl.String).fill_null("unknown")
                 for name in self.cat_features
             )
-        return frame.to_pandas()
+            return frame.to_pandas(split_blocks=True)
+        return categorical_frame(frame, self.cat_features)
 
     def to_catboost(self, baseline: float | FloatArray | None = None) -> catboost.Pool:
         """Convert aligned data with an optional scalar or per-row baseline.
@@ -302,7 +310,10 @@ def validate_training_categories(data: Pool) -> None:
     for name in data.cat_features:
         if name not in data.X.columns:
             raise ValueError(f"Categorical feature is missing: {name}")
-        if (data.X[name].cast(pl.String) == "unknown").any():
+        column = data.X[name]
+        if column.dtype.base_type() not in (pl.String, pl.Categorical, pl.Enum):
+            column = column.unique().cast(pl.String)
+        if (column == "unknown").any():
             raise ValueError(
                 f"Categorical feature {name!r} contains reserved value 'unknown'"
             )

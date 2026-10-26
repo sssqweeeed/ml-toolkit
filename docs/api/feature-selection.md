@@ -176,7 +176,8 @@ with mlflow.start_run():
 model_info = logged[1] if isinstance(logged, tuple) else logged
 reloaded = mlflow.pyfunc.load_model(model_info.model_uri)
 np.testing.assert_allclose(
-    reloaded.predict(selected_test.to_model_input()), expected
+    reloaded.predict(selected_test.to_model_input(categorical_as_strings=True)),
+    expected,
 )
 print("Selected model predictions preserved after reload")
 ```

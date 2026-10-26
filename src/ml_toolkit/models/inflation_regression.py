@@ -325,9 +325,9 @@ class InflationAdjustedModel(PythonModel):
             ),
         )
 
-        sample_frame = sample.to_model_input(n_rows=config.input_example_rows).loc[
-            :, self.model.feature_names
-        ]
+        sample_frame = sample.to_model_input(
+            n_rows=config.input_example_rows, categorical_as_strings=True
+        ).loc[:, self.model.feature_names]
         sample_frame[self.prediction_date_column] = pd.Series(
             sample.time.head(len(sample_frame)).to_list(),
             dtype="datetime64[ns]",

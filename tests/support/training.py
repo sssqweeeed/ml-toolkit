@@ -62,9 +62,13 @@ class ProjectData:
             baseline=baseline_values,
         )
 
-    def to_model_input(self, n_rows=None):
-        frame = self.X if n_rows is None else self.X.head(n_rows)
-        return frame.to_pandas()
+    def to_model_input(self, n_rows=None, *, categorical_as_strings=False):
+        data = ProjectPool(
+            self.X, self.y, self.time, self.weight, cat_features=self.cat_features
+        )
+        return data.to_model_input(
+            n_rows, categorical_as_strings=categorical_as_strings
+        )
 
 
 class MeanModel:

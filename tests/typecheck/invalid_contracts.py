@@ -89,6 +89,7 @@ TimeSeriesCV(3)  # expected-type-error
 
 
 def invalid_test_sizes(data: Pool) -> None:
+    data.to_model_input(categorical_as_strings="yes")  # expected-type-error
     Holdout(data, test_size=["2025-01-01"])  # expected-type-error
     Holdout(data, test_size={"start_date": "2025-01-01"})  # expected-type-error
 

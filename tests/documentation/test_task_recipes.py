@@ -95,7 +95,8 @@ def test_documented_task_recipes_train_and_evaluate(
         assert len(models) == 1
         reloaded = mlflow.pyfunc.load_model(models[0].model_uri)
         np.testing.assert_allclose(
-            reloaded.predict(selected_data.to_model_input()), predictions
+            reloaded.predict(selected_data.to_model_input(categorical_as_strings=True)),
+            predictions,
         )
     else:
         assert result.feature_selection is None

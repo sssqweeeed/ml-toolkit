@@ -64,6 +64,110 @@ def test_pandas_preparation_reuses_numeric_buffers_without_mutating_categories()
     pd.testing.assert_frame_equal(data, original)
 
 
+@pytest.mark.parametrize(
+    "values", [["b", "a", "b"], [1, 2, 1], [1, "1", None], [None] * 3]
+)
+def test_pandas_encoded_categories_match_previous_string_values(values):
+    data = pd.DataFrame(
+        {"cat": pd.Categorical(values), "a": [1.0, 2.0, 3.0]}, index=[7, 8, 9]
+    )
+    original = data.copy(deep=True)
+    expected = data["cat"].astype("string").fillna("unknown").astype(str)
+    result = prepare_frame(data, ["a", "cat"], ["cat"])
+    assert isinstance(result["cat"].dtype, pd.CategoricalDtype)
+    pd.testing.assert_series_equal(result["cat"].astype(str), expected)
+    pd.testing.assert_frame_equal(data, original)
+    if values == ["b", "a", "b"]:
+        assert np.shares_memory(data["cat"].array.codes, result["cat"].array.codes)
+
+
+@pytest.mark.parametrize("kind", [CatBoostRegressionModel, CatBoostClassificationModel])
+def test_encoded_predictions_match_strings_with_different_dictionary_order(
+    kind, monkeypatch
+):
+    data = replace(
+        pool(),
+        X=pool().X.with_columns(
+            pl.Series("cat", ["a", "b", None] * 4, dtype=pl.Enum(["a", "b"]))
+        ),
+        cat_features=("cat",),
+    )
+    params = {
+        "iterations": 4,
+        "thread_count": 1,
+        "verbose": False,
+        "allow_writing_files": False,
+    }
+    model = kind(params).fit(data)
+    strings = data.to_model_input(categorical_as_strings=True)
+    convert = ProjectPool.to_model_input
+    with monkeypatch.context() as patch:
+        patch.setattr(
+            ProjectPool,
+            "to_model_input",
+            lambda self, n_rows=None: convert(
+                self, n_rows, categorical_as_strings=True
+            ),
+        )
+        reference = kind(params).fit(data)
+    np.testing.assert_array_equal(
+        model.predict_pool(data), reference.predict_pool(data)
+    )
+    encoded = strings.copy()
+    encoded["cat"] = pd.Categorical(strings["cat"], categories=["unknown", "b", "a"])
+    np.testing.assert_array_equal(
+        model.predict_frame(encoded), model.predict_frame(strings)
+    )
+    np.testing.assert_array_equal(
+        model.predict_pool(data), model.predict_frame(strings)
+    )
+
+
+@pytest.mark.parametrize("dtype", [pl.Float32, pl.Float64, pl.Int32, pl.Int64])
+def test_polars_preparation_shares_numeric_buffers(dtype):
+    data = pl.DataFrame(
+        {"a": [1, 2, 3], "cat": ["north", None, "south"], "b": [4, 5, 6]}
+    ).with_columns(pl.col("a", "b").cast(dtype), pl.col("cat").cast(pl.Categorical))
+    original = data.clone()
+    result = prepare_frame(data, ["b", "cat", "a"], ["cat"])
+    expected = (
+        data.select("b", "cat", "a")
+        .with_columns(
+            pl.col("cat").cast(pl.String).fill_null("unknown").cast(pl.Categorical)
+        )
+        .to_pandas()
+    )
+
+    pd.testing.assert_frame_equal(result, expected)
+    for name in ("a", "b"):
+        assert np.shares_memory(result[name].to_numpy(), data[name].to_numpy())
+    assert data.equals(original)
+
+
+@pytest.mark.parametrize("chunked", [False, True])
+def test_polars_preparation_preserves_nullable_numeric_columns(chunked):
+    data = pl.DataFrame(
+        {
+            "a": [1.0, None, float("nan")],
+            "cat": ["north", None, "south"],
+            "b": [4.0, 5.0, 6.0],
+        }
+    ).with_columns(pl.col("a", "b").cast(pl.Float32))
+    if chunked:
+        data = pl.concat([data.head(1), data.tail(2)], rechunk=False)
+    expected = (
+        data.select("b", "cat", "a")
+        .with_columns(
+            pl.col("cat").cast(pl.String).fill_null("unknown").cast(pl.Categorical)
+        )
+        .to_pandas()
+    )
+
+    pd.testing.assert_frame_equal(
+        prepare_frame(data, ["b", "cat", "a"], ["cat"]), expected
+    )
+
+
 @pytest.mark.parametrize("kind", [CatBoostRegressionModel, CatBoostClassificationModel])
 def test_pool_prediction_prepares_only_model_columns_once(kind, monkeypatch):
     data = replace(

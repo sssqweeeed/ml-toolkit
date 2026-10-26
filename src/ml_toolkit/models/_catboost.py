@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 import polars as pl
 
+from .._model_input import categorical_frame
 from ..types import ModelParams
 
 NativeT = TypeVar("NativeT", bound=catboost.CatBoost)
@@ -37,21 +38,34 @@ def prepare_frame(
     if missing:
         raise ValueError(f"Missing model input columns: {missing}")
     if isinstance(data, pl.DataFrame):
-        return (
-            data.select(names)
-            .with_columns(
-                pl.col(name).cast(pl.String).fill_null("unknown")
-                for name in categorical
-            )
-            .to_pandas()
-        )
+        return categorical_frame(data.select(names), categorical)
     # Construct a new column container without copying numeric buffers, also
     # with pandas versions where selecting columns via .loc makes a deep copy.
     frame = pd.DataFrame(
         {name: data[name] for name in names}, index=data.index, copy=False
     )
     for name in categorical:
-        frame[name] = frame[name].astype("string").fillna("unknown").astype(str)
+        column = frame[name]
+        if isinstance(column.dtype, pd.CategoricalDtype):
+            labels = column.cat.categories.astype("string")
+            if not column.cat.categories.equals(labels):
+                # Convert dictionary entries, never a string for every row.
+                codes, categories = pd.factorize(labels, sort=False)
+                row_codes = cast(pd.Categorical, column.array).codes
+                mapping = np.append(codes, -1).astype(row_codes.dtype, copy=False)
+                mapped = mapping[row_codes]
+                column = pd.Series(
+                    pd.Categorical.from_codes(mapped, categories=categories),
+                    index=column.index,
+                    name=name,
+                )
+            if column.isna().any():
+                if "unknown" not in column.cat.categories:
+                    column = column.cat.add_categories(["unknown"])
+                column = column.fillna("unknown")
+            frame[name] = column
+        else:
+            frame[name] = column.astype("string").fillna("unknown").astype("category")
     return frame
 
 
