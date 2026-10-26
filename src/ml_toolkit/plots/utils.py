@@ -1,6 +1,5 @@
 """Input checks and figure handling shared by the plot families."""
 
-import logging
 from collections.abc import Sized
 from pathlib import Path
 
@@ -9,10 +8,11 @@ import numpy as np
 from matplotlib.figure import Figure
 from numpy.typing import ArrayLike
 
+from .._console import Logger
 from ..config import FigureConfig
 from ..types import FloatArray
 
-logger = logging.getLogger(__name__)
+logger = Logger(__name__)
 
 
 class PlotError(ValueError):

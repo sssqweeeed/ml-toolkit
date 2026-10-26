@@ -27,6 +27,7 @@ def test_configs_are_immutable_keyword_only_and_replaceable():
         "reporting",
         "tracking",
         "fit_on_test",
+        "verbosity",
     }
 
 

@@ -1,11 +1,11 @@
 """High-level selection, optimization, validation and final/test orchestration."""
 
-import logging
 from collections.abc import Callable
 from dataclasses import asdict, replace
 
 from optuna import Trial
 
+from .._console import Logger, datasets, message, metrics, output_context
 from ..config import TrainingConfig
 from ..data import validate_training_data
 from ..feature_selection import FeatureSelector
@@ -26,7 +26,7 @@ from .fit import refit_model, fit_split
 from .results import SplitResult, TrainingResult, ValidationResult
 from .splits import Splitter
 
-logger = logging.getLogger(__name__)
+logger = Logger(__name__)
 
 
 def train_model(
@@ -63,7 +63,7 @@ def train_model(
     run_name : str
         Enclosing MLflow experiment run name.
     config : TrainingConfig
-        Parameter tuning, additional reporting and model packaging settings.
+        Parameter tuning, console verbosity, reporting and model packaging settings.
     feature_selector : FeatureSelector or None, default None
         Selects features independently before tuning on each split. None keeps
         all columns. The selector owns its settings and must not retain fitted state.
@@ -108,194 +108,213 @@ def train_model(
     experiment". The Feature selection, Parameter tuning and Evaluation guides
     show how to extend that workflow with independently prepared examples.
     """
-    splits = splitter.get_validation()
-    part = next(splits, None)
-    if part is None:
-        raise ValueError("Splitter must yield at least one validation split")
-    if config.tuning is not None and param_space is None:
-        raise ValueError("param_space is required when tuning is enabled")
-    analyzers = prepare_analyzers(data_analyzers)
-    evaluators = prepare_evaluators(prediction_evaluators, config.reporting, analyzers)
+    with output_context(config.verbosity):
+        splits = splitter.get_validation()
+        part = next(splits, None)
+        if part is None:
+            raise ValueError("Splitter must yield at least one validation split")
+        if config.tuning is not None and param_space is None:
+            raise ValueError("param_space is required when tuning is enabled")
+        analyzers = prepare_analyzers(data_analyzers)
+        evaluators = prepare_evaluators(prediction_evaluators, config.reporting, analyzers)
 
-    logger.info("Starting training run %s", run_name)
-    with tracking.run(run_name):
-        tracking.log_json(asdict(config), "configuration/requested.json")
-        tracking.log_json(
-            {
-                "class": f"{type(splitter).__module__}.{type(splitter).__qualname__}",
-                "parameters": splitter.parameters(),
-            },
-            "configuration/splitter.json",
+        logger.info("Starting training run %s", run_name)
+        message(
+            "Dataset: %s rows, %s features",
+            len(splitter.data), len(splitter.data.X.columns),
         )
-        tracking.log_json(
-            [
+        with tracking.run(run_name):
+            tracking.log_json(asdict(config), "configuration/requested.json")
+            tracking.log_json(
                 {
-                    "name": item.name,
-                    "class": f"{type(item).__module__}.{type(item).__qualname__}",
-                    "parameters": item.parameters(),
-                }
-                for item in evaluators
-            ],
-            "configuration/evaluators.json",
-        )
-        tracking.log_json(
-            [
+                    "class": f"{type(splitter).__module__}.{type(splitter).__qualname__}",
+                    "parameters": splitter.parameters(),
+                },
+                "configuration/splitter.json",
+            )
+            tracking.log_json(
+                [
+                    {
+                        "name": item.name,
+                        "class": f"{type(item).__module__}.{type(item).__qualname__}",
+                        "parameters": item.parameters(),
+                    }
+                    for item in evaluators
+                ],
+                "configuration/evaluators.json",
+            )
+            tracking.log_json(
+                [
+                    {
+                        "name": item.name,
+                        "class": f"{type(item).__module__}.{type(item).__qualname__}",
+                        "parameters": item.parameters(),
+                    }
+                    for item in analyzers
+                ],
+                "configuration/data_analyzers.json",
+            )
+            logger.info("Starting validation")
+            with tracking.run("validation"):
+                split_results: list[SplitResult] = []
+                indices: set[int] = set()
+                while part is not None:
+                    if part.heldout is None:
+                        raise ValueError("Validation split must contain heldout data")
+                    if part.index is None or part.index <= 0 or part.index in indices:
+                        raise ValueError(
+                            "Validation split index must be positive and unique"
+                        )
+                    indices.add(part.index)
+                    split_results.append(
+                        fit_split(
+                            train=part.train,
+                            validation=part.heldout,
+                            params=params,
+                            model_factory=model_factory,
+                            metric=metric,
+                            config=config,
+                            feature_selector=feature_selector,
+                            evaluators=evaluators,
+                            analyzers=analyzers,
+                            param_space=param_space,
+                            index=part.index,
+                        )
+                    )
+                    del part
+                    part = next(splits, None)
+                validation = ValidationResult(tuple(split_results))
+                mean_metrics = validation.mean_metrics
+                tracking.log_metrics(
+                    {f"validation/{key}": value for key, value in mean_metrics.items()}
+                )
+            logger.info("Completed validation with %s splits", len(split_results))
+            logger.debug("Validation mean metrics: %s", mean_metrics, console=False)
+            last = validation.last_split
+            tracking.log_json(
                 {
-                    "name": item.name,
-                    "class": f"{type(item).__module__}.{type(item).__qualname__}",
-                    "parameters": item.parameters(),
-                }
-                for item in analyzers
-            ],
-            "configuration/data_analyzers.json",
-        )
-        logger.info("Starting validation")
-        with tracking.run("validation"):
-            split_results: list[SplitResult] = []
-            indices: set[int] = set()
-            while part is not None:
-                if part.heldout is None:
-                    raise ValueError("Validation split must contain heldout data")
-                if part.index is None or part.index <= 0 or part.index in indices:
-                    raise ValueError(
-                        "Validation split index must be positive and unique"
-                    )
-                indices.add(part.index)
-                split_results.append(
-                    fit_split(
-                        train=part.train,
-                        validation=part.heldout,
-                        params=params,
-                        model_factory=model_factory,
-                        metric=metric,
-                        config=config,
-                        feature_selector=feature_selector,
-                        evaluators=evaluators,
-                        analyzers=analyzers,
-                        param_space=param_space,
-                        index=part.index,
-                    )
+                    "features": last.features,
+                    "model_params": last.refit_params,
+                    "validation_split": last.index,
+                },
+                "configuration/resolved.json",
+            )
+            test = splitter.get_test()
+            if config.fit_on_test and test.heldout is None:
+                raise ValueError("fit_on_test=True requires a held-out test sample")
+            test_train = test.train.select_features(last.features)
+            test_heldout = (
+                None
+                if test.heldout is None
+                else test.heldout.select_features(last.features)
+            )
+            del test
+            stage = "final_fit" if test_heldout is None else "test"
+            logger.info("Starting %s stage", stage)
+            datasets(
+                f"{stage} data",
+                {"train": test_train, "test": test_heldout}
+                if test_heldout is not None else {"train": test_train},
+            )
+            with tracking.run(stage):
+                model, final_params = refit_model(
+                    data=test_train,
+                    last_split=last,
+                    model_factory=model_factory,
                 )
-                del part
-                part = next(splits, None)
-            validation = ValidationResult(tuple(split_results))
-            mean_metrics = validation.mean_metrics
-            tracking.log_metrics(
-                {f"validation/{key}": value for key, value in mean_metrics.items()}
-            )
-        logger.info("Completed validation with %s splits", len(split_results))
-        logger.debug("Validation mean metrics: %s", mean_metrics)
-        last = validation.last_split
-        tracking.log_json(
-            {
-                "features": last.features,
-                "model_params": last.refit_params,
-                "validation_split": last.index,
-            },
-            "configuration/resolved.json",
-        )
-        test = splitter.get_test()
-        if config.fit_on_test and test.heldout is None:
-            raise ValueError("fit_on_test=True requires a held-out test sample")
-        test_train = test.train.select_features(last.features)
-        test_heldout = (
-            None
-            if test.heldout is None
-            else test.heldout.select_features(last.features)
-        )
-        del test
-        stage = "final_fit" if test_heldout is None else "test"
-        logger.info("Starting %s stage", stage)
-        with tracking.run(stage):
-            model, final_params = refit_model(
-                data=test_train,
-                last_split=last,
-                model_factory=model_factory,
-            )
-            log_main = (
-                config.tracking.log_final_model
-                if test_heldout is None
-                else config.tracking.log_test_model
-            )
-            baseline = prepare_psi_baseline(
-                test_train, config.reporting, log_model=log_main, stage=stage
-            )
-            scores = evaluate_model(
-                model,
-                test_train,
-                test_heldout,
-                metric,
-                config.reporting,
-                evaluators,
-                analyzers=analyzers,
-                psi_baseline=baseline,
-                stage=stage,
-                name=stage,
-                split=DatasetSplit.TEST,
-            )
-            if log_main:
-                main_tracking = (
-                    replace(config.tracking, registered_model_name=None)
-                    if config.fit_on_test
-                    else config.tracking
-                )
-                log_model_with_baseline(model, test_train, main_tracking, baseline)
-        logger.info("Completed %s stage", stage)
-        test_schema = (
-            test_train.X.schema,
-            test_train.cat_features,
-            test_train.numerical_features,
-        )
-        del test_train, test_heldout
-        final_model = None
-        if config.fit_on_test:
-            full = splitter.get_final()
-            validate_training_data(full)
-            full = full.select_features(last.features)
-            if (
-                full.X.schema,
-                full.cat_features,
-                full.numerical_features,
-            ) != test_schema:
-                raise ValueError(
-                    "Final-fit data must match the selected training schema"
-                )
-            logger.info("Starting final_fit stage")
-            with tracking.run("final_fit"):
-                final_model, _ = refit_model(
-                    data=full, last_split=last, model_factory=model_factory
+                log_main = (
+                    config.tracking.log_final_model
+                    if test_heldout is None
+                    else config.tracking.log_test_model
                 )
                 baseline = prepare_psi_baseline(
-                    full,
-                    config.reporting,
-                    log_model=config.tracking.log_final_model,
-                    stage="final_fit",
+                    test_train, config.reporting, log_model=log_main, stage=stage
                 )
-                evaluate_model(
-                    final_model,
-                    full,
-                    None,
+                scores = evaluate_model(
+                    model,
+                    test_train,
+                    test_heldout,
                     metric,
                     config.reporting,
                     evaluators,
                     analyzers=analyzers,
                     psi_baseline=baseline,
-                    stage="final_fit",
-                    name="final_fit",
+                    stage=stage,
+                    name=stage,
+                    split=DatasetSplit.TEST,
                 )
-                if config.tracking.log_final_model:
-                    log_model_with_baseline(
-                        final_model, full, config.tracking, baseline
+                if log_main:
+                    main_tracking = (
+                        replace(config.tracking, registered_model_name=None)
+                        if config.fit_on_test
+                        else config.tracking
                     )
-            logger.info("Completed final_fit stage")
-        logger.info("Completed training run %s", run_name)
-        return TrainingResult(
-            model=model,
-            validation=validation,
-            params=final_params,
-            features=last.features,
-            feature_selection=last.feature_selection,
-            tuning=last.tuning,
-            test_metrics=scores.heldout_metrics,
-            final_model=final_model,
-        )
+                    log_model_with_baseline(model, test_train, main_tracking, baseline)
+            logger.info("Completed %s stage", stage)
+            test_schema = (
+                test_train.X.schema,
+                test_train.cat_features,
+                test_train.numerical_features,
+            )
+            del test_train, test_heldout
+            final_model = None
+            if config.fit_on_test:
+                full = splitter.get_final()
+                validate_training_data(full)
+                full = full.select_features(last.features)
+                if (
+                    full.X.schema,
+                    full.cat_features,
+                    full.numerical_features,
+                ) != test_schema:
+                    raise ValueError(
+                        "Final-fit data must match the selected training schema"
+                    )
+                logger.info("Starting final_fit stage")
+                datasets("final_fit data (including test)", {"train": full})
+                with tracking.run("final_fit"):
+                    final_model, _ = refit_model(
+                        data=full, last_split=last, model_factory=model_factory
+                    )
+                    baseline = prepare_psi_baseline(
+                        full,
+                        config.reporting,
+                        log_model=config.tracking.log_final_model,
+                        stage="final_fit",
+                    )
+                    evaluate_model(
+                        final_model,
+                        full,
+                        None,
+                        metric,
+                        config.reporting,
+                        evaluators,
+                        analyzers=analyzers,
+                        psi_baseline=baseline,
+                        stage="final_fit",
+                        name="final_fit",
+                    )
+                    if config.tracking.log_final_model:
+                        log_model_with_baseline(
+                            final_model, full, config.tracking, baseline
+                        )
+                logger.info("Completed final_fit stage")
+            metrics(
+                "Evaluation summary (test scores belong to the main model)"
+                if scores.heldout_metrics is not None else "Evaluation summary",
+                {"validation mean": mean_metrics, "test": scores.heldout_metrics}
+                if scores.heldout_metrics is not None
+                else {"validation mean": mean_metrics},
+                verbosity="normal",
+            )
+            logger.info("Completed training run %s", run_name)
+            return TrainingResult(
+                model=model,
+                validation=validation,
+                params=final_params,
+                features=last.features,
+                feature_selection=last.feature_selection,
+                tuning=last.tuning,
+                test_metrics=scores.heldout_metrics,
+                final_model=final_model,
+            )

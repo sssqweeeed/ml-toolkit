@@ -90,3 +90,10 @@ additional metrics and tables. Both interfaces support project implementations.
 The example logs metrics and configuration to a local MLflow store using
 `mlflow.db`. See the [documentation](https://sssqweeeed.github.io/ml-toolkit/)
 for model packaging, tuning, reports, and other tasks.
+
+Training prints concise progress and a metric summary by default. Set
+`TrainingConfig(verbosity="verbose")` for split sizes and detailed results,
+`verbosity="debug"` for internal diagnostics, or `verbosity="silent"` to disable
+automatic ml-toolkit output. No logger setup is required. See
+[console verbosity](docs/api/configuration.md#console-verbosity) for all levels;
+CatBoost, Optuna and MLflow retain their own output settings.

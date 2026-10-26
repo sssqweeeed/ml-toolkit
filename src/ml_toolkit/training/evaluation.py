@@ -1,10 +1,10 @@
 """Predict and score train, validation and test datasets."""
 
-import logging
 from dataclasses import dataclass
 
 import numpy as np
 
+from .._console import Logger, metrics
 from ..psi import PSIBaseline
 from ..config import ReportingConfig
 from ..evaluation import PredictionEvaluator
@@ -17,7 +17,7 @@ from ..types import FloatArray
 from .contracts import DatasetSplit, Pool, TrainingStage
 from .reporting import report_predictions
 
-logger = logging.getLogger(__name__)
+logger = Logger(__name__)
 
 
 @dataclass(frozen=True)
@@ -79,6 +79,12 @@ def evaluate_model(
             name,
             dataset_split.value,
             scores[dataset_split],
+            console=stage == "tuning",
+        )
+    if stage != "tuning":
+        metrics(
+            f"{name} metrics",
+            {part.value: values for part, values in scores.items()},
         )
     enabled = {
         "tuning": reporting.on_tuning,

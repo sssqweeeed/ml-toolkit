@@ -25,6 +25,8 @@ from ml_toolkit.config import FigureConfig, FeatureLevelConfig
 from ml_toolkit.types import FloatArray, ModelParams
 
 TrainingConfig(validation={'n_splits': 3})  # expected-type-error
+TrainingConfig(verbosity='invalid')  # expected-type-error
+TrainingConfig(verbosity=True)  # expected-type-error
 TuningConfig(metric='mae', direction='invalid')  # expected-type-error
 ReportingConfig(figure=False)  # expected-type-error
 ReportingConfig(on_tuning='yes')  # expected-type-error

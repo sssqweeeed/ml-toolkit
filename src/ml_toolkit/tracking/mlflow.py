@@ -1,11 +1,11 @@
 """Small MLflow artifact helpers shared by training diagnostics."""
 
-import logging
-
 import mlflow
 import polars as pl
 
-logger = logging.getLogger(__name__)
+from .._console import Logger
+
+logger = Logger(__name__)
 
 
 def log_polars_table(table: pl.DataFrame, artifact_file: str) -> None:

@@ -1,4 +1,3 @@
-import logging
 from abc import ABC, abstractmethod
 from datetime import date
 from typing import NotRequired, Self, TypedDict
@@ -6,6 +5,7 @@ from typing import NotRequired, Self, TypedDict
 import numpy as np
 import polars as pl
 
+from ._console import Logger
 from .types import FloatArray, IntArray
 
 
@@ -15,7 +15,7 @@ class InflationConfig(TypedDict):
     monthly_index: NotRequired[dict[str, float]]
 
 
-logger = logging.getLogger("ml_toolkit.inflation")
+logger = Logger("ml_toolkit.inflation")
 
 
 class InflationAdjuster(ABC):

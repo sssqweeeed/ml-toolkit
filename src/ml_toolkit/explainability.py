@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
@@ -11,6 +10,7 @@ import numpy as np
 import pandas as pd
 import polars as pl
 
+from ._console import Logger
 from .config import ShapConfig
 from .types import FloatArray
 
@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     import shap
 
 
-logger = logging.getLogger(__name__)
+logger = Logger(__name__)
 
 
 def shap_contributions(

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Self, cast
 
@@ -14,6 +13,7 @@ from mlflow.models.model import ModelInfo
 from mlflow.pyfunc.model import PythonModel
 from mlflow.pyfunc.utils import pyfunc
 
+from .._console import Logger
 from ..data import validate_training_categories
 from ..tracking.state import ClassificationState
 from ..types import FloatArray, IntArray, ModelParams
@@ -36,7 +36,7 @@ if TYPE_CHECKING:
     from ..config import TrackingConfig
     from ..training.contracts import Pool
 
-logger = logging.getLogger("ml_toolkit.models.catboost_classification")
+logger = Logger("ml_toolkit.models.catboost_classification")
 
 
 class CatBoostClassificationModel(PythonModel):

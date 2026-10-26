@@ -1,6 +1,5 @@
 """Execute additional reporting and upload its explicitly selected artifacts."""
 
-import logging
 from collections.abc import Callable
 import re
 from pathlib import Path
@@ -9,6 +8,7 @@ from tempfile import TemporaryDirectory
 import numpy as np
 import polars as pl
 
+from .._console import Logger
 from ..config import ReportingConfig
 from ..data import Pool
 from ..data_analysis import DataAnalyzer
@@ -30,7 +30,7 @@ from ..psi import PSIBaseline, compare_psi
 from ..tracking import runs as tracking
 from ..types import FloatArray
 
-logger = logging.getLogger(__name__)
+logger = Logger(__name__)
 
 
 def prepare_evaluators(
