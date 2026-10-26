@@ -48,6 +48,7 @@ jobs:
           cache-dependency-path: requirements-docs.txt
       - run: python -m pip install -r requirements-docs.txt
       - name: Build and preserve all documentation versions
+        id: site
         env:
           CHANNEL: ${{ inputs.channel || 'dev' }}
         run: |
@@ -56,7 +57,42 @@ jobs:
           python .github/scripts/publish_docs.py "$CHANNEL"
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
+        id: artifact
         with:
           path: ${{ runner.temp }}/pages
-      - uses: actions/deploy-pages@v4
+      - uses: actions/github-script@v8
         id: deployment
+        env:
+          ARTIFACT_ID: ${{ steps.artifact.outputs.artifact_id }}
+          SITE_COMMIT: ${{ steps.site.outputs.deployment_sha }}
+        with:
+          script: |
+            // The site can change while main and dev share one source commit.
+            // Identify the deployment by the generated site's commit instead.
+            const repository = context.repo;
+            const response = await github.request('POST /repos/{owner}/{repo}/pages/deployments', {
+              ...repository,
+              artifact_id: Number(process.env.ARTIFACT_ID),
+              pages_build_version: process.env.SITE_COMMIT,
+              oidc_token: await core.getIDToken(),
+            });
+            const deploymentId = response.data.id || process.env.SITE_COMMIT;
+            core.setOutput('page_url', response.data.page_url);
+            for (let attempt = 0; attempt < 60; attempt++) {
+              const { data } = await github.request('GET /repos/{owner}/{repo}/pages/deployments/{deploymentId}', {
+                ...repository,
+                deploymentId,
+              });
+              if (data.status === 'succeed') return;
+              if (['deployment_failed', 'deployment_perms_error',
+                   'deployment_content_failed', 'deployment_cancelled',
+                   'deployment_lost'].includes(data.status)) {
+                throw new Error(`Pages deployment failed: ${data.status}`);
+              }
+              await new Promise(resolve => setTimeout(resolve, 10000));
+            }
+            throw new Error('Pages deployment timed out');
+      - name: Verify the publicly served documentation
+        env:
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+        run: python .github/scripts/check_site.py "$PAGE_URL" "$RUNNER_TEMP/pages"

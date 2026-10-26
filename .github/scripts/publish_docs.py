@@ -143,6 +143,8 @@ def main() -> None:
     subprocess.run(["tar", "-x", "-C", str(output)], stdin=archive.stdout, check=True)
     if archive.wait() != 0:
         raise RuntimeError("Could not export complete documentation tree")
+    with Path(os.environ["GITHUB_OUTPUT"]).open("a") as stream:
+        stream.write(f"deployment_sha={git('rev-parse', 'gh-pages')}\n")
 
 
 if __name__ == "__main__":
