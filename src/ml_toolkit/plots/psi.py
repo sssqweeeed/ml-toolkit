@@ -157,6 +157,7 @@ def time_psi_level_distribution(
     bottom = np.zeros(len(periods))
     fig, ax = plt.subplots(figsize=(14, 6))
     colors = plt.get_cmap("tab20")
+    handles: list[object] = []
     for index, level in enumerate(levels):
         shares = (
             periods.join(
@@ -169,7 +170,7 @@ def time_psi_level_distribution(
             .fill_null(0.0)
             .to_numpy()
         )
-        ax.bar(
+        bars = ax.bar(
             x,
             shares,
             width=width,
@@ -180,6 +181,7 @@ def time_psi_level_distribution(
             antialiased=False,
             label=level,
         )
+        handles.append(bars)
         bottom += shares
 
     if boundary_index < len(periods):
@@ -217,11 +219,16 @@ def time_psi_level_distribution(
     ax.set_yticks(np.linspace(0, 1, 6))
     ax.set_yticklabels([f"{value:.0%}" for value in np.linspace(0, 1, 6)])
     ax.grid(axis="y", alpha=0.2)
-    ax.legend(
+    legend = ax.legend(
+        handles=handles,
+        # Matplotlib <3.10 filters even explicit labels starting with '_'.
+        labels=[f" {level}" for level in levels],
         loc="lower left",
         bbox_to_anchor=(0, 1.13),
         ncol=min(6, len(levels)),
         frameon=False,
     )
+    for text, level in zip(legend.get_texts(), levels):
+        text.set_text(level)
     fig.tight_layout()
     save_figure(fig, save_fig, config=figure)

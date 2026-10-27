@@ -35,6 +35,16 @@ def test_positive_capture_uses_weighted_percentages_and_keeps_ties(
         tmp_path / "capture.png",
         weights=[1, 3, 3, 1],
     )
-    curve = figures[0].axes[0].lines[0]
+    ax = figures[0].axes[0]
+    curve = ax.lines[0]
     np.testing.assert_allclose(curve.get_xdata(), [0, 0, 75, 100])
     np.testing.assert_allclose(curve.get_ydata(), [0, 25, 100, 100])
+    legend = ax.get_legend()
+    assert [text.get_text() for text in legend.get_texts()] == [
+        "Model",
+        "Random ranking",
+    ]
+    assert len(legend.get_lines()) == len(ax.lines) == 2
+    for key, line in zip(legend.get_lines(), ax.lines):
+        assert key.get_color() == line.get_color()
+        assert key.get_linestyle() == line.get_linestyle()
