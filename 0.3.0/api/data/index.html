@@ -1,0 +1,2552 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Training, validation, metrics, diagnostics, and MLflow for Python ML projects.">
+      
+      
+      
+        <link rel="canonical" href="https://sssqweeeed.github.io/ml-toolkit/0.3.0/api/data/">
+      
+      
+        <link rel="prev" href="../../configuration/">
+      
+      
+        <link rel="next" href="../training/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Data - ml-toolkit</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#data" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="ml-toolkit" class="md-header__button md-logo" aria-label="ml-toolkit" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            ml-toolkit
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Data
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/sssqweeeed/ml-toolkit" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    sssqweeeed/ml-toolkit
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="ml-toolkit" class="md-nav__button md-logo" aria-label="ml-toolkit" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    ml-toolkit
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/sssqweeeed/ml-toolkit" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    sssqweeeed/ml-toolkit
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Task recipes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#prepare-a-pool" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prepare a pool
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#slice-without-losing-alignment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Slice without losing alignment
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#replace-a-target-without-changing-rows" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Replace a target without changing rows
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#convert-features-and-baseline-for-a-backend" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Convert features and baseline for a backend
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#use-the-shared-container" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Use the shared container
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Use the shared container">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#row-fields" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Row fields
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#row-and-feature-operations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Row and feature operations
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#backend-conversion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Backend conversion
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#array-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Array types
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#api-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        API reference
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="API reference">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#data-container" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Data container
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#row-and-feature-operations_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Row and feature operations
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#backend-conversion_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Backend conversion
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Training
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Training
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../training/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Workflow and results
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../splitting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data splitting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../feature-selection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Feature selection
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tuning/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Parameter tuning
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Models
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Models
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../models/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Built-in adapters
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../custom-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Build a model adapter
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../inflation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Inflation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Evaluation
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Evaluation
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../evaluation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../evaluation/classification/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Classification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../evaluation/observed-fitted/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Observed versus fitted
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../evaluation/ranking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ranking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../evaluation/pu/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Positive-unlabeled
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../evaluation/explainability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Feature importance and SHAP
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../evaluation/custom/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Build an evaluator
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data analysis
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Data analysis
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../data-analysis/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../data-analysis/distributions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Numerical distributions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../psi/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PSI and feature levels
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../data-analysis/custom/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Build a data analyzer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../metrics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Metrics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tracking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tracking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#prepare-a-pool" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prepare a pool
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#slice-without-losing-alignment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Slice without losing alignment
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#replace-a-target-without-changing-rows" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Replace a target without changing rows
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#convert-features-and-baseline-for-a-backend" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Convert features and baseline for a backend
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#use-the-shared-container" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Use the shared container
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Use the shared container">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#row-fields" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Row fields
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#row-and-feature-operations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Row and feature operations
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#backend-conversion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Backend conversion
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#array-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Array types
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#api-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        API reference
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="API reference">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#data-container" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Data container
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#row-and-feature-operations_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Row and feature operations
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#backend-conversion_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Backend conversion
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="data">Data<a class="headerlink" href="#data" title="Permanent link">&para;</a></h1>
+<p><code>Pool</code> is the toolkit's ready-to-use data container for aligned Polars features,
+targets, dates, weights, and row metadata. Instantiate it with your prepared
+data; row operations and backend conversions are included in the package.</p>
+<h2 id="prepare-a-pool">Prepare a pool<a class="headerlink" href="#prepare-a-pool" title="Permanent link">&para;</a></h2>
+<p>After installing the package, create a pool directly. This small constructed
+fixture demonstrates container operations; it is not an evaluation dataset:</p>
+<!-- example: data-prepare -->
+
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">date</span><span class="p">,</span> <span class="n">timedelta</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">polars</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pl</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.data</span><span class="w"> </span><span class="kn">import</span> <span class="n">Pool</span>
+
+<span class="n">n_rows</span> <span class="o">=</span> <span class="mi">24</span>
+<span class="n">frame</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span>
+    <span class="p">{</span>
+        <span class="s2">"age"</span><span class="p">:</span> <span class="p">[</span><span class="mi">20</span> <span class="o">+</span> <span class="n">i</span> <span class="o">%</span> <span class="mi">10</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_rows</span><span class="p">)],</span>
+        <span class="s2">"region"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"north"</span><span class="p">,</span> <span class="s2">"south"</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="n">n_rows</span> <span class="o">//</span> <span class="mi">2</span><span class="p">),</span>
+        <span class="s2">"target"</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span><span class="p">(</span><span class="n">i</span> <span class="o">%</span> <span class="mi">3</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_rows</span><span class="p">)],</span>
+        <span class="s2">"date"</span><span class="p">:</span> <span class="p">[</span><span class="n">date</span><span class="p">(</span><span class="mi">2025</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="n">timedelta</span><span class="p">(</span><span class="n">days</span><span class="o">=</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_rows</span><span class="p">)],</span>
+        <span class="s2">"weight"</span><span class="p">:</span> <span class="p">[</span><span class="mf">1.0</span><span class="p">]</span> <span class="o">*</span> <span class="n">n_rows</span><span class="p">,</span>
+    <span class="p">}</span>
+<span class="p">)</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="s2">"date"</span><span class="p">)</span>
+<span class="n">data</span> <span class="o">=</span> <span class="n">Pool</span><span class="p">(</span>
+    <span class="n">X</span><span class="o">=</span><span class="n">frame</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="s2">"age"</span><span class="p">,</span> <span class="s2">"region"</span><span class="p">),</span>
+    <span class="n">y</span><span class="o">=</span><span class="n">frame</span><span class="p">[</span><span class="s2">"target"</span><span class="p">],</span>
+    <span class="n">time</span><span class="o">=</span><span class="n">frame</span><span class="p">[</span><span class="s2">"date"</span><span class="p">],</span>
+    <span class="n">weight</span><span class="o">=</span><span class="n">frame</span><span class="p">[</span><span class="s2">"weight"</span><span class="p">],</span>
+    <span class="n">cat_features</span><span class="o">=</span><span class="p">(</span><span class="s2">"region"</span><span class="p">,),</span>
+    <span class="n">numerical_features</span><span class="o">=</span><span class="p">(</span><span class="s2">"age"</span><span class="p">,),</span>
+<span class="p">)</span>
+</code></pre></div>
+<p>There are 24 rows and two model features. Targets, timestamps, weights, IDs,
+and reporting groups stay outside <code>X</code> unless they are model features.</p>
+<h2 id="slice-without-losing-alignment">Slice without losing alignment<a class="headerlink" href="#slice-without-losing-alignment" title="Permanent link">&para;</a></h2>
+<!-- example: data-slice -->
+
+<div class="highlight"><pre><span></span><code><span class="n">first_week</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">take</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="mi">7</span><span class="p">))</span>
+<span class="n">age_only</span> <span class="o">=</span> <span class="n">first_week</span><span class="o">.</span><span class="n">select_features</span><span class="p">([</span><span class="s2">"age"</span><span class="p">])</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s2">"Selected rows and features:"</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">age_only</span><span class="p">),</span> <span class="n">age_only</span><span class="o">.</span><span class="n">X</span><span class="o">.</span><span class="n">columns</span><span class="p">)</span>
+<span class="n">reordered</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">take</span><span class="p">([</span><span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">])</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"Aligned (age, target, date):"</span><span class="p">)</span>
+<span class="k">for</span> <span class="n">age</span><span class="p">,</span> <span class="n">target</span><span class="p">,</span> <span class="n">time</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">reordered</span><span class="o">.</span><span class="n">X</span><span class="p">[</span><span class="s2">"age"</span><span class="p">],</span> <span class="n">reordered</span><span class="o">.</span><span class="n">y</span><span class="p">,</span> <span class="n">reordered</span><span class="o">.</span><span class="n">time</span><span class="p">):</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">age</span><span class="p">,</span> <span class="n">target</span><span class="p">,</span> <span class="n">time</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"Original rows:"</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">data</span><span class="p">))</span>
+</code></pre></div>
+<!-- output: data-slice -->
+<div class="highlight"><pre><span></span><code>Selected rows and features: 7 ['age']
+Aligned (age, target, date):
+22 2.0 2025-01-03
+20 0.0 2025-01-01
+22 2.0 2025-01-03
+Original rows: 24
+</code></pre></div>
+<!-- /output -->
+
+<p>The selection repeats row 2 around row 0; their ages, targets, and dates move
+together. Weights and optional IDs and reporting groups follow the same order.
+Feature selection filters feature declarations as well as <code>X</code>. Both operations
+return new containers, leaving the original 24 rows intact. Reordered data is
+useful for inspection; training still requires ascending timestamps.</p>
+<p>Contiguous nonnegative row selections, including ranges and arrays of consecutive
+indices, share the source buffers. Reordered, repeated or noncontiguous positions
+allocate gathered rows. Feature selection also shares column buffers. A small
+slice can therefore keep its larger source allocation alive.</p>
+<h2 id="replace-a-target-without-changing-rows">Replace a target without changing rows<a class="headerlink" href="#replace-a-target-without-changing-rows" title="Permanent link">&para;</a></h2>
+<p>For example, prepare a log-transformed target while keeping original counts
+available for comparison:</p>
+<!-- example: data-target -->
+
+<div class="highlight"><pre><span></span><code><span class="n">transformed</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">with_target</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">y</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">Float64</span><span class="p">)</span><span class="o">.</span><span class="n">log1p</span><span class="p">())</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"Original targets:"</span><span class="p">,</span> <span class="n">data</span><span class="o">.</span><span class="n">y</span><span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span><span class="o">.</span><span class="n">to_list</span><span class="p">())</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"Log1p targets:"</span><span class="p">,</span> <span class="n">transformed</span><span class="o">.</span><span class="n">y</span><span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="mi">4</span><span class="p">)</span><span class="o">.</span><span class="n">to_list</span><span class="p">())</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"Dates preserved:"</span><span class="p">,</span> <span class="n">transformed</span><span class="o">.</span><span class="n">time</span><span class="o">.</span><span class="n">equals</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">time</span><span class="p">))</span>
+</code></pre></div>
+<!-- output: data-target -->
+<div class="highlight"><pre><span></span><code>Original targets: [0.0, 1.0, 2.0]
+Log1p targets: [0.0, 0.6931, 1.0986]
+Dates preserved: True
+</code></pre></div>
+<!-- /output -->
+
+<p>A model fitted to this transformed target predicts on the transformed scale;
+convert predictions back before comparing them with original counts. The
+original pool remains available with unchanged targets.</p>
+<h2 id="convert-features-and-baseline-for-a-backend">Convert features and baseline for a backend<a class="headerlink" href="#convert-features-and-baseline-for-a-backend" title="Permanent link">&para;</a></h2>
+<p>This conversion example includes a missing category. Use a small copy of the
+prepared pool so the shared <code>data</code> keeps its original values:</p>
+<!-- example: data-conversion -->
+
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">replace</span>
+
+<span class="n">with_missing</span> <span class="o">=</span> <span class="n">replace</span><span class="p">(</span>
+    <span class="n">data</span><span class="o">.</span><span class="n">take</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">]),</span>
+    <span class="n">X</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">X</span><span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span><span class="o">.</span><span class="n">with_columns</span><span class="p">(</span>
+        <span class="n">pl</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="s2">"region"</span><span class="p">,</span> <span class="p">[</span><span class="s2">"north"</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="s2">"south"</span><span class="p">])</span>
+    <span class="p">),</span>
+<span class="p">)</span>
+<span class="n">model_input</span> <span class="o">=</span> <span class="n">with_missing</span><span class="o">.</span><span class="n">to_model_input</span><span class="p">()</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"Backend categories:"</span><span class="p">,</span> <span class="n">model_input</span><span class="p">[</span><span class="s2">"region"</span><span class="p">]</span><span class="o">.</span><span class="n">tolist</span><span class="p">())</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"Source categories:"</span><span class="p">,</span> <span class="n">with_missing</span><span class="o">.</span><span class="n">X</span><span class="p">[</span><span class="s2">"region"</span><span class="p">]</span><span class="o">.</span><span class="n">to_list</span><span class="p">())</span>
+<span class="n">native</span> <span class="o">=</span> <span class="n">with_missing</span><span class="o">.</span><span class="n">to_catboost</span><span class="p">(</span><span class="n">baseline</span><span class="o">=</span><span class="mf">0.25</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"Backend features:"</span><span class="p">,</span> <span class="n">native</span><span class="o">.</span><span class="n">get_feature_names</span><span class="p">())</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"Raw-score baseline:"</span><span class="p">,</span> <span class="n">native</span><span class="o">.</span><span class="n">get_baseline</span><span class="p">()</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">tolist</span><span class="p">())</span>
+</code></pre></div>
+<!-- output: data-conversion -->
+<div class="highlight"><pre><span></span><code>Backend categories: ['north', 'unknown', 'south']
+Source categories: ['north', None, 'south']
+Backend features: ['age', 'region']
+Raw-score baseline: [0.25, 0.25, 0.25]
+</code></pre></div>
+<!-- /output -->
+
+<p><code>to_model_input()</code> returns pandas feature columns with dictionary-encoded
+categories whose labels are strings, and fills missing categories with
+<code>"unknown"</code>. For MLflow serving or serialization, use
+<code>to_model_input(categorical_as_strings=True)</code> to expand categories to strings.
+<code>to_catboost()</code> also carries targets, weights, and timestamps, broadcasting a
+scalar baseline to every row. The baseline is a raw model score, not a prediction
+on the response scale; a log-link model interprets 0.25 on the log scale.</p>
+<p>Training reserves the literal category <code>"unknown"</code> for missing values. Raw
+categorical columns in training and validation inputs must not already contain
+that value after string conversion, even when they have no missing values.
+Training reports the offending column. Prepared model inputs, prediction and
+serving continue to accept <code>"unknown"</code>; ordinary missing values are still filled.</p>
+<h2 id="use-the-shared-container">Use the shared container<a class="headerlink" href="#use-the-shared-container" title="Permanent link">&para;</a></h2>
+<p>The same class is available from <code>ml_toolkit</code> and <code>ml_toolkit.data</code> for
+construction and type annotations:</p>
+<!-- example: data-import-alias -->
+
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit</span><span class="w"> </span><span class="kn">import</span> <span class="n">Pool</span>
+</code></pre></div>
+<h3 id="row-fields">Row fields<a class="headerlink" href="#row-fields" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Fields</th>
+<th>Contract</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>X</code>, <code>y</code>, <code>time</code>, <code>weight</code></td>
+<td>Aligned, nonempty Polars frame/series; one value per row</td>
+</tr>
+<tr>
+<td><code>cat_features</code>, <code>numerical_features</code></td>
+<td>Tuples of feature names present in <code>X</code></td>
+</tr>
+<tr>
+<td><code>object_id</code></td>
+<td>Aligned string/integer IDs or <code>None</code>; optional for evaluators that join external data</td>
+</tr>
+<tr>
+<td><code>business_type</code></td>
+<td>Aligned diagnostic groups or <code>None</code></td>
+</tr>
+</tbody>
+</table>
+<p>Training validates ascending non-null Date/Datetime timestamps, finite targets,
+and finite nonnegative weights with a positive total. Optional metadata defaults
+to <code>None</code>. Fields cannot be reassigned; contained frames and series are not
+deeply immutable.</p>
+<h3 id="row-and-feature-operations">Row and feature operations<a class="headerlink" href="#row-and-feature-operations" title="Permanent link">&para;</a></h3>
+<p><code>take</code> preserves requested row order, including repeated indices.
+<code>select_features</code> preserves all row metadata and filters feature declarations.
+<code>with_target</code> preserves rows and their metadata. Each method returns the same
+concrete container type, so chronological splitting and selection retain your
+container type.</p>
+<h3 id="backend-conversion">Backend conversion<a class="headerlink" href="#backend-conversion" title="Permanent link">&para;</a></h3>
+<p>The bundled CatBoost adapters call <code>to_catboost</code> for fitting and
+<code>to_model_input</code> for named feature frames and serving examples. Preserve fitted
+feature names and categorical handling in both conversions. A scalar baseline
+must be broadcast across rows; array baselines must stay aligned.</p>
+<h2 id="array-types">Array types<a class="headerlink" href="#array-types" title="Permanent link">&para;</a></h2>
+<p>Import <code>FloatArray</code> and <code>IntArray</code> from <code>ml_toolkit.types</code> when annotating your
+functions. They mean NumPy <code>float64</code> and <code>int64</code> arrays; individual APIs describe
+the required shape. <code>ModelParams</code> is the backend parameter dictionary.</p>
+<h2 id="api-reference">API reference<a class="headerlink" href="#api-reference" title="Permanent link">&para;</a></h2>
+<h3 id="data-container">Data container<a class="headerlink" href="#data-container" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h4 id="ml_toolkit.data.Pool" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">Pool</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#ml_toolkit.data.Pool" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">Pool</span><span class="p">(</span>
+    <span class="n">X</span><span class="p">:</span> <span class="n">DataFrame</span><span class="p">,</span>
+    <span class="n">y</span><span class="p">:</span> <span class="n">Series</span><span class="p">,</span>
+    <span class="n">time</span><span class="p">:</span> <span class="n">Series</span><span class="p">,</span>
+    <span class="n">weight</span><span class="p">:</span> <span class="n">Series</span><span class="p">,</span>
+    <span class="n">business_type</span><span class="p">:</span> <span class="n">Series</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">cat_features</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
+    <span class="n">numerical_features</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">object_id</span><span class="p">:</span> <span class="n">Series</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>Hold aligned features, targets, timestamps, weights, and row metadata.</p>
+<p>Projects prepare the data and may optionally supply <code>business_type</code> for
+grouped plots. Feature lists may describe only a subset of X's columns.
+Fields cannot be reassigned; the contained frames and series are not deeply
+immutable. Pool methods return new objects without modifying their inputs.</p>
+<p>Construction checks alignment, timestamp dtype, and feature metadata.
+Training additionally validates chronological order, finite targets, and
+finite, nonnegative weights with positive total.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>X</code>
+            </td>
+            <td>
+                  <code><span title="polars.DataFrame">DataFrame</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Feature columns, with one row per observation.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>y</code>
+            </td>
+            <td>
+                  <code><span title="polars.Series">Series</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Target values aligned with X.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>time</code>
+            </td>
+            <td>
+                  <code><span title="polars.Series">Series</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Date or Datetime values aligned with X.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>weight</code>
+            </td>
+            <td>
+                  <code><span title="polars.Series">Series</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Row weights aligned with X.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>business_type</code>
+            </td>
+            <td>
+                  <code><span title="polars.Series">Series</span> or None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Optional aligned groups for diagnostic plots.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>cat_features</code>
+            </td>
+            <td>
+                  <code><span title="tuple">tuple</span>[<span title="str">str</span>, ...]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Names of categorical features in X.</p>
+              </div>
+            </td>
+            <td>
+                  <code>()</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>numerical_features</code>
+            </td>
+            <td>
+                  <code><span title="tuple">tuple</span>[<span title="str">str</span>, ...]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Names of numerical features in X.</p>
+              </div>
+            </td>
+            <td>
+                  <code>()</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>object_id</code>
+            </td>
+            <td>
+                  <code><span title="polars.Series">Series</span> or None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Optional non-null string or integer IDs aligned with X. Keyword-only;
+repeated IDs are allowed. IDs retain
+their dtype and values through row and feature operations and are not
+added to model inputs.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div><h3 id="row-and-feature-operations_1">Row and feature operations<a class="headerlink" href="#row-and-feature-operations_1" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="ml_toolkit.data.Pool.take" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">take</span>
+
+
+<a href="#ml_toolkit.data.Pool.take" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">take</span><span class="p">(</span><span class="n">indices</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="n">IntArray</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Self</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Return aligned rows at positional indices, in the requested order.</p>
+<p>Contiguous nonnegative positions share the source buffers. Reordered,
+repeated or noncontiguous positions gather rows into new buffers.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>indices</code>
+            </td>
+            <td>
+                  <code>sequence of int or IntArray</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Row positions. Repeated positions are preserved.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="Pool
+
+
+  
+      dataclass
+   (ml_toolkit.data.Pool)" href="#ml_toolkit.data.Pool">Pool</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>New pool with every row field sliced together.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="ValueError">ValueError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The requested selection is empty.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="ml_toolkit.data.Pool.select_features" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">select_features</span>
+
+
+<a href="#ml_toolkit.data.Pool.select_features" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">select_features</span><span class="p">(</span><span class="n">feature_names</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Self</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Return requested columns with both feature lists filtered to match.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>feature_names</code>
+            </td>
+            <td>
+                  <code>sequence of str</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Nonempty selection of existing columns, in the desired order.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="Pool
+
+
+  
+      dataclass
+   (ml_toolkit.data.Pool)" href="#ml_toolkit.data.Pool">Pool</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>New pool retaining all row metadata and matching feature lists.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="ValueError">ValueError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The selection is empty or a requested feature is missing.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="ml_toolkit.data.Pool.with_target" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">with_target</span>
+
+
+<a href="#ml_toolkit.data.Pool.with_target" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">with_target</span><span class="p">(</span><span class="n">target</span><span class="p">:</span> <span class="n">Series</span> <span class="o">|</span> <span class="n">FloatArray</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Self</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Return a pool with a replacement target and unchanged row metadata.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>target</code>
+            </td>
+            <td>
+                  <code>polars.Series or FloatArray of shape (n_rows,)</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Replacement values aligned with the existing rows. NumPy values
+retain the existing target name.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="Pool
+
+
+  
+      dataclass
+   (ml_toolkit.data.Pool)" href="#ml_toolkit.data.Pool">Pool</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>New pool with the replacement target.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="ValueError">ValueError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The target does not contain exactly one value per row.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div><h3 id="backend-conversion_1">Backend conversion<a class="headerlink" href="#backend-conversion_1" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="ml_toolkit.data.Pool.to_model_input" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">to_model_input</span>
+
+
+<a href="#ml_toolkit.data.Pool.to_model_input" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">to_model_input</span><span class="p">(</span>
+    <span class="n">n_rows</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">categorical_as_strings</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Return all or the first n_rows as a categorical-safe pandas frame.</p>
+<p>Oversized limits return all rows. Null categorical values become
+<code>"unknown"</code>. Categorical columns retain dictionary encoding with string
+labels. Row order is preserved so inputs stay aligned with metadata.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>n_rows</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span> or None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Nonnegative row limit; None includes all rows.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>categorical_as_strings</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Expand categorical columns to strings for serialization or MLflow
+serving signatures. Model training and prediction accept the default
+pandas categorical columns without this expansion.</p>
+              </div>
+            </td>
+            <td>
+                  <code>False</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="pandas.DataFrame">DataFrame</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Feature columns in their existing order, without row metadata.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="ValueError">ValueError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>n_rows is negative.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="ml_toolkit.data.Pool.to_catboost" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">to_catboost</span>
+
+
+<a href="#ml_toolkit.data.Pool.to_catboost" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">to_catboost</span><span class="p">(</span>
+    <span class="n">baseline</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="n">FloatArray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">catboost</span><span class="o">.</span><span class="n">Pool</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Convert aligned data with an optional scalar or per-row baseline.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>baseline</code>
+            </td>
+            <td>
+                  <code>float, FloatArray of shape (n_rows,), or None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Initial raw model score for each row. A scalar is broadcast; None
+lets CatBoost choose its normal initialization.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="catboost.Pool">Pool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Native pool with features, targets, weights, categorical feature
+names, millisecond timestamps, and the optional baseline.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="ValueError">ValueError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A per-row baseline has the wrong number of values.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.code.copy", "navigation.sections", "navigation.top", "search.highlight"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"alias": true, "default": "stable", "provider": "mike"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
