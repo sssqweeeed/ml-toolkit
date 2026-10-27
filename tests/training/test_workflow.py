@@ -52,8 +52,8 @@ def test_each_split_selects_once_before_tuning_and_excludes_test(
                     == data.weight.gather(rows.object_id).to_list()
                 )
                 assert (
-                    rows.business_type.to_list()
-                    == data.business_type.gather(rows.object_id).to_list()
+                    rows.auxiliary_features.to_series().to_list()
+                    == data.auxiliary_features[rows.object_id].to_series().to_list()
                 )
                 assert set(rows.numerical_features) == set(rows.X.columns)
             fits.append(
@@ -191,7 +191,7 @@ def test_calendar_test_preserves_rows_and_logs_date(tmp_path, dtype, cutoff, tes
             assert_series_equal(rows.time, data.time.gather(ids))
             assert_series_equal(rows.y, data.y.gather(ids))
             assert_series_equal(rows.weight, data.weight.gather(ids))
-            assert_series_equal(rows.business_type, data.business_type.gather(ids))
+            assert_frame_equal(rows.auxiliary_features, data.auxiliary_features[ids])
             assert rows.cat_features == data.cat_features
             assert rows.numerical_features == data.numerical_features
             if ids[0] in test_ids:

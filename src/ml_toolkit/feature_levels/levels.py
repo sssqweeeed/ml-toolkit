@@ -196,7 +196,8 @@ class LevelTransformer:
         RuntimeError
             The transformer has not been fitted.
         ValueError
-            Configured features are missing.
+            Configured features are missing or regular numerical values are
+            non-finite.
 
         Notes
         -----
@@ -231,6 +232,24 @@ class LevelTransformer:
                     .otherwise(pl.lit(UNSEEN_LEVEL))
                 )
             else:
+                # Apply the same finite-value contract to reference and current
+                # samples, excluding configured missing/error sentinels.
+                regular_values = data.get_column(feature.config.name)
+                valid = regular_values.is_not_null()
+                if regular_values.dtype.is_float():
+                    valid &= regular_values.is_not_nan()
+                for sentinel in (feature.config.null_level, feature.config.error_level):
+                    if sentinel is not None:
+                        valid &= regular_values != sentinel
+                if (
+                    not regular_values.filter(valid)
+                    .cast(pl.Float64, strict=True)
+                    .is_finite()
+                    .all()
+                ):
+                    raise ValueError(
+                        f"Feature {feature.config.name!r} must contain finite values"
+                    )
                 special_errors = errors
                 numbers = (
                     pl.when(nulls | special_errors)

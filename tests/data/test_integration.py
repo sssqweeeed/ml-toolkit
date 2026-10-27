@@ -29,7 +29,7 @@ def pool():
         y=data.y,
         time=data.time,
         weight=data.weight,
-        business_type=pl.Series("business_type", ["a", "b"] * 12),
+        auxiliary_features=(pl.Series("business_type", ["a", "b"] * 12)).to_frame(),
         cat_features=("category",),
         numerical_features=("x", "unused"),
     )
@@ -72,7 +72,7 @@ def test_training_feature_selection_accepts_project_pool(pool, tmp_path):
             if len(train.X.columns) == 1:
                 assert train.numerical_features == ("x",)
                 assert train.cat_features == ()
-            assert len(train.business_type) == len(train)
+            assert len(train.auxiliary_features) == len(train)
             fitted.append(train)
             return super().fit(train, validation)
 

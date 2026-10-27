@@ -116,12 +116,15 @@ def train_model(
         if config.tuning is not None and param_space is None:
             raise ValueError("param_space is required when tuning is enabled")
         analyzers = prepare_analyzers(data_analyzers)
-        evaluators = prepare_evaluators(prediction_evaluators, config.reporting, analyzers)
+        evaluators = prepare_evaluators(
+            prediction_evaluators, config.reporting, analyzers
+        )
 
         logger.info("Starting training run %s", run_name)
         message(
             "Dataset: %s rows, %s features",
-            len(splitter.data), len(splitter.data.X.columns),
+            len(splitter.data),
+            len(splitter.data.X.columns),
         )
         with tracking.run(run_name):
             tracking.log_json(asdict(config), "configuration/requested.json")
@@ -213,8 +216,11 @@ def train_model(
             logger.info("Starting %s stage", stage)
             datasets(
                 f"{stage} data",
-                {"train": test_train, "test": test_heldout}
-                if test_heldout is not None else {"train": test_train},
+                (
+                    {"train": test_train, "test": test_heldout}
+                    if test_heldout is not None
+                    else {"train": test_train}
+                ),
             )
             with tracking.run(stage):
                 model, final_params = refit_model(
@@ -255,6 +261,11 @@ def train_model(
                 test_train.X.schema,
                 test_train.cat_features,
                 test_train.numerical_features,
+                (
+                    None
+                    if test_train.auxiliary_features is None
+                    else test_train.auxiliary_features.schema
+                ),
             )
             del test_train, test_heldout
             final_model = None
@@ -266,6 +277,11 @@ def train_model(
                     full.X.schema,
                     full.cat_features,
                     full.numerical_features,
+                    (
+                        None
+                        if full.auxiliary_features is None
+                        else full.auxiliary_features.schema
+                    ),
                 ) != test_schema:
                     raise ValueError(
                         "Final-fit data must match the selected training schema"
@@ -300,11 +316,16 @@ def train_model(
                         )
                 logger.info("Completed final_fit stage")
             metrics(
-                "Evaluation summary (test scores belong to the main model)"
-                if scores.heldout_metrics is not None else "Evaluation summary",
-                {"validation mean": mean_metrics, "test": scores.heldout_metrics}
-                if scores.heldout_metrics is not None
-                else {"validation mean": mean_metrics},
+                (
+                    "Evaluation summary (test scores belong to the main model)"
+                    if scores.heldout_metrics is not None
+                    else "Evaluation summary"
+                ),
+                (
+                    {"validation mean": mean_metrics, "test": scores.heldout_metrics}
+                    if scores.heldout_metrics is not None
+                    else {"validation mean": mean_metrics}
+                ),
                 verbosity="normal",
             )
             logger.info("Completed training run %s", run_name)

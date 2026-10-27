@@ -9,6 +9,7 @@ from ..psi import PSIBaseline
 from ..config import ReportingConfig
 from ..evaluation import PredictionEvaluator
 from ..data_analysis import DataAnalyzer
+from ..data import validate_auxiliary_pair
 import polars as pl
 from ..metrics import Metric
 from ..models.base import Model
@@ -125,6 +126,7 @@ def _combine_pools(train: Pool, heldout: Pool | None) -> Pool:
     """Join standard pool fields positionally, preserving feature metadata."""
     if heldout is None:
         return train
+    validate_auxiliary_pair(train, heldout)
     if (
         train.X.schema != heldout.X.schema
         or train.cat_features != heldout.cat_features
@@ -144,7 +146,13 @@ def _combine_pools(train: Pool, heldout: Pool | None) -> Pool:
         y=pl.concat([train.y, heldout.y], rechunk=False),
         time=pl.concat([train.time, heldout.time], rechunk=False),
         weight=pl.concat([train.weight, heldout.weight], rechunk=False),
-        business_type=optional(train.business_type, heldout.business_type),
+        auxiliary_features=(
+            None
+            if train.auxiliary_features is None or heldout.auxiliary_features is None
+            else pl.concat(
+                [train.auxiliary_features, heldout.auxiliary_features], rechunk=False
+            )
+        ),
         object_id=optional(train.object_id, heldout.object_id),
         cat_features=train.cat_features,
         numerical_features=train.numerical_features,

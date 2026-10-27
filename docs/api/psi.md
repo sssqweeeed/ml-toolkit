@@ -274,7 +274,11 @@ workflow compares train with the current held-out sample, writes `psi/scores.png
 and per-feature time distributions, and saves the score and distribution tables
 as JSON. PSI uses feature values and timestamps only; no predictions are
 passed to the analysis. A train-only fit has no PSI report. `features=None` infers feature
-rules; `features=()` disables feature diagnostics. `epsilon` is the PSI share
+rules from both `Pool.X` and `Pool.auxiliary_features`; `features=()` disables
+feature diagnostics. Explicit `FeatureLevelConfig` entries can select columns
+from either table, including categorical codes and continuous numerical values.
+Numerical quantile boundaries are fitted on train only and applied unchanged to
+the held-out sample. PSI counts rows without exposure weights. `epsilon` is the PSI share
 floor, and `period` sets temporal grouping. Scheduling and shared figure settings
 are described in the [data analysis overview](../data-analysis/index.md).
 
@@ -319,6 +323,12 @@ in `PSIAnalysis` and training remain available.
 
 During training, enabled PSI is bundled automatically with saved models. See
 [loading a model's baseline](tracking.md#load-a-models-psi-baseline).
+
+Training baselines can include model and auxiliary columns. For a current pool,
+call `baseline.compare(current_pool.to_analysis_frame())`. All configured
+diagnostic columns must be present, even when prediction needs only `X`;
+missing columns are listed in the error. Numerical boundaries and category
+definitions remain fixed after loading.
 
 ## API reference
 

@@ -26,6 +26,8 @@ frame = pl.DataFrame(
         "target": [float(i % 3) for i in range(n_rows)],
         "date": [date(2025, 1, 1) + timedelta(days=i) for i in range(n_rows)],
         "weight": [1.0] * n_rows,
+        "business_type": ["new", "renewal"] * (n_rows // 2),
+        "insured_value": [50_000.0 + i * 25_000 for i in range(n_rows)],
     }
 ).sort("date")
 data = Pool(
@@ -35,6 +37,7 @@ data = Pool(
     weight=frame["weight"],
     cat_features=("region",),
     numerical_features=("age",),
+    auxiliary_features=frame.select("business_type", "insured_value"),
 )
 ```
 
@@ -152,6 +155,98 @@ that value after string conversion, even when they have no missing values.
 Training reports the offending column. Prepared model inputs, prediction and
 serving continue to accept `"unknown"`; ordinary missing values are still filled.
 
+## Auxiliary features for diagnostics
+
+`auxiliary_features` is an optional Polars DataFrame containing categorical or
+continuous values. It has the same row count and positional order as `X`, with
+disjoint column names. There is no implicit join on IDs. A frame without columns
+is normalized to `None`. All optional constructor arguments are keyword-only.
+
+`take()` slices auxiliary columns with all other row fields, including reordered
+and repeated positions. `select_features()` and `with_target()` preserve them.
+Train/held-out pools must have the same auxiliary schema, including column order
+and dtypes; missing columns are not filled or silently cast.
+
+Select diagnostic columns across both tables with `to_analysis_frame()`:
+
+<!-- example: data-analysis-frame -->
+
+```python
+analysis = data.to_analysis_frame(["age", "business_type", "insured_value"])
+assert analysis.columns == ["age", "business_type", "insured_value"]
+assert data.to_analysis_frame().columns == [
+    "age", "region", "business_type", "insured_value"
+]
+assert data.to_model_input().columns.to_list() == ["age", "region"]
+```
+
+The method preserves requested column order and reports missing or duplicate
+names. With no selection it includes `X` followed by auxiliary columns, sharing
+their buffers. Backend conversion and serving examples contain only `X`.
+`cat_features` and `numerical_features` describe only columns of `X`.
+
+### Categories and continuous values
+
+`ObservedFitted` and PSI use `FeatureLevelConfig` for either table. Numeric dtypes
+are inferred as numerical; strings and booleans as categorical. Explicit rules
+can mark integer codes as categorical. `features=None` infers model and auxiliary
+columns; `features=()` disables level diagnostics.
+
+Numerical levels use unweighted train quantiles (`n_bins=10` by default), then
+reuse the exact boundaries on validation/test. Ties may reduce the interval count;
+constant or entirely missing reference columns have one ordinary interval.
+Internal boundaries belong to the interval on their right. Finite values outside
+the observed train range enter the extreme intervals unless they violate explicit
+`lower_bound`/`upper_bound`. Nulls, NaNs and missing sentinels become `__NULL__`;
+error sentinels and out-of-bound values become `__ERROR__`. Other infinities are
+rejected in both reference and current data. Source columns are not modified.
+
+`NumericalFeatureDistributions` uses original numerical values for unweighted
+time summaries, omitting null and nonfinite values; it does not use level bins.
+
+### Grouping by prepared bands
+
+`TimeObservedFitted(by=...)` and `GroupedMetrics(by=...)` group exact values,
+including combinations of columns. They do not learn numerical intervals.
+Prepare an auxiliary categorical band for a continuous grouping variable:
+
+<!-- example: data-grouped-reports -->
+
+```python
+from ml_toolkit.evaluation import GroupedMetrics, TimeObservedFitted
+from ml_toolkit.metrics import metrics_regression
+
+band = (
+    pl.when(pl.col("insured_value").is_null() | pl.col("insured_value").is_nan())
+    .then(pl.lit(None, dtype=pl.String))
+    .when(pl.col("insured_value") < 100_000)
+    .then(pl.lit("less_than_100k"))
+    .when(pl.col("insured_value") < 500_000)
+    .then(pl.lit("100k_to_500k"))
+    .otherwise(pl.lit("at_least_500k"))
+    .alias("insured_value_band")
+)
+banded = replace(
+    data,
+    auxiliary_features=data.auxiliary_features.with_columns(band),
+)
+grouped_reports = [
+    TimeObservedFitted(by=("insured_value_band",)),
+    GroupedMetrics(
+        metric=metrics_regression,
+        by=("business_type", "insured_value_band"),
+        min_rows=30,
+    ),
+]
+```
+
+These fixed business thresholds are independent of the observed data. Learned
+thresholds must be fitted separately on each fold's training rows and then
+applied to its held-out rows; do not learn them on the full dataset. Pass reports
+through `prediction_evaluators`. Both grouped reports limit distinct combinations
+to `max_groups=50` by default and raise an error when exceeded. Null/NaN form a
+missing group, distinct from ordinary strings such as `"missing"`.
+
 ## Use the shared container
 
 The same class is available from `ml_toolkit` and `ml_toolkit.data` for
@@ -170,7 +265,7 @@ from ml_toolkit import Pool
 | `X`, `y`, `time`, `weight` | Aligned, nonempty Polars frame/series; one value per row |
 | `cat_features`, `numerical_features` | Tuples of feature names present in `X` |
 | `object_id` | Aligned string/integer IDs or `None`; optional for evaluators that join external data |
-| `business_type` | Aligned diagnostic groups or `None` |
+| `auxiliary_features` | Aligned categorical/numerical diagnostic frame or `None`; names disjoint from `X` |
 
 Training validates ascending non-null Date/Datetime timestamps, finite targets,
 and finite nonnegative weights with a positive total. Optional metadata defaults
@@ -213,6 +308,8 @@ the required shape. `ModelParams` is the backend parameter dictionary.
 ::: ml_toolkit.data.Pool.select_features
 
 ::: ml_toolkit.data.Pool.with_target
+
+::: ml_toolkit.data.Pool.to_analysis_frame
 
 ### Backend conversion
 

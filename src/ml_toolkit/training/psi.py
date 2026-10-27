@@ -19,7 +19,7 @@ def prepare_psi_baseline(
     if not features:
         return None
     return PSIBaseline.from_reference(
-        train.X,
+        train.to_analysis_frame(),
         config=PSIConfig(features, n_bins=reporting.n_bins, epsilon=reporting.epsilon),
         time=train.time,
         stage=stage,

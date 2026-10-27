@@ -251,12 +251,14 @@ def _psi_artifacts(
     transformer = (
         psi_baseline.transformer
         if psi_baseline is not None
-        else LevelTransformer(features, n_bins=config.n_bins).fit(train.X)
+        else LevelTransformer(features, n_bins=config.n_bins).fit(
+            train.to_analysis_frame()
+        )
     )
     assert transformer.feature_levels is not None
     result = compare_psi(
-        transformer.transform(train.X),
-        transformer.transform(current.X),
+        transformer.transform(train.to_analysis_frame()),
+        transformer.transform(current.to_analysis_frame()),
         transformer.feature_levels,
         epsilon=config.epsilon,
         period=config.period,
