@@ -75,7 +75,7 @@ bands contain the 5th–95th and 25th–75th percentiles; lines mark the median 
 mean. Here reference means 2011 train and current means 2012 test. Read seasonal
 variation separately from a lasting distribution shift.
 
-`features=None` selects numeric columns of `Pool.X`; a tuple restricts the
+`features=None` selects numeric columns of `Pool.X` and `Pool.auxiliary_features`; a tuple restricts the
 selection. Explicit missing or nonnumeric features raise an error. An empty
 selection produces no figures. `quantile_bands`, `show_mean`, and `show_median`
 control the visible summaries, and `period` sets the calendar grouping.

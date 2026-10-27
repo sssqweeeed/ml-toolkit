@@ -174,7 +174,7 @@ def test_combined_alignment_shared_predictions_and_no_selection_calls(tmp_path):
     data = replace(
         source,
         object_id=pl.Series("id", [i // 2 for i in range(24)]),
-        business_type=pl.Series("group", ["a", "b"] * 12),
+        auxiliary_features=(pl.Series("group", ["a", "b"] * 12)).to_frame(),
         numerical_features=("x", "unused"),
     )
     calls, predictions = [], []
@@ -194,7 +194,7 @@ def test_combined_alignment_shared_predictions_and_no_selection_calls(tmp_path):
             x = pool.X["x"].to_numpy()
             np.testing.assert_array_equal(prediction, x)
             np.testing.assert_array_equal(pool.object_id.to_numpy(), x // 2)
-            assert pool.business_type.to_list() == [
+            assert pool.auxiliary_features.to_series().to_list() == [
                 "a" if int(v) % 2 == 0 else "b" for v in x
             ]
             assert pool.numerical_features == ("x",)

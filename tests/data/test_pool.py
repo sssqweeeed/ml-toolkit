@@ -26,7 +26,7 @@ def pool():
             "time", [date(2024, 1, 1) + timedelta(days=i) for i in range(3)]
         ),
         weight=pl.Series("weight", [1.0, 2.0, 3.0]),
-        business_type=pl.Series("business_type", ["a", "b", "c"]),
+        auxiliary_features=(pl.Series("business_type", ["a", "b", "c"])).to_frame(),
         cat_features=("category",),
         numerical_features=("x",),
         object_id=pl.Series("customer_id", ["a", "b", "a"]),
@@ -45,7 +45,7 @@ def test_project_pool_preserves_frozen_fields(pool):
 
 
 @pytest.mark.parametrize(
-    "field", ["X", "y", "time", "weight", "business_type", "object_id"]
+    "field", ["X", "y", "time", "weight", "auxiliary_features", "object_id"]
 )
 def test_rejects_unaligned_fields(pool, field):
     with pytest.raises(ValueError, match="equal lengths"):
@@ -102,7 +102,7 @@ def test_take_preserves_order_alignment_and_feature_metadata(pool, grouped, indi
         ["a", "a", "a"] if grouped else None
     )
     assert (
-        None if result.business_type is None else result.business_type.to_list()
+        None if result.auxiliary_features is None else result.auxiliary_features.to_series().to_list()
     ) == (["c", "a", "c"] if grouped else None)
     assert result.cat_features == pool.cat_features
     assert result.numerical_features == pool.numerical_features
@@ -114,8 +114,9 @@ def test_contiguous_take_shares_buffers_and_preserves_all_fields(pool, indices):
     result = pool.take(indices)
     assert_frame_equal(result.X, pool.X.slice(1, 2))
     assert np.shares_memory(result.X["x"].to_numpy(), pool.X["x"].to_numpy())
-    for field in ("y", "time", "weight", "object_id", "business_type"):
-        assert_series_equal(getattr(result, field), getattr(pool, field).slice(1, 2))
+    for field in ("y", "time", "weight", "object_id", "auxiliary_features"):
+        compare = assert_frame_equal if field == "auxiliary_features" else assert_series_equal
+        compare(getattr(result, field), getattr(pool, field).slice(1, 2))
     for field in ("y", "time", "weight"):
         # Arrow exposes Date's actual int32 buffer; NumPy widens it to int64.
         original = getattr(pool, field).to_arrow().buffers()[1]
@@ -132,8 +133,9 @@ def test_take_fallback_matches_gather(pool, indices):
     index = np.asarray(indices, dtype=np.int64)
     result = pool.take(indices)
     assert_frame_equal(result.X, pool.X[index])
-    for field in ("y", "time", "weight", "object_id", "business_type"):
-        assert_series_equal(getattr(result, field), getattr(pool, field).gather(index))
+    for field in ("y", "time", "weight", "object_id", "auxiliary_features"):
+        compare = assert_frame_equal if field == "auxiliary_features" else assert_series_equal
+        compare(getattr(result, field), getattr(pool, field)[index])
 
 
 @pytest.mark.parametrize("indices", [range(4), [1, 2, 3], [3]])
@@ -149,8 +151,9 @@ def test_select_features_preserves_rows_and_filters_both_feature_lists(pool):
     assert selected.numerical_features == ("x",)
     assert pool.select_features(["x"]).cat_features == ()
     assert pool.select_features(["category"]).numerical_features == ()
-    for field in ("y", "time", "weight", "business_type", "object_id"):
-        assert_series_equal(getattr(selected, field), getattr(pool, field))
+    for field in ("y", "time", "weight", "auxiliary_features", "object_id"):
+        compare = assert_frame_equal if field == "auxiliary_features" else assert_series_equal
+        compare(getattr(selected, field), getattr(pool, field))
 
 
 @pytest.mark.parametrize(
@@ -171,8 +174,9 @@ def test_with_target_preserves_metadata_and_names(pool, target):
         "replacement" if isinstance(target, pl.Series) else "target"
     )
     assert_frame_equal(result.X, pool.X)
-    for field in ("time", "weight", "business_type", "object_id"):
-        assert_series_equal(getattr(result, field), getattr(pool, field))
+    for field in ("time", "weight", "auxiliary_features", "object_id"):
+        compare = assert_frame_equal if field == "auxiliary_features" else assert_series_equal
+        compare(getattr(result, field), getattr(pool, field))
     assert result.cat_features == pool.cat_features
     assert result.numerical_features == pool.numerical_features
     assert pool.y.to_list() == [1.0, 2.0, 3.0]
@@ -382,14 +386,9 @@ def test_pool_rejects_invalid_object_ids(pool, ids, error, message):
         replace(pool, object_id=ids)
 
 
-def test_object_id_is_optional_and_preserves_positional_constructor(pool):
-    data = Pool(
-        pool.X,
-        pool.y,
-        pool.time,
-        pool.weight,
-        pool.business_type,
-        pool.cat_features,
-        pool.numerical_features,
-    )
+def test_optional_fields_are_keyword_only(pool):
+    data = Pool(pool.X, pool.y, pool.time, pool.weight)
     assert data.object_id is None
+    assert data.auxiliary_features is None
+    with pytest.raises(TypeError):
+        Pool(pool.X, pool.y, pool.time, pool.weight, pool.auxiliary_features)

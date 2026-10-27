@@ -20,8 +20,9 @@ from .types import FloatArray, IntArray
 class Pool:
     """Hold aligned features, targets, timestamps, weights, and row metadata.
 
-    Projects prepare the data and may optionally supply ``business_type`` for
-    grouped plots. Feature lists may describe only a subset of X's columns.
+    Projects may supply categorical or continuous ``auxiliary_features`` for
+    diagnostics. Only X is passed to models. Feature lists may describe a subset
+    of X's columns.
     Fields cannot be reassigned; the contained frames and series are not deeply
     immutable. Pool methods return new objects without modifying their inputs.
 
@@ -39,8 +40,9 @@ class Pool:
         Date or Datetime values aligned with X.
     weight : polars.Series
         Row weights aligned with X.
-    business_type : polars.Series or None, default None
-        Optional aligned groups for diagnostic plots.
+    auxiliary_features : polars.DataFrame or None, default None
+        Optional aligned diagnostic columns with names disjoint from X.
+        Empty-width frames are normalized to None. Keyword-only.
     cat_features : tuple[str, ...], default ()
         Names of categorical features in X.
     numerical_features : tuple[str, ...], default ()
@@ -56,15 +58,23 @@ class Pool:
     y: pl.Series
     time: pl.Series
     weight: pl.Series
-    business_type: pl.Series | None = None
-    cat_features: tuple[str, ...] = ()
-    numerical_features: tuple[str, ...] = ()
+    auxiliary_features: pl.DataFrame | None = field(default=None, kw_only=True)
+    cat_features: tuple[str, ...] = field(default=(), kw_only=True)
+    numerical_features: tuple[str, ...] = field(default=(), kw_only=True)
     object_id: pl.Series | None = field(default=None, kw_only=True)
 
     def __post_init__(self) -> None:
         lengths = {len(self.X), len(self.y), len(self.time), len(self.weight)}
-        if self.business_type is not None:
-            lengths.add(len(self.business_type))
+        if self.auxiliary_features is not None:
+            if self.auxiliary_features.width == 0:
+                object.__setattr__(self, "auxiliary_features", None)
+            else:
+                lengths.add(len(self.auxiliary_features))
+                overlap = sorted(
+                    set(self.X.columns) & set(self.auxiliary_features.columns)
+                )
+                if overlap:
+                    raise ValueError(f"Auxiliary features overlap with X: {overlap}")
         if lengths == {0}:
             raise ValueError("Pool must not be empty")
         if len(lengths) != 1:
@@ -121,8 +131,10 @@ class Pool:
             time=self.time[index],
             weight=self.weight[index],
             object_id=None if self.object_id is None else self.object_id[index],
-            business_type=(
-                None if self.business_type is None else self.business_type[index]
+            auxiliary_features=(
+                None
+                if self.auxiliary_features is None
+                else self.auxiliary_features[index]
             ),
         )
 
@@ -188,6 +200,38 @@ class Pool:
         if len(y) != len(self):
             raise ValueError("Target must contain exactly one value per row")
         return replace(self, y=y)
+
+    def to_analysis_frame(self, columns: Sequence[str] | None = None) -> pl.DataFrame:
+        """Return model and auxiliary columns for diagnostics, without joining rows.
+
+        Parameters
+        ----------
+        columns : sequence of str or None, default None
+            Unique requested names in output order. None includes X followed by
+            all auxiliary columns. Targets, time, weights and IDs are not added.
+
+        Returns
+        -------
+        polars.DataFrame
+            Selected columns sharing source buffers. Inputs remain unchanged.
+
+        Raises
+        ------
+        ValueError
+            Requested names are duplicated or missing from both tables.
+        """
+        frame = self.X.clone()
+        if self.auxiliary_features is not None:
+            frame = frame.hstack(self.auxiliary_features)
+        if columns is None:
+            return frame
+        names = list(columns)
+        if len(names) != len(set(names)):
+            raise ValueError("Analysis columns must contain unique names")
+        missing = sorted(set(names) - set(frame.columns))
+        if missing:
+            raise ValueError(f"Features are missing from analysis data: {missing}")
+        return frame.select(names)
 
     def to_model_input(
         self, n_rows: int | None = None, *, categorical_as_strings: bool = False
@@ -270,6 +314,15 @@ class Pool:
         )
 
 
+def validate_auxiliary_pair(left: Pool, right: Pool) -> None:
+    """Require identical auxiliary schemas before pairing or concatenating pools."""
+    a, b = left.auxiliary_features, right.auxiliary_features
+    if a is None and b is None:
+        return
+    if a is None or b is None or a.schema != b.schema:
+        raise ValueError("Pools must have matching auxiliary feature schemas")
+
+
 def validate_object_ids(object_id: pl.Series, n_rows: int) -> None:
     if len(object_id) != n_rows:
         raise ValueError("object_id must have equal lengths with data rows")
@@ -282,8 +335,14 @@ def validate_object_ids(object_id: pl.Series, n_rows: int) -> None:
 def validate_training_data(data: Pool) -> None:
     size = len(data)
     series = [data.y, data.time, data.weight]
-    if data.business_type is not None:
-        series.append(data.business_type)
+    if data.auxiliary_features is not None:
+        if len(data.auxiliary_features) != size:
+            raise ValueError(
+                "Auxiliary features must have equal lengths with data rows"
+            )
+        overlap = sorted(set(data.X.columns) & set(data.auxiliary_features.columns))
+        if overlap:
+            raise ValueError(f"Auxiliary features overlap with X: {overlap}")
     if (
         size == 0
         or len(data.X) != size

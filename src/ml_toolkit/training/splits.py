@@ -10,7 +10,7 @@ from typing import Generic, TypeVar
 import polars as pl
 from sklearn.model_selection import TimeSeriesSplit
 
-from ..data import Pool, validate_training_data
+from ..data import Pool, validate_auxiliary_pair, validate_training_data
 
 DataT = TypeVar("DataT", bound=Pool, covariant=True)
 
@@ -45,6 +45,7 @@ class Split(Generic[DataT]):
         validate_training_data(self.train)
         if self.heldout is not None:
             validate_training_data(self.heldout)
+            validate_auxiliary_pair(self.train, self.heldout)
             if (
                 self.train.X.schema != self.heldout.X.schema
                 or self.train.cat_features != self.heldout.cat_features

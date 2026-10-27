@@ -85,7 +85,7 @@ class ReportingConfig:
     metrics or optimization. PSI baseline packaging follows model logging flags
     independently of stage report switches. All validation folds use the same settings.
     PSI and observed/fitted use feature levels fitted on training rows.
-    ``features=None`` infers all input features; ``()`` disables level reports.
+    ``features=None`` infers model and auxiliary features; ``()`` disables level reports.
     ``period`` and ``epsilon`` apply only to PSI.
 
     Parameters

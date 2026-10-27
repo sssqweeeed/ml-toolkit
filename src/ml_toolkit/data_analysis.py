@@ -107,7 +107,7 @@ class NumericalFeatureDistributions(DataAnalyzer):
     name : str, default 'numerical_feature_distributions'
         Unique report name and artifact namespace.
     features : tuple of str or None, default None
-        Numeric feature names to display. None uses numeric columns in Pool.X;
+        Numeric feature names to display. None uses model and auxiliary numeric columns;
         an empty tuple selects none. Missing or nonnumeric names raise ValueError.
     period : TimePeriod, default 'month'
         Calendar grouping in the data timezone.
@@ -162,18 +162,20 @@ class NumericalFeatureDistributions(DataAnalyzer):
         if pair is None:
             return []
         _, train, current = pair
+        reference = train.to_analysis_frame()
+        heldout = current.to_analysis_frame()
         names = self.features
         if names is None:
             names = tuple(
-                name for name, dtype in train.X.schema.items() if dtype.is_numeric()
+                name for name, dtype in reference.schema.items() if dtype.is_numeric()
             )
         time_column = "__ml_toolkit_plot_time__"
-        while time_column in train.X.columns:
+        while time_column in reference.columns:
             time_column += "_"
-        reference = train.X.with_columns(train.time.alias(time_column))
-        heldout = current.X.with_columns(current.time.alias(time_column))
+        reference = reference.with_columns(train.time.alias(time_column))
+        heldout = heldout.with_columns(current.time.alias(time_column))
         for index, name in enumerate(names):
-            if name not in train.X.columns or not train.X.schema[name].is_numeric():
+            if name not in reference.columns or not reference.schema[name].is_numeric():
                 raise ValueError(f"Feature {name!r} is missing or not numerical")
             path = artifact_dir / feature_filename(index, name, figure.format)
             monitoring.time_feature_distribution(
