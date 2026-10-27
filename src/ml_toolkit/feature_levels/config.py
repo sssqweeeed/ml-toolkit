@@ -140,7 +140,7 @@ def feature_definitions(
                 else "numerical"
             ),
         )
-        for name, dtype in data.X.schema.items()
+        for name, dtype in data.to_analysis_frame().schema.items()
     )
 
 

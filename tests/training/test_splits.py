@@ -138,8 +138,8 @@ def test_train_only_final_and_repeated_ids_keep_metadata(factory):
     for split in splitter.get_validation():
         for part in (split.train, split.heldout):
             indices = part.X["x"].cast(pl.Int64)
-            for name in ("y", "time", "weight", "business_type", "object_id"):
-                assert getattr(part, name).equals(getattr(data, name).gather(indices))
+            for name in ("y", "time", "weight", "auxiliary_features", "object_id"):
+                assert getattr(part, name).equals(getattr(data, name)[indices])
             assert part.cat_features == data.cat_features
             assert part.numerical_features == data.numerical_features
             assert type(part) is type(data)

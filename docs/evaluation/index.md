@@ -11,6 +11,7 @@ reports that do not use predictions, see [Data analysis](../data-analysis/index.
 | Where do predicted means differ from observations? | [Observed versus fitted](observed-fitted.md) | `ObservedFitted`, `TimeObservedFitted` |
 | How much outcome is captured in the highest-ranked rows? | [Ranking](ranking.md) | `Gains`, `Lift` |
 | How are known positives ranked among unlabeled rows? | [Positive-unlabeled](pu.md) | `PUScoreDistribution`, `PUPositiveCapture` |
+| How do metrics vary by segment? | [Metrics by group](observed-fitted.md#metrics-by-group) | `GroupedMetrics` |
 | Which features contribute to predictions? | [Feature importance and SHAP](explainability.md) | `ReportingConfig(shap=ShapConfig(...))` and direct plots |
 
 Every family guide places evaluator configuration beside the resulting figures,
@@ -91,15 +92,19 @@ optional. Training passes train + val during validation and tuning, and train +
 test during the `test` stage. The `final_fit` stage receives only train rows.
 
 Classification, ranking, and PU reports use only the held-out rows. Comparison
-reports show train and held-out rows together. Builtins skip incomplete pairs
-or absent held-out rows. Builtin `evaluate()` methods return `{}`; their output
-is graphical. Prediction evaluators use the supplied predictions; SHAP uses
+reports show train and held-out rows together and skip incomplete pairs.
+`GroupedMetrics` also supports train-only data and exports additional metrics
+and a typed table. Other built-in evaluators produce graphical output and return
+`{}` from `evaluate()`. Prediction evaluators use supplied predictions; SHAP uses
 the fitted native model.
 
 `ReportingConfig.on_tuning`, `.on_validation`, `.on_test`, and `.on_final_fit`
 control both methods of every evaluator and data analyzer, plus PSI/SHAP. Defaults are false, true,
 true, and true. Reports that require held-out rows skip `final_fit`.
 Core training metrics are calculated independently. PSI and SHAP are opt-in.
+Feature-selection search plots are also independent of these stage switches:
+they are always written to each split's existing `selection/` folder when a
+built-in selector runs. See [selection plots](../api/feature-selection.md#automatic-selection-plots).
 Shared `figure`, feature-level definitions, and `n_bins` come from that config;
 each report page explains which settings it uses.
 

@@ -260,7 +260,7 @@ def test_custom_full_pool_respects_policy_and_preserves_metadata(tmp_path):
         ),
     )
     assert full_fits[0].object_id.equals(full.object_id)
-    assert full_fits[0].business_type.equals(full.business_type)
+    assert full_fits[0].auxiliary_features.equals(full.auxiliary_features)
     assert result.model.mean == pytest.approx(11.5)
     assert result.final_model.mean == pytest.approx(13.5)
     assert result.test_metrics == {"mae": 11.0}

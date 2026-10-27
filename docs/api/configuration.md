@@ -28,7 +28,8 @@ modified copy. Pass evaluator objects separately to select individual reports.
 Their execution, sample selection and shared feature levels are described in
 [Evaluation](../evaluation/index.md) and [Data analysis](../data-analysis/index.md).
 Pass `prediction_evaluators=` and `data_analyzers=` separately to `train_model`.
-PSI and O/F share `ReportingConfig.features` and `n_bins`; each independently
+PSI and O/F share `ReportingConfig.features` and `n_bins`, including auxiliary
+columns stored in `Pool.auxiliary_features`; each independently
 fits a `LevelTransformer` on the same training rows. See
 [how levels are shared](psi.md#how-psi-and-observedfitted-share-levels).
 

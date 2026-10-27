@@ -35,6 +35,13 @@ def recorded_tracking(monkeypatch):
     monkeypatch.setattr(
         tracking, "log_metrics", lambda value: records.append(("metrics", value))
     )
+    monkeypatch.setattr(
+        tracking,
+        "log_artifact",
+        lambda path, artifact_path: records.append(
+            (f"{artifact_path}/{path.name}", path.read_bytes())
+        ),
+    )
     return records
 
 

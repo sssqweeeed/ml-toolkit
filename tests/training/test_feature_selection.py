@@ -32,7 +32,7 @@ def data():
         ),
         weight=pl.Series("weight", np.arange(count, dtype=float) + 1),
         object_id=pl.Series("id", np.arange(count)),
-        business_type=pl.Series("group", ["a", "b"] * 12),
+        auxiliary_features=(pl.Series("group", ["a", "b"] * 12)).to_frame(),
         numerical_features=tuple(f"f{i}" for i in range(6)),
     )
 
@@ -154,11 +154,12 @@ def test_supplied_split_preserves_gap_metadata_and_weighted_metric(data):
         assert train.object_id.to_list() == list(range(16))
         assert validation.object_id.to_list() == list(range(18, 24))
         assert train.numerical_features == tuple(train.X.columns)
-        for field in ("y", "time", "weight", "object_id", "business_type"):
-            assert_series_equal(
+        for field in ("y", "time", "weight", "object_id", "auxiliary_features"):
+            compare = assert_frame_equal if field == "auxiliary_features" else assert_series_equal
+            compare(
                 getattr(train, field), getattr(data.take(range(16)), field)
             )
-            assert_series_equal(
+            compare(
                 getattr(validation, field), getattr(data.take(range(18, 24)), field)
             )
     assert len(metric_rows) == 3

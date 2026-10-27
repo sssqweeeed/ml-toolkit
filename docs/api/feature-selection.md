@@ -106,6 +106,33 @@ Each validation run stores concrete settings and every evaluated subset in
 The selected scores are logged under `selection/metrics/<name>`; fit count,
 feature count and selected index have separate `selection/` entries.
 
+### Automatic selection plots
+
+`train_model` also writes one diagnostic figure in that same `selection/`
+artifact folder for each validation split:
+
+| Selector | Artifact (default format) | Contents |
+| --- | --- | --- |
+| RFE | `selection/rfe_progress.png` | Validation objective against decreasing feature count, best and selected subsets, and the score tolerance band. |
+| Top-K | `selection/top_k_ranking.png` | All full-model ranking values, with selected, excluded and protected features distinguished. |
+| Forward | `selection/forward_progress.png` | All evaluated candidates by subset size, accepted additions, protected baseline when present, and the stopping reason. |
+
+These search diagnostics are always generated when a built-in selector runs,
+including when `ReportingConfig.on_validation=False`. They use the stored
+history without additional fits, predictions or rankings. `ReportingConfig.figure`
+controls size, DPI and format; SVG/PDF settings replace the filename extension.
+Top-K has no before/after quality plot. Protected Top-K features can be below the
+ranking cutoff, so a global Top-K line is shown only without protected features.
+Selection scores describe the search, not independent performance.
+
+Calling `selector.select()` directly only returns the result; it does not plot
+or log artifacts. To draw an existing built-in result manually, use
+`ml_toolkit.plots.feature_selection.rfe_progress(result, save_fig)`,
+`top_k_ranking(result, save_fig)`, or `forward_progress(result, save_fig)`.
+Each accepts an optional keyword-only `figure=FigureConfig(...)` and closes the
+figure after saving. Custom selector identifiers are skipped by automatic
+plotting; their history and metrics are still recorded as before.
+
 ## Implement a selector
 
 Implement `FeatureSelector.select` with the documented keyword arguments and
@@ -327,3 +354,7 @@ the ranker. Explicit inheritance from `FeatureRanker` is unnecessary.
 ::: ml_toolkit.feature_selection.FeatureSelectionStep
     options:
       members: []
+
+### Plots
+
+::: ml_toolkit.plots.feature_selection

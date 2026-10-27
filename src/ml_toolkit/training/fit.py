@@ -19,6 +19,7 @@ from .psi import prepare_psi_baseline, log_model_with_baseline
 from ..evaluation import PredictionEvaluator
 from ..data_analysis import DataAnalyzer
 from .results import SplitResult
+from .reporting import report_feature_selection
 from .tuning import tune_optuna
 
 logger = Logger(__name__)
@@ -98,6 +99,9 @@ def fit_split(
                         ].metrics.items()
                     },
                 }
+            )
+            report_feature_selection(
+                selection, config.reporting, stage=f"validation/split_{index}"
             )
         tuning = None
         selected_params = params.copy()

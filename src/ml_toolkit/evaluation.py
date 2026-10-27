@@ -17,6 +17,7 @@ import polars as pl
 
 from ._time import PERIOD_INTERVALS
 from ._rows import row_indexer
+from ._grouping import row_groups, validate_grouping
 from .config import FigureConfig
 from .data import Pool
 from .data_analysis import validate_split
@@ -26,6 +27,7 @@ from .data_analysis import (
 from .feature_levels import FeatureLevelConfig, LevelTransformer
 from .feature_levels.config import feature_definitions, validate_features
 from .metrics.ranking import ranking_metrics
+from .metrics import Metric
 from .plots import classification, pu, ranking, regression
 from .plots.utils import feature_filename
 from .types import FloatArray, TimePeriod
@@ -623,9 +625,11 @@ class ObservedFitted(PredictionEvaluator):
             definitions = tuple(by_name[name] for name in self.features)
         if not definitions:
             return []
-        transformer = LevelTransformer(definitions, n_bins=n_bins).fit(train.X)
-        reference_levels = transformer.transform(train.X)
-        current_levels = transformer.transform(current.X)
+        transformer = LevelTransformer(definitions, n_bins=n_bins).fit(
+            train.to_analysis_frame()
+        )
+        reference_levels = transformer.transform(train.to_analysis_frame())
+        current_levels = transformer.transform(current.to_analysis_frame())
         assert transformer.feature_levels is not None
         for index, level in enumerate(transformer.feature_levels):
             path = artifact_dir / feature_filename(
@@ -652,7 +656,7 @@ class ObservedFitted(PredictionEvaluator):
 
 @dataclass(frozen=True, kw_only=True)
 class TimeObservedFitted(PredictionEvaluator):
-    """Compare weighted time summaries, optionally grouped by business_type.
+    """Compare weighted time summaries, optionally grouped by exact values.
 
     Parameters
     ----------
@@ -660,25 +664,34 @@ class TimeObservedFitted(PredictionEvaluator):
         Unique report name and artifact namespace.
     period : TimePeriod, default 'month'
         Calendar grouping from minute through year, in the data timezone.
+    by : tuple of str, default ()
+        Model or auxiliary columns defining exact-value groups. Multiple columns
+        select combinations. Empty gives an overall plot. Precompute bands for
+        continuous values; no numerical levels are fitted here.
+    max_groups : int, default 50
+        Maximum distinct groups across both samples, including missing groups.
 
     Notes
     -----
-    Compares train with validation or test. Pool.business_type supplies a separate
-    panel for each group when present. Observed/fitted means and volumes use row weights.
+    Compares train with validation or test, with a panel for each requested group.
+    Observed/fitted means and volumes use row weights.
     Timestamps must be ordered across the pair; a shared endpoint is allowed.
     Saves ``time.<format>``. Shared feature rules and n_bins are unused.
     """
 
     name: str = "time_observed_fitted"
     period: TimePeriod = "month"
+    by: tuple[str, ...] = ()
+    max_groups: int = 50
 
     def __post_init__(self) -> None:
         super().__post_init__()
+        validate_grouping(self.by, self.max_groups, required=False)
         if self.period not in PERIOD_INTERVALS:
             raise ValueError("Unsupported time period")
 
     def parameters(self) -> dict[str, object]:
-        return {"period": self.period}
+        return {"period": self.period, "by": self.by, "max_groups": self.max_groups}
 
     def write_artifacts(
         self,
@@ -695,6 +708,15 @@ class TimeObservedFitted(PredictionEvaluator):
         if pair is None:
             return []
         _, train, train_pred, current, current_pred = pair
+        reference_group = current_group = None
+        if self.by:
+            labels = [""] * len(data)
+            for group in row_groups(data, self.by, self.max_groups):
+                for index in group.indices:
+                    labels[int(index)] = group.label
+            groups = pl.Series(labels)
+            reference_group = groups.filter(split == "train")
+            current_group = groups.filter(split != "train")
         path = artifact_dir / f"time.{figure.format}"
         regression.time_observed_fitted(
             train.time.to_list(),
@@ -706,11 +728,206 @@ class TimeObservedFitted(PredictionEvaluator):
             save_fig=path,
             reference_weight=train.weight.to_numpy(),
             current_weight=current.weight.to_numpy(),
-            reference_group=train.business_type,
-            current_group=current.business_type,
+            reference_group=reference_group,
+            current_group=current_group,
             period=self.period,
             figure=figure,
         )
+        return [path]
+
+
+@dataclass(frozen=True, kw_only=True)
+class GroupedMetrics(PredictionEvaluator):
+    """Calculate an ordinary metric separately for exact-value groups and splits.
+
+    Parameters
+    ----------
+    metric : Metric
+        Callable accepting aligned target, prediction and weight arrays and
+        returning an object with to_dict(). Exceptions propagate unchanged.
+    by : tuple of str
+        Nonempty model/auxiliary grouping columns. Multiple names select
+        combinations. Prepare a categorical band column for continuous values.
+    name : str, default 'grouped_metrics'
+        Unique report name and artifact namespace.
+    min_rows : int, default 1
+        Minimum number of positive-weight rows required to calculate metrics.
+    max_groups : int, default 50
+        Maximum distinct groups across all supplied splits, including missing.
+
+    Notes
+    -----
+    calculate() returns a typed long table, including empty split/group pairs.
+    Statuses are ok, empty, zero_weight, insufficient_rows, or undefined.
+    Missing results have null values. Only finite results are logged by evaluate.
+    write_artifacts saves metrics.parquet, preserving typed group values and IDs.
+    Instances retain settings only and can be reused across folds.
+    """
+
+    metric: Metric
+    by: tuple[str, ...]
+    name: str = "grouped_metrics"
+    min_rows: int = 1
+    max_groups: int = 50
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        validate_grouping(self.by, self.max_groups, required=True)
+        if type(self.min_rows) is not int or self.min_rows < 1:
+            raise ValueError("min_rows must be a positive integer")
+        reserved = {
+            "split",
+            "group_id",
+            "n_rows",
+            "n_positive_weight_rows",
+            "sum_weight",
+            "metric",
+            "value",
+            "status",
+        }
+        if reserved.intersection(self.by):
+            raise ValueError("Grouping column names conflict with metric table columns")
+
+    def parameters(self) -> dict[str, object]:
+        metric_type = type(self.metric)
+        identifier = (
+            f"{getattr(self.metric, '__module__', metric_type.__module__)}."
+            f"{getattr(self.metric, '__qualname__', metric_type.__qualname__)}"
+        )
+        return {
+            "metric": identifier,
+            "by": self.by,
+            "min_rows": self.min_rows,
+            "max_groups": self.max_groups,
+        }
+
+    def calculate(
+        self, *, data: Pool, prediction: FloatArray, split: pl.Series
+    ) -> pl.DataFrame:
+        """Return per-split/group scores with typed keys, support counts and status.
+
+        Groups are determined across the supplied rows. Each represented split
+        receives every group, including those with no rows in that split.
+        Skipped groups have metric=None when no metric names can be determined.
+        Nonfinite scores become null/undefined; metric exceptions are not hidden.
+        """
+        validate_inputs(data, prediction, split)
+        groups = row_groups(data, self.by, self.max_groups)
+        target = data.y.to_numpy().astype(float)
+        weight = data.weight.to_numpy().astype(float)
+        if not np.isfinite(target).all():
+            raise ValueError("Target values must be finite")
+        if not np.isfinite(weight).all() or (weight < 0).any():
+            raise ValueError("Weights must be finite and nonnegative")
+        records: list[dict[str, object]] = []
+        metric_names: set[str] = set()
+        for part in ("train", "val", "test"):
+            selected = (split == part).to_numpy()
+            if not selected.any():
+                continue
+            for group in groups:
+                index = group.indices[selected[group.indices]]
+                positive = int(np.count_nonzero(weight[index] > 0))
+                total = float(weight[index].sum())
+                if not len(index):
+                    status = "empty"
+                elif positive == 0:
+                    status = "zero_weight"
+                elif positive < self.min_rows:
+                    status = "insufficient_rows"
+                else:
+                    status = "ok"
+                base: dict[str, object] = {
+                    **group.key.row(0, named=True),
+                    "group_id": group.identifier,
+                    "split": part,
+                    "n_rows": len(index),
+                    "n_positive_weight_rows": positive,
+                    "sum_weight": total,
+                }
+                if status != "ok":
+                    records.append(
+                        {**base, "metric": None, "value": None, "status": status}
+                    )
+                    continue
+                scores = self.metric(
+                    target[index], prediction[index], weight[index]
+                ).to_dict()
+                if not scores:
+                    raise ValueError(
+                        "Grouped metric must return at least one named score"
+                    )
+                for name, score in scores.items():
+                    if type(name) is not str or not name.strip():
+                        raise ValueError(
+                            "Grouped metric names must be nonempty strings"
+                        )
+                    metric_names.add(name)
+                    value = float(score)
+                    finite = np.isfinite(value)
+                    records.append(
+                        {
+                            **base,
+                            "metric": name,
+                            "value": value if finite else None,
+                            "status": "ok" if finite else "undefined",
+                        }
+                    )
+        expanded: list[dict[str, object]] = []
+        for record in records:
+            if record["metric"] is None and metric_names:
+                expanded.extend(
+                    {**record, "metric": name} for name in sorted(metric_names)
+                )
+            else:
+                expanded.append(record)
+        schema = dict(data.to_analysis_frame(self.by).schema)
+        schema.update(
+            {
+                "group_id": pl.String(),
+                "split": pl.String(),
+                "n_rows": pl.Int64(),
+                "n_positive_weight_rows": pl.Int64(),
+                "sum_weight": pl.Float64(),
+                "metric": pl.String(),
+                "value": pl.Float64(),
+                "status": pl.String(),
+            }
+        )
+        return pl.DataFrame(expanded, schema=schema)
+
+    def evaluate(
+        self, *, data: Pool, prediction: FloatArray, split: pl.Series
+    ) -> dict[str, float]:
+        table = self.calculate(data=data, prediction=prediction, split=split)
+        scores: dict[str, float] = {}
+        for row in table.filter(pl.col("status") == "ok").iter_rows(named=True):
+            name = str(row["metric"])
+            # Ordinary names stay readable; hex encoding is injective and uses
+            # a reserved leading underscore, so unsafe names cannot collide.
+            key = (
+                name
+                if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", name)
+                else "_hex_" + name.encode().hex()
+            )
+            scores[f"{row['split']}/{row['group_id']}/{key}"] = float(row["value"])
+        return scores
+
+    def write_artifacts(
+        self,
+        *,
+        data: Pool,
+        prediction: FloatArray,
+        split: pl.Series,
+        artifact_dir: Path,
+        figure: FigureConfig,
+        features: tuple[FeatureLevelConfig, ...] | None,
+        n_bins: int,
+    ) -> list[Path]:
+        table = self.calculate(data=data, prediction=prediction, split=split)
+        artifact_dir.mkdir(parents=True, exist_ok=True)
+        path = artifact_dir / "metrics.parquet"
+        table.write_parquet(path)
         return [path]
 
 
@@ -723,7 +940,7 @@ class NumericalFeatureDistributions(PredictionEvaluator):
     name : str, default 'numerical_feature_distributions'
         Unique report name and artifact namespace.
     features : tuple of str or None, default None
-        Numeric feature names to display. None uses numeric columns in Pool.X;
+        Numeric feature names to display. None uses model and auxiliary numeric columns;
         an empty tuple selects none. Missing or nonnumeric names raise ValueError.
     period : TimePeriod, default 'month'
         Calendar grouping in the data timezone.
@@ -801,5 +1018,6 @@ __all__ = [
     "PUPositiveCapture",
     "ObservedFitted",
     "TimeObservedFitted",
+    "GroupedMetrics",
     "NumericalFeatureDistributions",
 ]

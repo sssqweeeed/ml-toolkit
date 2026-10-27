@@ -10,7 +10,13 @@ A workflow has a parent named by `run_name`, a `validation` run containing
 `validation/split_<index>` runs, and a `test` run when test exists.
 Without test, the main fit is `final_fit`; with test and `fit_on_test=True`,
 a separate `final_fit` follows test evaluation. Selection history is
-stored in `selection/history.json` inside each split; tuning uses nested
+stored in `selection/history.json` inside each split. Built-in selectors also
+write one plot alongside it: `selection/rfe_progress.png`,
+`selection/top_k_ranking.png`, or `selection/forward_progress.png`. Figure
+configuration can change the format to SVG/PDF. Selection plots are automatic,
+including when validation reporting is disabled, and use no extra model fits.
+See [feature selection](feature-selection.md#automatic-selection-plots).
+Tuning uses nested
 `tuning` and `trial_<number>` runs. The final fit uses the
 last yielded split's settings and the final data supplied by the splitter.
 

@@ -19,6 +19,7 @@ from ..evaluation import (
 )
 from ..feature_levels import LevelTransformer
 from ..feature_levels.config import feature_definitions
+from ..feature_selection import FeatureSelectionResult
 from ..models.base import Model
 from ..plots import psi as psi_plots
 from ..plots.utils import feature_filename
@@ -109,6 +110,32 @@ def upload_artifacts(root: Path, paths: list[Path], namespace: str) -> None:
             artifact_path += f"/{parent}"
         tracking.log_artifact(image, artifact_path=artifact_path)
         logger.debug("Logged report artifact %s to %s", relative, artifact_path)
+
+
+def report_feature_selection(
+    result: FeatureSelectionResult, config: ReportingConfig, *, stage: str
+) -> None:
+    """Always plot a known selector's completed history in the active split run."""
+    from ..plots import feature_selection as selection_plots
+
+    selector = result.settings.get("selector")
+    plots = {
+        "rfe": ("rfe_progress", selection_plots.rfe_progress),
+        "top_k": ("top_k_ranking", selection_plots.top_k_ranking),
+        "forward": ("forward_progress", selection_plots.forward_progress),
+    }
+    if not isinstance(selector, str) or selector not in plots:
+        return
+    name, draw = plots[selector]
+    try:
+        with TemporaryDirectory(prefix="ml-toolkit-selection-") as directory:
+            root = Path(directory).resolve()
+            path = Path(f"{name}.{config.figure.format}")
+            draw(result, root / path, figure=config.figure)
+            upload_artifacts(root, [path], "selection")
+    except Exception as exc:
+        exc.add_note(f"Feature selection selector={selector}, stage={stage}")
+        raise
 
 
 def report_predictions(
@@ -251,12 +278,14 @@ def _psi_artifacts(
     transformer = (
         psi_baseline.transformer
         if psi_baseline is not None
-        else LevelTransformer(features, n_bins=config.n_bins).fit(train.X)
+        else LevelTransformer(features, n_bins=config.n_bins).fit(
+            train.to_analysis_frame()
+        )
     )
     assert transformer.feature_levels is not None
     result = compare_psi(
-        transformer.transform(train.X),
-        transformer.transform(current.X),
+        transformer.transform(train.to_analysis_frame()),
+        transformer.transform(current.to_analysis_frame()),
         transformer.feature_levels,
         epsilon=config.epsilon,
         period=config.period,

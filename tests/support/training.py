@@ -1,6 +1,6 @@
 """Small deterministic data and model doubles shared by workflow tests."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, timedelta
 
 import mlflow
@@ -20,35 +20,39 @@ class ProjectData:
     cat_features: tuple[str, ...] = ()
     numerical_features: tuple[str, ...] = ()
     object_id: pl.Series | None = None
-    business_type: pl.Series | None = None
+    auxiliary_features: pl.DataFrame | None = None
 
     def __len__(self):
         return len(self.X)
 
     def take(self, indices):
         index = np.asarray(indices, dtype=np.int64)
-        return ProjectData(
-            self.X[index],
-            self.y.gather(index),
-            self.time.gather(index),
-            self.weight.gather(index),
-            self.cat_features,
+        return replace(
+            self,
+            X=self.X[index], y=self.y.gather(index),
+            time=self.time.gather(index), weight=self.weight.gather(index),
+            object_id=None if self.object_id is None else self.object_id.gather(index),
+            auxiliary_features=None if self.auxiliary_features is None else self.auxiliary_features[index],
         )
 
     def select_features(self, names):
-        return ProjectData(
-            self.X.select(names),
-            self.y,
-            self.time,
-            self.weight,
-            tuple(name for name in self.cat_features if name in names),
+        return replace(
+            self, X=self.X.select(names),
+            cat_features=tuple(name for name in self.cat_features if name in names),
+            numerical_features=tuple(name for name in self.numerical_features if name in names),
         )
 
     def with_target(self, target):
         values = (
             target if isinstance(target, pl.Series) else pl.Series("target", target)
         )
-        return ProjectData(self.X, values, self.time, self.weight, self.cat_features)
+        return replace(self, y=values)
+
+    def to_analysis_frame(self, columns=None):
+        frame = self.X.clone()
+        if self.auxiliary_features is not None:
+            frame = frame.hstack(self.auxiliary_features)
+        return frame if columns is None else frame.select(columns)
 
     def to_catboost(self, baseline=None):
         import catboost
@@ -171,7 +175,7 @@ def make_identified_data():
         source.time,
         source.weight,
         object_id=pl.Series("id", np.arange(len(source))),
-        business_type=pl.Series("group", ["a", "b"] * (len(source) // 2)),
+        auxiliary_features=(pl.Series("group", ["a", "b"] * (len(source) // 2))).to_frame(),
         numerical_features=tuple(source.X.columns),
     )
 

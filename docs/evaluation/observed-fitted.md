@@ -150,8 +150,12 @@ produces no feature figures. Explicit unknown feature names raise an error.
 
 `TimeObservedFitted(period="month")` summarizes targets and predictions by
 recorded calendar period. The lines show weighted means; the returned table
-also reports total weight. `Pool.business_type`, when supplied, creates a
-separate panel for each group.
+also reports total weight. `TimeObservedFitted(by=("season",))` creates a
+separate panel for each exact-value group. Names may refer to `Pool.X` or
+`Pool.auxiliary_features`. Multiple names group by their combinations; an empty
+tuple gives an overall plot. For continuous values, prepare a categorical band
+column as shown in the [data guide](../api/data.md#grouping-by-prepared-bands).
+`max_groups=50` limits the number of combinations across train and held-out rows.
 
 ![Monthly actual and predicted rental means for 2011 train and 2012 test hours.](../assets/plots/time_observed_fitted/time.png)
 
@@ -172,8 +176,6 @@ temporal = regression.time_observed_fitted(
     output / "direct-time-observed-fitted.png",
     reference_weight=train.weight.to_numpy(),
     current_weight=test.weight.to_numpy(),
-    reference_group=train.business_type,
-    current_group=test.business_type,
     period="month",
     figure=figure,
 )
@@ -198,6 +200,56 @@ period_start     split  observed  fitted  volume
 Monthly groups: 24
 ```
 <!-- /output -->
+
+## Metrics by group
+
+`GroupedMetrics` applies an ordinary metric function to each group and split.
+It accepts the same exact-value `by` selection as the time report, independently
+of shared numerical level settings. No metric function changes are required.
+
+<!-- example: observed-fitted-grouped-metrics -->
+
+```python
+from ml_toolkit.evaluation import GroupedMetrics
+from ml_toolkit.metrics import metrics_regression
+
+grouped_report = GroupedMetrics(
+    name="metrics_by_season",
+    metric=metrics_regression,
+    by=("season",),
+    min_rows=30,
+)
+grouped_table = grouped_report.calculate(
+    data=data, prediction=prediction, split=split
+)
+assert grouped_table.filter(pl.col("status") == "ok").height > 0
+```
+
+Pass this evaluator through `prediction_evaluators` to log finite scalar scores
+and upload `metrics.parquet` beneath its report name. The table preserves typed
+grouping columns and includes `group_id`, `split`, `n_rows`,
+`n_positive_weight_rows`, `sum_weight`, `metric`, `value`, and `status`.
+`group_id` identifies the same group across splits within that report; identifiers
+are local to the report and are not persistent segment IDs across folds.
+
+`min_rows=1` by default counts positive-weight rows. Each represented split
+includes every observed group, even if that split has no rows in the group.
+Statuses are `ok`, `empty`, `zero_weight`, `insufficient_rows`, or `undefined`.
+Skipped and nonfinite results have null values; if every group is skipped,
+metric names are null too. A single-class group's ROC AUC is undefined, while
+its other valid scores remain available. Exceptions raised by the metric
+function propagate with report context. Only finite scores are logged under
+`<name>/<split>/<group_id>/<metric_key>`; the table retains original metric names.
+Unusual metric names are encoded into collision-free tracking keys.
+Grouping column names must not conflict with the table's metadata columns;
+give such a diagnostic column a distinct name before grouping.
+
+Grouped metrics are additional diagnostics, including on train-only fits. They
+do not change training metrics, CV averages, or optimization objectives.
+
+::: ml_toolkit.evaluation.GroupedMetrics
+    options:
+      members: [calculate]
 
 The table exposes `period_start` for each group. Optional weights affect means
 and volume. Feature-level plots use shared `n_bins`; the time plot has its own

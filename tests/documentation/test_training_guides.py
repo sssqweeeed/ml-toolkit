@@ -27,7 +27,7 @@ def sample():
         y=pl.Series("target", [0.0, 2.0, 4.0, 9.0]),
         time=pl.Series("time", [date(2025, 1, day) for day in range(1, 5)]),
         weight=pl.Series("weight", [1.0, 2.0, 3.0, 4.0]),
-        business_type=pl.Series("business", ["x", "y", "x", "y"]),
+        auxiliary_features=(pl.Series("business", ["x", "y", "x", "y"])).to_frame(),
         numerical_features=("signal",),
         cat_features=("group",),
         object_id=pl.Series("id", [1, 1, 2, 2]),
@@ -58,7 +58,7 @@ def test_permutation_ranker_preserves_original_rows_and_metadata():
         assert perturbed.time is data.time
         assert perturbed.weight is data.weight
         assert perturbed.object_id is data.object_id
-        assert perturbed.business_type is data.business_type
+        assert perturbed.auxiliary_features is data.auxiliary_features
         assert perturbed.cat_features == data.cat_features
         assert perturbed.numerical_features == data.numerical_features
         assert perturbed.X.schema == data.X.schema
