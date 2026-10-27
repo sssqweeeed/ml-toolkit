@@ -5,7 +5,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 import logging
 import sys
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, TextIO, cast
 
 if TYPE_CHECKING:
     from .data import Pool
@@ -13,6 +13,7 @@ if TYPE_CHECKING:
 Verbosity = Literal["silent", "normal", "verbose", "debug"]
 _LEVELS: tuple[Verbosity, ...] = ("silent", "normal", "verbose", "debug")
 _active: ContextVar[Verbosity | None] = ContextVar("ml_toolkit_verbosity", default=None)
+_captured: ContextVar[set[str] | None] = ContextVar("ml_toolkit_console_messages", default=None)
 
 
 @contextmanager
@@ -22,6 +23,16 @@ def output_context(verbosity: Verbosity) -> Generator[None, None, None]:
         yield
     finally:
         _active.reset(token)
+
+
+@contextmanager
+def capture_messages() -> Generator[set[str], None, None]:
+    messages: set[str] = set()
+    token = _captured.set(messages)
+    try:
+        yield messages
+    finally:
+        _captured.reset(token)
 
 
 def enabled(verbosity: Verbosity) -> bool:
@@ -35,11 +46,31 @@ def enabled(verbosity: Verbosity) -> bool:
 
 def message(text: str, *args: object, verbosity: Verbosity = "normal") -> None:
     if enabled(verbosity):
-        print(text % args if args else text, file=sys.stderr, flush=True)
+        rendered = text % args if args else text
+        print(rendered, file=sys.stderr, flush=True)
+        captured = _captured.get()
+        if captured is not None:
+            captured.add(rendered)
+
+
+def _handlers(source: logging.Logger) -> Generator[logging.Handler, None, None]:
+    current: logging.Logger | None = source
+    found = False
+    while current is not None:
+        for handler in current.handlers:
+            found = True
+            yield handler
+        current = current.parent if current.propagate else None
+    if not found:
+        if logging.lastResort is not None:
+            yield logging.lastResort
+        elif logging.raiseExceptions and not source.manager.emittedNoHandlerWarning:
+            sys.stderr.write(f'No handlers could be found for logger "{source.name}"\n')
+            source.manager.emittedNoHandlerWarning = True
 
 
 class Logger:
-    """Forward records unchanged and optionally mirror them to this run's console."""
+    """Forward records and print run output when console handlers did not deliver it."""
 
     def __init__(self, name: str) -> None:
         self._logger = logging.getLogger(name)
@@ -49,8 +80,8 @@ class Logger:
         return self._logger.name
 
     def info(self, text: str, *args: object, console: bool = True) -> None:
-        self._logger.info(text, *args, stacklevel=2)
-        if console:
+        delivered = self._log(logging.INFO, text, args)
+        if console and not delivered:
             message(text, *args)
 
     def debug(
@@ -60,9 +91,46 @@ class Logger:
         console: bool = True,
         verbosity: Verbosity = "debug",
     ) -> None:
-        self._logger.debug(text, *args, stacklevel=2)
-        if console:
+        delivered = self._log(logging.DEBUG, text, args)
+        if console and not delivered:
             message(text, *args, verbosity=verbosity)
+
+    def _log(self, level: int, text: str, args: tuple[object, ...]) -> bool:
+        if _active.get() in (None, "silent"):
+            self._logger.log(level, text, *args, stacklevel=3)
+            return False
+        if not self._logger.isEnabledFor(level):
+            return False
+        filename, line, function, stack = self._logger.findCaller(stacklevel=3)
+        record = self._logger.makeRecord(
+            self.name, level, filename, line, text, args, None, function, sinfo=stack
+        )
+        # Dispatch the actual record once: probing filters before logging would
+        # run stateful filters twice and miss replacement records on Python 3.12.
+        filtered = self._logger.filter(record)
+        if not filtered:
+            return False
+        if isinstance(filtered, logging.LogRecord):
+            record = filtered
+        delivered = False
+        for handler in _handlers(self._logger):
+            if record.levelno < handler.level:
+                continue
+            accepted = handler.handle(record)
+            if (
+                accepted
+                and isinstance(handler, logging.StreamHandler)
+                and not isinstance(handler, logging.FileHandler)
+                and any(
+                    cast("logging.StreamHandler[TextIO]", handler).stream is stream
+                    for stream in (sys.stdout, sys.stderr, sys.__stdout__, sys.__stderr__)
+                )
+            ):
+                delivered = True
+        captured = _captured.get()
+        if delivered and captured is not None:
+            captured.add(text % args if args else text)
+        return delivered
 
 
 def _cell(value: object) -> str:

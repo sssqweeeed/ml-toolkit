@@ -5,7 +5,7 @@
 Python 3.11 or later is required. Install a specific release using Git:
 
 ```bash
-python -m pip install 'ml-toolkit @ git+https://github.com/sssqweeeed/ml-toolkit.git@v0.4.0'
+python -m pip install 'ml-toolkit @ git+https://github.com/sssqweeeed/ml-toolkit.git@v0.4.1'
 ```
 
 The distribution is named `ml-toolkit`; the Python import is `ml_toolkit`.
@@ -14,7 +14,7 @@ MLflow are installed by default.
 
 Alternatively, install a downloaded wheel from
 [GitHub Releases](https://github.com/sssqweeeed/ml-toolkit/releases) with
-`python -m pip install /path/to/ml_toolkit-0.4.0-py3-none-any.whl`; this does not
+`python -m pip install /path/to/ml_toolkit-0.4.1-py3-none-any.whl`; this does not
 require Git. The package is distributed through GitHub, not PyPI or Conda.
 
 Optional integrations use these extra names:
@@ -29,7 +29,7 @@ Optional integrations use these extra names:
 For example, install both SHAP and LightGBM with:
 
 ```bash
-python -m pip install 'ml-toolkit[all] @ git+https://github.com/sssqweeeed/ml-toolkit.git@v0.4.0'
+python -m pip install 'ml-toolkit[all] @ git+https://github.com/sssqweeeed/ml-toolkit.git@v0.4.1'
 ```
 
 CUDA training requires a compatible NVIDIA GPU and driver. CPU training does
@@ -42,7 +42,7 @@ The reusable loader lives in the repository's `examples/` directory. Check out
 the matching release and explicitly download the source once:
 
 ```bash
-git clone --branch v0.4.0 --depth 1 https://github.com/sssqweeeed/ml-toolkit.git
+git clone --branch v0.4.1 --depth 1 https://github.com/sssqweeeed/ml-toolkit.git
 cd ml-toolkit
 python -m examples.prepare_data --dataset bike
 ```

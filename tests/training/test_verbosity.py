@@ -5,6 +5,7 @@ from contextvars import Context
 from dataclasses import asdict, replace
 import io
 import logging
+import sys
 
 import numpy as np
 import optuna
@@ -18,6 +19,7 @@ from ml_toolkit.models import CatBoostRegressionModel
 from ml_toolkit.tracking import runs as tracking
 from ml_toolkit.training import Holdout, TimeSeriesCV, importance_ranker, train_model
 from tests.support.training import MeanModel, mae, make_data
+from examples.custom_selector import FixedFeatureSelector
 
 LEVELS = ("silent", "normal", "verbose", "debug")
 
@@ -213,6 +215,62 @@ def test_selection_and_tuning_levels(recorded_tracking, capsys, level):
     assert output.count("Selected features:") == int(level == "debug")
     assert ("Selection candidate:" in output) == (level == "debug")
     assert "do-not-print" not in output
+
+
+@pytest.mark.parametrize("destination", ["stdout", "stderr"])
+@pytest.mark.parametrize("namespace", ["", "ml_toolkit"])
+@pytest.mark.parametrize("handler_level", [logging.DEBUG, logging.INFO, logging.WARNING])
+def test_application_console_does_not_duplicate_workflow_output(
+    recorded_tracking, capsys, caplog, destination, namespace, handler_level
+):
+    application = logging.getLogger(namespace)
+    caplog.set_level(logging.DEBUG, logger="ml_toolkit")
+    handler = logging.StreamHandler(getattr(sys, destination))
+    handler.setLevel(handler_level)
+    handler.setFormatter(logging.Formatter("APP %(name)s %(message)s"))
+    application.addHandler(handler)
+    try:
+        run(
+            "debug",
+            splitter=TimeSeriesCV(make_data(), n_splits=2),
+            feature_selector=RFESelector(
+                ranker=importance_ranker, min_features=1, metric="mae", direction="minimize"
+            ),
+            config=TrainingConfig(
+                tuning=TuningConfig(metric="mae", direction="minimize", n_trials=1, seed=1)
+            ),
+            param_space=lambda trial: {"choice": trial.suggest_int("choice", 1, 2)},
+        )
+    finally:
+        application.removeHandler(handler)
+        handler.close()
+    captured = capsys.readouterr()
+    output = captured.out + captured.err
+    assert output.count("Starting training run console-test") == 1
+    assert output.count("Starting validation split 1") == 1
+    assert output.count("Starting validation split 2") == 1
+    assert output.count("Completed training run console-test") == 1
+    assert output.count("Completed feature selection:") == 2
+    assert output.count("Selected features:") == 2
+    assert output.count("Starting Optuna tuning:") == 2
+    assert output.count("Completed tuning trial 1:") == 2
+    assert output.count("Evaluation summary") == 1
+    assert ("APP ml_toolkit.training.workflow" in output) == (handler_level <= logging.INFO)
+
+
+def test_custom_selector_still_has_console_summaries(recorded_tracking, capsys, caplog):
+    caplog.set_level(logging.DEBUG, logger="ml_toolkit")
+    handler = logging.StreamHandler(sys.stderr)
+    application = logging.getLogger("ml_toolkit")
+    application.addHandler(handler)
+    try:
+        run("debug", feature_selector=FixedFeatureSelector(("x",)))
+    finally:
+        application.removeHandler(handler)
+        handler.close()
+    output = capsys.readouterr().err
+    assert output.count("Completed feature selection: 1 features selected at step 1") == 1
+    assert output.count("Selected features: ('x',)") == 1
 
 
 @pytest.mark.parametrize("level", LEVELS)

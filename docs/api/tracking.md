@@ -11,8 +11,11 @@ A workflow has a parent named by `run_name`, a `validation` run containing
 Without test, the main fit is `final_fit`; with test and `fit_on_test=True`,
 a separate `final_fit` follows test evaluation. Selection history is
 stored in `selection/history.json` inside each split. Built-in selectors also
-write one plot alongside it: `selection/rfe_progress.png`,
-`selection/top_k_ranking.png`, or `selection/forward_progress.png`. Figure
+write a main plot alongside it: `selection/rfe_progress.png`,
+`selection/top_k_ranking.png`, or `selection/forward_progress.png`. Forward
+also writes `selection/forward_improvement.png` when rounds can be compared.
+All three write `selection/best_iteration.png` when iteration data is available.
+These figures use the current split's single search history. Figure
 configuration can change the format to SVG/PDF. Selection plots are automatic,
 including when validation reporting is disabled, and use no extra model fits.
 See [feature selection](feature-selection.md#automatic-selection-plots).

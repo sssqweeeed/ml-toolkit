@@ -108,14 +108,28 @@ feature count and selected index have separate `selection/` entries.
 
 ### Automatic selection plots
 
-`train_model` also writes one diagnostic figure in that same `selection/`
-artifact folder for each validation split:
+`train_model` also writes diagnostic figures from each split's single search
+history in that same `selection/` artifact folder:
 
 | Selector | Artifact (default format) | Contents |
 | --- | --- | --- |
 | RFE | `selection/rfe_progress.png` | Validation objective against decreasing feature count, best and selected subsets, and the score tolerance band. |
 | Top-K | `selection/top_k_ranking.png` | All full-model ranking values, with selected, excluded and protected features distinguished. |
 | Forward | `selection/forward_progress.png` | All evaluated candidates by subset size, accepted additions, protected baseline when present, and the stopping reason. |
+| Forward | `selection/forward_improvement.png` | The best candidate's improvement over the preceding accepted subset in each comparable round, with the strict `min_improvement` threshold. |
+| All three | `selection/best_iteration.png` | Recorded best iteration against feature count, with the selected subset highlighted when its iteration is available. |
+
+Forward improvement is positive when quality improves, for either optimization
+direction. The initial singleton round without protected features establishes
+the baseline; it has no improvement against an artificial zero score. With
+protected features, the protected-only fit supplies the baseline. If there are
+no comparable rounds, the improvement figure is skipped.
+
+Best iterations are zero-based; zero is valid. Missing iterations are omitted
+and break connecting lines instead of being plotted as zero. If every iteration
+is missing, the figure is skipped. Forward displays all available candidates as
+points, without connecting alternative subsets. RFE progress limits axis labels
+on long schedules while retaining every evaluated point.
 
 These search diagnostics are always generated when a built-in selector runs,
 including when `ReportingConfig.on_validation=False`. They use the stored
@@ -129,6 +143,8 @@ Calling `selector.select()` directly only returns the result; it does not plot
 or log artifacts. To draw an existing built-in result manually, use
 `ml_toolkit.plots.feature_selection.rfe_progress(result, save_fig)`,
 `top_k_ranking(result, save_fig)`, or `forward_progress(result, save_fig)`.
+The same module provides `forward_improvement(result, save_fig)` and
+`best_iteration_progress(result, save_fig)` for the additional diagnostics.
 Each accepts an optional keyword-only `figure=FigureConfig(...)` and closes the
 figure after saving. Custom selector identifiers are skipped by automatic
 plotting; their history and metrics are still recorded as before.

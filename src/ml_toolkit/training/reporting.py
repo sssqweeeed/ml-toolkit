@@ -115,7 +115,7 @@ def upload_artifacts(root: Path, paths: list[Path], namespace: str) -> None:
 def report_feature_selection(
     result: FeatureSelectionResult, config: ReportingConfig, *, stage: str
 ) -> None:
-    """Always plot a known selector's completed history in the active split run."""
+    """Always plot a known selector's single search history in its active run."""
     from ..plots import feature_selection as selection_plots
 
     selector = result.settings.get("selector")
@@ -126,13 +126,21 @@ def report_feature_selection(
     }
     if not isinstance(selector, str) or selector not in plots:
         return
-    name, draw = plots[selector]
+    reports = [plots[selector]]
+    if selector == "forward":
+        reports.append(("forward_improvement", selection_plots.forward_improvement))
+    reports.append(("best_iteration", selection_plots.best_iteration_progress))
     try:
         with TemporaryDirectory(prefix="ml-toolkit-selection-") as directory:
             root = Path(directory).resolve()
-            path = Path(f"{name}.{config.figure.format}")
-            draw(result, root / path, figure=config.figure)
-            upload_artifacts(root, [path], "selection")
+            paths: list[Path] = []
+            for index, (name, draw) in enumerate(reports):
+                path = Path(f"{name}.{config.figure.format}")
+                draw(result, root / path, figure=config.figure)
+                # Additional diagnostics may have no comparable/available data.
+                if index == 0 or (root / path).is_file():
+                    paths.append(path)
+            upload_artifacts(root, paths, "selection")
     except Exception as exc:
         exc.add_note(f"Feature selection selector={selector}, stage={stage}")
         raise

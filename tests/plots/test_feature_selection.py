@@ -239,6 +239,8 @@ def test_forward_protected_baseline_and_no_candidate_round(
         (plots.rfe_progress, "rfe"),
         (plots.top_k_ranking, "top_k"),
         (plots.forward_progress, "forward"),
+        (plots.forward_improvement, "forward"),
+        (plots.best_iteration_progress, "rfe"),
     ],
 )
 @pytest.mark.parametrize("format", ["png", "svg", "pdf"])
@@ -249,6 +251,8 @@ def test_export_formats_dimensions_dpi_and_closed_figures(
         result = forward_history()
     else:
         result = history(kind, [step("a", 1, {"a": 1})], 0, score_tolerance=0)
+    if draw is plots.best_iteration_progress:
+        result = replace(result, steps=(replace(result.steps[0], best_iteration=0),))
     before = plt.get_fignums()
     draw(
         result,
@@ -266,6 +270,8 @@ def test_export_formats_dimensions_dpi_and_closed_figures(
         (plots.rfe_progress, "rfe"),
         (plots.top_k_ranking, "top_k"),
         (plots.forward_progress, "forward"),
+        (plots.forward_improvement, "forward"),
+        (plots.best_iteration_progress, "rfe"),
     ],
 )
 def test_render_failure_closes_figure(tmp_path, monkeypatch, draw, kind):
@@ -274,6 +280,8 @@ def test_render_failure_closes_figure(tmp_path, monkeypatch, draw, kind):
         if kind == "forward"
         else history(kind, [step("a", 1, {"a": 1})], 0, score_tolerance=0)
     )
+    if draw is plots.best_iteration_progress:
+        result = replace(result, steps=(replace(result.steps[0], best_iteration=0),))
 
     def fail(*args, **kwargs):
         raise OSError("Cannot save figure")
@@ -296,3 +304,142 @@ def test_invalid_history_and_missing_scores_do_not_open_figures(tmp_path):
         with pytest.raises(PlotError):
             plots.rfe_progress(invalid, tmp_path / "invalid.png")
     assert not plt.get_fignums() and not list(tmp_path.iterdir())
+
+
+@pytest.mark.parametrize("direction,sign", [("maximize", 1), ("minimize", -1)])
+def test_forward_improvement_uses_previous_accepted_subset(
+    tmp_path, figures, direction, sign
+):
+    plots.forward_improvement(forward_history(direction, sign), tmp_path / "gain.png")
+    ax = figures[0].axes[0]
+    np.testing.assert_equal(ax.lines[2].get_xdata(), [2, 3])
+    np.testing.assert_allclose(ax.lines[2].get_ydata(), [0.1, 0.001])
+    np.testing.assert_equal(ax.lines[1].get_ydata(), [0.01, 0.01])
+    np.testing.assert_allclose(ax.collections[0].get_offsets(), [[2, 0.1]])
+    np.testing.assert_allclose(ax.collections[1].get_offsets(), [[3, 0.001]])
+    assert [text.get_text() for text in ax.texts] == ["+b", "+c (rejected)"]
+    assert "higher is better" in ax.get_ylabel()
+
+
+def test_forward_improvement_protected_baseline_and_strict_threshold(tmp_path, figures):
+    result = history(
+        "forward",
+        [step("b", 1), step("ab", 3), step("bc", 4)],
+        0,
+        protected_features=("b",),
+        min_improvement=3,
+    )
+    plots.forward_improvement(result, tmp_path / "gain.png")
+    ax = figures[0].axes[0]
+    np.testing.assert_equal(ax.lines[2].get_xdata(), [2])
+    np.testing.assert_equal(ax.lines[2].get_ydata(), [3])
+    assert ax.texts[0].get_text() == "+c (rejected)"
+    assert "Selected subset" not in ax.get_legend_handles_labels()[1]
+
+
+@pytest.mark.parametrize("protected", [False, True])
+def test_forward_improvement_skips_when_no_comparison_exists(
+    tmp_path, figures, protected
+):
+    result = (
+        history(
+            "forward", [step("a", 1)], 0, protected_features=("a",), min_improvement=0
+        )
+        if protected
+        else replace(
+            forward_history(),
+            steps=forward_history().steps[:3],
+            selected_step=0,
+            features=("a",),
+        )
+    )
+    plots.forward_improvement(result, tmp_path / "gain.png")
+    assert not figures and not list(tmp_path.iterdir())
+
+
+@pytest.mark.parametrize("kind", ["rfe", "top_k"])
+def test_best_iteration_zero_and_missing_values_preserve_gaps(tmp_path, figures, kind):
+    result = history(
+        kind,
+        [
+            replace(step("abc", 1), best_iteration=13),
+            step("ab", 1),
+            replace(step("a", 1), best_iteration=0),
+        ],
+        2,
+    )
+    plots.best_iteration_progress(result, tmp_path / "iterations.png")
+    ax = figures[0].axes[0]
+    np.testing.assert_allclose(ax.lines[0].get_ydata(), [13, np.nan, 0], equal_nan=True)
+    np.testing.assert_allclose(ax.collections[0].get_offsets(), [[3, 13], [1, 0]])
+    np.testing.assert_allclose(ax.collections[1].get_offsets(), [[1, 0]])
+    assert "zero-based" in ax.get_ylabel() and ax.get_xlim()[0] > ax.get_xlim()[1]
+
+
+def test_best_iteration_forward_includes_all_candidates_without_joining_them(
+    tmp_path, figures
+):
+    result = forward_history()
+    result = replace(
+        result,
+        steps=tuple(
+            replace(s, best_iteration=v)
+            for s, v in zip(result.steps, [12, 20, None, 6, 15, 0])
+        ),
+    )
+    plots.best_iteration_progress(result, tmp_path / "iterations.png")
+    ax = figures[0].axes[0]
+    assert not ax.lines and ax.get_xlim()[0] < ax.get_xlim()[1]
+    np.testing.assert_equal(ax.collections[0].get_offsets()[:, 1], [12, 20, 6, 15, 0])
+    np.testing.assert_equal(ax.collections[1].get_offsets()[:, 1], [6])
+
+
+def test_best_iteration_missing_selected_is_not_plotted_at_zero(tmp_path, figures):
+    result = history(
+        "rfe", [replace(step("ab", 1), best_iteration=10), step("a", 1)], 1
+    )
+    plots.best_iteration_progress(result, tmp_path / "iterations.png")
+    ax = figures[0].axes[0]
+    assert len(ax.collections) == 1
+    assert "unavailable" in ax.texts[0].get_text()
+
+
+def test_best_iteration_all_missing_writes_no_file(tmp_path, figures):
+    plots.best_iteration_progress(
+        history("rfe", [step("a", 1)], 0), tmp_path / "iterations.png"
+    )
+    assert not figures and not list(tmp_path.iterdir())
+
+
+@pytest.mark.parametrize("value", [-1, 0.5, float("nan"), float("inf")])
+def test_best_iteration_invalid_values_do_not_create_figures(tmp_path, value):
+    result = history("rfe", [replace(step("a", 1), best_iteration=value)], 0)
+    with pytest.raises(PlotError):
+        plots.best_iteration_progress(result, tmp_path / "iterations.png")
+    assert not plt.get_fignums() and not list(tmp_path.iterdir())
+
+
+def test_long_rfe_schedule_keeps_all_observations_and_limits_axis_labels(
+    tmp_path, figures
+):
+    names = tuple(f"f{i}" for i in range(535))
+    counts = np.rint(np.geomspace(535, 15, 50)).astype(int)
+    result = history(
+        "rfe",
+        [
+            step(names[:n], score)
+            for n, score in zip(counts, np.linspace(1.3, 1.2, len(counts)))
+        ],
+        len(counts) - 1,
+        score_tolerance=0,
+    )
+    plots.rfe_progress(result, tmp_path / "dense.png")
+    ax = figures[0].axes[0]
+    np.testing.assert_equal(ax.lines[1].get_xdata(), counts)
+    ticks = ax.get_xticks()
+    assert len(ticks) <= 8 and min(ticks) == 15 and max(ticks) == 535
+    canvas = FigureCanvasAgg(figures[0])
+    canvas.draw()
+    bounds = ax.texts[0].get_window_extent(canvas.get_renderer())
+    assert bounds.x0 >= ax.bbox.x0 and bounds.x1 <= ax.bbox.x1
+    assert bounds.y0 >= ax.bbox.y0

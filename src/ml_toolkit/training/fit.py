@@ -5,7 +5,7 @@ from dataclasses import asdict, replace
 
 from optuna import Trial
 
-from .._console import Logger, datasets, message
+from .._console import Logger, capture_messages, datasets, message
 from ..config import TrainingConfig
 from ..metrics import Metric
 from ..models.base import Model
@@ -56,13 +56,14 @@ def fit_split(
         selection = None
         if feature_selector is not None:
             logger.info("Starting feature selection")
-            selection = feature_selector.select(
-                train=train,
-                validation=validation,
-                params=params.copy(),
-                model_factory=model_factory,
-                metric=metric,
-            )
+            with capture_messages() as selection_messages:
+                selection = feature_selector.select(
+                    train=train,
+                    validation=validation,
+                    params=params.copy(),
+                    model_factory=model_factory,
+                    metric=metric,
+                )
             names = selection.features
             if (
                 not names
@@ -79,11 +80,15 @@ def fit_split(
                 raise ValueError(
                     "Selector selected_step must identify its returned features"
                 )
-            message(
-                "Completed feature selection: %s features selected at step %s",
-                len(names), selection.selected_step + 1,
+            summary = (
+                f"Completed feature selection: {len(names)} features selected "
+                f"at step {selection.selected_step + 1}"
             )
-            message("Selected features: %s", names, verbosity="debug")
+            if summary not in selection_messages:
+                message(summary)
+            features = f"Selected features: {names}"
+            if features not in selection_messages:
+                message(features, verbosity="debug")
             train = train.select_features(names)
             validation = validation.select_features(names)
             tracking.log_json(asdict(selection), "selection/history.json")
