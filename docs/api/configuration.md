@@ -107,10 +107,13 @@ Optuna verbosity, MLflow output, or experiment recording. Consequently, `silent`
 does not suppress messages from those libraries or from your callbacks.
 
 Standard records under the `ml_toolkit` Python logger remain independent and
-retain application-controlled levels and handlers. If your application already
-prints these records to the terminal, use `verbosity="silent"` to avoid seeing
-both the automatic console output and your own handler's messages. Standalone
-model, selector, tuning and diagnostic calls keep their existing Python logging
+retain application-controlled levels and handlers. When a standard stream handler
+delivers a record to stdout or stderr, automatic output omits its duplicate.
+File handlers and handlers that reject a record leave automatic output available
+at the selected verbosity. Dataset and metric tables still follow that verbosity.
+Use `verbosity="silent"` to disable automatic output while retaining your
+application's logging. Standalone model, selector, tuning and diagnostic calls
+keep their existing Python logging
 behavior; this setting does not enable automatic output outside `train_model`.
 
 ## API reference
