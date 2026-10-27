@@ -1,0 +1,2844 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Training, validation, metrics, diagnostics, and MLflow for Python ML projects.">
+      
+      
+      
+        <link rel="canonical" href="https://sssqweeeed.github.io/ml-toolkit/0.4.0/api/configuration/">
+      
+      
+        <link rel="prev" href="../tracking/">
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Configuration - ml-toolkit</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#configuration" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="ml-toolkit" class="md-header__button md-logo" aria-label="ml-toolkit" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            ml-toolkit
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Configuration
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/sssqweeeed/ml-toolkit" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    sssqweeeed/ml-toolkit
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="ml-toolkit" class="md-nav__button md-logo" aria-label="ml-toolkit" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    ml-toolkit
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/sssqweeeed/ml-toolkit" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    sssqweeeed/ml-toolkit
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Task recipes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../data/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Training
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Training
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../training/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Workflow and results
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../splitting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data splitting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../feature-selection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Feature selection
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tuning/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Parameter tuning
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Models
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Models
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../models/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Built-in adapters
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../custom-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Build a model adapter
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../inflation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Inflation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Evaluation
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Evaluation
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../evaluation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../evaluation/classification/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Classification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../evaluation/observed-fitted/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Observed versus fitted
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../evaluation/ranking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ranking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../evaluation/pu/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Positive-unlabeled
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../evaluation/explainability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Feature importance and SHAP
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../evaluation/custom/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Build an evaluator
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data analysis
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Data analysis
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../data-analysis/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../data-analysis/distributions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Numerical distributions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../psi/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PSI and feature levels
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../data-analysis/custom/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Build a data analyzer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../metrics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Metrics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tracking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tracking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#start-with-a-small-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Start with a small configuration
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#console-verbosity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Console verbosity
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Console verbosity">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#python-logging-and-backend-output" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Python logging and backend output
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#api-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        API reference
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#start-with-a-small-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Start with a small configuration
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#console-verbosity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Console verbosity
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Console verbosity">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#python-logging-and-backend-output" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Python logging and backend output
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#api-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        API reference
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">&para;</a></h1>
+<p><code>TrainingConfig</code> controls console verbosity, tuning, shared reporting, model packaging and optional
+training including test via <code>fit_on_test=False</code>. Enabling this flag returns an
+additional <code>result.final_model</code> and requires a held-out test sample. See the
+<a href="../training/#optionally-train-including-test">training scenarios</a>.
+A <a href="../splitting/">splitter</a> supplies validation and final-fit data. Model factories, metrics, selectors and
+report objects are explicit <code>train_model</code> arguments.</p>
+<h2 id="start-with-a-small-configuration">Start with a small configuration<a class="headerlink" href="#start-with-a-small-configuration" title="Permanent link">&para;</a></h2>
+<!-- example: configuration-small -->
+
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">replace</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">ReportingConfig</span><span class="p">,</span> <span class="n">TrackingConfig</span><span class="p">,</span> <span class="n">TrainingConfig</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.evaluation</span><span class="w"> </span><span class="kn">import</span> <span class="n">ObservedFitted</span><span class="p">,</span> <span class="n">TimeObservedFitted</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.data_analysis</span><span class="w"> </span><span class="kn">import</span> <span class="n">NumericalFeatureDistributions</span>
+
+<span class="n">config</span> <span class="o">=</span> <span class="n">TrainingConfig</span><span class="p">(</span><span class="n">tracking</span><span class="o">=</span><span class="n">TrackingConfig</span><span class="p">(</span><span class="n">log_test_model</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">log_final_model</span><span class="o">=</span><span class="kc">False</span><span class="p">))</span>
+<span class="n">with_reports</span> <span class="o">=</span> <span class="n">replace</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">reporting</span><span class="o">=</span><span class="n">ReportingConfig</span><span class="p">(</span><span class="n">psi</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
+<span class="n">prediction_evaluators</span> <span class="o">=</span> <span class="p">[</span><span class="n">ObservedFitted</span><span class="p">(),</span> <span class="n">TimeObservedFitted</span><span class="p">(</span><span class="n">period</span><span class="o">=</span><span class="s2">"month"</span><span class="p">)]</span>
+<span class="n">data_analyzers</span> <span class="o">=</span> <span class="p">[</span><span class="n">NumericalFeatureDistributions</span><span class="p">(</span><span class="n">period</span><span class="o">=</span><span class="s2">"month"</span><span class="p">)]</span>
+</code></pre></div>
+<p>Configurations are immutable keyword-only dataclasses; <code>replace</code> produces a
+modified copy. Pass evaluator objects separately to select individual reports.
+Their execution, sample selection and shared feature levels are described in
+<a href="../../evaluation/">Evaluation</a> and <a href="../../data-analysis/">Data analysis</a>.
+Pass <code>prediction_evaluators=</code> and <code>data_analyzers=</code> separately to <code>train_model</code>.
+PSI and O/F share <code>ReportingConfig.features</code> and <code>n_bins</code>, including auxiliary
+columns stored in <code>Pool.auxiliary_features</code>; each independently
+fits a <code>LevelTransformer</code> on the same training rows. See
+<a href="../psi/#how-psi-and-observedfitted-share-levels">how levels are shared</a>.</p>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Responsibility</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>TrainingConfig</code></td>
+<td>Console verbosity, tuning, reporting and model packaging settings</td>
+</tr>
+<tr>
+<td><code>TuningConfig</code></td>
+<td>Objective name/direction, trial budget and seed</td>
+</tr>
+<tr>
+<td><code>ReportingConfig</code></td>
+<td>Stage switches, PSI/SHAP and common report options</td>
+</tr>
+<tr>
+<td><code>FeatureLevelConfig</code></td>
+<td>Numerical or categorical feature levels and bounds</td>
+</tr>
+<tr>
+<td><code>FigureConfig</code></td>
+<td>Figure size, resolution and output format</td>
+</tr>
+<tr>
+<td><code>ShapConfig</code></td>
+<td>Explanation sampling and displayed features</td>
+</tr>
+<tr>
+<td><code>TrackingConfig</code></td>
+<td>Which models to package and how to package them</td>
+</tr>
+</tbody>
+</table>
+<p>See <a href="../../configuration/">Task recipes</a> for complete configuration in a training
+call, <a href="../../evaluation/custom/">Build an evaluator</a> for custom prediction reports,
+and <a href="../../data-analysis/custom/">Build a data analyzer</a> for custom data reports.</p>
+<h2 id="console-verbosity">Console verbosity<a class="headerlink" href="#console-verbosity" title="Permanent link">&para;</a></h2>
+<p>Set <code>TrainingConfig(verbosity="normal")</code> to see training progress without
+configuring a Python logger. <code>normal</code> is the default. Each setting applies only
+to the current <code>train_model</code> call, including its selection, tuning and reports.</p>
+<table>
+<thead>
+<tr>
+<th>Level</th>
+<th>Output</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>silent</code></td>
+<td>No automatic progress or result output from ml-toolkit. Warnings and exceptions remain visible.</td>
+</tr>
+<tr>
+<td><code>normal</code></td>
+<td>Run name, original dataset row/feature counts, stage and split milestones, selection/tuning summaries, and a final metric table.</td>
+</tr>
+<tr>
+<td><code>verbose</code></td>
+<td>Everything in <code>normal</code>, plus each split's row/feature counts and date range, selected feature count, best iteration, train/validation/test metrics, and each tuning trial's objective.</td>
+</tr>
+<tr>
+<td><code>debug</code></td>
+<td>Everything in <code>verbose</code>, plus selected feature names, built-in selection candidates, and internal model, PSI, SHAP, report and artifact diagnostics.</td>
+</tr>
+</tbody>
+</table>
+<!-- example: configuration-verbosity -->
+
+<div class="highlight"><pre><span></span><code><span class="n">normal_config</span> <span class="o">=</span> <span class="n">replace</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">verbosity</span><span class="o">=</span><span class="s2">"normal"</span><span class="p">)</span>
+<span class="n">detailed_config</span> <span class="o">=</span> <span class="n">replace</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">verbosity</span><span class="o">=</span><span class="s2">"verbose"</span><span class="p">)</span>
+<span class="n">quiet_config</span> <span class="o">=</span> <span class="n">replace</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">verbosity</span><span class="o">=</span><span class="s2">"silent"</span><span class="p">)</span>
+<span class="n">debug_config</span> <span class="o">=</span> <span class="n">replace</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">verbosity</span><span class="o">=</span><span class="s2">"debug"</span><span class="p">)</span>
+</code></pre></div>
+<p>Pass the chosen configuration as <code>train_model(..., config=detailed_config)</code>.
+Unknown levels raise <code>ValueError</code>. There is no numeric interval or per-tree
+progress bar. The selected level is recorded in MLflow's
+<code>configuration/requested.json</code> together with the other training settings.</p>
+<p>The plain-text output goes to <strong>stderr</strong>, including in notebooks and redirected
+terminal output. Tables use six significant digits; returned metrics retain
+their original precision. A compact final summary looks like this (illustrative
+values):</p>
+<div class="highlight"><pre><span></span><code>Evaluation summary (test scores belong to the main model)
+metric | validation mean | test
+-------+-----------------+-----
+mae    | 9               | 12
+Completed training run example
+</code></pre></div>
+<p>The <code>test</code> column is omitted when the splitter has no test sample. With
+<code>fit_on_test=True</code>, test scores still describe the main model evaluated before
+the additional fit. Its train-only metrics appear separately in <code>verbose</code> and
+<code>debug</code>. Missing best iterations are shown as <code>—</code>; available iterations use the
+model's zero-based <code>best_iteration</code>. Undefined existing metrics display as <code>nan</code>
+or <code>inf</code>. Empty metric dictionaries produce a short <code>no metrics</code> message.</p>
+<p>Dataset counts describe <code>splitter.data</code>; per-stage tables describe the actual
+pools supplied by the splitter. Splits appear as they are processed, with their
+original indices. Output uses existing results and inexpensive metadata; it
+does not calculate extra metrics, repeat predictions, or collect all split
+pools in memory. Evaluator/analyzer metrics remain in their existing reports.</p>
+<h3 id="python-logging-and-backend-output">Python logging and backend output<a class="headerlink" href="#python-logging-and-backend-output" title="Permanent link">&para;</a></h3>
+<p>Console verbosity does not change CatBoost parameters (such as <code>verbose=False</code>),
+Optuna verbosity, MLflow output, or experiment recording. Consequently, <code>silent</code>
+does not suppress messages from those libraries or from your callbacks.</p>
+<p>Standard records under the <code>ml_toolkit</code> Python logger remain independent and
+retain application-controlled levels and handlers. If your application already
+prints these records to the terminal, use <code>verbosity="silent"</code> to avoid seeing
+both the automatic console output and your own handler's messages. Standalone
+model, selector, tuning and diagnostic calls keep their existing Python logging
+behavior; this setting does not enable automatic output outside <code>train_model</code>.</p>
+<h2 id="api-reference">API reference<a class="headerlink" href="#api-reference" title="Permanent link">&para;</a></h2>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h4 id="ml_toolkit.config.TrainingConfig" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">TrainingConfig</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#ml_toolkit.config.TrainingConfig" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">TrainingConfig</span><span class="p">(</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">tuning</span><span class="p">:</span> <span class="n">TuningConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">reporting</span><span class="p">:</span> <span class="n">ReportingConfig</span> <span class="o">=</span> <span class="n">ReportingConfig</span><span class="p">(),</span>
+    <span class="n">tracking</span><span class="p">:</span> <span class="n">TrackingConfig</span> <span class="o">=</span> <span class="n">TrackingConfig</span><span class="p">(),</span>
+    <span class="n">fit_on_test</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">verbosity</span><span class="p">:</span> <span class="n">Verbosity</span> <span class="o">=</span> <span class="s2">"normal"</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>Configure parameter tuning, additional reports and model packaging.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>tuning</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="TuningConfig
+
+
+  
+      dataclass
+   (ml_toolkit.config.training.TuningConfig)" href="#ml_toolkit.config.TuningConfig">TuningConfig</a> or None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Independent search per validation split, requiring param_space.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>reporting</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="ReportingConfig
+
+
+  
+      dataclass
+   (ml_toolkit.config.reporting.ReportingConfig)" href="#ml_toolkit.config.ReportingConfig">ReportingConfig</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Additional metric and artifact settings.</p>
+              </div>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="ReportingConfig
+
+
+  
+      dataclass
+   (ml_toolkit.config.reporting.ReportingConfig)" href="#ml_toolkit.config.ReportingConfig">ReportingConfig</a>()</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>tracking</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="TrackingConfig
+
+
+  
+      dataclass
+   (ml_toolkit.config.tracking.TrackingConfig)" href="#ml_toolkit.config.TrackingConfig">TrackingConfig</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Model packaging settings.</p>
+              </div>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="TrackingConfig
+
+
+  
+      dataclass
+   (ml_toolkit.config.tracking.TrackingConfig)" href="#ml_toolkit.config.TrackingConfig">TrackingConfig</a>()</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>fit_on_test</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>After independent test evaluation, fit an additional fresh model on
+all eligible data including test. Requires a held-out test sample.</p>
+              </div>
+            </td>
+            <td>
+                  <code>False</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>verbosity</code>
+            </td>
+            <td>
+                  <code>(<span title="silent">silent</span>, <span title="normal">normal</span>, <span title="verbose">verbose</span>, <span title="debug">debug</span>)</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Console output for this training run: none, milestones and summary,
+split/trial details, or internal diagnostics. Writes to stderr without
+configuring Python logging or changing CatBoost, Optuna or MLflow output.
+Warnings, exceptions and application logging remain independent.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;silent&#39;</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="note" open>
+  <summary>Notes</summary>
+  <p>Both post-validation fits use the last split's features and refit parameters.</p>
+</details>
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h4 id="ml_toolkit.config.TuningConfig" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">TuningConfig</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#ml_toolkit.config.TuningConfig" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">TuningConfig</span><span class="p">(</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">metric</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">direction</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">"minimize"</span><span class="p">,</span> <span class="s2">"maximize"</span><span class="p">],</span>
+    <span class="n">n_trials</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">50</span><span class="p">,</span>
+    <span class="n">timeout_seconds</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">seed</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>Configure each split's independent Optuna study.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>metric</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Metric of the current split's validation rows, selected by its score callback.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>direction</code>
+            </td>
+            <td>
+                  <code>(<span title="minimize">minimize</span>, <span title="maximize">maximize</span>)</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Direction of the objective.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;minimize&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>n_trials</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Positive maximum number of trials per split.</p>
+              </div>
+            </td>
+            <td>
+                  <code>50</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>timeout_seconds</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span> or None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Positive time limit per split; a running trial may exceed it.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>seed</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span> or None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Nonnegative TPE sampler seed, independent of model seeds.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h4 id="ml_toolkit.config.ReportingConfig" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">ReportingConfig</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#ml_toolkit.config.ReportingConfig" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">ReportingConfig</span><span class="p">(</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">on_tuning</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">on_validation</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="n">on_test</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="n">on_final_fit</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="n">psi</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">shap</span><span class="p">:</span> <span class="n">ShapConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">features</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">FeatureLevelConfig</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">n_bins</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span><span class="p">,</span>
+    <span class="n">epsilon</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1e-06</span><span class="p">,</span>
+    <span class="n">period</span><span class="p">:</span> <span class="n">TimePeriod</span> <span class="o">=</span> <span class="s2">"month"</span><span class="p">,</span>
+    <span class="n">figure</span><span class="p">:</span> <span class="n">FigureConfig</span> <span class="o">=</span> <span class="n">FigureConfig</span><span class="p">()</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>Enable reporting by training stage and configure PSI, SHAP and exports.</p>
+<p>Stage switches gate prediction evaluators, data analyzers, PSI and SHAP,
+including their additional metrics and report artifacts, not training
+metrics or optimization. PSI baseline packaging follows model logging flags
+independently of stage report switches. All validation folds use the same settings.
+PSI and observed/fitted use feature levels fitted on training rows.
+<code>features=None</code> infers model and auxiliary features; <code>()</code> disables level reports.
+<code>period</code> and <code>epsilon</code> apply only to PSI.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>on_tuning</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Enable additional reports for Optuna trials.</p>
+              </div>
+            </td>
+            <td>
+                  <code>False</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>on_validation</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Enable additional reports for every completed validation fold.</p>
+              </div>
+            </td>
+            <td>
+                  <code>True</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>on_test</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Enable additional reports for the model evaluated on held-out test data.</p>
+              </div>
+            </td>
+            <td>
+                  <code>True</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>on_final_fit</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Enable applicable train-only reports after fitting all eligible data.</p>
+              </div>
+            </td>
+            <td>
+                  <code>True</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>psi</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Enable population stability reports and baseline packaging with saved
+models; uses no predictions. features=() disables the baseline too.</p>
+              </div>
+            </td>
+            <td>
+                  <code>False</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>shap</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="ShapConfig
+
+
+  
+      dataclass
+   (ml_toolkit.config.reporting.ShapConfig)" href="#ml_toolkit.config.ShapConfig">ShapConfig</a> or None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Optional native-model explanations of held-out rows.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>features</code>
+            </td>
+            <td>
+                  <code><span title="tuple">tuple</span>[<a class="autorefs autorefs-internal" title="FeatureLevelConfig
+
+
+  
+      dataclass
+   (ml_toolkit.feature_levels.FeatureLevelConfig)" href="#ml_toolkit.config.FeatureLevelConfig">FeatureLevelConfig</a>, ...] or None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Shared feature definitions; None infers columns, () disables levels.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>n_bins</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Positive number of train-fitted numerical quantile bins.</p>
+              </div>
+            </td>
+            <td>
+                  <code>10</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>epsilon</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>PSI share floor strictly between zero and one.</p>
+              </div>
+            </td>
+            <td>
+                  <code>1e-6</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>period</code>
+            </td>
+            <td>
+                  <code><span title="ml_toolkit.types.TimePeriod">TimePeriod</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Calendar period for temporal PSI distributions.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#34;month&#34;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>figure</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="FigureConfig
+
+
+  
+      dataclass
+   (ml_toolkit.config.reporting.FigureConfig)" href="#ml_toolkit.config.FigureConfig">FigureConfig</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Shared image dimensions, resolution and output format.</p>
+              </div>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="FigureConfig
+
+
+  
+      dataclass
+   (ml_toolkit.config.reporting.FigureConfig)" href="#ml_toolkit.config.FigureConfig">FigureConfig</a>()</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h4 id="ml_toolkit.config.FeatureLevelConfig" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">FeatureLevelConfig</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#ml_toolkit.config.FeatureLevelConfig" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">FeatureLevelConfig</span><span class="p">(</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">ftype</span><span class="p">:</span> <span class="n">FeatureType</span><span class="p">,</span>
+    <span class="n">error_level</span><span class="p">:</span> <span class="n">FeatureScalar</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">null_level</span><span class="p">:</span> <span class="n">FeatureScalar</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">lower_bound</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">upper_bound</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>Configure how one feature is assigned to diagnostic levels.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>name</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Nonempty feature column name.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>ftype</code>
+            </td>
+            <td>
+                  <code>(&#39;categorical&#39;, &#39;numerical&#39;)</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Choose category levels or reference quantile intervals.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;categorical&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>error_level</code>
+            </td>
+            <td>
+                  <code><span title="ml_toolkit.feature_levels.config.FeatureScalar">FeatureScalar</span> or None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Optional sentinel mapped to <strong>ERROR</strong>; must differ from null_level and
+must not be NaN.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>null_level</code>
+            </td>
+            <td>
+                  <code><span title="ml_toolkit.feature_levels.config.FeatureScalar">FeatureScalar</span> or None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Optional sentinel treated as missing alongside actual nulls and
+floating NaNs.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>lower_bound</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span> or None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Inclusive numerical lower bound; values below it map to <strong>ERROR</strong>. None
+leaves the lower tail unbounded.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>upper_bound</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span> or None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Inclusive numerical upper bound; values above it map to <strong>ERROR</strong>. None
+leaves the upper tail unbounded.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="note" open>
+  <summary>Notes</summary>
+  <p>Bounds apply only to numerical features. Regular categories must not use
+reserved diagnostic level strings.</p>
+</details>
+
+<p><span class="doc-section-title">Examples:</span></p>
+    <p>Fit age intervals once, then keep invalid and missing values separate.</p>
+    <div class="highlight"><pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">polars</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pl</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.feature_levels</span><span class="w"> </span><span class="kn">import</span> <span class="n">FeatureLevelConfig</span><span class="p">,</span> <span class="n">LevelTransformer</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">feature</span> <span class="o">=</span> <span class="n">FeatureLevelConfig</span><span class="p">(</span><span class="s2">"age"</span><span class="p">,</span> <span class="s2">"numerical"</span><span class="p">,</span> <span class="n">lower_bound</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">levels</span> <span class="o">=</span> <span class="n">LevelTransformer</span><span class="p">((</span><span class="n">feature</span><span class="p">,),</span> <span class="n">n_bins</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span><span class="s2">"age"</span><span class="p">:</span> <span class="p">[</span><span class="mi">20</span><span class="p">,</span> <span class="mi">30</span><span class="p">,</span> <span class="mi">40</span><span class="p">,</span> <span class="mi">50</span><span class="p">]})</span>
+<span class="gp">... </span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">current</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span><span class="s2">"age"</span><span class="p">:</span> <span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="mi">25</span><span class="p">,</span> <span class="mi">45</span><span class="p">]})</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">levels</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">current</span><span class="p">)[</span><span class="s2">"age"</span><span class="p">]</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">String</span><span class="p">)</span><span class="o">.</span><span class="n">to_list</span><span class="p">()</span>
+<span class="go">['__ERROR__', '__NULL__', '[0, 35)', '[35, inf)']</span>
+</code></pre></div>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h4 id="ml_toolkit.config.ShapConfig" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">ShapConfig</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#ml_toolkit.config.ShapConfig" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">ShapConfig</span><span class="p">(</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">max_samples</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10000</span><span class="p">,</span>
+    <span class="n">seed</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
+    <span class="n">max_display</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span><span class="p">,</span>
+    <span class="n">dependence_features</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>Configure SHAP sampling and displayed feature contributions.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>max_samples</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Positive maximum row count sampled without replacement from validation or test.</p>
+              </div>
+            </td>
+            <td>
+                  <code>10000</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>seed</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Nonnegative sampling seed, independent of model and tuning seeds.</p>
+              </div>
+            </td>
+            <td>
+                  <code>0</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>max_display</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Positive feature limit for importance and beeswarm plots.</p>
+              </div>
+            </td>
+            <td>
+                  <code>10</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>dependence_features</code>
+            </td>
+            <td>
+                  <code><span title="tuple">tuple</span>[<span title="str">str</span>, ...]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Unique feature names for dependence plots. Empty disables them.</p>
+              </div>
+            </td>
+            <td>
+                  <code>()</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="note" open>
+  <summary>Notes</summary>
+  <p>Requires the shap extra and a supported single-output native tree model.
+Explanations use the native raw-output scale.</p>
+</details>
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h4 id="ml_toolkit.config.FigureConfig" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">FigureConfig</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#ml_toolkit.config.FigureConfig" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">FigureConfig</span><span class="p">(</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">figsize</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">dpi</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">150</span><span class="p">,</span>
+    <span class="nb">format</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">"png"</span><span class="p">,</span> <span class="s2">"svg"</span><span class="p">,</span> <span class="s2">"pdf"</span><span class="p">]</span> <span class="o">=</span> <span class="s2">"png"</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>Configure figure dimensions and file output.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>figsize</code>
+            </td>
+            <td>
+                  <code><span title="tuple">tuple</span>[<span title="float">float</span>, <span title="float">float</span>] or None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Positive finite width and height in inches. None preserves each plot's
+native or adaptive dimensions.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>dpi</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Positive export resolution in dots per inch.</p>
+              </div>
+            </td>
+            <td>
+                  <code>150</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>format</code>
+            </td>
+            <td>
+                  <code>(<span title="png">png</span>, <span title="svg">svg</span>, <span title="pdf">pdf</span>)</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Output format. Explicit figure settings replace the output path suffix
+to match this format. All figures are closed after saving.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;png&#39;</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h4 id="ml_toolkit.config.TrackingConfig" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">TrackingConfig</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#ml_toolkit.config.TrackingConfig" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">TrackingConfig</span><span class="p">(</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">log_trial_models</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">log_validation_models</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">log_test_model</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="n">log_final_model</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="n">input_example_rows</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">5</span><span class="p">,</span>
+    <span class="n">model_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"model"</span><span class="p">,</span>
+    <span class="n">registered_model_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">conda_env</span><span class="p">:</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>Configure model packaging in an externally configured MLflow store.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>log_trial_models</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Package each trial model in each split's Optuna study.</p>
+              </div>
+            </td>
+            <td>
+                  <code>False</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>log_validation_models</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Package each split's post-tuning validation model.</p>
+              </div>
+            </td>
+            <td>
+                  <code>False</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>log_test_model</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Package the model fitted without test and evaluated on held-out test rows.</p>
+              </div>
+            </td>
+            <td>
+                  <code>True</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>log_final_model</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Package a model fitted on all eligible rows, including when no test exists.</p>
+              </div>
+            </td>
+            <td>
+                  <code>True</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>input_example_rows</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Positive maximum serving-example row count, capped at sample size.</p>
+              </div>
+            </td>
+            <td>
+                  <code>5</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>model_name</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Nonempty MLflow model artifact name shared across nested runs.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;model&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>registered_model_name</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span> or None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Registry name for the additional model when fit_on_test is enabled,
+otherwise for the main model. Requires that model's logging flag.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>conda_env</code>
+            </td>
+            <td>
+                  <code><span title="pathlib.Path">Path</span> or None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Existing serving environment file; None pins installed dependencies.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="note" open>
+  <summary>Notes</summary>
+  <p>Metrics, run metadata, and configuration artifacts are always logged.
+The caller owns tracking URI, experiment selection, and Python logging.</p>
+</details>
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div><p><code>TimePeriod</code> supports minute, hour, day, week, month, quarter and year. Temporal
+reports preserve input timezones. Standalone PSI also accepts these settings
+through its <a href="../psi/">own API</a>.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.code.copy", "navigation.sections", "navigation.top", "search.highlight"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"alias": true, "default": "stable", "provider": "mike"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

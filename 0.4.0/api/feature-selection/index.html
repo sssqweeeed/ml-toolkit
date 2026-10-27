@@ -1,0 +1,4336 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Training, validation, metrics, diagnostics, and MLflow for Python ML projects.">
+      
+      
+      
+        <link rel="canonical" href="https://sssqweeeed.github.io/ml-toolkit/0.4.0/api/feature-selection/">
+      
+      
+        <link rel="prev" href="../splitting/">
+      
+      
+        <link rel="next" href="../tuning/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Feature selection - ml-toolkit</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#feature-selection" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="ml-toolkit" class="md-header__button md-logo" aria-label="ml-toolkit" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            ml-toolkit
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Feature selection
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/sssqweeeed/ml-toolkit" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    sssqweeeed/ml-toolkit
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="ml-toolkit" class="md-nav__button md-logo" aria-label="ml-toolkit" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    ml-toolkit
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/sssqweeeed/ml-toolkit" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    sssqweeeed/ml-toolkit
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Task recipes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../data/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Training
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Training
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../training/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Workflow and results
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../splitting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data splitting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Feature selection
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Feature selection
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#prepare-a-selection-experiment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prepare a selection experiment
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#choose-a-selector" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Choose a selector
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Choose a selector">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#automatic-selection-plots" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Automatic selection plots
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#implement-a-selector" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Implement a selector
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#choose-a-ranker" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Choose a ranker
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#implement-a-ranker" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Implement a ranker
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#api-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        API reference
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="API reference">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#selectors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Selectors
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rankers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rankers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#results" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Results
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#plots" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Plots
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tuning/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Parameter tuning
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Models
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Models
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../models/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Built-in adapters
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../custom-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Build a model adapter
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../inflation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Inflation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Evaluation
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Evaluation
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../evaluation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../evaluation/classification/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Classification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../evaluation/observed-fitted/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Observed versus fitted
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../evaluation/ranking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ranking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../evaluation/pu/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Positive-unlabeled
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../evaluation/explainability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Feature importance and SHAP
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../evaluation/custom/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Build an evaluator
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data analysis
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Data analysis
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../data-analysis/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../data-analysis/distributions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Numerical distributions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../psi/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PSI and feature levels
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../data-analysis/custom/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Build a data analyzer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../metrics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Metrics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tracking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tracking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#prepare-a-selection-experiment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prepare a selection experiment
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#choose-a-selector" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Choose a selector
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Choose a selector">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#automatic-selection-plots" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Automatic selection plots
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#implement-a-selector" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Implement a selector
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#choose-a-ranker" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Choose a ranker
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#implement-a-ranker" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Implement a ranker
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#api-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        API reference
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="API reference">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#selectors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Selectors
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rankers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rankers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#results" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Results
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#plots" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Plots
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="feature-selection">Feature selection<a class="headerlink" href="#feature-selection" title="Permanent link">&para;</a></h1>
+<p>Selectors choose input columns using training and validation pools. A ranker
+scores columns of an already fitted adapter; RFE and Top-K use that ordering.
+The final model is fitted with the last validation split's selected columns.</p>
+<h2 id="prepare-a-selection-experiment">Prepare a selection experiment<a class="headerlink" href="#prepare-a-selection-experiment" title="Permanent link">&para;</a></h2>
+<p>Run from an installed checkout after <code>python -m examples.prepare_data --dataset bike</code>.
+The imported <code>prepare_training()</code> loads the original Bike Sharing hours, model
+parameters and local MLflow settings described in the <a href="../training/#run-a-holdout-experiment">training example</a>.
+Targets are rentals per hour; weights are one per recorded hour.</p>
+<!-- example: selection-setup -->
+
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">examples.training_setup</span><span class="w"> </span><span class="kn">import</span> <span class="n">prepare_training</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit</span><span class="w"> </span><span class="kn">import</span> <span class="n">train_model</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.metrics</span><span class="w"> </span><span class="kn">import</span> <span class="n">metrics_frequency</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">CatBoostLogLinkRegressionModel</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.training</span><span class="w"> </span><span class="kn">import</span> <span class="n">Holdout</span>
+
+<span class="n">data</span><span class="p">,</span> <span class="n">params</span><span class="p">,</span> <span class="n">config</span> <span class="o">=</span> <span class="n">prepare_training</span><span class="p">()</span>
+<span class="n">splitter</span> <span class="o">=</span> <span class="n">Holdout</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">val_size</span><span class="o">=</span><span class="mf">0.25</span><span class="p">,</span> <span class="n">test_size</span><span class="o">=</span><span class="mf">0.2</span><span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.feature_selection</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">ForwardSelector</span><span class="p">,</span>
+    <span class="n">RFESelector</span><span class="p">,</span>
+    <span class="n">TopKSelector</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.training</span><span class="w"> </span><span class="kn">import</span> <span class="n">importance_ranker</span>
+</code></pre></div>
+<h2 id="choose-a-selector">Choose a selector<a class="headerlink" href="#choose-a-selector" title="Permanent link">&para;</a></h2>
+<p>The selector owns its settings and ranker. Run the setup above first.
+Omit <code>feature_selector</code> to
+keep all columns. Each validation window uses fresh models, and the final fit
+reuses the last window's selected columns.</p>
+<!-- example: selection-builtins -->
+
+<div class="highlight"><pre><span></span><code><span class="n">partition</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="n">splitter</span><span class="o">.</span><span class="n">get_validation</span><span class="p">())</span>
+<span class="n">selectors</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">RFESelector</span><span class="p">(</span>
+        <span class="n">min_features</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span>
+        <span class="n">metric</span><span class="o">=</span><span class="s2">"mean_poisson_deviance"</span><span class="p">,</span>
+        <span class="n">direction</span><span class="o">=</span><span class="s2">"minimize"</span><span class="p">,</span>
+        <span class="n">ranker</span><span class="o">=</span><span class="n">importance_ranker</span><span class="p">,</span>
+        <span class="n">max_fits</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">TopKSelector</span><span class="p">(</span><span class="n">k</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">ranker</span><span class="o">=</span><span class="n">importance_ranker</span><span class="p">),</span>
+    <span class="n">ForwardSelector</span><span class="p">(</span>
+        <span class="n">metric</span><span class="o">=</span><span class="s2">"mean_poisson_deviance"</span><span class="p">,</span>
+        <span class="n">direction</span><span class="o">=</span><span class="s2">"minimize"</span><span class="p">,</span>
+        <span class="n">max_features</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+        <span class="n">max_fits</span><span class="o">=</span><span class="mi">21</span><span class="p">,</span>
+    <span class="p">),</span>
+<span class="p">)</span>
+<span class="k">for</span> <span class="n">selector</span> <span class="ow">in</span> <span class="n">selectors</span><span class="p">:</span>
+    <span class="n">selection</span> <span class="o">=</span> <span class="n">selector</span><span class="o">.</span><span class="n">select</span><span class="p">(</span>
+        <span class="n">train</span><span class="o">=</span><span class="n">partition</span><span class="o">.</span><span class="n">train</span><span class="p">,</span>
+        <span class="n">validation</span><span class="o">=</span><span class="n">partition</span><span class="o">.</span><span class="n">heldout</span><span class="p">,</span>
+        <span class="n">params</span><span class="o">=</span><span class="n">params</span><span class="p">,</span>
+        <span class="n">model_factory</span><span class="o">=</span><span class="n">CatBoostLogLinkRegressionModel</span><span class="p">,</span>
+        <span class="n">metric</span><span class="o">=</span><span class="n">metrics_frequency</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span>
+        <span class="nb">type</span><span class="p">(</span><span class="n">selector</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span>
+        <span class="s2">"features:"</span><span class="p">,</span>
+        <span class="nb">len</span><span class="p">(</span><span class="n">selection</span><span class="o">.</span><span class="n">features</span><span class="p">),</span>
+        <span class="s2">"candidates:"</span><span class="p">,</span>
+        <span class="nb">len</span><span class="p">(</span><span class="n">selection</span><span class="o">.</span><span class="n">steps</span><span class="p">),</span>
+    <span class="p">)</span>
+</code></pre></div>
+<!-- output: selection-builtins -->
+<div class="highlight"><pre><span></span><code>RFESelector features: 11 candidates: 2
+TopKSelector features: 3 candidates: 2
+ForwardSelector features: 2 candidates: 21
+</code></pre></div>
+<!-- /output -->
+
+<p>RFE repeatedly removes low-ranked columns and chooses the smallest visited
+subset within <code>score_tolerance</code> of the best result. Top-K ranks once and keeps
+exactly <code>k</code>, including protected features, even if its quality is worse. Forward
+compares every remaining single-feature addition and accepts it only when the
+absolute gain exceeds <code>min_improvement</code> (default zero). It does not begin a
+round that exceeds <code>max_fits</code>; too little budget for its first comparison is an
+error. With no protected columns it starts by comparing every singleton.</p>
+<p><code>protected_features</code> are mandatory and count toward every size limit. Ties
+prefer the original feature order. <code>steps</code> contains all evaluated candidates,
+including rejected ones, with metrics and timings; <code>selected_step</code> identifies
+the returned subset. No fitted models are retained. <code>settings</code> records concrete
+JSON-compatible configuration; executable rankers are excluded.
+Its public type, <code>ml_toolkit.feature_selection.SelectionSettings</code>, is a flat
+dictionary with string keys and values of type <code>str</code>, <code>int</code>, <code>float</code>, <code>bool</code>,
+<code>None</code>, or <code>tuple[str, ...]</code>. Use it for a custom selector's configuration;
+the tuple form records feature names.</p>
+<p>Each validation run stores concrete settings and every evaluated subset in
+<code>selection/history.json</code>, including scores, timings, available importances and
+<code>selected_step</code>.
+The selected scores are logged under <code>selection/metrics/&lt;name&gt;</code>; fit count,
+feature count and selected index have separate <code>selection/</code> entries.</p>
+<h3 id="automatic-selection-plots">Automatic selection plots<a class="headerlink" href="#automatic-selection-plots" title="Permanent link">&para;</a></h3>
+<p><code>train_model</code> also writes one diagnostic figure in that same <code>selection/</code>
+artifact folder for each validation split:</p>
+<table>
+<thead>
+<tr>
+<th>Selector</th>
+<th>Artifact (default format)</th>
+<th>Contents</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>RFE</td>
+<td><code>selection/rfe_progress.png</code></td>
+<td>Validation objective against decreasing feature count, best and selected subsets, and the score tolerance band.</td>
+</tr>
+<tr>
+<td>Top-K</td>
+<td><code>selection/top_k_ranking.png</code></td>
+<td>All full-model ranking values, with selected, excluded and protected features distinguished.</td>
+</tr>
+<tr>
+<td>Forward</td>
+<td><code>selection/forward_progress.png</code></td>
+<td>All evaluated candidates by subset size, accepted additions, protected baseline when present, and the stopping reason.</td>
+</tr>
+</tbody>
+</table>
+<p>These search diagnostics are always generated when a built-in selector runs,
+including when <code>ReportingConfig.on_validation=False</code>. They use the stored
+history without additional fits, predictions or rankings. <code>ReportingConfig.figure</code>
+controls size, DPI and format; SVG/PDF settings replace the filename extension.
+Top-K has no before/after quality plot. Protected Top-K features can be below the
+ranking cutoff, so a global Top-K line is shown only without protected features.
+Selection scores describe the search, not independent performance.</p>
+<p>Calling <code>selector.select()</code> directly only returns the result; it does not plot
+or log artifacts. To draw an existing built-in result manually, use
+<code>ml_toolkit.plots.feature_selection.rfe_progress(result, save_fig)</code>,
+<code>top_k_ranking(result, save_fig)</code>, or <code>forward_progress(result, save_fig)</code>.
+Each accepts an optional keyword-only <code>figure=FigureConfig(...)</code> and closes the
+figure after saving. Custom selector identifiers are skipped by automatic
+plotting; their history and metrics are still recorded as before.</p>
+<h2 id="implement-a-selector">Implement a selector<a class="headerlink" href="#implement-a-selector" title="Permanent link">&para;</a></h2>
+<p>Implement <code>FeatureSelector.select</code> with the documented keyword arguments and
+return a <code>FeatureSelectionResult</code>. The workflow checks the selected history
+entry and input-column order. Create a fresh model for every fit, copy parameter
+dictionaries, and keep learned state local to each call. The same selector
+instance is reused across splits; it must not accumulate fitted estimators.</p>
+<p>This reusable example evaluates a project-approved feature subset:</p>
+<details class="note">
+<summary>Complete custom selector source</summary>
+<div class="highlight"><pre><span></span><code><span class="sd">"""A project-owned selector that evaluates an approved feature subset."""</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Callable</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">time</span><span class="w"> </span><span class="kn">import</span> <span class="n">perf_counter</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit</span><span class="w"> </span><span class="kn">import</span> <span class="n">Pool</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.feature_selection</span><span class="w"> </span><span class="kn">import</span> <span class="n">FeatureSelectionResult</span><span class="p">,</span> <span class="n">FeatureSelectionStep</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.metrics</span><span class="w"> </span><span class="kn">import</span> <span class="n">Metric</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.models.base</span><span class="w"> </span><span class="kn">import</span> <span class="n">Model</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">ModelParams</span>
+
+
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">FixedFeatureSelector</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Evaluate a nonempty, unique subset, preserving original input order."""</span>
+
+    <span class="n">features</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">select</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">train</span><span class="p">:</span> <span class="n">Pool</span><span class="p">,</span>
+        <span class="n">validation</span><span class="p">:</span> <span class="n">Pool</span><span class="p">,</span>
+        <span class="n">params</span><span class="p">:</span> <span class="n">ModelParams</span><span class="p">,</span>
+        <span class="n">model_factory</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">ModelParams</span><span class="p">],</span> <span class="n">Model</span><span class="p">],</span>
+        <span class="n">metric</span><span class="p">:</span> <span class="n">Metric</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">FeatureSelectionResult</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Fit and evaluate the subset; retain no learned state between calls."""</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">features</span> <span class="ow">or</span> <span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">features</span><span class="p">))</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">features</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"features must be nonempty and unique"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">features</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="nb">set</span><span class="p">(</span><span class="n">train</span><span class="o">.</span><span class="n">X</span><span class="o">.</span><span class="n">columns</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"Requested features must exist in training data"</span><span class="p">)</span>
+        <span class="n">names</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">name</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">train</span><span class="o">.</span><span class="n">X</span><span class="o">.</span><span class="n">columns</span> <span class="k">if</span> <span class="n">name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">features</span><span class="p">)</span>
+        <span class="n">train</span> <span class="o">=</span> <span class="n">train</span><span class="o">.</span><span class="n">select_features</span><span class="p">(</span><span class="n">names</span><span class="p">)</span>
+        <span class="n">validation</span> <span class="o">=</span> <span class="n">validation</span><span class="o">.</span><span class="n">select_features</span><span class="p">(</span><span class="n">names</span><span class="p">)</span>
+        <span class="n">started</span> <span class="o">=</span> <span class="n">perf_counter</span><span class="p">()</span>
+        <span class="n">model</span> <span class="o">=</span> <span class="n">model_factory</span><span class="p">(</span><span class="n">params</span><span class="o">.</span><span class="n">copy</span><span class="p">())</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">train</span><span class="p">,</span> <span class="n">validation</span><span class="p">)</span>
+        <span class="n">fit_seconds</span> <span class="o">=</span> <span class="n">perf_counter</span><span class="p">()</span> <span class="o">-</span> <span class="n">started</span>
+        <span class="n">started</span> <span class="o">=</span> <span class="n">perf_counter</span><span class="p">()</span>
+        <span class="n">prediction</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">predict_pool</span><span class="p">(</span><span class="n">validation</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">prediction</span><span class="o">.</span><span class="n">shape</span> <span class="o">!=</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">validation</span><span class="p">),)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">prediction</span><span class="p">)</span><span class="o">.</span><span class="n">all</span><span class="p">():</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"Predictions must be finite and aligned"</span><span class="p">)</span>
+        <span class="n">scores</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span>
+            <span class="n">metric</span><span class="p">(</span>
+                <span class="n">validation</span><span class="o">.</span><span class="n">y</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">float</span><span class="p">),</span>
+                <span class="n">prediction</span><span class="p">,</span>
+                <span class="n">validation</span><span class="o">.</span><span class="n">weight</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">float</span><span class="p">),</span>
+            <span class="p">)</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span>
+        <span class="p">)</span>
+        <span class="n">step</span> <span class="o">=</span> <span class="n">FeatureSelectionStep</span><span class="p">(</span>
+            <span class="n">names</span><span class="p">,</span>
+            <span class="n">scores</span><span class="p">,</span>
+            <span class="p">{},</span>
+            <span class="p">(),</span>
+            <span class="n">fit_seconds</span><span class="p">,</span>
+            <span class="n">perf_counter</span><span class="p">()</span> <span class="o">-</span> <span class="n">started</span><span class="p">,</span>
+            <span class="mf">0.0</span><span class="p">,</span>
+            <span class="n">model</span><span class="o">.</span><span class="n">best_iteration</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">FeatureSelectionResult</span><span class="p">(</span>
+            <span class="n">names</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="p">(</span><span class="n">step</span><span class="p">,),</span> <span class="p">{</span><span class="s2">"selector"</span><span class="p">:</span> <span class="s2">"fixed"</span><span class="p">,</span> <span class="s2">"features"</span><span class="p">:</span> <span class="n">names</span><span class="p">}</span>
+        <span class="p">)</span>
+</code></pre></div>
+</details>
+<!-- example: selection-custom -->
+
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">examples.custom_selector</span><span class="w"> </span><span class="kn">import</span> <span class="n">FixedFeatureSelector</span>
+
+<span class="n">custom_selection</span> <span class="o">=</span> <span class="n">train_model</span><span class="p">(</span>
+    <span class="n">splitter</span><span class="o">=</span><span class="n">splitter</span><span class="p">,</span>
+    <span class="n">params</span><span class="o">=</span><span class="n">params</span><span class="p">,</span>
+    <span class="n">model_factory</span><span class="o">=</span><span class="n">CatBoostLogLinkRegressionModel</span><span class="p">,</span>
+    <span class="n">metric</span><span class="o">=</span><span class="n">metrics_frequency</span><span class="p">,</span>
+    <span class="n">run_name</span><span class="o">=</span><span class="s2">"custom-selector"</span><span class="p">,</span>
+    <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
+    <span class="n">feature_selector</span><span class="o">=</span><span class="n">FixedFeatureSelector</span><span class="p">((</span><span class="s2">"temperature"</span><span class="p">,</span> <span class="s2">"hour"</span><span class="p">)),</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">custom_selection</span><span class="o">.</span><span class="n">features</span><span class="p">)</span>
+<span class="k">assert</span> <span class="n">custom_selection</span><span class="o">.</span><span class="n">feature_selection</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">custom_selection</span><span class="o">.</span><span class="n">feature_selection</span><span class="o">.</span><span class="n">settings</span><span class="p">)</span>
+</code></pre></div>
+<!-- output: selection-custom -->
+<div class="highlight"><pre><span></span><code>('temperature', 'hour')
+{'selector': 'fixed', 'features': ('temperature', 'hour')}
+</code></pre></div>
+<!-- /output -->
+
+<p>The normal workflow performs validation, optional tuning and a fresh final fit
+using those columns. Prediction, refitting and model packaging remain the model
+adapter's responsibility: serve inputs in <code>result.features</code> order through that
+adapter. The selector itself owns no learned model state and is not a serving
+artifact. See <a href="../tracking/">model packaging</a> for saving and reloading the final
+model. Custom selectors must use the supported <code>Pool</code> and <code>Model</code> contracts;
+they do not extend backend or prediction-shape support.</p>
+<p>The selected final model can be packaged and checked independently of the
+selector. Continue with <code>custom_selection</code> above; this creates an MLflow model
+artifact and verifies its reloaded predictions on the selected input schema.</p>
+<!-- example: selection-serving -->
+
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">mlflow</span>
+
+<span class="n">development</span> <span class="o">=</span> <span class="n">splitter</span><span class="o">.</span><span class="n">get_test</span><span class="p">()</span>
+<span class="k">assert</span> <span class="n">development</span><span class="o">.</span><span class="n">heldout</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+<span class="n">selected_train</span> <span class="o">=</span> <span class="n">development</span><span class="o">.</span><span class="n">train</span><span class="o">.</span><span class="n">select_features</span><span class="p">(</span><span class="n">custom_selection</span><span class="o">.</span><span class="n">features</span><span class="p">)</span>
+<span class="n">selected_test</span> <span class="o">=</span> <span class="n">development</span><span class="o">.</span><span class="n">heldout</span><span class="o">.</span><span class="n">select_features</span><span class="p">(</span><span class="n">custom_selection</span><span class="o">.</span><span class="n">features</span><span class="p">)</span>
+<span class="n">expected</span> <span class="o">=</span> <span class="n">custom_selection</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">predict_pool</span><span class="p">(</span><span class="n">selected_test</span><span class="p">)</span>
+<span class="k">with</span> <span class="n">mlflow</span><span class="o">.</span><span class="n">start_run</span><span class="p">():</span>
+    <span class="n">logged</span> <span class="o">=</span> <span class="n">custom_selection</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">selected_train</span><span class="p">)</span>
+<span class="n">model_info</span> <span class="o">=</span> <span class="n">logged</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">logged</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">)</span> <span class="k">else</span> <span class="n">logged</span>
+<span class="n">reloaded</span> <span class="o">=</span> <span class="n">mlflow</span><span class="o">.</span><span class="n">pyfunc</span><span class="o">.</span><span class="n">load_model</span><span class="p">(</span><span class="n">model_info</span><span class="o">.</span><span class="n">model_uri</span><span class="p">)</span>
+<span class="n">np</span><span class="o">.</span><span class="n">testing</span><span class="o">.</span><span class="n">assert_allclose</span><span class="p">(</span>
+    <span class="n">reloaded</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">selected_test</span><span class="o">.</span><span class="n">to_model_input</span><span class="p">(</span><span class="n">categorical_as_strings</span><span class="o">=</span><span class="kc">True</span><span class="p">)),</span>
+    <span class="n">expected</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"Selected model predictions preserved after reload"</span><span class="p">)</span>
+</code></pre></div>
+<!-- output: selection-serving -->
+<div class="highlight"><pre><span></span><code>Selected model predictions preserved after reload
+</code></pre></div>
+<!-- /output -->
+
+<h2 id="choose-a-ranker">Choose a ranker<a class="headerlink" href="#choose-a-ranker" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Ranker</th>
+<th>What its score means</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>importance_ranker</code></td>
+<td>Importance supplied by the fitted adapter's native backend</td>
+</tr>
+<tr>
+<td><code>ShapRanker</code></td>
+<td>Weighted mean absolute native raw-output SHAP contribution</td>
+</tr>
+<tr>
+<td>Custom callable</td>
+<td>Your score for each current validation column</td>
+</tr>
+</tbody>
+</table>
+<p><code>ShapRanker</code> supports CatBoost and LightGBM and does not require the <code>shap</code>
+extra. It samples positive-weight validation rows deterministically. Native
+raw outputs may have different units from adapter predictions.</p>
+<!-- example: selection-shap-ranker -->
+
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.training</span><span class="w"> </span><span class="kn">import</span> <span class="n">ShapRanker</span>
+
+<span class="n">shap_selection</span> <span class="o">=</span> <span class="n">TopKSelector</span><span class="p">(</span>
+    <span class="n">k</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">ranker</span><span class="o">=</span><span class="n">ShapRanker</span><span class="p">(</span><span class="n">max_samples</span><span class="o">=</span><span class="mi">500</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">42</span><span class="p">)</span>
+<span class="p">)</span><span class="o">.</span><span class="n">select</span><span class="p">(</span>
+    <span class="n">train</span><span class="o">=</span><span class="n">partition</span><span class="o">.</span><span class="n">train</span><span class="p">,</span>
+    <span class="n">validation</span><span class="o">=</span><span class="n">partition</span><span class="o">.</span><span class="n">heldout</span><span class="p">,</span>
+    <span class="n">params</span><span class="o">=</span><span class="n">params</span><span class="p">,</span>
+    <span class="n">model_factory</span><span class="o">=</span><span class="n">CatBoostLogLinkRegressionModel</span><span class="p">,</span>
+    <span class="n">metric</span><span class="o">=</span><span class="n">metrics_frequency</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"SHAP-selected features:"</span><span class="p">,</span> <span class="n">shap_selection</span><span class="o">.</span><span class="n">features</span><span class="p">)</span>
+</code></pre></div>
+<!-- output: selection-shap-ranker -->
+<div class="highlight"><pre><span></span><code>SHAP-selected features: ('temperature', 'feels_like_temperature', 'hour')
+</code></pre></div>
+<!-- /output -->
+
+<p>The selected names retain their original input order. SHAP affects ranking;
+the candidate subset is still evaluated with the supplied task metric.</p>
+<h2 id="implement-a-ranker">Implement a ranker<a class="headerlink" href="#implement-a-ranker" title="Permanent link">&para;</a></h2>
+<p>A <code>FeatureRanker</code> is callable as <code>ranker(model, data)</code>. The model is already
+fitted; <code>data</code> contains the current validation columns. Return exactly one
+finite value per column name. Higher values rank higher, and signed values are
+allowed. Preserve both inputs and retain no learned state between calls.</p>
+<p>This custom ranker measures the increase in weighted validation MAE after
+permuting one feature. A fresh seeded generator makes repeated calls
+reproducible. Each perturbation starts from the original features, leaving
+labels, weights, timestamps and IDs aligned:</p>
+<details class="note">
+<summary>Complete implementation</summary>
+<div class="highlight"><pre><span></span><code><span class="sd">"""A project-owned permutation ranker using weighted validation MAE."""</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span><span class="p">,</span> <span class="n">replace</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.data</span><span class="w"> </span><span class="kn">import</span> <span class="n">Pool</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Model</span>
+
+
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">PermutationMAERanker</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Rank columns by the rise in weighted MAE after one seeded permutation.</span>
+
+<span class="sd">    Higher scores identify columns whose disruption hurts predictions more.</span>
+<span class="sd">    Values may be negative. The model remains fitted; only a copy of one feature</span>
+<span class="sd">    column changes for each prediction. Targets, weights, timestamps and row</span>
+<span class="sd">    metadata stay in their original order. No predictions or models are stored.</span>
+<span class="sd">    """</span>
+
+    <span class="n">seed</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">42</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">model</span><span class="p">:</span> <span class="n">Model</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="n">Pool</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">"""Return one finite importance for every current validation column."""</span>
+        <span class="n">target</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">y</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()</span>
+        <span class="n">weights</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">weight</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()</span>
+        <span class="n">baseline</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">average</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">target</span> <span class="o">-</span> <span class="n">model</span><span class="o">.</span><span class="n">predict_pool</span><span class="p">(</span><span class="n">data</span><span class="p">)),</span> <span class="n">weights</span><span class="o">=</span><span class="n">weights</span><span class="p">)</span>
+        <span class="p">)</span>
+        <span class="n">rng</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">default_rng</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">seed</span><span class="p">)</span>
+        <span class="n">importance</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">X</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+            <span class="n">shuffled</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">X</span><span class="p">[</span><span class="n">name</span><span class="p">]</span><span class="o">.</span><span class="n">gather</span><span class="p">(</span><span class="n">rng</span><span class="o">.</span><span class="n">permutation</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">data</span><span class="p">)))</span>
+            <span class="n">perturbed</span> <span class="o">=</span> <span class="n">replace</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">X</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">X</span><span class="o">.</span><span class="n">with_columns</span><span class="p">(</span><span class="n">shuffled</span><span class="p">))</span>
+            <span class="n">error</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span>
+                <span class="n">np</span><span class="o">.</span><span class="n">average</span><span class="p">(</span>
+                    <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">target</span> <span class="o">-</span> <span class="n">model</span><span class="o">.</span><span class="n">predict_pool</span><span class="p">(</span><span class="n">perturbed</span><span class="p">)),</span> <span class="n">weights</span><span class="o">=</span><span class="n">weights</span>
+                <span class="p">)</span>
+            <span class="p">)</span>
+            <span class="n">importance</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">error</span> <span class="o">-</span> <span class="n">baseline</span>
+        <span class="k">return</span> <span class="n">importance</span>
+</code></pre></div>
+</details>
+<p>A high score means the fitted model relies on that feature for accurate
+predictions. Correlated features can share predictive information, and a
+single permutation is noisy; these scores are not causal effects. The
+example ranks by MAE even though the workflow reports Poisson deviance.</p>
+<!-- example: selection-custom-ranker -->
+
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">examples.custom_ranker</span><span class="w"> </span><span class="kn">import</span> <span class="n">PermutationMAERanker</span>
+
+<span class="n">ranked</span> <span class="o">=</span> <span class="n">train_model</span><span class="p">(</span>
+    <span class="n">splitter</span><span class="o">=</span><span class="n">splitter</span><span class="p">,</span>
+    <span class="n">params</span><span class="o">=</span><span class="n">params</span><span class="p">,</span>
+    <span class="n">model_factory</span><span class="o">=</span><span class="n">CatBoostLogLinkRegressionModel</span><span class="p">,</span>
+    <span class="n">metric</span><span class="o">=</span><span class="n">metrics_frequency</span><span class="p">,</span>
+    <span class="n">run_name</span><span class="o">=</span><span class="s2">"permutation-selection"</span><span class="p">,</span>
+    <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
+    <span class="n">feature_selector</span><span class="o">=</span><span class="n">TopKSelector</span><span class="p">(</span><span class="n">k</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">ranker</span><span class="o">=</span><span class="n">PermutationMAERanker</span><span class="p">(</span><span class="n">seed</span><span class="o">=</span><span class="mi">42</span><span class="p">)),</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"Permutation-selected features:"</span><span class="p">,</span> <span class="n">ranked</span><span class="o">.</span><span class="n">features</span><span class="p">)</span>
+<span class="k">assert</span> <span class="n">ranked</span><span class="o">.</span><span class="n">test_metrics</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+<span class="nb">print</span><span class="p">(</span>
+    <span class="s2">"Test Poisson deviance:"</span><span class="p">,</span>
+    <span class="nb">round</span><span class="p">(</span><span class="n">ranked</span><span class="o">.</span><span class="n">test_metrics</span><span class="p">[</span><span class="s2">"mean_poisson_deviance"</span><span class="p">],</span> <span class="mi">4</span><span class="p">),</span>
+<span class="p">)</span>
+</code></pre></div>
+<!-- output: selection-custom-ranker -->
+<div class="highlight"><pre><span></span><code>Permutation-selected features: ('temperature', 'feels_like_temperature', 'hour')
+Test Poisson deviance: 112.9418
+</code></pre></div>
+<!-- /output -->
+
+<p><code>TopKSelector</code> creates the fitted model supplied to the ranker, applies the
+returned ordering and evaluates the chosen subset. No model is fitted inside
+the ranker. Explicit inheritance from <code>FeatureRanker</code> is unnecessary.</p>
+<h2 id="api-reference">API reference<a class="headerlink" href="#api-reference" title="Permanent link">&para;</a></h2>
+<h3 id="selectors">Selectors<a class="headerlink" href="#selectors" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h4 id="ml_toolkit.feature_selection.FeatureSelector" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">FeatureSelector</span>
+
+
+<a href="#ml_toolkit.feature_selection.FeatureSelector" class="headerlink" title="Permanent link">&para;</a></h4>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="typing.Protocol">Protocol</span></code></p>
+
+
+
+        <p>Select features independently on each supplied training/validation split.</p>
+
+
+<details class="note" open>
+  <summary>Notes</summary>
+  <p>Implement <code>select</code> without retaining learned state between calls. Use a
+fresh model_factory(params.copy()) for every fit. Return every evaluated
+subset and concrete settings, never fitted models or executable objects.
+The workflow excludes test rows and reuses the final split's selection.</p>
+</details>
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h5 id="ml_toolkit.feature_selection.FeatureSelector.select" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">select</span>
+
+
+<a href="#ml_toolkit.feature_selection.FeatureSelector.select" class="headerlink" title="Permanent link">&para;</a></h5>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">select</span><span class="p">(</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">train</span><span class="p">:</span> <span class="n">Pool</span><span class="p">,</span>
+    <span class="n">validation</span><span class="p">:</span> <span class="n">Pool</span><span class="p">,</span>
+    <span class="n">params</span><span class="p">:</span> <span class="n">ModelParams</span><span class="p">,</span>
+    <span class="n">model_factory</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">ModelParams</span><span class="p">],</span> <span class="n">Model</span><span class="p">],</span>
+    <span class="n">metric</span><span class="p">:</span> <span class="n">Metric</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">FeatureSelectionResult</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Return a selected subset and its complete search history.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>train</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="Pool
+
+
+  
+      dataclass
+   (ml_toolkit.training.contracts.Pool)" href="../data/#ml_toolkit.data.Pool">Pool</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Aligned prepared data with identical feature names and order.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>validation</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="Pool
+
+
+  
+      dataclass
+   (ml_toolkit.training.contracts.Pool)" href="../data/#ml_toolkit.data.Pool">Pool</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Aligned prepared data with identical feature names and order.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>params</code>
+            </td>
+            <td>
+                  <code><span title="ml_toolkit.types.ModelParams">ModelParams</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Base constructor parameters; copy before passing to a fresh model.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>model_factory</code>
+            </td>
+            <td>
+                  <code><span title="callable">callable</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Constructs an independent model for every fit.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>metric</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="Metric (ml_toolkit.metrics.Metric)" href="../metrics/#ml_toolkit.metrics.Metric">Metric</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Evaluates targets, predictions and weights on validation rows.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="FeatureSelectionResult
+
+
+  
+      dataclass
+   (ml_toolkit.feature_selection.FeatureSelectionResult)" href="#ml_toolkit.feature_selection.FeatureSelectionResult">FeatureSelectionResult</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Nonempty unique input features in original order, their selected
+history index, all evaluated subsets and serializable settings.
+Scores guide selection and are not independent quality estimates.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h4 id="ml_toolkit.feature_selection.RFESelector" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">RFESelector</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#ml_toolkit.feature_selection.RFESelector" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">RFESelector</span><span class="p">(</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">min_features</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">metric</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">direction</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">"minimize"</span><span class="p">,</span> <span class="s2">"maximize"</span><span class="p">],</span>
+    <span class="n">ranker</span><span class="p">:</span> <span class="n">FeatureRanker</span><span class="p">,</span>
+    <span class="n">max_fits</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">6</span><span class="p">,</span>
+    <span class="n">score_tolerance</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span>
+    <span class="n">protected_features</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>Eliminate low-ranked features on a geometric schedule.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>min_features</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Requested minimum subset size, reached when the fit budget permits.
+The selected result can be larger.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>metric</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Name of the finite validation score to optimize.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>direction</code>
+            </td>
+            <td>
+                  <code><span title="typing.Literal">Literal</span>[&#39;minimize&#39;, &#39;maximize&#39;]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Objective direction.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>ranker</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="FeatureRanker (ml_toolkit.training.contracts.FeatureRanker)" href="#ml_toolkit.training.FeatureRanker">FeatureRanker</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Ranks the fitted model on validation rows; higher values are preferred.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>max_fits</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Maximum number of evaluated subsets, including the complete set.</p>
+              </div>
+            </td>
+            <td>
+                  <code>6</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>score_tolerance</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Choose the smallest visited subset within this absolute distance of best.</p>
+              </div>
+            </td>
+            <td>
+                  <code>0</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>protected_features</code>
+            </td>
+            <td>
+                  <code><span title="tuple">tuple</span>[<span title="str">str</span>, ...]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Unique columns retained throughout, counted within min_features.</p>
+              </div>
+            </td>
+            <td>
+                  <code>()</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="note" open>
+  <summary>Notes</summary>
+  <p>Fits fresh models. Equal ranks retain earlier input columns. Does not log
+artifacts itself. Validation scores are search results, not held-out quality.</p>
+</details>
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h5 id="ml_toolkit.feature_selection.RFESelector.select" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">select</span>
+
+
+<a href="#ml_toolkit.feature_selection.RFESelector.select" class="headerlink" title="Permanent link">&para;</a></h5>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">select</span><span class="p">(</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">train</span><span class="p">:</span> <span class="n">Pool</span><span class="p">,</span>
+    <span class="n">validation</span><span class="p">:</span> <span class="n">Pool</span><span class="p">,</span>
+    <span class="n">params</span><span class="p">:</span> <span class="n">ModelParams</span><span class="p">,</span>
+    <span class="n">model_factory</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">ModelParams</span><span class="p">],</span> <span class="n">Model</span><span class="p">],</span>
+    <span class="n">metric</span><span class="p">:</span> <span class="n">Metric</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">FeatureSelectionResult</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Return a selected subset and its complete search history.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>train</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="Pool
+
+
+  
+      dataclass
+   (ml_toolkit.training.contracts.Pool)" href="../data/#ml_toolkit.data.Pool">Pool</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Aligned prepared data with identical feature names and order.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>validation</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="Pool
+
+
+  
+      dataclass
+   (ml_toolkit.training.contracts.Pool)" href="../data/#ml_toolkit.data.Pool">Pool</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Aligned prepared data with identical feature names and order.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>params</code>
+            </td>
+            <td>
+                  <code><span title="ml_toolkit.types.ModelParams">ModelParams</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Base constructor parameters; copy before passing to a fresh model.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>model_factory</code>
+            </td>
+            <td>
+                  <code><span title="callable">callable</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Constructs an independent model for every fit.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>metric</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="Metric (ml_toolkit.metrics.Metric)" href="../metrics/#ml_toolkit.metrics.Metric">Metric</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Evaluates targets, predictions and weights on validation rows.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="FeatureSelectionResult
+
+
+  
+      dataclass
+   (ml_toolkit.feature_selection.FeatureSelectionResult)" href="#ml_toolkit.feature_selection.FeatureSelectionResult">FeatureSelectionResult</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Nonempty unique input features in original order, their selected
+history index, all evaluated subsets and serializable settings.
+Scores guide selection and are not independent quality estimates.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h4 id="ml_toolkit.feature_selection.TopKSelector" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">TopKSelector</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#ml_toolkit.feature_selection.TopKSelector" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">TopKSelector</span><span class="p">(</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">k</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">ranker</span><span class="p">:</span> <span class="n">FeatureRanker</span><span class="p">,</span>
+    <span class="n">protected_features</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>Retain exactly k features from one ranking of the full fitted model.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>k</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Selected feature count, including protected features.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>ranker</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="FeatureRanker (ml_toolkit.training.contracts.FeatureRanker)" href="#ml_toolkit.training.FeatureRanker">FeatureRanker</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Ranks the full fitted model on validation rows; higher is better.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>protected_features</code>
+            </td>
+            <td>
+                  <code><span title="tuple">tuple</span>[<span title="str">str</span>, ...]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Unique mandatory columns counted within k.</p>
+              </div>
+            </td>
+            <td>
+                  <code>()</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="note" open>
+  <summary>Notes</summary>
+  <p>Fits the full set and, if different, the selected subset. Keeps k even if
+validation quality worsens. Equal ranks retain earlier input columns.</p>
+</details>
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h5 id="ml_toolkit.feature_selection.TopKSelector.select" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">select</span>
+
+
+<a href="#ml_toolkit.feature_selection.TopKSelector.select" class="headerlink" title="Permanent link">&para;</a></h5>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">select</span><span class="p">(</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">train</span><span class="p">:</span> <span class="n">Pool</span><span class="p">,</span>
+    <span class="n">validation</span><span class="p">:</span> <span class="n">Pool</span><span class="p">,</span>
+    <span class="n">params</span><span class="p">:</span> <span class="n">ModelParams</span><span class="p">,</span>
+    <span class="n">model_factory</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">ModelParams</span><span class="p">],</span> <span class="n">Model</span><span class="p">],</span>
+    <span class="n">metric</span><span class="p">:</span> <span class="n">Metric</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">FeatureSelectionResult</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Return a selected subset and its complete search history.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>train</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="Pool
+
+
+  
+      dataclass
+   (ml_toolkit.training.contracts.Pool)" href="../data/#ml_toolkit.data.Pool">Pool</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Aligned prepared data with identical feature names and order.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>validation</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="Pool
+
+
+  
+      dataclass
+   (ml_toolkit.training.contracts.Pool)" href="../data/#ml_toolkit.data.Pool">Pool</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Aligned prepared data with identical feature names and order.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>params</code>
+            </td>
+            <td>
+                  <code><span title="ml_toolkit.types.ModelParams">ModelParams</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Base constructor parameters; copy before passing to a fresh model.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>model_factory</code>
+            </td>
+            <td>
+                  <code><span title="callable">callable</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Constructs an independent model for every fit.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>metric</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="Metric (ml_toolkit.metrics.Metric)" href="../metrics/#ml_toolkit.metrics.Metric">Metric</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Evaluates targets, predictions and weights on validation rows.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="FeatureSelectionResult
+
+
+  
+      dataclass
+   (ml_toolkit.feature_selection.FeatureSelectionResult)" href="#ml_toolkit.feature_selection.FeatureSelectionResult">FeatureSelectionResult</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Nonempty unique input features in original order, their selected
+history index, all evaluated subsets and serializable settings.
+Scores guide selection and are not independent quality estimates.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h4 id="ml_toolkit.feature_selection.ForwardSelector" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">ForwardSelector</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#ml_toolkit.feature_selection.ForwardSelector" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">ForwardSelector</span><span class="p">(</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">metric</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">direction</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">"minimize"</span><span class="p">,</span> <span class="s2">"maximize"</span><span class="p">],</span>
+    <span class="n">max_features</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">max_fits</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">min_improvement</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span>
+    <span class="n">protected_features</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>Add the best feature while validation improvement exceeds a threshold.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>metric</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Name of the finite validation objective.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>direction</code>
+            </td>
+            <td>
+                  <code><span title="typing.Literal">Literal</span>[&#39;minimize&#39;, &#39;maximize&#39;]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Objective direction.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>max_features</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Maximum result size including protected features.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>max_fits</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Total fit budget, including the protected-only baseline. A candidate
+round starts only if all its remaining features can be tested.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>min_improvement</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Strict minimum absolute improvement required to accept an addition.</p>
+              </div>
+            </td>
+            <td>
+                  <code>0</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>protected_features</code>
+            </td>
+            <td>
+                  <code><span title="tuple">tuple</span>[<span title="str">str</span>, ...]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Mandatory starting subset. Without it, compare every singleton first.</p>
+              </div>
+            </td>
+            <td>
+                  <code>()</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="note" open>
+  <summary>Notes</summary>
+  <p>Insufficient budget for the initial comparison raises ValueError. History
+includes rejected candidates. Equal scores prefer earlier input columns.
+Each call owns all fitted state; only scalar metadata is returned.</p>
+</details>
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h5 id="ml_toolkit.feature_selection.ForwardSelector.select" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">select</span>
+
+
+<a href="#ml_toolkit.feature_selection.ForwardSelector.select" class="headerlink" title="Permanent link">&para;</a></h5>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">select</span><span class="p">(</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">train</span><span class="p">:</span> <span class="n">Pool</span><span class="p">,</span>
+    <span class="n">validation</span><span class="p">:</span> <span class="n">Pool</span><span class="p">,</span>
+    <span class="n">params</span><span class="p">:</span> <span class="n">ModelParams</span><span class="p">,</span>
+    <span class="n">model_factory</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">ModelParams</span><span class="p">],</span> <span class="n">Model</span><span class="p">],</span>
+    <span class="n">metric</span><span class="p">:</span> <span class="n">Metric</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">FeatureSelectionResult</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Return a selected subset and its complete search history.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>train</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="Pool
+
+
+  
+      dataclass
+   (ml_toolkit.training.contracts.Pool)" href="../data/#ml_toolkit.data.Pool">Pool</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Aligned prepared data with identical feature names and order.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>validation</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="Pool
+
+
+  
+      dataclass
+   (ml_toolkit.training.contracts.Pool)" href="../data/#ml_toolkit.data.Pool">Pool</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Aligned prepared data with identical feature names and order.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>params</code>
+            </td>
+            <td>
+                  <code><span title="ml_toolkit.types.ModelParams">ModelParams</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Base constructor parameters; copy before passing to a fresh model.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>model_factory</code>
+            </td>
+            <td>
+                  <code><span title="callable">callable</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Constructs an independent model for every fit.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>metric</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="Metric (ml_toolkit.metrics.Metric)" href="../metrics/#ml_toolkit.metrics.Metric">Metric</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Evaluates targets, predictions and weights on validation rows.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="FeatureSelectionResult
+
+
+  
+      dataclass
+   (ml_toolkit.feature_selection.FeatureSelectionResult)" href="#ml_toolkit.feature_selection.FeatureSelectionResult">FeatureSelectionResult</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Nonempty unique input features in original order, their selected
+history index, all evaluated subsets and serializable settings.
+Scores guide selection and are not independent quality estimates.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div><h3 id="rankers">Rankers<a class="headerlink" href="#rankers" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="ml_toolkit.training.importance_ranker" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">importance_ranker</span>
+
+
+<a href="#ml_toolkit.training.importance_ranker" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">importance_ranker</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">Model</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="n">Pool</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Obtain importance values from the adapter's explicit ranking method.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>model</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="Model (ml_toolkit.models.base.Model)" href="../custom-model/#ml_toolkit.models.Model">Model</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Fitted adapter implementing feature_importances(data).</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>data</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="Pool
+
+
+  
+      dataclass
+   (ml_toolkit.training.contracts.Pool)" href="../data/#ml_toolkit.data.Pool">Pool</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Current input columns in fitted order.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="dict">dict</span>[<span title="str">str</span>, <span title="float">float</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Importance per input feature, using the adapter's backend policy.
+Constant CatBoost trees return zero even when native normalization
+produces NaN.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h4 id="ml_toolkit.training.ShapRanker" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">ShapRanker</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#ml_toolkit.training.ShapRanker" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">ShapRanker</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">max_samples</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1000</span><span class="p">,</span> <span class="n">seed</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>Rank native tree features by weighted mean absolute raw-output SHAP.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>max_samples</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Positive maximum sampled validation rows. Samples uniformly without
+replacement among positive-weight rows, then aggregates using weights.</p>
+              </div>
+            </td>
+            <td>
+                  <code>1000</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>seed</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Nonnegative sampling seed. Fixed split rows give the same sample each
+step, independent of the selected feature names.</p>
+              </div>
+            </td>
+            <td>
+                  <code>0</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="note" open>
+  <summary>Notes</summary>
+  <p>Supports native CatBoost and LightGBM Boosters exposed by model.native_model.
+Handles CatBoost null categories using the shared unknown-category policy.
+Explains the inner raw-output model, including for inflation adapters;
+RFE evaluates the complete adapter separately on its task metric. Uses
+backend SHAP contributions directly and does not require the shap extra.</p>
+</details>
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="ml_toolkit.training.ShapRanker.__call__" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">__call__</span>
+
+
+<a href="#ml_toolkit.training.ShapRanker.__call__" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">__call__</span><span class="p">(</span><span class="n">model</span><span class="p">:</span> <span class="n">Model</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="n">Pool</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Return weighted SHAP importances for the current feature subset.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>model</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="Model (ml_toolkit.models.base.Model)" href="../custom-model/#ml_toolkit.models.Model">Model</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Fitted adapter exposing a supported single-output native tree model.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>data</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="Pool
+
+
+  
+      dataclass
+   (ml_toolkit.training.contracts.Pool)" href="../data/#ml_toolkit.data.Pool">Pool</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Validation rows with finite nonnegative weights and positive total.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="dict">dict</span>[<span title="str">str</span>, <span title="float">float</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Weighted mean absolute SHAP contribution per fitted feature.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="ValueError">ValueError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Weights, native feature names or SHAP dimensions are invalid.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="TypeError">TypeError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The native backend is unsupported.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="ImportError">ImportError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A working LightGBM installation is unavailable for that backend.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h4 id="ml_toolkit.training.FeatureRanker" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">FeatureRanker</span>
+
+
+<a href="#ml_toolkit.training.FeatureRanker" class="headerlink" title="Permanent link">&para;</a></h4>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="typing.Protocol">Protocol</span></code></p>
+
+
+
+        <p>Describe a callable ranking a fitted adapter's current input columns.</p>
+
+
+<details class="note" open>
+  <summary>Notes</summary>
+  <p>Higher values indicate greater importance. Implementations may inspect the
+adapter's native_model, but must preserve its state and all input metadata.
+Explicit inheritance from this protocol is unnecessary.</p>
+</details>
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="ml_toolkit.training.FeatureRanker.__call__" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">__call__</span>
+
+
+<a href="#ml_toolkit.training.FeatureRanker.__call__" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">__call__</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="s2">"Model"</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="s2">"Pool"</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Return finite ranking values keyed by every current feature name.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>model</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="Model (ml_toolkit.models.base.Model)" href="../custom-model/#ml_toolkit.models.Model">Model</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Fitted adapter for the current feature subset.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>data</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="Pool
+
+
+  
+      dataclass
+   (ml_toolkit.data.Pool)" href="../data/#ml_toolkit.data.Pool">Pool</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Supplied validation rows with aligned features and weights.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <span title="float">float</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Exactly one finite numeric importance per data.X column. Signed
+values are allowed; larger values rank higher.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div><h3 id="results">Results<a class="headerlink" href="#results" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h4 id="ml_toolkit.feature_selection.FeatureSelectionResult" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">FeatureSelectionResult</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#ml_toolkit.feature_selection.FeatureSelectionResult" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">FeatureSelectionResult</span><span class="p">(</span>
+    <span class="n">features</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span>
+    <span class="n">selected_step</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">steps</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">FeatureSelectionStep</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span>
+    <span class="n">settings</span><span class="p">:</span> <span class="n">SelectionSettings</span> <span class="o">=</span> <span class="p">(</span><span class="k">lambda</span><span class="p">:</span> <span class="p">{})(),</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>Store a selector's selected subset and complete search history.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.feature_selection.FeatureSelectionResult.features">features</span></code></td>
+            <td>
+                  <code><span title="tuple">tuple</span>[<span title="str">str</span>, ...]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Selected columns in original input order; may include the full set.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.feature_selection.FeatureSelectionResult.selected_step">selected_step</span></code></td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Zero-based index into steps for the selected subset.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.feature_selection.FeatureSelectionResult.steps">steps</span></code></td>
+            <td>
+                  <code><span title="tuple">tuple</span>[<a class="autorefs autorefs-internal" title="FeatureSelectionStep
+
+
+  
+      dataclass
+   (ml_toolkit.feature_selection.FeatureSelectionStep)" href="#ml_toolkit.feature_selection.FeatureSelectionStep">FeatureSelectionStep</a>, ...]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Chronological history of every fitted subset; contains no fitted models.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.feature_selection.FeatureSelectionResult.settings">settings</span></code></td>
+            <td>
+                  <code><span title="ml_toolkit.feature_selection.SelectionSettings">SelectionSettings</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Flat configuration with string keys and scalar or string-tuple values;
+excludes models and rankers.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="note" open>
+  <summary>Notes</summary>
+  <p>Validation scores describe selection, not independent performance.
+Frozen result objects contain mutable metric and importance dictionaries.</p>
+</details>
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h4 id="ml_toolkit.feature_selection.FeatureSelectionStep" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">FeatureSelectionStep</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#ml_toolkit.feature_selection.FeatureSelectionStep" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">FeatureSelectionStep</span><span class="p">(</span>
+    <span class="n">features</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span>
+    <span class="n">metrics</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
+    <span class="n">importances</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
+    <span class="n">eliminated_features</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span>
+    <span class="n">fit_seconds</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">evaluation_seconds</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">ranking_seconds</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">best_iteration</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>Store one fitted and evaluated feature subset.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.feature_selection.FeatureSelectionStep.features">features</span></code></td>
+            <td>
+                  <code><span title="tuple">tuple</span>[<span title="str">str</span>, ...]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Evaluated input columns in original order.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.feature_selection.FeatureSelectionStep.metrics">metrics</span></code></td>
+            <td>
+                  <code><span title="dict">dict</span>[<span title="str">str</span>, <span title="float">float</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>All supplied validation scores returned by the training metric.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.feature_selection.FeatureSelectionStep.importances">importances</span></code></td>
+            <td>
+                  <code><span title="dict">dict</span>[<span title="str">str</span>, <span title="float">float</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Ranking values by feature name; empty when no ranking is performed.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.feature_selection.FeatureSelectionStep.eliminated_features">eliminated_features</span></code></td>
+            <td>
+                  <code><span title="tuple">tuple</span>[<span title="str">str</span>, ...]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Columns removed by an elimination step; empty for forward candidates.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.feature_selection.FeatureSelectionStep.fit_seconds">fit_seconds</span></code></td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Elapsed adapter construction and training time.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.feature_selection.FeatureSelectionStep.evaluation_seconds">evaluation_seconds</span></code></td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Elapsed prediction and metric calculation time.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.feature_selection.FeatureSelectionStep.ranking_seconds">ranking_seconds</span></code></td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Elapsed ranking and importance validation time, or zero when no ranking is performed.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.feature_selection.FeatureSelectionStep.best_iteration">best_iteration</span></code></td>
+            <td>
+                  <code><span title="int">int</span> or None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Adapter's zero-based best iteration; not used for final fitting.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div><h3 id="plots">Plots<a class="headerlink" href="#plots" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-module">
+
+
+
+<h4 id="ml_toolkit.plots.feature_selection" class="doc doc-heading">
+            <span class="doc doc-object-name doc-module-name">feature_selection</span>
+
+
+<a href="#ml_toolkit.plots.feature_selection" class="headerlink" title="Permanent link">&para;</a></h4>
+
+    <div class="doc doc-contents first">
+
+        <p>Feature selection diagnostics drawn from stored histories without model fits.</p>
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h5 id="ml_toolkit.plots.feature_selection.rfe_progress" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">rfe_progress</span>
+
+
+<a href="#ml_toolkit.plots.feature_selection.rfe_progress" class="headerlink" title="Permanent link">&para;</a></h5>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">rfe_progress</span><span class="p">(</span>
+    <span class="n">result</span><span class="p">:</span> <span class="n">FeatureSelectionResult</span><span class="p">,</span>
+    <span class="n">save_fig</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">figure</span><span class="p">:</span> <span class="n">FigureConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Save validation quality against decreasing RFE subset size.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>result</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="FeatureSelectionResult
+
+
+  
+      dataclass
+   (ml_toolkit.feature_selection.FeatureSelectionResult)" href="#ml_toolkit.feature_selection.FeatureSelectionResult">FeatureSelectionResult</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Stored RFE history, including objective, direction and score_tolerance.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>save_fig</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span> or <span title="pathlib.Path">Path</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Destination figure path; parent directories are created.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>figure</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="FigureConfig
+
+
+  
+      dataclass
+   (ml_toolkit.config.FigureConfig)" href="../configuration/#ml_toolkit.config.FigureConfig">FigureConfig</a> or None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Shared export size, DPI and format; None preserves native dimensions.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="note" open>
+  <summary>Notes</summary>
+  <p>Marks the best and selected subsets and the absolute tolerance band. Scores
+describe the selection search, not independent held-out performance.
+Creates no models and closes the figure even when rendering fails.</p>
+</details>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h5 id="ml_toolkit.plots.feature_selection.top_k_ranking" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">top_k_ranking</span>
+
+
+<a href="#ml_toolkit.plots.feature_selection.top_k_ranking" class="headerlink" title="Permanent link">&para;</a></h5>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">top_k_ranking</span><span class="p">(</span>
+    <span class="n">result</span><span class="p">:</span> <span class="n">FeatureSelectionResult</span><span class="p">,</span>
+    <span class="n">save_fig</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">figure</span><span class="p">:</span> <span class="n">FigureConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Save the full-model ranking with selected and protected features marked.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>result</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="FeatureSelectionResult
+
+
+  
+      dataclass
+   (ml_toolkit.feature_selection.FeatureSelectionResult)" href="#ml_toolkit.feature_selection.FeatureSelectionResult">FeatureSelectionResult</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Top-K history whose first step stores full-model ranking values.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>save_fig</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span> or <span title="pathlib.Path">Path</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Destination figure path; parent directories are created.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>figure</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="FigureConfig
+
+
+  
+      dataclass
+   (ml_toolkit.config.FigureConfig)" href="../configuration/#ml_toolkit.config.FigureConfig">FigureConfig</a> or None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Shared export settings. The default height adapts to all input features.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="note" open>
+  <summary>Notes</summary>
+  <p>Ties preserve input order. Protected features are mandatory and may be below
+the unprotected ranking cutoff, so no global Top-K line is drawn for them.
+Uses raw ranking values, creates no models, and always closes the figure.</p>
+</details>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h5 id="ml_toolkit.plots.feature_selection.forward_progress" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">forward_progress</span>
+
+
+<a href="#ml_toolkit.plots.feature_selection.forward_progress" class="headerlink" title="Permanent link">&para;</a></h5>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">forward_progress</span><span class="p">(</span>
+    <span class="n">result</span><span class="p">:</span> <span class="n">FeatureSelectionResult</span><span class="p">,</span>
+    <span class="n">save_fig</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">figure</span><span class="p">:</span> <span class="n">FigureConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Save all Forward candidates, accepted additions and the stopping reason.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>result</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="FeatureSelectionResult
+
+
+  
+      dataclass
+   (ml_toolkit.feature_selection.FeatureSelectionResult)" href="#ml_toolkit.feature_selection.FeatureSelectionResult">FeatureSelectionResult</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Complete Forward history, including rejected candidates and settings.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>save_fig</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span> or <span title="pathlib.Path">Path</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Destination figure path; parent directories are created.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>figure</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="FigureConfig
+
+
+  
+      dataclass
+   (ml_toolkit.config.FigureConfig)" href="../configuration/#ml_toolkit.config.FigureConfig">FigureConfig</a> or None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Shared export dimensions, DPI and format.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="note" open>
+  <summary>Notes</summary>
+  <p>Consecutive candidate subsets of equal size form one complete round. Its
+best candidate is accepted only through the returned subset's size; a later
+round is rejected. Equal scores retain the first candidate. A protected-only
+baseline is distinct from additions. No models or predictions are created.</p>
+</details>
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.code.copy", "navigation.sections", "navigation.top", "search.highlight"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"alias": true, "default": "stable", "provider": "mike"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

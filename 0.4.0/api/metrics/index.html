@@ -1,0 +1,4776 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Training, validation, metrics, diagnostics, and MLflow for Python ML projects.">
+      
+      
+      
+        <link rel="canonical" href="https://sssqweeeed.github.io/ml-toolkit/0.4.0/api/metrics/">
+      
+      
+        <link rel="prev" href="../../data-analysis/custom/">
+      
+      
+        <link rel="next" href="../tracking/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Metrics - ml-toolkit</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#metrics" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="ml-toolkit" class="md-header__button md-logo" aria-label="ml-toolkit" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            ml-toolkit
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Metrics
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/sssqweeeed/ml-toolkit" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    sssqweeeed/ml-toolkit
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="ml-toolkit" class="md-nav__button md-logo" aria-label="ml-toolkit" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    ml-toolkit
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/sssqweeeed/ml-toolkit" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    sssqweeeed/ml-toolkit
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Task recipes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../data/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Training
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Training
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../training/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Workflow and results
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../splitting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data splitting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../feature-selection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Feature selection
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tuning/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Parameter tuning
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Models
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Models
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../models/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Built-in adapters
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../custom-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Build a model adapter
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../inflation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Inflation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Evaluation
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Evaluation
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../evaluation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../evaluation/classification/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Classification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../evaluation/observed-fitted/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Observed versus fitted
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../evaluation/ranking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ranking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../evaluation/pu/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Positive-unlabeled
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../evaluation/explainability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Feature importance and SHAP
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../evaluation/custom/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Build an evaluator
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data analysis
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Data analysis
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../data-analysis/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../data-analysis/distributions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Numerical distributions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../psi/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PSI and feature levels
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../data-analysis/custom/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Build a data analyzer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Metrics
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Metrics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#choose-a-metric" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Choose a metric
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#evaluate-general-regression" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Evaluate general regression
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#evaluate-binary-probabilities" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Evaluate binary probabilities
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#evaluate-frequency-and-severity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Evaluate frequency and severity
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#inspect-gains-lift-and-gini" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Inspect gains, lift, and Gini
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#evaluate-positive-unlabeled-predictions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Evaluate positive-unlabeled predictions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#supply-a-custom-training-metric" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Supply a custom training metric
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Supply a custom training metric">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#use-the-metric-in-training" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Use the metric in training
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#api-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        API reference
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="API reference">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#general-regression" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        General regression
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#classification" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Classification
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#frequency" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Frequency
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#severity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Severity
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ranking" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ranking
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#positive-unlabeled" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Positive-unlabeled
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#custom-training-metrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Custom training metrics
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tracking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tracking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#choose-a-metric" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Choose a metric
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#evaluate-general-regression" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Evaluate general regression
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#evaluate-binary-probabilities" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Evaluate binary probabilities
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#evaluate-frequency-and-severity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Evaluate frequency and severity
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#inspect-gains-lift-and-gini" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Inspect gains, lift, and Gini
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#evaluate-positive-unlabeled-predictions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Evaluate positive-unlabeled predictions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#supply-a-custom-training-metric" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Supply a custom training metric
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Supply a custom training metric">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#use-the-metric-in-training" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Use the metric in training
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#api-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        API reference
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="API reference">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#general-regression" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        General regression
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#classification" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Classification
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#frequency" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Frequency
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#severity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Severity
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ranking" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ranking
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#positive-unlabeled" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Positive-unlabeled
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#custom-training-metrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Custom training metrics
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="metrics">Metrics<a class="headerlink" href="#metrics" title="Permanent link">&para;</a></h1>
+<p>Metrics evaluate aligned targets, predictions, and weights. The small arrays
+below illustrate calculations, not model performance on a real dataset. Use them directly
+for existing predictions or pass a compatible callable to training. Numerical
+<code>FloatArray</code> parameters mean one-dimensional NumPy <code>float64</code> arrays; use
+<code>np.array([...], dtype=float)</code> when preparing inputs.</p>
+<h2 id="choose-a-metric">Choose a metric<a class="headerlink" href="#choose-a-metric" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Data and purpose</th>
+<th>Entry point</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>General numeric targets, including signed values</td>
+<td><code>metrics_regression</code></td>
+<td><code>MetricsRegression</code></td>
+</tr>
+<tr>
+<td>Confirmed binary labels and probabilities</td>
+<td><code>metrics_classification</code></td>
+<td><code>MetricsClassification</code></td>
+</tr>
+<tr>
+<td>Binary labels after applying a cutoff</td>
+<td><code>confusion_matrix</code></td>
+<td><code>(TN, FP, FN, TP)</code> weighted counts</td>
+</tr>
+<tr>
+<td>Poisson frequency rates with exposure</td>
+<td><code>metrics_frequency</code></td>
+<td><code>MetricsFrequency</code></td>
+</tr>
+<tr>
+<td>Severity predictions with a Tweedie power</td>
+<td><code>metrics_severity</code></td>
+<td><code>MetricsSeverity</code></td>
+</tr>
+<tr>
+<td>Ranking outcomes by exposure capacity</td>
+<td><code>ranking_metrics</code></td>
+<td><code>RankingMetrics</code> curves and selected points</td>
+</tr>
+<tr>
+<td>Known positive and unlabeled rows</td>
+<td><code>PUMetric</code>, <code>positive_capture_curve</code></td>
+<td>Named scores or two curve arrays</td>
+</tr>
+</tbody>
+</table>
+<p>Regression, classification, frequency, severity, and PU score objects expose <code>to_dict()</code>.
+<code>RankingMetrics</code> instead contains curves and attributes for inspection and
+<a href="../../evaluation/ranking/">ranking plots</a>; it is not itself a training metric
+result with <code>to_dict()</code>.</p>
+<h2 id="evaluate-general-regression">Evaluate general regression<a class="headerlink" href="#evaluate-general-regression" title="Permanent link">&para;</a></h2>
+<p><code>metrics_regression</code> supports signed targets and uses equal weights when
+<code>sample_weight</code> is omitted. Frequency and severity results include these same
+five metrics alongside their specialized scores.</p>
+<!-- example: metrics-regression -->
+
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.metrics</span><span class="w"> </span><span class="kn">import</span> <span class="n">metrics_regression</span>
+
+<span class="n">scores</span> <span class="o">=</span> <span class="n">metrics_regression</span><span class="p">(</span>
+    <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="o">-</span><span class="mf">2.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">]),</span>
+    <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="o">-</span><span class="mf">1.0</span><span class="p">,</span> <span class="o">-</span><span class="mf">2.0</span><span class="p">,</span> <span class="mf">3.0</span><span class="p">]),</span>
+    <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">]),</span>
+<span class="p">)</span>
+<span class="k">assert</span> <span class="n">scores</span><span class="o">.</span><span class="n">mean_absolute_error</span> <span class="o">==</span> <span class="mf">1.5</span>
+<span class="k">assert</span> <span class="n">scores</span><span class="o">.</span><span class="n">mean_squared_error</span> <span class="o">==</span> <span class="mf">2.5</span>
+<span class="k">assert</span> <span class="n">scores</span><span class="o">.</span><span class="n">root_mean_squared_error</span> <span class="o">==</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mf">2.5</span><span class="p">)</span>
+<span class="k">assert</span> <span class="n">scores</span><span class="o">.</span><span class="n">r2_score</span> <span class="o">==</span> <span class="o">-</span><span class="mf">0.25</span>
+<span class="k">assert</span> <span class="n">scores</span><span class="o">.</span><span class="n">mean_error</span> <span class="o">==</span> <span class="o">-</span><span class="mf">0.5</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"Weighted MAE:"</span><span class="p">,</span> <span class="n">scores</span><span class="o">.</span><span class="n">mean_absolute_error</span><span class="p">)</span>
+</code></pre></div>
+<!-- output: metrics-regression -->
+<div class="highlight"><pre><span></span><code>Weighted MAE: 1.5
+</code></pre></div>
+<!-- /output -->
+
+<p>Positive mean error means overprediction; negative means underprediction.
+R² is NaN with fewer than two positive-weight observations. For constant
+targets it is 1 for perfect predictions and 0 otherwise. Zero-weight rows
+contribute to neither errors nor the R² observation count. Inputs must be
+nonempty, finite, aligned one-dimensional arrays; weights must be finite and
+nonnegative with positive total.</p>
+<h2 id="evaluate-binary-probabilities">Evaluate binary probabilities<a class="headerlink" href="#evaluate-binary-probabilities" title="Permanent link">&para;</a></h2>
+<!-- example: metrics-classification -->
+
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.metrics</span><span class="w"> </span><span class="kn">import</span> <span class="n">confusion_matrix</span><span class="p">,</span> <span class="n">metrics_classification</span>
+
+<span class="n">observed</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">])</span>
+<span class="n">probabilities</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.6</span><span class="p">,</span> <span class="mf">0.4</span><span class="p">,</span> <span class="mf">0.9</span><span class="p">])</span>
+<span class="n">weight</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">])</span>
+<span class="k">for</span> <span class="n">cutoff</span> <span class="ow">in</span> <span class="p">(</span><span class="mf">0.3</span><span class="p">,</span> <span class="mf">0.7</span><span class="p">):</span>
+    <span class="n">scores</span> <span class="o">=</span> <span class="n">metrics_classification</span><span class="p">(</span>
+        <span class="n">observed</span><span class="p">,</span>
+        <span class="n">probabilities</span><span class="p">,</span>
+        <span class="n">threshold</span><span class="o">=</span><span class="n">cutoff</span><span class="p">,</span>
+        <span class="n">sample_weight</span><span class="o">=</span><span class="n">weight</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span>
+        <span class="sa">f</span><span class="s2">"cutoff=</span><span class="si">{</span><span class="n">cutoff</span><span class="si">}</span><span class="s2">: precision=</span><span class="si">{</span><span class="n">scores</span><span class="o">.</span><span class="n">precision</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">, recall=</span><span class="si">{</span><span class="n">scores</span><span class="o">.</span><span class="n">recall</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">"</span>
+    <span class="p">)</span>
+<span class="n">labels</span> <span class="o">=</span> <span class="p">(</span><span class="n">probabilities</span> <span class="o">&gt;=</span> <span class="mf">0.7</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">float</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span>
+    <span class="s2">"Weighted (TN, FP, FN, TP):"</span><span class="p">,</span>
+    <span class="n">confusion_matrix</span><span class="p">(</span><span class="n">observed</span><span class="p">,</span> <span class="n">labels</span><span class="p">,</span> <span class="n">sample_weight</span><span class="o">=</span><span class="n">weight</span><span class="p">),</span>
+<span class="p">)</span>
+</code></pre></div>
+<!-- output: metrics-classification -->
+<div class="highlight"><pre><span></span><code>cutoff=0.3: precision=0.600, recall=1.000
+cutoff=0.7: precision=1.000, recall=0.667
+Weighted (TN, FP, FN, TP): (3.0, 0.0, 1.0, 2.0)
+</code></pre></div>
+<!-- /output -->
+
+<p>At cutoff 0.3, predicted positives have total weight 5 and positive weight 3,
+so precision is <code>3 / 5</code>; all positive weight is captured. Raising the cutoff
+to 0.7 removes the false positive but misses positive weight 1 out of 3.
+Weights affect counts, precision, and recall. ROC AUC, average precision, and log loss use
+probabilities directly. <code>confusion_matrix</code> requires predicted labels instead
+of probabilities. Pass finite, nonnegative weights with positive total for
+weighted scores. ROC AUC is NaN when only one target class is present.</p>
+<h2 id="evaluate-frequency-and-severity">Evaluate frequency and severity<a class="headerlink" href="#evaluate-frequency-and-severity" title="Permanent link">&para;</a></h2>
+<p>Continue with the NumPy import above. Frequency targets and predictions are
+rates; exposure supplies row weights and ranking capacity. Do not multiply the
+rates by exposure before calling the metric.</p>
+<!-- example: metrics-frequency-severity -->
+
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.metrics</span><span class="w"> </span><span class="kn">import</span> <span class="n">metrics_frequency</span><span class="p">,</span> <span class="n">metrics_severity</span>
+
+<span class="c1"># Annual claim rates and policy-year exposure, not claim counts.</span>
+<span class="n">frequency_observed</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">])</span>
+<span class="n">frequency_prediction</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">0.2</span><span class="p">,</span> <span class="mf">1.2</span><span class="p">,</span> <span class="mf">1.5</span><span class="p">])</span>
+<span class="n">exposure</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">])</span>
+<span class="n">frequency</span> <span class="o">=</span> <span class="n">metrics_frequency</span><span class="p">(</span>
+    <span class="n">frequency_observed</span><span class="p">,</span> <span class="n">frequency_prediction</span><span class="p">,</span> <span class="n">exposure</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span>
+    <span class="sa">f</span><span class="s2">"Frequency MAE: </span><span class="si">{</span><span class="n">frequency</span><span class="o">.</span><span class="n">mean_absolute_error</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2"> claims per policy-year"</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Poisson deviance: </span><span class="si">{</span><span class="n">frequency</span><span class="o">.</span><span class="n">mean_poisson_deviance</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Predicted / observed claims: </span><span class="si">{</span><span class="n">frequency</span><span class="o">.</span><span class="n">prediction_over_observed</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+
+<span class="c1"># Average claim amounts in dollars, weighted by claim counts.</span>
+<span class="n">severity_observed</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">100.0</span><span class="p">,</span> <span class="mf">200.0</span><span class="p">,</span> <span class="mf">300.0</span><span class="p">])</span>
+<span class="n">severity_prediction</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">120.0</span><span class="p">,</span> <span class="mf">180.0</span><span class="p">,</span> <span class="mf">240.0</span><span class="p">])</span>
+<span class="n">claim_count</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">,</span> <span class="mf">3.0</span><span class="p">])</span>
+<span class="n">severity</span> <span class="o">=</span> <span class="n">metrics_severity</span><span class="p">(</span>
+    <span class="n">severity_observed</span><span class="p">,</span> <span class="n">severity_prediction</span><span class="p">,</span> <span class="n">claim_count</span><span class="p">,</span> <span class="n">power</span><span class="o">=</span><span class="mf">2.0</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Severity MAE: $</span><span class="si">{</span><span class="n">severity</span><span class="o">.</span><span class="n">mean_absolute_error</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2"> per claim"</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Gamma deviance: </span><span class="si">{</span><span class="n">severity</span><span class="o">.</span><span class="n">mean_tweedie_deviance</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Predicted / observed cost: </span><span class="si">{</span><span class="n">severity</span><span class="o">.</span><span class="n">prediction_over_observed</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+</code></pre></div>
+<!-- output: metrics-frequency-severity -->
+<div class="highlight"><pre><span></span><code>Frequency MAE: 0.3714 claims per policy-year
+Poisson deviance: 0.1534
+Predicted / observed claims: 0.8600
+Severity MAE: $40.00 per claim
+Gamma deviance: 0.0359
+Predicted / observed cost: 0.8571
+</code></pre></div>
+<!-- /output -->
+
+<p>The frequency totals are 4.3 predicted and 5.0 observed claims, hence 14%
+underprediction. Weighting gives more influence to the final row's rate error.
+Severity predicts $1,200 versus $1,400 observed, with $40 weighted absolute
+error per claim. Gamma deviance is dimensionless. Export the complete named
+score dictionary with <code>frequency.to_dict()</code> or <code>severity.to_dict()</code>.</p>
+<p>Frequency predictions must be strictly positive and targets nonnegative.
+Severity inputs must satisfy the chosen Tweedie power; <code>power=2.0</code> uses Gamma
+deviance and requires positive targets and predictions. Both metrics also
+calculate ranking scores, so the exposure-weighted observed total must be
+positive. Their <code>gain_at_10</code> and <code>lift_at_10</code> describe the highest-scored 10% of
+exposure; normalized Gini is NaN when perfect-ranking Gini is close to zero.</p>
+<p>Bind the extra severity argument before passing it to training:</p>
+<!-- example: metrics-severity-callback -->
+
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">functools</span><span class="w"> </span><span class="kn">import</span> <span class="n">partial</span>
+
+<span class="n">severity_metric</span> <span class="o">=</span> <span class="n">partial</span><span class="p">(</span><span class="n">metrics_severity</span><span class="p">,</span> <span class="n">power</span><span class="o">=</span><span class="mf">2.0</span><span class="p">)</span>
+<span class="n">bound_scores</span> <span class="o">=</span> <span class="n">severity_metric</span><span class="p">(</span>
+    <span class="n">severity_observed</span><span class="p">,</span> <span class="n">severity_prediction</span><span class="p">,</span> <span class="n">claim_count</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="nb">round</span><span class="p">(</span><span class="n">bound_scores</span><span class="o">.</span><span class="n">mean_tweedie_deviance</span><span class="p">,</span> <span class="mi">4</span><span class="p">))</span>
+</code></pre></div>
+<!-- output: metrics-severity-callback -->
+<div class="highlight"><pre><span></span><code>0.0359
+</code></pre></div>
+<!-- /output -->
+
+<h2 id="inspect-gains-lift-and-gini">Inspect gains, lift, and Gini<a class="headerlink" href="#inspect-gains-lift-and-gini" title="Permanent link">&para;</a></h2>
+<!-- example: metrics-ranking -->
+
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.metrics</span><span class="w"> </span><span class="kn">import</span> <span class="n">ranking_metrics</span>
+
+<span class="n">ranking</span> <span class="o">=</span> <span class="n">ranking_metrics</span><span class="p">(</span>
+    <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">4.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">,</span> <span class="mf">3.0</span><span class="p">]),</span>
+    <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.8</span><span class="p">,</span> <span class="mf">0.9</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">]),</span>
+    <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">]),</span>
+    <span class="n">selected_percents</span><span class="o">=</span><span class="p">(</span><span class="mf">25.0</span><span class="p">,</span> <span class="mf">50.0</span><span class="p">),</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Normalized Gini: </span><span class="si">{</span><span class="n">ranking</span><span class="o">.</span><span class="n">normalized_gini</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+<span class="k">for</span> <span class="n">point</span> <span class="ow">in</span> <span class="n">ranking</span><span class="o">.</span><span class="n">selected_points</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span>
+        <span class="sa">f</span><span class="s2">"Exposure=</span><span class="si">{</span><span class="n">point</span><span class="o">.</span><span class="n">percent</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2">%: gain=</span><span class="si">{</span><span class="n">point</span><span class="o">.</span><span class="n">gain</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">, lift=</span><span class="si">{</span><span class="n">point</span><span class="o">.</span><span class="n">lift</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">"</span>
+    <span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"Cumulative exposure:"</span><span class="p">,</span> <span class="n">ranking</span><span class="o">.</span><span class="n">cumulative_exposure</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="mi">4</span><span class="p">)</span><span class="o">.</span><span class="n">tolist</span><span class="p">())</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"Cumulative observed:"</span><span class="p">,</span> <span class="n">ranking</span><span class="o">.</span><span class="n">cumulative_observed</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="mi">4</span><span class="p">)</span><span class="o">.</span><span class="n">tolist</span><span class="p">())</span>
+</code></pre></div>
+<!-- output: metrics-ranking -->
+<div class="highlight"><pre><span></span><code>Normalized Gini: 0.4286
+Exposure=25%: gain=0.2353, lift=0.9412
+Exposure=50%: gain=0.5882, lift=1.1765
+Cumulative exposure: [0.0, 0.1667, 0.5, 0.8333, 1.0]
+Cumulative observed: [0.0, 0.1176, 0.5882, 0.9412, 1.0]
+</code></pre></div>
+<!-- /output -->
+
+<p>The score puts the row with observed rate 2 above the row with rate 4, so
+ranking is imperfect. Half of the exposure captures <code>10 / 17</code> of the observed
+amount: 58.82%, or 1.1765 times uniform selection. At 25% exposure, capture is
+slightly worse than uniform selection; the point interpolates within a row.</p>
+<p>Each selected point exposes <code>percent</code>, <code>gain</code>, and <code>lift</code>. Gain is the fraction
+of total exposure-weighted observed outcome captured; lift divides gain by the
+exposure fraction. Results interpolate at the requested capacity percentages.
+Rows are sorted by descending prediction; tied scores retain input order and
+zero-exposure rows are omitted. The cumulative arrays include an initial zero.
+These are supervised outcomes; use PU metrics for positive/unlabeled labels.</p>
+<h2 id="evaluate-positive-unlabeled-predictions">Evaluate positive-unlabeled predictions<a class="headerlink" href="#evaluate-positive-unlabeled-predictions" title="Permanent link">&para;</a></h2>
+<!-- example: metrics-pu -->
+
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.metrics</span><span class="w"> </span><span class="kn">import</span> <span class="n">PUMetric</span><span class="p">,</span> <span class="n">positive_capture_curve</span>
+
+<span class="n">pu_labels</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">])</span>
+<span class="n">pu_probabilities</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">0.9</span><span class="p">,</span> <span class="mf">0.8</span><span class="p">,</span> <span class="mf">0.4</span><span class="p">,</span> <span class="mf">0.2</span><span class="p">])</span>
+<span class="n">pu_metric</span> <span class="o">=</span> <span class="n">PUMetric</span><span class="p">(</span><span class="n">prior</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span> <span class="n">loss</span><span class="o">=</span><span class="s2">"nnPU"</span><span class="p">)</span>
+<span class="n">pu_scores</span> <span class="o">=</span> <span class="n">pu_metric</span><span class="p">(</span><span class="n">pu_labels</span><span class="p">,</span> <span class="n">pu_probabilities</span><span class="p">)</span>
+<span class="n">pu_values</span> <span class="o">=</span> <span class="n">pu_scores</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"Known-positive capture:"</span><span class="p">,</span> <span class="n">pu_values</span><span class="p">[</span><span class="s2">"known_positive_capture_at_10pct"</span><span class="p">])</span>
+<span class="nb">print</span><span class="p">(</span>
+    <span class="s2">"Actual unlabeled fraction flagged:"</span><span class="p">,</span>
+    <span class="n">pu_values</span><span class="p">[</span><span class="s2">"unlabeled_flagged_at_10pct"</span><span class="p">],</span>
+<span class="p">)</span>
+<span class="n">capacity</span><span class="p">,</span> <span class="n">capture</span> <span class="o">=</span> <span class="n">positive_capture_curve</span><span class="p">(</span><span class="n">pu_labels</span><span class="p">,</span> <span class="n">pu_probabilities</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">capacity</span><span class="o">.</span><span class="n">tolist</span><span class="p">())</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">capture</span><span class="o">.</span><span class="n">tolist</span><span class="p">())</span>
+</code></pre></div>
+<!-- output: metrics-pu -->
+<div class="highlight"><pre><span></span><code>Known-positive capture: 0.5
+Actual unlabeled fraction flagged: 0.5
+[0.0, 0.0, 0.5, 0.5, 1.0]
+[0.0, 0.5, 0.5, 1.0, 1.0]
+</code></pre></div>
+<!-- /output -->
+
+<p>With only two unlabeled rows, reaching the requested 10% requires flagging
+one whole row: actual capacity is 50%, and the same cutoff captures 50% of
+known positives. Always inspect actual flagged capacity alongside capture.</p>
+<p>Here <code>1</code> means known positive and <code>0</code> means unlabeled. The prior is population
+positive prevalence, not the labeled fraction; match it and the loss to the
+model's configuration. Both groups need positive total weight. <code>nnPU</code> clips
+estimated negative risk at zero when calculating total risk; <code>uPU</code> retains it.</p>
+<p>The returned curve arrays contain fractions, whereas the corresponding plot
+uses percentages. All tied scores enter together. Capacity cutoffs can
+therefore flag more unlabeled rows than the requested percentage. Capture
+estimates recall only if labeled positives represent the positive population.</p>
+<h2 id="supply-a-custom-training-metric">Supply a custom training metric<a class="headerlink" href="#supply-a-custom-training-metric" title="Permanent link">&para;</a></h2>
+<p>The reusable metric below returns weighted MAE in the same units as the target.
+It owns no fitted state and can be called for any split.</p>
+<details class="note">
+<summary>Complete metric source</summary>
+<div class="highlight"><pre><span></span><code><span class="sd">"""A project-owned metric shared by training and adapter examples."""</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.metrics</span><span class="w"> </span><span class="kn">import</span> <span class="n">MetricScores</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">FloatArray</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">weighted_mae</span><span class="p">(</span>
+    <span class="n">observed</span><span class="p">:</span> <span class="n">FloatArray</span><span class="p">,</span> <span class="n">prediction</span><span class="p">:</span> <span class="n">FloatArray</span><span class="p">,</span> <span class="n">weight</span><span class="p">:</span> <span class="n">FloatArray</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">MetricScores</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return weighted absolute error in the target's units under ``mae``.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    observed, prediction, weight : FloatArray</span>
+<span class="sd">        Aligned one-dimensional values. Weights must be finite, nonnegative,</span>
+<span class="sd">        and have positive total; training validates that data boundary.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    MetricScores</span>
+<span class="sd">        Named scalar error usable for reporting and minimization.</span>
+<span class="sd">    """</span>
+    <span class="n">error</span> <span class="o">=</span> <span class="nb">abs</span><span class="p">(</span><span class="n">observed</span> <span class="o">-</span> <span class="n">prediction</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">MetricScores</span><span class="p">({</span><span class="s2">"mae"</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">average</span><span class="p">(</span><span class="n">error</span><span class="p">,</span> <span class="n">weights</span><span class="o">=</span><span class="n">weight</span><span class="p">))})</span>
+</code></pre></div>
+</details>
+<!-- example: metrics-custom -->
+
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">examples.custom_metric</span><span class="w"> </span><span class="kn">import</span> <span class="n">weighted_mae</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.metrics</span><span class="w"> </span><span class="kn">import</span> <span class="n">Metric</span>
+
+<span class="n">metric</span><span class="p">:</span> <span class="n">Metric</span> <span class="o">=</span> <span class="n">weighted_mae</span>
+<span class="nb">print</span><span class="p">(</span>
+    <span class="p">{</span>
+        <span class="n">name</span><span class="p">:</span> <span class="nb">round</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">metric</span><span class="p">(</span><span class="n">observed</span><span class="p">,</span> <span class="n">probabilities</span><span class="p">,</span> <span class="n">weight</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">to_dict</span><span class="p">()</span>
+        <span class="o">.</span><span class="n">items</span><span class="p">()</span>
+    <span class="p">}</span>
+<span class="p">)</span>
+</code></pre></div>
+<!-- output: metrics-custom -->
+<div class="highlight"><pre><span></span><code>{'mae': 0.35}
+</code></pre></div>
+<!-- /output -->
+
+<p>Training passes three aligned arrays and validates weights at its data
+boundary. Return an object satisfying <code>MetricResult</code>, with <code>to_dict()</code> mapping
+score names to floats; <code>MetricScores</code> is a simple implementation. Use the same
+key (<code>"mae"</code> here) in selection or tuning configuration when optimizing it,
+and choose the appropriate optimization direction.</p>
+<h3 id="use-the-metric-in-training">Use the metric in training<a class="headerlink" href="#use-the-metric-in-training" title="Permanent link">&para;</a></h3>
+<p>Run from the installed repository checkout after
+<code>python -m examples.prepare_data --dataset bike</code>. This uses all original UCI
+Bike Sharing hours, recorded rental counts and timestamps, and unit weights;
+see <a href="../models/#prepare-real-observations">the dataset and features</a>. The latest
+20% is test; validation is the latest quarter of the remaining rows.</p>
+<p>The metric's <code>mae</code> key is the tuning objective below. <code>direction="minimize"</code>
+selects lower error. CatBoost still fits its RMSE objective; this callable
+controls toolkit evaluation and trial selection.</p>
+<!-- example: metrics-training -->
+
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">tempfile</span><span class="w"> </span><span class="kn">import</span> <span class="n">TemporaryDirectory</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">mlflow</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">optuna</span><span class="w"> </span><span class="kn">import</span> <span class="n">Trial</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">examples.gallery_data</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_bike_pool</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit</span><span class="w"> </span><span class="kn">import</span> <span class="n">train_model</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">TrackingConfig</span><span class="p">,</span> <span class="n">TrainingConfig</span><span class="p">,</span> <span class="n">TuningConfig</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">CatBoostRegressionModel</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.training</span><span class="w"> </span><span class="kn">import</span> <span class="n">Holdout</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">ModelParams</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">search_depth</span><span class="p">(</span><span class="n">trial</span><span class="p">:</span> <span class="n">Trial</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ModelParams</span><span class="p">:</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s2">"depth"</span><span class="p">:</span> <span class="n">trial</span><span class="o">.</span><span class="n">suggest_int</span><span class="p">(</span><span class="s2">"depth"</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">)}</span>
+
+
+<span class="n">bike</span> <span class="o">=</span> <span class="n">load_bike_pool</span><span class="p">(</span><span class="n">download_if_missing</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<span class="n">previous_uri</span> <span class="o">=</span> <span class="n">mlflow</span><span class="o">.</span><span class="n">get_tracking_uri</span><span class="p">()</span>
+<span class="k">with</span> <span class="n">TemporaryDirectory</span><span class="p">(</span><span class="n">prefix</span><span class="o">=</span><span class="s2">"custom-metric-"</span><span class="p">)</span> <span class="k">as</span> <span class="n">directory</span><span class="p">:</span>
+    <span class="n">mlflow</span><span class="o">.</span><span class="n">set_tracking_uri</span><span class="p">(</span><span class="sa">f</span><span class="s2">"sqlite:///</span><span class="si">{</span><span class="n">Path</span><span class="p">(</span><span class="n">directory</span><span class="p">)</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="s1">'tracking.db'</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="n">experiment_id</span> <span class="o">=</span> <span class="n">mlflow</span><span class="o">.</span><span class="n">create_experiment</span><span class="p">(</span>
+        <span class="s2">"custom-metric"</span><span class="p">,</span>
+        <span class="n">artifact_location</span><span class="o">=</span><span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="n">directory</span><span class="p">)</span> <span class="o">/</span> <span class="s2">"artifacts"</span><span class="p">)</span><span class="o">.</span><span class="n">as_uri</span><span class="p">(),</span>
+    <span class="p">)</span>
+    <span class="n">mlflow</span><span class="o">.</span><span class="n">set_experiment</span><span class="p">(</span><span class="n">experiment_id</span><span class="o">=</span><span class="n">experiment_id</span><span class="p">)</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="n">train_model</span><span class="p">(</span>
+        <span class="n">splitter</span><span class="o">=</span><span class="n">Holdout</span><span class="p">(</span><span class="n">bike</span><span class="p">,</span> <span class="n">val_size</span><span class="o">=</span><span class="mf">0.25</span><span class="p">,</span> <span class="n">test_size</span><span class="o">=</span><span class="mf">0.2</span><span class="p">),</span>
+        <span class="n">params</span><span class="o">=</span><span class="p">{</span>
+            <span class="s2">"loss_function"</span><span class="p">:</span> <span class="s2">"RMSE"</span><span class="p">,</span>
+            <span class="s2">"iterations"</span><span class="p">:</span> <span class="mi">30</span><span class="p">,</span>
+            <span class="s2">"random_seed"</span><span class="p">:</span> <span class="mi">42</span><span class="p">,</span>
+            <span class="s2">"thread_count"</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span>
+            <span class="s2">"verbose"</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+            <span class="s2">"allow_writing_files"</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="p">},</span>
+        <span class="n">model_factory</span><span class="o">=</span><span class="n">CatBoostRegressionModel</span><span class="p">,</span>
+        <span class="n">metric</span><span class="o">=</span><span class="n">weighted_mae</span><span class="p">,</span>
+        <span class="n">run_name</span><span class="o">=</span><span class="s2">"bike-mae"</span><span class="p">,</span>
+        <span class="n">param_space</span><span class="o">=</span><span class="n">search_depth</span><span class="p">,</span>
+        <span class="n">config</span><span class="o">=</span><span class="n">TrainingConfig</span><span class="p">(</span>
+            <span class="n">tuning</span><span class="o">=</span><span class="n">TuningConfig</span><span class="p">(</span>
+                <span class="n">metric</span><span class="o">=</span><span class="s2">"mae"</span><span class="p">,</span> <span class="n">direction</span><span class="o">=</span><span class="s2">"minimize"</span><span class="p">,</span> <span class="n">n_trials</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">42</span>
+            <span class="p">),</span>
+            <span class="n">tracking</span><span class="o">=</span><span class="n">TrackingConfig</span><span class="p">(</span><span class="n">log_test_model</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">log_final_model</span><span class="o">=</span><span class="kc">False</span><span class="p">),</span>
+        <span class="p">),</span>
+    <span class="p">)</span>
+<span class="n">mlflow</span><span class="o">.</span><span class="n">set_tracking_uri</span><span class="p">(</span><span class="n">previous_uri</span><span class="p">)</span>
+<span class="k">assert</span> <span class="n">result</span><span class="o">.</span><span class="n">tuning</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">result</span><span class="o">.</span><span class="n">test_metrics</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"Chosen depth:"</span><span class="p">,</span> <span class="n">result</span><span class="o">.</span><span class="n">tuning</span><span class="o">.</span><span class="n">best_params</span><span class="p">[</span><span class="s2">"depth"</span><span class="p">])</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"Test MAE (rentals/hour):"</span><span class="p">,</span> <span class="nb">round</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">test_metrics</span><span class="p">[</span><span class="s2">"mae"</span><span class="p">],</span> <span class="mi">3</span><span class="p">))</span>
+</code></pre></div>
+<!-- output: metrics-training -->
+<div class="highlight"><pre><span></span><code>Chosen depth: 3
+Test MAE (rentals/hour): 94.121
+</code></pre></div>
+<!-- /output -->
+
+<p>The final model is refitted using the selected depth. The displayed test error
+uses future hours that neither trial fitted on. The temporary store contains
+run metrics and configuration during execution; model packaging is disabled
+for this example, and the store is removed on exit.</p>
+<h2 id="api-reference">API reference<a class="headerlink" href="#api-reference" title="Permanent link">&para;</a></h2>
+<p>Import metrics and result types from <code>ml_toolkit.metrics</code>. References are
+grouped by task; call interfaces stay beside their callable classes. Selected
+ranking points are attributes of <code>RankingMetrics</code>, with their class available
+from <code>ml_toolkit.metrics.ranking</code>.</p>
+<h3 id="general-regression">General regression<a class="headerlink" href="#general-regression" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="ml_toolkit.metrics.metrics_regression" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">metrics_regression</span>
+
+
+<a href="#ml_toolkit.metrics.metrics_regression" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">metrics_regression</span><span class="p">(</span>
+    <span class="n">y_target</span><span class="p">:</span> <span class="n">FloatArray</span><span class="p">,</span>
+    <span class="n">y_pred</span><span class="p">:</span> <span class="n">FloatArray</span><span class="p">,</span>
+    <span class="n">sample_weight</span><span class="p">:</span> <span class="n">FloatArray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">MetricsRegression</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Calculate regression errors for aligned finite one-dimensional arrays.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>y_target</code>
+            </td>
+            <td>
+                  <code>numpy.ndarray of shape (n_samples,)</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Nonempty finite targets and predictions, including signed values.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>y_pred</code>
+            </td>
+            <td>
+                  <code>numpy.ndarray of shape (n_samples,)</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Nonempty finite targets and predictions, including signed values.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>sample_weight</code>
+            </td>
+            <td>
+                  <code>numpy.ndarray of shape (n_samples,) or None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Finite nonnegative weights with positive total; None uses equal weights.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="MetricsRegression
+
+
+  
+      dataclass
+   (ml_toolkit.metrics.regression.MetricsRegression)" href="#ml_toolkit.metrics.MetricsRegression">MetricsRegression</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Weighted absolute, squared and signed errors, and R².</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="ValueError">ValueError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Arrays are empty, misaligned, nonfinite, or weights are invalid.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h4 id="ml_toolkit.metrics.MetricsRegression" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">MetricsRegression</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#ml_toolkit.metrics.MetricsRegression" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">MetricsRegression</span><span class="p">(</span>
+    <span class="n">mean_absolute_error</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">mean_squared_error</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">root_mean_squared_error</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">r2_score</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">mean_error</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>Store weighted regression scores.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.metrics.MetricsRegression.mean_absolute_error">mean_absolute_error</span></code></td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Weighted mean absolute prediction error.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.metrics.MetricsRegression.mean_squared_error">mean_squared_error</span></code></td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Weighted mean squared prediction error.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.metrics.MetricsRegression.root_mean_squared_error">root_mean_squared_error</span></code></td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Square root of the weighted mean squared error.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.metrics.MetricsRegression.r2_score">r2_score</span></code></td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Fraction of weighted target variance explained by predictions.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.metrics.MetricsRegression.mean_error">mean_error</span></code></td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Weighted mean of prediction minus target.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="note" open>
+  <summary>Notes</summary>
+  <p><code>mean_error</code> is prediction minus target: positive values indicate
+overprediction. R² is NaN with fewer than two positive-weight rows;
+constant targets score 1 for perfect predictions and 0 otherwise.</p>
+</details>
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h5 id="ml_toolkit.metrics.MetricsRegression.to_dict" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">to_dict</span>
+
+
+<a href="#ml_toolkit.metrics.MetricsRegression.to_dict" class="headerlink" title="Permanent link">&para;</a></h5>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">to_dict</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Return all named scores, including specialized subclass scores.</p>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div><h3 id="classification">Classification<a class="headerlink" href="#classification" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="ml_toolkit.metrics.metrics_classification" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">metrics_classification</span>
+
+
+<a href="#ml_toolkit.metrics.metrics_classification" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">metrics_classification</span><span class="p">(</span>
+    <span class="n">y_target</span><span class="p">:</span> <span class="n">FloatArray</span><span class="p">,</span>
+    <span class="n">y_prob</span><span class="p">:</span> <span class="n">FloatArray</span><span class="p">,</span>
+    <span class="n">sample_weight</span><span class="p">:</span> <span class="n">FloatArray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.5</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">MetricsClassification</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Evaluate binary labels and predicted positive-class probabilities.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>y_target</code>
+            </td>
+            <td>
+                  <code>numpy.ndarray of shape (n_samples,)</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Observed binary labels, containing only 0 and 1.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>y_prob</code>
+            </td>
+            <td>
+                  <code>numpy.ndarray of shape (n_samples,)</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Finite positive-class probabilities in [0, 1].</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>sample_weight</code>
+            </td>
+            <td>
+                  <code><span title="numpy.ndarray">ndarray</span> or None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Finite, nonnegative weights aligned with labels. None uses equal
+weights.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>threshold</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Probability cutoff in [0, 1]; scores at or above it predict label 1.</p>
+              </div>
+            </td>
+            <td>
+                  <code>0.5</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="MetricsClassification
+
+
+  
+      dataclass
+   (ml_toolkit.metrics.classification.MetricsClassification)" href="#ml_toolkit.metrics.MetricsClassification">MetricsClassification</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Threshold-based accuracy, precision, recall, and F1, plus score-based
+ROC AUC, average precision, and log loss.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="ValueError">ValueError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Labels, probabilities, weights, lengths, or threshold are invalid.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="note" open>
+  <summary>Notes</summary>
+  <p>ROC AUC is NaN for a single target class. Precision and recall use zero for
+undefined divisions; average precision is zero with no positives. These
+metrics require binary ground truth; do not treat PU unlabeled rows as
+confirmed negatives.</p>
+</details>
+
+<p><span class="doc-section-title">Examples:</span></p>
+    <div class="highlight"><pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.metrics</span><span class="w"> </span><span class="kn">import</span> <span class="n">metrics_classification</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">observed</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">probability</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.6</span><span class="p">,</span> <span class="mf">0.4</span><span class="p">,</span> <span class="mf">0.9</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">weight</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">for</span> <span class="n">cutoff</span> <span class="ow">in</span> <span class="p">(</span><span class="mf">0.3</span><span class="p">,</span> <span class="mf">0.7</span><span class="p">):</span>
+<span class="gp">... </span>    <span class="n">scores</span> <span class="o">=</span> <span class="n">metrics_classification</span><span class="p">(</span>
+<span class="gp">... </span>        <span class="n">observed</span><span class="p">,</span> <span class="n">probability</span><span class="p">,</span> <span class="n">threshold</span><span class="o">=</span><span class="n">cutoff</span><span class="p">,</span> <span class="n">sample_weight</span><span class="o">=</span><span class="n">weight</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="p">)</span>
+<span class="gp">... </span>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">cutoff</span><span class="si">}</span><span class="s2">: precision=</span><span class="si">{</span><span class="n">scores</span><span class="o">.</span><span class="n">precision</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">, recall=</span><span class="si">{</span><span class="n">scores</span><span class="o">.</span><span class="n">recall</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+<span class="go">0.3: precision=0.600, recall=1.000</span>
+<span class="go">0.7: precision=1.000, recall=0.667</span>
+</code></pre></div>
+    <p>In this small calculation example, increasing the cutoff removes false
+positives but also misses one third of the positive weight.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h4 id="ml_toolkit.metrics.MetricsClassification" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">MetricsClassification</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#ml_toolkit.metrics.MetricsClassification" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">MetricsClassification</span><span class="p">(</span>
+    <span class="n">accuracy</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">precision</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">recall</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">f1</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">roc_auc</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">average_precision</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">log_loss</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>Store weighted binary classification scores.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.metrics.MetricsClassification.accuracy">accuracy</span></code></td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Share of correct thresholded predictions.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.metrics.MetricsClassification.precision">precision</span></code></td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Positive predictive value; zero when undefined.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.metrics.MetricsClassification.recall">recall</span></code></td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Share of positives recovered; zero when undefined.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.metrics.MetricsClassification.f1">f1</span></code></td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Harmonic mean of precision and recall.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.metrics.MetricsClassification.roc_auc">roc_auc</span></code></td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>ROC area from probability scores; NaN when only one target class is
+present.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.metrics.MetricsClassification.average_precision">average_precision</span></code></td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Average precision from scores; zero when no positives are present.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.metrics.MetricsClassification.log_loss">log_loss</span></code></td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Binary cross-entropy calculated from probabilities.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h5 id="ml_toolkit.metrics.MetricsClassification.to_dict" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">to_dict</span>
+
+
+<a href="#ml_toolkit.metrics.MetricsClassification.to_dict" class="headerlink" title="Permanent link">&para;</a></h5>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">to_dict</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Return named scalar scores.</p>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="dict">dict</span>[<span title="str">str</span>, <span title="float">float</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>All scores in this result.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="ml_toolkit.metrics.confusion_matrix" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">confusion_matrix</span>
+
+
+<a href="#ml_toolkit.metrics.confusion_matrix" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">confusion_matrix</span><span class="p">(</span>
+    <span class="n">y_true</span><span class="p">:</span> <span class="n">FloatArray</span><span class="p">,</span>
+    <span class="n">y_pred</span><span class="p">:</span> <span class="n">FloatArray</span><span class="p">,</span>
+    <span class="n">sample_weight</span><span class="p">:</span> <span class="n">FloatArray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Return weighted binary counts in TN, FP, FN, TP order.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>y_true</code>
+            </td>
+            <td>
+                  <code>numpy.ndarray of shape (n_samples,)</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Observed binary labels.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>y_pred</code>
+            </td>
+            <td>
+                  <code>numpy.ndarray of shape (n_samples,)</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Predicted binary labels, rather than probability scores.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>sample_weight</code>
+            </td>
+            <td>
+                  <code><span title="numpy.ndarray">ndarray</span> or None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Row weights aligned with labels; None counts every row as one.
+Supply finite, nonnegative values for meaningful weighted counts.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="tuple">tuple</span>[<span title="float">float</span>, <span title="float">float</span>, <span title="float">float</span>, <span title="float">float</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>True negatives, false positives, false negatives, and true positives.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="ValueError">ValueError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Lengths differ or labels are not binary.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Examples:</span></p>
+    <div class="highlight"><pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.metrics</span><span class="w"> </span><span class="kn">import</span> <span class="n">confusion_matrix</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">confusion_matrix</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">0.</span><span class="p">,</span> <span class="mf">0.</span><span class="p">,</span> <span class="mf">1.</span><span class="p">,</span> <span class="mf">1.</span><span class="p">]),</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">0.</span><span class="p">,</span> <span class="mf">1.</span><span class="p">,</span> <span class="mf">0.</span><span class="p">,</span> <span class="mf">1.</span><span class="p">]))</span>
+<span class="go">(1.0, 1.0, 1.0, 1.0)</span>
+</code></pre></div>
+
+
+    </div>
+
+</div><h3 id="frequency">Frequency<a class="headerlink" href="#frequency" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="ml_toolkit.metrics.metrics_frequency" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">metrics_frequency</span>
+
+
+<a href="#ml_toolkit.metrics.metrics_frequency" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">metrics_frequency</span><span class="p">(</span>
+    <span class="n">y_target</span><span class="p">:</span> <span class="n">FloatArray</span><span class="p">,</span>
+    <span class="n">y_pred</span><span class="p">:</span> <span class="n">FloatArray</span><span class="p">,</span>
+    <span class="n">exposure</span><span class="p">:</span> <span class="n">FloatArray</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">MetricsFrequency</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Calculate exposure-weighted Poisson and ranking metrics.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>y_target</code>
+            </td>
+            <td>
+                  <code>numpy.ndarray of shape (n_samples,)</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Nonnegative observed rates with positive exposure-weighted total.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>y_pred</code>
+            </td>
+            <td>
+                  <code>numpy.ndarray of shape (n_samples,)</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Finite, strictly positive predicted rates.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>exposure</code>
+            </td>
+            <td>
+                  <code>numpy.ndarray of shape (n_samples,)</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Finite, nonnegative observation exposures with positive total.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="MetricsFrequency
+
+
+  
+      dataclass
+   (ml_toolkit.metrics.frequency.MetricsFrequency)" href="#ml_toolkit.metrics.MetricsFrequency">MetricsFrequency</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Poisson deviance and D2, absolute and squared errors, prediction ratio,
+and ranking at 10% of exposure.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="ValueError">ValueError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Ranking inputs are invalid or targets and predictions violate Poisson
+metric requirements.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="note" open>
+  <summary>Notes</summary>
+  <p>Targets and predictions are rates, not exposure-multiplied totals.
+Exposures weight error scores and determine ranking capacity.</p>
+</details>
+
+<p><span class="doc-section-title">Examples:</span></p>
+    <div class="highlight"><pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.metrics</span><span class="w"> </span><span class="kn">import</span> <span class="n">metrics_frequency</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">scores</span> <span class="o">=</span> <span class="n">metrics_frequency</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">]),</span>
+<span class="gp">... </span>    <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">0.2</span><span class="p">,</span> <span class="mf">1.2</span><span class="p">,</span> <span class="mf">1.5</span><span class="p">]),</span>
+<span class="gp">... </span>    <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">]),</span>
+<span class="gp">... </span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">round</span><span class="p">(</span><span class="n">scores</span><span class="o">.</span><span class="n">mean_absolute_error</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span>
+<span class="go">0.3714</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">round</span><span class="p">(</span><span class="n">scores</span><span class="o">.</span><span class="n">prediction_over_observed</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+<span class="go">0.86</span>
+</code></pre></div>
+    <p>These small calculation inputs represent annual rates and policy-year
+exposures. Predicted claims total 4.3 versus 5.0 observed: 14% too low.
+The weighted absolute rate error is 0.3714 claims per policy-year.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h4 id="ml_toolkit.metrics.MetricsFrequency" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">MetricsFrequency</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#ml_toolkit.metrics.MetricsFrequency" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">MetricsFrequency</span><span class="p">(</span>
+    <span class="n">mean_absolute_error</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">mean_squared_error</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">root_mean_squared_error</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">r2_score</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">mean_error</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">mean_poisson_deviance</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">d2_poisson_score</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">prediction_over_observed</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">lift_at_10</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">gain_at_10</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">normalized_gini</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="MetricsRegression
+
+
+  
+      dataclass
+   (ml_toolkit.metrics.regression.MetricsRegression)" href="#ml_toolkit.metrics.MetricsRegression">MetricsRegression</a></code></p>
+
+
+
+        <p>Store exposure-weighted frequency errors and ranking scores.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.metrics.MetricsFrequency.mean_poisson_deviance">mean_poisson_deviance</span></code></td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Exposure-weighted Poisson deviance.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.metrics.MetricsFrequency.d2_poisson_score">d2_poisson_score</span></code></td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Fraction of Poisson deviance explained relative to a constant
+prediction.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.metrics.MetricsFrequency.mean_absolute_error">mean_absolute_error</span></code></td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Exposure-weighted mean absolute error.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.metrics.MetricsFrequency.root_mean_squared_error">root_mean_squared_error</span></code></td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Square root of exposure-weighted mean squared error.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.metrics.MetricsFrequency.mean_squared_error">mean_squared_error</span></code></td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Exposure-weighted mean squared error.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.metrics.MetricsFrequency.r2_score">r2_score</span></code></td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Weighted coefficient of determination, as in metrics_regression.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.metrics.MetricsFrequency.mean_error">mean_error</span></code></td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Exposure-weighted prediction minus target; positive means overprediction.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.metrics.MetricsFrequency.prediction_over_observed">prediction_over_observed</span></code></td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Total exposure-weighted prediction divided by the observed total.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.metrics.MetricsFrequency.lift_at_10">lift_at_10</span></code></td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Gain at the highest-scored 10% of exposure divided by 0.1.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.metrics.MetricsFrequency.gain_at_10">gain_at_10</span></code></td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Share of total observed outcome captured by the highest-scored 10% of
+exposure.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.metrics.MetricsFrequency.normalized_gini">normalized_gini</span></code></td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Model Gini divided by perfect-ranking Gini; NaN when the latter is
+close to zero.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div><h3 id="severity">Severity<a class="headerlink" href="#severity" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="ml_toolkit.metrics.metrics_severity" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">metrics_severity</span>
+
+
+<a href="#ml_toolkit.metrics.metrics_severity" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">metrics_severity</span><span class="p">(</span>
+    <span class="n">y_target</span><span class="p">:</span> <span class="n">FloatArray</span><span class="p">,</span>
+    <span class="n">y_pred</span><span class="p">:</span> <span class="n">FloatArray</span><span class="p">,</span>
+    <span class="n">exposure</span><span class="p">:</span> <span class="n">FloatArray</span><span class="p">,</span>
+    <span class="n">power</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">MetricsSeverity</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Calculate exposure-weighted Tweedie and ranking metrics.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>y_target</code>
+            </td>
+            <td>
+                  <code>numpy.ndarray of shape (n_samples,)</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Finite observed severity values satisfying the chosen Tweedie power,
+with positive exposure-weighted total.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>y_pred</code>
+            </td>
+            <td>
+                  <code>numpy.ndarray of shape (n_samples,)</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Finite predicted severities satisfying the chosen Tweedie power.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>exposure</code>
+            </td>
+            <td>
+                  <code>numpy.ndarray of shape (n_samples,)</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Finite, nonnegative row weights with positive total.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>power</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Tweedie variance power passed to scikit-learn; for example, 2 uses
+Gamma deviance and requires strictly positive targets and predictions.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="MetricsSeverity
+
+
+  
+      dataclass
+   (ml_toolkit.metrics.severity.MetricsSeverity)" href="#ml_toolkit.metrics.MetricsSeverity">MetricsSeverity</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Tweedie deviance and D2, error scores, prediction ratio, and ranking at
+10% of exposure.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="ValueError">ValueError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Ranking inputs or the Tweedie domain are invalid.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="note" open>
+  <summary>Notes</summary>
+  <p>Use functools.partial to fix power when passing this function as a training
+metric. Ranking scores use the same exposure weights as the error scores.</p>
+</details>
+
+<p><span class="doc-section-title">Examples:</span></p>
+    <div class="highlight"><pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">functools</span><span class="w"> </span><span class="kn">import</span> <span class="n">partial</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.metrics</span><span class="w"> </span><span class="kn">import</span> <span class="n">metrics_severity</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">gamma_metric</span> <span class="o">=</span> <span class="n">partial</span><span class="p">(</span><span class="n">metrics_severity</span><span class="p">,</span> <span class="n">power</span><span class="o">=</span><span class="mf">2.0</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">scores</span> <span class="o">=</span> <span class="n">gamma_metric</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">100.0</span><span class="p">,</span> <span class="mf">200.0</span><span class="p">,</span> <span class="mf">300.0</span><span class="p">]),</span>
+<span class="gp">... </span>    <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">120.0</span><span class="p">,</span> <span class="mf">180.0</span><span class="p">,</span> <span class="mf">240.0</span><span class="p">]),</span>
+<span class="gp">... </span>    <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">,</span> <span class="mf">3.0</span><span class="p">]),</span>
+<span class="gp">... </span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">scores</span><span class="o">.</span><span class="n">mean_absolute_error</span>
+<span class="go">40.0</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">round</span><span class="p">(</span><span class="n">scores</span><span class="o">.</span><span class="n">mean_tweedie_deviance</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span>
+<span class="go">0.0359</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">round</span><span class="p">(</span><span class="n">scores</span><span class="o">.</span><span class="n">prediction_over_observed</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span>
+<span class="go">0.8571</span>
+</code></pre></div>
+    <p>In this calculation example, amounts are dollars and weights are claim
+counts. The weighted absolute error is $40 per claim; total predicted
+cost is about 14.3% below observed cost. Gamma deviance is dimensionless.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h4 id="ml_toolkit.metrics.MetricsSeverity" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">MetricsSeverity</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#ml_toolkit.metrics.MetricsSeverity" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">MetricsSeverity</span><span class="p">(</span>
+    <span class="n">mean_absolute_error</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">mean_squared_error</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">root_mean_squared_error</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">r2_score</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">mean_error</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">mean_tweedie_deviance</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">d2_tweedie_score</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">prediction_over_observed</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">lift_at_10</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">gain_at_10</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">normalized_gini</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="MetricsRegression
+
+
+  
+      dataclass
+   (ml_toolkit.metrics.regression.MetricsRegression)" href="#ml_toolkit.metrics.MetricsRegression">MetricsRegression</a></code></p>
+
+
+
+        <p>Store exposure-weighted severity errors and ranking scores.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.metrics.MetricsSeverity.mean_tweedie_deviance">mean_tweedie_deviance</span></code></td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Exposure-weighted deviance for the requested Tweedie power.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.metrics.MetricsSeverity.d2_tweedie_score">d2_tweedie_score</span></code></td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Fraction of Tweedie deviance explained relative to a constant
+prediction.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.metrics.MetricsSeverity.mean_absolute_error">mean_absolute_error</span></code></td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Exposure-weighted mean absolute error.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.metrics.MetricsSeverity.root_mean_squared_error">root_mean_squared_error</span></code></td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Square root of exposure-weighted mean squared error.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.metrics.MetricsSeverity.mean_squared_error">mean_squared_error</span></code></td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Exposure-weighted mean squared error.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.metrics.MetricsSeverity.r2_score">r2_score</span></code></td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Weighted coefficient of determination, as in metrics_regression.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.metrics.MetricsSeverity.mean_error">mean_error</span></code></td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Exposure-weighted prediction minus target; positive means overprediction.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.metrics.MetricsSeverity.prediction_over_observed">prediction_over_observed</span></code></td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Total exposure-weighted prediction divided by the observed total.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.metrics.MetricsSeverity.lift_at_10">lift_at_10</span></code></td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Gain at the highest-scored 10% of exposure divided by 0.1.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.metrics.MetricsSeverity.gain_at_10">gain_at_10</span></code></td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Share of total observed outcome captured by the highest-scored 10% of
+exposure.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.metrics.MetricsSeverity.normalized_gini">normalized_gini</span></code></td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Model Gini divided by perfect-ranking Gini; NaN when the latter is
+close to zero.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div><h3 id="ranking">Ranking<a class="headerlink" href="#ranking" title="Permanent link">&para;</a></h3>
+<p><a id="ml_toolkit.metrics.ranking_metrics"></a></p>
+<h4 id="ranking_metrics">ranking_metrics<a class="headerlink" href="#ranking_metrics" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code>ranking_metrics(
+    y_target: FloatArray,
+    y_pred: FloatArray,
+    exposure: FloatArray,
+    selected_percents: tuple[float, ...] = (10.0,),
+) -&gt; RankingMetrics
+</code></pre></div>
+<p>Calculate gains, lift, and Gini after ranking by descending prediction. Supply
+aligned finite vectors: observed rates in <code>y_target</code>, ordering scores in
+<code>y_pred</code>, and nonnegative row exposures with positive total in <code>exposure</code>.
+The exposure-weighted observed total must be positive. <code>selected_percents</code>
+contains capacity percentages in <code>(0, 100]</code>; an empty tuple requests only the
+full curves and Gini values.</p>
+<p>Returns <code>RankingMetrics</code>, with cumulative arrays and selected gain/lift points
+in request order. Zero-exposure rows are omitted, tied scores retain input
+order, and selected points use linear interpolation. Normalized Gini is NaN
+when perfect-ranking Gini is close to zero. Invalid shapes, non-finite values,
+negative exposures, nonpositive totals, or out-of-range percentages raise
+<code>ValueError</code>. See <a href="#inspect-gains-lift-and-gini">the ranking recipe</a> for an
+executable example and the following result attributes for their meanings.</p>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h4 id="ml_toolkit.metrics.RankingMetrics" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">RankingMetrics</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#ml_toolkit.metrics.RankingMetrics" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">RankingMetrics</span><span class="p">(</span>
+    <span class="n">gini</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">normalized_gini</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">gains_area</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">perfect_gini</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">cumulative_exposure</span><span class="p">:</span> <span class="n">FloatArray</span><span class="p">,</span>
+    <span class="n">cumulative_observed</span><span class="p">:</span> <span class="n">FloatArray</span><span class="p">,</span>
+    <span class="n">cumulative_lift</span><span class="p">:</span> <span class="n">FloatArray</span><span class="p">,</span>
+    <span class="n">selected_points</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">SelectedRankingPoint</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>Store an exposure-based ranking curve and its summary scores.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.metrics.RankingMetrics.gini">gini</span></code></td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Twice the area under the gains curve minus one.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.metrics.RankingMetrics.normalized_gini">normalized_gini</span></code></td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Gini divided by perfect_gini; NaN when perfect_gini is close to zero.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.metrics.RankingMetrics.gains_area">gains_area</span></code></td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Area under the cumulative gains curve.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.metrics.RankingMetrics.perfect_gini">perfect_gini</span></code></td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Gini obtained by ranking rows by their observed target.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.metrics.RankingMetrics.cumulative_exposure">cumulative_exposure</span></code></td>
+            <td>
+                  <code><span title="numpy.ndarray">ndarray</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Cumulative exposure fractions, including the initial zero.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.metrics.RankingMetrics.cumulative_observed">cumulative_observed</span></code></td>
+            <td>
+                  <code><span title="numpy.ndarray">ndarray</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Cumulative shares of exposure-weighted observed outcomes.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.metrics.RankingMetrics.cumulative_lift">cumulative_lift</span></code></td>
+            <td>
+                  <code><span title="numpy.ndarray">ndarray</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Cumulative observed share divided by exposure share; NaN at zero
+exposure.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.metrics.RankingMetrics.selected_points">selected_points</span></code></td>
+            <td>
+                  <code><span title="tuple">tuple</span>[<a class="autorefs autorefs-internal" title="SelectedRankingPoint
+
+
+  
+      dataclass
+   (ml_toolkit.metrics.ranking.SelectedRankingPoint)" href="#ml_toolkit.metrics.ranking.SelectedRankingPoint">SelectedRankingPoint</a>, ...]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Interpolated gain and lift at each requested percentage, in request
+order. Each point exposes percent, gain, and lift attributes.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h4 id="ml_toolkit.metrics.ranking.SelectedRankingPoint" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">SelectedRankingPoint</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#ml_toolkit.metrics.ranking.SelectedRankingPoint" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">SelectedRankingPoint</span><span class="p">(</span>
+    <span class="n">percent</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">gain</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">lift</span><span class="p">:</span> <span class="nb">float</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>Store gain and lift at a selected exposure percentage.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.metrics.ranking.SelectedRankingPoint.percent">percent</span></code></td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Exposure percentage in (0, 100].</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.metrics.ranking.SelectedRankingPoint.gain">gain</span></code></td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Interpolated fraction of total exposure-weighted observed outcome
+captured at this capacity.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="ml_toolkit.metrics.ranking.SelectedRankingPoint.lift">lift</span></code></td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Gain divided by percent / 100.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div><h3 id="positive-unlabeled">Positive-unlabeled<a class="headerlink" href="#positive-unlabeled" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h4 id="ml_toolkit.metrics.PUMetric" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">PUMetric</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#ml_toolkit.metrics.PUMetric" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">PUMetric</span><span class="p">(</span><span class="n">prior</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">loss</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'nnPU'</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>Evaluate positive-unlabeled risk without treating unlabeled rows as negative.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>prior</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Finite population positive prevalence strictly between zero and one,
+rather than the labeled-positive fraction.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>loss</code>
+            </td>
+            <td>
+                  <code>(<span title="uPU">uPU</span>, <span title="nnPU">nnPU</span>)</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>uPU retains estimated negative risk; nnPU clips it at zero when
+computing total risk.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;uPU&#39;</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="note" open>
+  <summary>Notes</summary>
+  <p>Callable metric for the training workflow. Match prior and loss to the
+model settings. Capture at capacity uses a score cutoff set by the
+unlabeled population. Ties at that cutoff are all included, so actual
+capacity can be larger. Known-positive capture is a recall proxy only under
+representative labeling.</p>
+</details>
+
+<p><span class="doc-section-title">Examples:</span></p>
+    <div class="highlight"><pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.metrics</span><span class="w"> </span><span class="kn">import</span> <span class="n">PUMetric</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">scores</span> <span class="o">=</span> <span class="n">PUMetric</span><span class="p">(</span><span class="n">prior</span><span class="o">=</span><span class="mf">0.1</span><span class="p">)([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.9</span><span class="p">,</span> <span class="mf">0.8</span><span class="p">,</span> <span class="mf">0.4</span><span class="p">,</span> <span class="mf">0.2</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">values</span> <span class="o">=</span> <span class="n">scores</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">values</span><span class="p">[</span><span class="s2">"known_positive_capture_at_10pct"</span><span class="p">],</span> <span class="n">values</span><span class="p">[</span><span class="s2">"unlabeled_flagged_at_10pct"</span><span class="p">]</span>
+<span class="go">(0.5, 0.5)</span>
+</code></pre></div>
+    <p>This tiny calculation has only two unlabeled rows. Reaching the requested
+10% capacity requires selecting one whole row, so actual capacity is 50%;
+the same score cutoff captures one of the two known positives.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h5 id="ml_toolkit.metrics.PUMetric.__call__" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">__call__</span>
+
+
+<a href="#ml_toolkit.metrics.PUMetric.__call__" class="headerlink" title="Permanent link">&para;</a></h5>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">__call__</span><span class="p">(</span>
+    <span class="n">labels</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span>
+    <span class="n">probabilities</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span>
+    <span class="n">weights</span><span class="p">:</span> <span class="n">ArrayLike</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">MetricScores</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Return PU risk and capture at 1%, 5%, and 10% unlabeled capacity.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>labels</code>
+            </td>
+            <td>
+                  <code>array-like of shape (n_samples,)</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Known positives are 1; unlabeled rows are 0.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>probabilities</code>
+            </td>
+            <td>
+                  <code>array-like of shape (n_samples,)</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Finite scores in [0, 1]. Scores are clipped away from endpoints for
+log-risk calculations.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>weights</code>
+            </td>
+            <td>
+                  <code><span title="array">array</span> - <span title="like">like</span> or None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Finite, nonnegative weights with positive total in both groups; None
+uses equal weights.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="MetricScores
+
+
+  
+      dataclass
+   (ml_toolkit.metrics.base.MetricScores)" href="#ml_toolkit.metrics.MetricScores">MetricScores</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>positive_risk, estimated_negative_risk, and pu_risk, plus
+known_positive_capture_at_{percent}pct and
+unlabeled_flagged_at_{percent}pct for percent in (1, 5, 10). Capacity
+and capture values are fractions in [0, 1].</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="ValueError">ValueError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Inputs are empty, invalid, misaligned, or lack positive weight in
+either group.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="ml_toolkit.metrics.positive_capture_curve" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">positive_capture_curve</span>
+
+
+<a href="#ml_toolkit.metrics.positive_capture_curve" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">positive_capture_curve</span><span class="p">(</span>
+    <span class="n">labels</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span>
+    <span class="n">probabilities</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span>
+    <span class="n">weights</span><span class="p">:</span> <span class="n">ArrayLike</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">FloatArray</span><span class="p">,</span> <span class="n">FloatArray</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Calculate known-positive capture at unlabeled review capacities.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>labels</code>
+            </td>
+            <td>
+                  <code>array-like of shape (n_samples,)</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>1 identifies a known positive; 0 identifies an unlabeled observation.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>probabilities</code>
+            </td>
+            <td>
+                  <code>array-like of shape (n_samples,)</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Finite scores in [0, 1], aligned with labels.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>weights</code>
+            </td>
+            <td>
+                  <code><span title="array">array</span> - <span title="like">like</span> or None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Finite, nonnegative row weights; both groups must have positive total.
+None uses equal weights.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="tuple">tuple</span>[<span title="numpy.ndarray">ndarray</span>, <span title="numpy.ndarray">ndarray</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Weighted fraction of unlabeled rows flagged and weighted fraction of
+known positives captured at each distinct score cutoff. Both arrays
+start at zero.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="ValueError">ValueError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Inputs are empty, misaligned, invalid, or a group has no positive
+weight.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="note" open>
+  <summary>Notes</summary>
+  <p>All rows tied at a cutoff are included. Known-positive capture estimates
+recall only when labeled positives represent the full positive population.
+Unlabeled observations are not confirmed negatives.</p>
+</details>
+
+<p><span class="doc-section-title">Examples:</span></p>
+    <div class="highlight"><pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.metrics</span><span class="w"> </span><span class="kn">import</span> <span class="n">positive_capture_curve</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">capacity</span><span class="p">,</span> <span class="n">capture</span> <span class="o">=</span> <span class="n">positive_capture_curve</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.9</span><span class="p">,</span> <span class="mf">0.8</span><span class="p">,</span> <span class="mf">0.4</span><span class="p">,</span> <span class="mf">0.2</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">capacity</span><span class="o">.</span><span class="n">tolist</span><span class="p">(),</span> <span class="n">capture</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+<span class="go">([0.0, 0.0, 0.5, 0.5, 1.0], [0.0, 0.5, 0.5, 1.0, 1.0])</span>
+</code></pre></div>
+
+
+    </div>
+
+</div><h3 id="custom-training-metrics">Custom training metrics<a class="headerlink" href="#custom-training-metrics" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h4 id="ml_toolkit.metrics.Metric" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">Metric</span>
+
+
+<a href="#ml_toolkit.metrics.Metric" class="headerlink" title="Permanent link">&para;</a></h4>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="typing.Protocol">Protocol</span></code></p>
+
+
+
+        <p>Describe a training metric accepting targets, predictions, and weights.</p>
+<p>Implement the three positional arguments and return a MetricResult. The
+training data boundary validates alignment and nonnegative weights; a
+custom metric is responsible for its own mathematical domain constraints.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h5 id="ml_toolkit.metrics.Metric.__call__" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">__call__</span>
+
+
+<a href="#ml_toolkit.metrics.Metric.__call__" class="headerlink" title="Permanent link">&para;</a></h5>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">__call__</span><span class="p">(</span>
+    <span class="n">y</span><span class="p">:</span> <span class="n">FloatArray</span><span class="p">,</span>
+    <span class="n">prediction</span><span class="p">:</span> <span class="n">FloatArray</span><span class="p">,</span>
+    <span class="n">weight</span><span class="p">:</span> <span class="n">FloatArray</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">MetricResult</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Return scalar results for one dataset.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>y</code>
+            </td>
+            <td>
+                  <code><span title="numpy.ndarray">ndarray</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Aligned one-dimensional targets, predictions and nonnegative weights.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>prediction</code>
+            </td>
+            <td>
+                  <code><span title="numpy.ndarray">ndarray</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Aligned one-dimensional targets, predictions and nonnegative weights.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>weight</code>
+            </td>
+            <td>
+                  <code><span title="numpy.ndarray">ndarray</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Aligned one-dimensional targets, predictions and nonnegative weights.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="MetricResult (ml_toolkit.metrics.base.MetricResult)" href="#ml_toolkit.metrics.MetricResult">MetricResult</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Result supplying to_dict().</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h4 id="ml_toolkit.metrics.MetricResult" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">MetricResult</span>
+
+
+<a href="#ml_toolkit.metrics.MetricResult" class="headerlink" title="Permanent link">&para;</a></h4>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="typing.Protocol">Protocol</span></code></p>
+
+
+
+        <p>Describe a metric result exporting named scalar scores through to_dict.</p>
+<p>Custom results may be dataclasses or other objects implementing to_dict;
+inheriting from this protocol is optional.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h5 id="ml_toolkit.metrics.MetricResult.to_dict" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">to_dict</span>
+
+
+<a href="#ml_toolkit.metrics.MetricResult.to_dict" class="headerlink" title="Permanent link">&para;</a></h5>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">to_dict</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Return named scores for reporting and objective selection.</p>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="dict">dict</span>[<span title="str">str</span>, <span title="float">float</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Scores in their natural units; undefined non-objective scores may be NaN.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h4 id="ml_toolkit.metrics.MetricScores" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">MetricScores</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#ml_toolkit.metrics.MetricScores" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">MetricScores</span><span class="p">(</span><span class="n">scores</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">])</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>Wrap named scores produced by a project-owned metric.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>scores</code>
+            </td>
+            <td>
+                  <code><span title="dict">dict</span>[<span title="str">str</span>, <span title="float">float</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Named scalar results. The dictionary is copied when exporting scores.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Examples:</span></p>
+    <div class="highlight"><pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="n">MetricScores</span><span class="p">({</span><span class="s2">"mae"</span><span class="p">:</span> <span class="mf">0.5</span><span class="p">})</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span>
+<span class="go">{'mae': 0.5}</span>
+</code></pre></div>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h5 id="ml_toolkit.metrics.MetricScores.to_dict" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">to_dict</span>
+
+
+<a href="#ml_toolkit.metrics.MetricScores.to_dict" class="headerlink" title="Permanent link">&para;</a></h5>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">to_dict</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Return a copy of the named scores.</p>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="dict">dict</span>[<span title="str">str</span>, <span title="float">float</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Scalar scores without sharing the stored dictionary.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.code.copy", "navigation.sections", "navigation.top", "search.highlight"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"alias": true, "default": "stable", "provider": "mike"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

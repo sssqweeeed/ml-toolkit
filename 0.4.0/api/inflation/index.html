@@ -1,0 +1,3423 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Training, validation, metrics, diagnostics, and MLflow for Python ML projects.">
+      
+      
+      
+        <link rel="canonical" href="https://sssqweeeed.github.io/ml-toolkit/0.4.0/api/inflation/">
+      
+      
+        <link rel="prev" href="../custom-model/">
+      
+      
+        <link rel="next" href="../../evaluation/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Inflation - ml-toolkit</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#inflation" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="ml-toolkit" class="md-header__button md-logo" aria-label="ml-toolkit" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            ml-toolkit
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Inflation
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/sssqweeeed/ml-toolkit" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    sssqweeeed/ml-toolkit
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="ml-toolkit" class="md-nav__button md-logo" aria-label="ml-toolkit" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    ml-toolkit
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/sssqweeeed/ml-toolkit" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    sssqweeeed/ml-toolkit
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Task recipes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../data/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Training
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Training
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../training/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Workflow and results
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../splitting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data splitting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../feature-selection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Feature selection
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tuning/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Parameter tuning
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Models
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Models
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../models/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Built-in adapters
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../custom-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Build a model adapter
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Inflation
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Inflation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#convert-to-a-later-price-date" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Convert to a later price date
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#use-a-monthly-index" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Use a monthly index
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#learn-a-common-price-index" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Learn a common price index
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Learn a common price index">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#choose-an-extrapolation-policy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Choose an extrapolation policy
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#prepare-recorded-retail-prices" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prepare recorded retail prices
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fit-an-inflation-adjusted-regressor" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fit an inflation-adjusted regressor
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Fit an inflation-adjusted regressor">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#use-a-learned-strategy-in-a-model-factory" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Use a learned strategy in a model factory
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#compare-strategies-at-calendar-forecast-horizons" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Compare strategies at calendar forecast horizons
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#log-and-reload-for-serving" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Log and reload for serving
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#implement-an-inflation-strategy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Implement an inflation strategy
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Implement an inflation strategy">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#fit-with-a-project-strategy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fit with a project strategy
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#api-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        API reference
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="API reference">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#adjustment-interface" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Adjustment interface
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#inflation-strategies" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Inflation strategies
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#migrating-custom-strategies" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Migrating custom strategies
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Evaluation
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Evaluation
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../evaluation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../evaluation/classification/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Classification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../evaluation/observed-fitted/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Observed versus fitted
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../evaluation/ranking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ranking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../evaluation/pu/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Positive-unlabeled
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../evaluation/explainability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Feature importance and SHAP
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../evaluation/custom/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Build an evaluator
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data analysis
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Data analysis
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../data-analysis/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../data-analysis/distributions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Numerical distributions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../psi/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PSI and feature levels
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../data-analysis/custom/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Build a data analyzer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../metrics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Metrics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tracking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tracking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#convert-to-a-later-price-date" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Convert to a later price date
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#use-a-monthly-index" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Use a monthly index
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#learn-a-common-price-index" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Learn a common price index
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Learn a common price index">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#choose-an-extrapolation-policy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Choose an extrapolation policy
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#prepare-recorded-retail-prices" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prepare recorded retail prices
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fit-an-inflation-adjusted-regressor" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fit an inflation-adjusted regressor
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Fit an inflation-adjusted regressor">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#use-a-learned-strategy-in-a-model-factory" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Use a learned strategy in a model factory
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#compare-strategies-at-calendar-forecast-horizons" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Compare strategies at calendar forecast horizons
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#log-and-reload-for-serving" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Log and reload for serving
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#implement-an-inflation-strategy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Implement an inflation strategy
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Implement an inflation strategy">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#fit-with-a-project-strategy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fit with a project strategy
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#api-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        API reference
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="API reference">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#adjustment-interface" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Adjustment interface
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#inflation-strategies" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Inflation strategies
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#migrating-custom-strategies" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Migrating custom strategies
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="inflation">Inflation<a class="headerlink" href="#inflation" title="Permanent link">&para;</a></h1>
+<p>Inflation strategies convert monetary values between price dates. Use a
+constant annual rate for a supplied assumption, a monthly index for historical
+or planned levels, or a learned common index estimated from project observations.</p>
+<h2 id="convert-to-a-later-price-date">Convert to a later price date<a class="headerlink" href="#convert-to-a-later-price-date" title="Permanent link">&para;</a></h2>
+<!-- example: inflation-constant -->
+
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">date</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">polars</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pl</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.inflation</span><span class="w"> </span><span class="kn">import</span> <span class="n">ConstantRateInflation</span>
+
+<span class="n">from_dates</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">Series</span><span class="p">([</span><span class="n">date</span><span class="p">(</span><span class="mi">2025</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)])</span>
+<span class="n">to_dates</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">Series</span><span class="p">([</span><span class="n">date</span><span class="p">(</span><span class="mi">2026</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)])</span>
+<span class="n">inflation</span> <span class="o">=</span> <span class="n">ConstantRateInflation</span><span class="p">(</span><span class="n">annual_rate</span><span class="o">=</span><span class="mf">0.08</span><span class="p">)</span>
+<span class="n">adjusted</span> <span class="o">=</span> <span class="n">inflation</span><span class="o">.</span><span class="n">adjust</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">100.0</span><span class="p">]),</span> <span class="n">from_dates</span><span class="p">,</span> <span class="n">to_dates</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"Later price level:"</span><span class="p">,</span> <span class="n">adjusted</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">tolist</span><span class="p">())</span>
+<span class="n">restored</span> <span class="o">=</span> <span class="n">inflation</span><span class="o">.</span><span class="n">adjust</span><span class="p">(</span><span class="n">adjusted</span><span class="p">,</span> <span class="n">to_dates</span><span class="p">,</span> <span class="n">from_dates</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"Original price level:"</span><span class="p">,</span> <span class="n">restored</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">tolist</span><span class="p">())</span>
+<span class="n">np</span><span class="o">.</span><span class="n">testing</span><span class="o">.</span><span class="n">assert_allclose</span><span class="p">(</span><span class="n">restored</span><span class="p">,</span> <span class="p">[</span><span class="mf">100.0</span><span class="p">])</span>
+</code></pre></div>
+<!-- output: inflation-constant -->
+<div class="highlight"><pre><span></span><code>Later price level: [107.99]
+Original price level: [100.0]
+</code></pre></div>
+<!-- /output -->
+
+<p><code>0.08</code> means 8% annual compound growth. The result is slightly below <code>108</code>
+because elapsed years use 365.25 days. Each row can have its own amount and date
+pair; reversing the dates converts back to an earlier price level.</p>
+<h2 id="use-a-monthly-index">Use a monthly index<a class="headerlink" href="#use-a-monthly-index" title="Permanent link">&para;</a></h2>
+<!-- example: inflation-monthly -->
+
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.inflation</span><span class="w"> </span><span class="kn">import</span> <span class="n">ManualInflation</span>
+
+<span class="n">monthly</span> <span class="o">=</span> <span class="n">ManualInflation</span><span class="p">({</span><span class="n">date</span><span class="p">(</span><span class="mi">2025</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">):</span> <span class="mf">1.0</span><span class="p">,</span> <span class="n">date</span><span class="p">(</span><span class="mi">2025</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">1</span><span class="p">):</span> <span class="mf">1.21</span><span class="p">})</span>
+<span class="n">adjusted</span> <span class="o">=</span> <span class="n">monthly</span><span class="o">.</span><span class="n">adjust</span><span class="p">(</span>
+    <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">100.0</span><span class="p">]),</span>
+    <span class="n">pl</span><span class="o">.</span><span class="n">Series</span><span class="p">([</span><span class="n">date</span><span class="p">(</span><span class="mi">2025</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">15</span><span class="p">)]),</span>
+    <span class="n">pl</span><span class="o">.</span><span class="n">Series</span><span class="p">([</span><span class="n">date</span><span class="p">(</span><span class="mi">2025</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">28</span><span class="p">)]),</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">adjusted</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">tolist</span><span class="p">())</span>
+</code></pre></div>
+<!-- output: inflation-monthly -->
+<div class="highlight"><pre><span></span><code>[110.0]
+</code></pre></div>
+<!-- /output -->
+
+<p>Continuing with the imports above, February's interpolated index is <code>1.1</code>.
+Every date within a month uses that month's level. Missing months between
+anchors are interpolated in log space; requested months must stay within the
+anchor range.</p>
+<h2 id="learn-a-common-price-index">Learn a common price index<a class="headerlink" href="#learn-a-common-price-index" title="Permanent link">&para;</a></h2>
+<p><code>LogLinearInflation</code> and <code>SplineInflation</code> estimate a weighted Gamma mean with
+a log link:</p>
+<p><code>log(E[amount | features, date]) = intercept + feature effects + trend(date)</code></p>
+<p>The first strategy has a linear time effect, giving a constant compound growth
+rate inside training. The second uses a regularized cubic B-spline to represent
+a changing growth rate. Both fit original positive amounts, rather than a
+regression on log-transformed targets.</p>
+<p><strong>The proportional price change is shared by all objects.</strong> Features help
+distinguish a change in product composition from price growth: an increasing
+share of expensive products need not imply inflation. When comparing the same
+object at two dates, its feature effect cancels, leaving the multiplier
+<code>exp(trend(to_date) - trend(from_date))</code>. Features are required only for fitting;
+<code>factor()</code> and <code>adjust()</code> still accept dates without features.</p>
+<p>Numeric controls have standardized linear effects; categorical controls use
+sparse one-hot encoding according to <code>Pool.cat_features</code>. Numeric missing values
+use training medians; all-missing numeric columns are dropped. Interactions,
+object-specific trends and separate seasonal components are not modeled.
+Missing price-determining characteristics or a strong relationship between time
+and the available characteristics can limit interpretation of the estimated trend.</p>
+<p>The following reproducible data is synthetic, with Gamma price variation,
+changing product composition and a known time effect; it is not measured
+inflation. Continue with the NumPy, Polars and date imports above:</p>
+<!-- example: inflation-learned -->
+
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">examples.inflation_benchmark</span><span class="w"> </span><span class="kn">import</span> <span class="n">synthetic_pool</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.inflation</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">LogLinearInflation</span><span class="p">,</span>
+    <span class="n">SplineInflation</span><span class="p">,</span>
+    <span class="n">inflation_from_config</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">training</span> <span class="o">=</span> <span class="n">synthetic_pool</span><span class="p">(</span><span class="n">months</span><span class="o">=</span><span class="mi">36</span><span class="p">,</span> <span class="n">rows_per_month</span><span class="o">=</span><span class="mi">25</span><span class="p">)</span>
+<span class="n">linear</span> <span class="o">=</span> <span class="n">LogLinearInflation</span><span class="p">(</span><span class="n">control_features</span><span class="o">=</span><span class="p">[</span><span class="s2">"size"</span><span class="p">,</span> <span class="s2">"category"</span><span class="p">])</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">training</span><span class="p">)</span>
+<span class="n">smooth</span> <span class="o">=</span> <span class="n">SplineInflation</span><span class="p">(</span>
+    <span class="n">n_knots</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span>
+    <span class="n">alpha</span><span class="o">=</span><span class="mf">0.001</span><span class="p">,</span>
+    <span class="n">extrapolation</span><span class="o">=</span><span class="s2">"damped"</span><span class="p">,</span>
+    <span class="n">damping_half_life_years</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
+<span class="p">)</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">training</span><span class="p">)</span>
+<span class="n">original</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">Series</span><span class="p">([</span><span class="n">date</span><span class="p">(</span><span class="mi">2017</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)])</span>
+<span class="n">requested</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">Series</span><span class="p">([</span><span class="n">date</span><span class="p">(</span><span class="mi">2018</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)])</span>
+<span class="k">for</span> <span class="n">strategy</span> <span class="ow">in</span> <span class="p">(</span><span class="n">linear</span><span class="p">,</span> <span class="n">smooth</span><span class="p">):</span>
+    <span class="n">changed</span> <span class="o">=</span> <span class="n">strategy</span><span class="o">.</span><span class="n">adjust</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">100.0</span><span class="p">]),</span> <span class="n">original</span><span class="p">,</span> <span class="n">requested</span><span class="p">)</span>
+    <span class="n">np</span><span class="o">.</span><span class="n">testing</span><span class="o">.</span><span class="n">assert_allclose</span><span class="p">(</span>
+        <span class="n">strategy</span><span class="o">.</span><span class="n">adjust</span><span class="p">(</span><span class="n">changed</span><span class="p">,</span> <span class="n">requested</span><span class="p">,</span> <span class="n">original</span><span class="p">),</span> <span class="p">[</span><span class="mf">100.0</span><span class="p">]</span>
+    <span class="p">)</span>
+
+<span class="n">saved</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">smooth</span><span class="o">.</span><span class="n">to_config</span><span class="p">(),</span> <span class="n">allow_nan</span><span class="o">=</span><span class="kc">False</span><span class="p">))</span>
+<span class="n">restored</span> <span class="o">=</span> <span class="n">inflation_from_config</span><span class="p">(</span><span class="n">saved</span><span class="p">)</span>
+<span class="n">np</span><span class="o">.</span><span class="n">testing</span><span class="o">.</span><span class="n">assert_allclose</span><span class="p">(</span>
+    <span class="n">restored</span><span class="o">.</span><span class="n">factor</span><span class="p">(</span><span class="n">original</span><span class="p">,</span> <span class="n">requested</span><span class="p">),</span> <span class="n">smooth</span><span class="o">.</span><span class="n">factor</span><span class="p">(</span><span class="n">original</span><span class="p">,</span> <span class="n">requested</span><span class="p">)</span>
+<span class="p">)</span>
+</code></pre></div>
+<p><code>fit(data)</code> takes a <code>Pool</code>. <code>control_features=None</code> uses every available column,
+an explicit sequence chooses controls, and <code>control_features=[]</code> fits dates
+only. Every preprocessing step uses positive-weight training rows only. Targets
+must be finite and strictly positive; weights must be finite and nonnegative
+with positive total. Zero-weight rows do not set the fitted time range or knots.
+The linear method needs at least two distinct positive-weight timestamps; the
+spline needs at least <code>n_knots</code> (default five). These target and weight restrictions
+do not apply to the fixed strategies' no-op fit.</p>
+<p>Both methods use elapsed time in 365.25-day years, including fractional days.
+Timezone-aware timestamps refer to UTC instants. Defaults are <code>alpha=0.001</code>
+(L2 regularization of time and control coefficients), <code>extrapolation="linear"</code>,
+and <code>damping_half_life_years=1.0</code>; the spline degree is fixed at three.</p>
+<h3 id="choose-an-extrapolation-policy">Choose an extrapolation policy<a class="headerlink" href="#choose-an-extrapolation-policy" title="Permanent link">&para;</a></h3>
+<p>The forecast horizon is determined by the requested dates; there is no fixed
+one-year limit. <code>extrapolation</code> selects behavior outside positive-weight training:</p>
+<table>
+<thead>
+<tr>
+<th>Policy</th>
+<th>Behavior</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>linear</code></td>
+<td>Continue the boundary log-index tangent, preserving its growth rate</td>
+</tr>
+<tr>
+<td><code>constant</code></td>
+<td>Hold the boundary index level</td>
+</tr>
+<tr>
+<td><code>error</code></td>
+<td>Reject dates outside the fitted range</td>
+</tr>
+<tr>
+<td><code>damped</code></td>
+<td>After the last training date, exponentially decay the boundary log-index slope toward zero; before the first date, extrapolate linearly</td>
+</tr>
+</tbody>
+</table>
+<p>For <code>damped</code>, the future slope halves every <code>damping_half_life_years</code>. This
+approaches a constant price level, not a long-run inflation target. The spline
+polynomial is never continued beyond its training boundaries. Policies define
+one index function, so conversions remain reversible and agree when performed
+through an intermediate date. Unrepresentable factors raise <code>ValueError</code>.</p>
+<h2 id="prepare-recorded-retail-prices">Prepare recorded retail prices<a class="headerlink" href="#prepare-recorded-retail-prices" title="Permanent link">&para;</a></h2>
+<p>Run from the installed repository checkout and prepare the source explicitly:</p>
+<div class="highlight"><pre><span></span><code>python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-r<span class="w"> </span>requirements-examples.txt
+python<span class="w"> </span>-m<span class="w"> </span>examples.prepare_data<span class="w"> </span>--dataset<span class="w"> </span>retail
+</code></pre></div>
+<p>The reusable loader reads <a href="https://archive.ics.uci.edu/dataset/352/online%2Bretail">UCI Online Retail</a>
+(Daqing Chen, 2015; CC BY 4.0). <code>UnitPrice</code> is sterling per item and <code>InvoiceDate</code>
+is the recorded transaction time. The approximately 23 MB workbook and normalized
+records stay in <code>.cache/uci-online-retail</code>; reading Excel requires <code>openpyxl</code>, an
+example dependency rather than a package runtime dependency.</p>
+<p>We exclude cancelled invoices and lines with nonpositive quantity or price.
+A reproducible approximately 10% invoice sample retains all eligible lines of each
+selected invoice: the first eight bytes of its ID's SHA-256 digest, interpreted
+big-endian, must have remainder zero modulo ten. Original values and timestamps
+are retained. December 2011 is excluded because it is incomplete.
+Training ends before September 2011, validation covers September, and testing
+covers October–November. Invoice groups never cross those partitions.</p>
+<!-- example: inflation-data -->
+
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">examples.retail_data</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_retail_splits</span>
+
+<span class="n">retail</span> <span class="o">=</span> <span class="n">load_retail_splits</span><span class="p">(</span><span class="n">download_if_missing</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span>
+    <span class="s2">"Train / validation / test lines:"</span><span class="p">,</span>
+    <span class="nb">len</span><span class="p">(</span><span class="n">retail</span><span class="o">.</span><span class="n">train</span><span class="p">),</span>
+    <span class="nb">len</span><span class="p">(</span><span class="n">retail</span><span class="o">.</span><span class="n">validation</span><span class="p">),</span>
+    <span class="nb">len</span><span class="p">(</span><span class="n">retail</span><span class="o">.</span><span class="n">test</span><span class="p">),</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"First held-out prices (GBP/item):"</span><span class="p">,</span> <span class="n">retail</span><span class="o">.</span><span class="n">test</span><span class="o">.</span><span class="n">y</span><span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span><span class="o">.</span><span class="n">to_list</span><span class="p">())</span>
+</code></pre></div>
+<!-- output: inflation-data -->
+<div class="highlight"><pre><span></span><code>Train / validation / test lines: 29847 4282 15210
+First held-out prices (GBP/item): [0.85, 7.08, 4.95, 4.25, 4.95]
+</code></pre></div>
+<!-- /output -->
+
+<p>The three predictors are product code, country, and purchased quantity. Invoice
+IDs, customer IDs, timestamps, and target-derived amounts are excluded from model
+features. Each invoice line has weight one, so metrics describe line-level prices.</p>
+<h2 id="fit-an-inflation-adjusted-regressor">Fit an inflation-adjusted regressor<a class="headerlink" href="#fit-an-inflation-adjusted-regressor" title="Permanent link">&para;</a></h2>
+<p>Continue with <code>retail</code> above and the NumPy, Polars, date, and inflation imports
+from the first calculation. Fit at a common reference price date, then predict
+held-out transaction prices at their recorded dates:</p>
+<!-- example: inflation-model -->
+
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">CatBoostRegressionModel</span><span class="p">,</span> <span class="n">InflationAdjustedModel</span>
+
+<span class="n">adjusted_model</span> <span class="o">=</span> <span class="n">InflationAdjustedModel</span><span class="p">(</span>
+    <span class="n">CatBoostRegressionModel</span><span class="p">(</span>
+        <span class="p">{</span>
+            <span class="s2">"iterations"</span><span class="p">:</span> <span class="mi">60</span><span class="p">,</span>
+            <span class="s2">"depth"</span><span class="p">:</span> <span class="mi">4</span><span class="p">,</span>
+            <span class="s2">"loss_function"</span><span class="p">:</span> <span class="s2">"RMSE"</span><span class="p">,</span>
+            <span class="s2">"random_seed"</span><span class="p">:</span> <span class="mi">42</span><span class="p">,</span>
+            <span class="s2">"thread_count"</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span>
+            <span class="s2">"verbose"</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+            <span class="s2">"allow_writing_files"</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="p">}</span>
+    <span class="p">),</span>
+    <span class="n">inflation</span><span class="o">=</span><span class="n">ConstantRateInflation</span><span class="p">(</span><span class="n">annual_rate</span><span class="o">=</span><span class="mf">0.08</span><span class="p">),</span>
+    <span class="n">reference_date</span><span class="o">=</span><span class="n">date</span><span class="p">(</span><span class="mi">2011</span><span class="p">,</span> <span class="mi">9</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span>
+<span class="p">)</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">retail</span><span class="o">.</span><span class="n">train</span><span class="p">,</span> <span class="n">retail</span><span class="o">.</span><span class="n">validation</span><span class="p">)</span>
+<span class="n">predictions</span> <span class="o">=</span> <span class="n">adjusted_model</span><span class="o">.</span><span class="n">predict_pool</span><span class="p">(</span><span class="n">retail</span><span class="o">.</span><span class="n">test</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"Predicted prices (GBP/item):"</span><span class="p">,</span> <span class="n">predictions</span><span class="p">[:</span><span class="mi">5</span><span class="p">]</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">tolist</span><span class="p">())</span>
+<span class="nb">print</span><span class="p">(</span>
+    <span class="s2">"Held-out MAE (GBP/item):"</span><span class="p">,</span>
+    <span class="nb">round</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">predictions</span> <span class="o">-</span> <span class="n">retail</span><span class="o">.</span><span class="n">test</span><span class="o">.</span><span class="n">y</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()))),</span> <span class="mi">2</span><span class="p">),</span>
+<span class="p">)</span>
+
+<span class="c1"># Hold product, country, and quantity fixed; vary only the requested price date.</span>
+<span class="n">requested_dates</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span>
+    <span class="s2">"prediction_date"</span><span class="p">,</span> <span class="p">[</span><span class="n">date</span><span class="p">(</span><span class="mi">2011</span><span class="p">,</span> <span class="mi">9</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">date</span><span class="p">(</span><span class="mi">2012</span><span class="p">,</span> <span class="mi">9</span><span class="p">,</span> <span class="mi">1</span><span class="p">)]</span>
+<span class="p">)</span>
+<span class="n">future</span> <span class="o">=</span> <span class="n">retail</span><span class="o">.</span><span class="n">test</span><span class="o">.</span><span class="n">X</span><span class="p">[[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]]</span><span class="o">.</span><span class="n">with_columns</span><span class="p">(</span><span class="n">requested_dates</span><span class="p">)</span>
+<span class="n">date_predictions</span> <span class="o">=</span> <span class="n">adjusted_model</span><span class="o">.</span><span class="n">predict_frame</span><span class="p">(</span><span class="n">future</span><span class="p">)</span>
+<span class="k">assert</span> <span class="n">date_predictions</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">date_predictions</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">0</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"Same item at requested price dates:"</span><span class="p">,</span> <span class="n">date_predictions</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">tolist</span><span class="p">())</span>
+<span class="n">conversion</span> <span class="o">=</span> <span class="n">adjusted_model</span><span class="o">.</span><span class="n">inflation</span><span class="o">.</span><span class="n">factor</span><span class="p">(</span>
+    <span class="n">requested_dates</span><span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">1</span><span class="p">),</span> <span class="n">requested_dates</span><span class="o">.</span><span class="n">tail</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+<span class="p">)</span>
+<span class="n">np</span><span class="o">.</span><span class="n">testing</span><span class="o">.</span><span class="n">assert_allclose</span><span class="p">(</span>
+    <span class="n">date_predictions</span><span class="p">[</span><span class="mi">1</span><span class="p">:],</span> <span class="n">date_predictions</span><span class="p">[:</span><span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="n">conversion</span>
+<span class="p">)</span>
+</code></pre></div>
+<!-- output: inflation-model -->
+<div class="highlight"><pre><span></span><code>Predicted prices (GBP/item): [1.42, 5.08, 4.87, 7.22, 9.98]
+Held-out MAE (GBP/item): 2.18
+Same item at requested price dates: [1.41, 1.52]
+</code></pre></div>
+<!-- /output -->
+
+<p>The 8% annual rate is an assumed conversion policy, not a historical UK
+inflation estimate.</p>
+<p>Pool predictions use each row's observation date. Frame predictions require
+<code>prediction_date</code>, whose name can be configured on the adapter. With
+<code>ManualInflation</code>, all training, reference, and requested months must lie within
+the supplied index range.</p>
+<h3 id="use-a-learned-strategy-in-a-model-factory">Use a learned strategy in a model factory<a class="headerlink" href="#use-a-learned-strategy-in-a-model-factory" title="Permanent link">&para;</a></h3>
+<p>Keep strategy settings in the factory, and create a fresh strategy on every
+call. The workflow can then refit it independently for feature selection,
+validation and final fitting. Continue with <code>retail</code>, <code>adjusted_model</code> and the
+model imports above:</p>
+<!-- example: inflation-learned-model -->
+
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">ModelParams</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">learned_model</span><span class="p">(</span><span class="n">params</span><span class="p">:</span> <span class="n">ModelParams</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">InflationAdjustedModel</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">InflationAdjustedModel</span><span class="p">(</span>
+        <span class="n">CatBoostRegressionModel</span><span class="p">(</span><span class="n">params</span><span class="p">),</span>
+        <span class="n">inflation</span><span class="o">=</span><span class="n">LogLinearInflation</span><span class="p">(</span><span class="n">alpha</span><span class="o">=</span><span class="mf">0.001</span><span class="p">),</span>
+        <span class="n">reference_date</span><span class="o">=</span><span class="n">date</span><span class="p">(</span><span class="mi">2011</span><span class="p">,</span> <span class="mi">9</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span>
+    <span class="p">)</span>
+
+
+<span class="n">learned_retail</span> <span class="o">=</span> <span class="n">learned_model</span><span class="p">(</span><span class="n">adjusted_model</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">params</span><span class="p">)</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span>
+    <span class="n">retail</span><span class="o">.</span><span class="n">train</span><span class="p">,</span> <span class="n">retail</span><span class="o">.</span><span class="n">validation</span>
+<span class="p">)</span>
+<span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">learned_retail</span><span class="o">.</span><span class="n">predict_pool</span><span class="p">(</span><span class="n">retail</span><span class="o">.</span><span class="n">test</span><span class="p">))</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+</code></pre></div>
+<p><code>InflationAdjustedModel</code> passes only the original training pool to the strategy.
+Validation amounts are normalized using that fitted index. With
+<code>control_features=None</code>, feature selection also determines the controls available
+to each strategy fit. Explicit controls must be present in each supplied pool.
+Do not pass strategy settings as native CatBoost parameters.</p>
+<h3 id="compare-strategies-at-calendar-forecast-horizons">Compare strategies at calendar forecast horizons<a class="headerlink" href="#compare-strategies-at-calendar-forecast-horizons" title="Permanent link">&para;</a></h3>
+<p>Start with the linear strategy and compare the spline and extrapolation settings
+on chronological validation. The benchmark holds CatBoost parameters fixed for
+four methods: no adjustment, an assumed constant rate, a learned linear trend,
+and a learned spline trend. Each origin fits on preceding observations only.</p>
+<div class="highlight"><pre><span></span><code>python<span class="w"> </span>-m<span class="w"> </span>examples.inflation_benchmark<span class="w"> </span>--output<span class="w"> </span>inflation-benchmark.csv
+python<span class="w"> </span>-m<span class="w"> </span>examples.inflation_benchmark<span class="w"> </span>--extrapolation<span class="w"> </span>damped<span class="w"> </span>--damping-half-life-years<span class="w"> </span><span class="m">1</span>
+python<span class="w"> </span>-m<span class="w"> </span>examples.inflation_benchmark<span class="w"> </span>--dataset<span class="w"> </span>retail<span class="w"> </span>--min-train-months<span class="w"> </span><span class="m">6</span><span class="w"> </span>--step-months<span class="w"> </span><span class="m">1</span><span class="w"> </span>--horizons<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">3</span>
+</code></pre></div>
+<p>The default synthetic benchmark tests 1, 3, 6 and 12 months. Horizon 12 evaluates
+the twelfth month after the training cutoff, rather than accumulating twelve
+months of observations. Incomplete horizons are skipped. The real-data command
+requires the explicitly prepared Online Retail cache above and never downloads
+implicitly. Its history is shorter than a year and cannot establish twelve-month
+forecast quality.</p>
+<p>Individual fold results include weighted MAE, RMSE, Gamma deviance and predicted
+over observed total amounts. Synthetic results also measure error in the known
+log-index, relative to the final training date. Printed summaries average fold
+metrics equally across origins. The constant rate defaults to an assumed 8%,
+not an estimate. There is no guarantee a learned adjustment improves the final
+regressor, and synthetic index recovery is not evidence of real-world superiority.</p>
+<p>For reference, running the synthetic and retail commands above with
+<code>--iterations 60</code> and the default strategy settings produced these mean fold
+MAEs. Synthetic monetary units are arbitrary; retail units are GBP per item.</p>
+<table>
+<thead>
+<tr>
+<th>Strategy</th>
+<th style="text-align: right;">Synthetic, 12 months</th>
+<th style="text-align: right;">Retail, 1 month</th>
+<th style="text-align: right;">Retail, 3 months</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>No adjustment</td>
+<td style="text-align: right;">113.360</td>
+<td style="text-align: right;">1.879</td>
+<td style="text-align: right;">2.061</td>
+</tr>
+<tr>
+<td>Assumed 8% rate</td>
+<td style="text-align: right;">88.364</td>
+<td style="text-align: right;">1.852</td>
+<td style="text-align: right;">2.063</td>
+</tr>
+<tr>
+<td>Learned linear</td>
+<td style="text-align: right;">72.337</td>
+<td style="text-align: right;">1.805</td>
+<td style="text-align: right;">1.941</td>
+</tr>
+<tr>
+<td>Learned spline</td>
+<td style="text-align: right;">93.952</td>
+<td style="text-align: right;">1.846</td>
+<td style="text-align: right;">2.067</td>
+</tr>
+</tbody>
+</table>
+<p>These settings illustrate a tradeoff: the retail linear adjustment reduced MAE
+but its predicted/observed amount ratio moved further below one (from 0.900 to
+0.850 at one month and from 0.888 to 0.783 at three months). The spline did not
+outperform the linear strategy. Select settings using the metric appropriate to
+the project rather than assuming any adjustment is uniformly better.</p>
+<h2 id="log-and-reload-for-serving">Log and reload for serving<a class="headerlink" href="#log-and-reload-for-serving" title="Permanent link">&para;</a></h2>
+<p>Continue with the fitted <code>adjusted_model</code>, <code>retail</code>, and <code>future</code> above. <code>log()</code>
+returns the native model first and the adjusted serving model second. Load the
+second artifact to retain date-dependent predictions:</p>
+<!-- example: inflation-serving -->
+
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">mlflow</span>
+
+<span class="n">mlflow</span><span class="o">.</span><span class="n">set_tracking_uri</span><span class="p">(</span><span class="s2">"sqlite:///mlflow.db"</span><span class="p">)</span>
+<span class="n">mlflow</span><span class="o">.</span><span class="n">set_experiment</span><span class="p">(</span><span class="s2">"ml-toolkit-inflation"</span><span class="p">)</span>
+<span class="k">with</span> <span class="n">mlflow</span><span class="o">.</span><span class="n">start_run</span><span class="p">():</span>
+    <span class="n">native_info</span><span class="p">,</span> <span class="n">adjusted_info</span> <span class="o">=</span> <span class="n">adjusted_model</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">retail</span><span class="o">.</span><span class="n">train</span><span class="p">)</span>
+
+<span class="n">loaded</span> <span class="o">=</span> <span class="n">mlflow</span><span class="o">.</span><span class="n">pyfunc</span><span class="o">.</span><span class="n">load_model</span><span class="p">(</span><span class="n">adjusted_info</span><span class="o">.</span><span class="n">model_uri</span><span class="p">)</span>
+<span class="n">np</span><span class="o">.</span><span class="n">testing</span><span class="o">.</span><span class="n">assert_allclose</span><span class="p">(</span>
+    <span class="n">loaded</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">future</span><span class="o">.</span><span class="n">to_pandas</span><span class="p">()),</span>
+    <span class="n">adjusted_model</span><span class="o">.</span><span class="n">predict_frame</span><span class="p">(</span><span class="n">future</span><span class="p">),</span>
+<span class="p">)</span>
+</code></pre></div>
+<p>This writes a local tracking database and model artifacts. The assertion checks
+that the reloaded model preserves both requested price-date predictions.
+The same logging API supports the two learned strategies: their settings,
+temporal coefficients, spline knots and fitted boundaries are saved as JSON.
+Feature transformers and the Gamma estimator are not needed for serving, and
+loading does not refit either estimator.</p>
+<h2 id="implement-an-inflation-strategy">Implement an inflation strategy<a class="headerlink" href="#implement-an-inflation-strategy" title="Permanent link">&para;</a></h2>
+<p>Subclass <code>InflationAdjuster</code> and implement <code>factor(from_dates, to_dates)</code>:
+return one finite positive multiplier per aligned date pair. The inherited
+<code>adjust()</code> multiplies amounts by these factors. Override <code>fit()</code> when learning
+parameters from <code>fit(data: Pool)</code>, using only its training pool; keep learned
+state in that strategy instance. A model factory must create a fresh strategy
+for each fit, including final refitting.</p>
+<p>This project implementation accepts a separate compound rate for each calendar
+year. A full year applies exactly <code>1 + rate</code>, including leap years; a partial
+year compounds by the fraction of that year's calendar days. Datetime inputs
+use their local dates. Requested dates must lie within the supplied consecutive
+years, including the following January 1 boundary.</p>
+<details class="note">
+<summary>Complete strategy source</summary>
+<div class="highlight"><pre><span></span><code><span class="sd">"""Calendar-year conversion policies supplied by a project."""</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">date</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">math</span><span class="w"> </span><span class="kn">import</span> <span class="n">isfinite</span><span class="p">,</span> <span class="n">log1p</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">polars</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pl</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.inflation</span><span class="w"> </span><span class="kn">import</span> <span class="n">InflationAdjuster</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">FloatArray</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">AnnualRateTable</span><span class="p">(</span><span class="n">InflationAdjuster</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Compound a different supplied rate in each calendar year.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    annual_rates : dict[int, float]</span>
+<span class="sd">        Consecutive calendar years mapped to finite rates greater than -1.</span>
+<span class="sd">        A rate of 0.08 represents 8% growth over that complete year.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    Partial years use elapsed calendar days divided by days in that year.</span>
+<span class="sd">    Datetimes use their local calendar date. The range includes January 1</span>
+<span class="sd">    after the final configured year. Rates are fixed policy inputs; inherited</span>
+<span class="sd">    fit(data) validates data.time and does not estimate parameters from targets.</span>
+<span class="sd">    """</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">annual_rates</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">years</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">annual_rates</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">years</span> <span class="ow">or</span> <span class="n">years</span> <span class="o">!=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="n">years</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">years</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"Supply consecutive calendar years"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">years</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&lt;</span> <span class="mi">1</span> <span class="ow">or</span> <span class="n">years</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">9998</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"Years must be between 1 and 9998"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="ow">not</span> <span class="n">isfinite</span><span class="p">(</span><span class="n">rate</span><span class="p">)</span> <span class="ow">or</span> <span class="n">rate</span> <span class="o">&lt;=</span> <span class="o">-</span><span class="mi">1</span> <span class="k">for</span> <span class="n">rate</span> <span class="ow">in</span> <span class="n">annual_rates</span><span class="o">.</span><span class="n">values</span><span class="p">()):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"Annual rates must be finite and greater than -1"</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">annual_rates</span> <span class="o">=</span> <span class="n">annual_rates</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_start</span> <span class="o">=</span> <span class="n">date</span><span class="p">(</span><span class="n">years</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_end</span> <span class="o">=</span> <span class="n">date</span><span class="p">(</span><span class="n">years</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">factor</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">from_dates</span><span class="p">:</span> <span class="n">pl</span><span class="o">.</span><span class="n">Series</span><span class="p">,</span> <span class="n">to_dates</span><span class="p">:</span> <span class="n">pl</span><span class="o">.</span><span class="n">Series</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">FloatArray</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Return price-level ratios for equally sized, non-null date series."""</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">from_dates</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">to_dates</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"Date series must have equal lengths"</span><span class="p">)</span>
+        <span class="n">factors</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_log_level</span><span class="p">(</span><span class="n">to_dates</span><span class="p">)</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">_log_level</span><span class="p">(</span><span class="n">from_dates</span><span class="p">))</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">factors</span><span class="p">)</span><span class="o">.</span><span class="n">all</span><span class="p">()</span> <span class="ow">or</span> <span class="p">(</span><span class="n">factors</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"Conversion factors must be finite and positive"</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">factors</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_log_level</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dates</span><span class="p">:</span> <span class="n">pl</span><span class="o">.</span><span class="n">Series</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">FloatArray</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">dates</span><span class="o">.</span><span class="n">dtype</span> <span class="o">!=</span> <span class="n">pl</span><span class="o">.</span><span class="n">Date</span> <span class="ow">and</span> <span class="n">dates</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">base_type</span><span class="p">()</span> <span class="o">!=</span> <span class="n">pl</span><span class="o">.</span><span class="n">Datetime</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">"Dates must have Date or Datetime dtype"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">dates</span><span class="o">.</span><span class="n">null_count</span><span class="p">():</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"Dates must not contain nulls"</span><span class="p">)</span>
+        <span class="n">calendar_dates</span> <span class="o">=</span> <span class="n">dates</span><span class="o">.</span><span class="n">dt</span><span class="o">.</span><span class="n">date</span><span class="p">()</span>
+        <span class="k">if</span> <span class="p">((</span><span class="n">calendar_dates</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">_start</span><span class="p">)</span> <span class="o">|</span> <span class="p">(</span><span class="n">calendar_dates</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">_end</span><span class="p">))</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"Dates are outside the configured years"</span><span class="p">)</span>
+        <span class="n">levels</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">dates</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">year</span><span class="p">,</span> <span class="n">rate</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">annual_rates</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">start</span><span class="p">,</span> <span class="n">end</span> <span class="o">=</span> <span class="n">date</span><span class="p">(</span><span class="n">year</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">date</span><span class="p">(</span><span class="n">year</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+            <span class="n">elapsed</span> <span class="o">=</span> <span class="p">(</span><span class="n">calendar_dates</span> <span class="o">-</span> <span class="n">start</span><span class="p">)</span><span class="o">.</span><span class="n">dt</span><span class="o">.</span><span class="n">total_days</span><span class="p">()</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()</span>
+            <span class="n">fraction</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="n">elapsed</span> <span class="o">/</span> <span class="p">(</span><span class="n">end</span> <span class="o">-</span> <span class="n">start</span><span class="p">)</span><span class="o">.</span><span class="n">days</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)</span>
+            <span class="n">levels</span> <span class="o">+=</span> <span class="n">log1p</span><span class="p">(</span><span class="n">rate</span><span class="p">)</span> <span class="o">*</span> <span class="n">fraction</span>
+        <span class="k">return</span> <span class="n">levels</span>
+</code></pre></div>
+</details>
+<p>These rates illustrate a supplied conversion policy, not measured inflation.
+Continue with the NumPy, Polars and date imports from the first calculation:</p>
+<!-- example: inflation-custom-calculation -->
+
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">examples.custom_inflation</span><span class="w"> </span><span class="kn">import</span> <span class="n">AnnualRateTable</span>
+
+<span class="n">annual</span> <span class="o">=</span> <span class="n">AnnualRateTable</span><span class="p">({</span><span class="mi">2024</span><span class="p">:</span> <span class="mf">0.03</span><span class="p">,</span> <span class="mi">2025</span><span class="p">:</span> <span class="mf">0.07</span><span class="p">})</span>
+<span class="n">original_dates</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">Series</span><span class="p">([</span><span class="n">date</span><span class="p">(</span><span class="mi">2024</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)])</span>
+<span class="n">later_dates</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">Series</span><span class="p">([</span><span class="n">date</span><span class="p">(</span><span class="mi">2026</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)])</span>
+<span class="n">converted</span> <span class="o">=</span> <span class="n">annual</span><span class="o">.</span><span class="n">adjust</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">100.0</span><span class="p">]),</span> <span class="n">original_dates</span><span class="p">,</span> <span class="n">later_dates</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"After 3% then 7%:"</span><span class="p">,</span> <span class="n">converted</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">tolist</span><span class="p">())</span>
+<span class="n">restored</span> <span class="o">=</span> <span class="n">annual</span><span class="o">.</span><span class="n">adjust</span><span class="p">(</span><span class="n">converted</span><span class="p">,</span> <span class="n">later_dates</span><span class="p">,</span> <span class="n">original_dates</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"Reversed conversion:"</span><span class="p">,</span> <span class="n">restored</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">tolist</span><span class="p">())</span>
+<span class="n">np</span><span class="o">.</span><span class="n">testing</span><span class="o">.</span><span class="n">assert_allclose</span><span class="p">(</span><span class="n">restored</span><span class="p">,</span> <span class="p">[</span><span class="mf">100.0</span><span class="p">])</span>
+</code></pre></div>
+<!-- output: inflation-custom-calculation -->
+<div class="highlight"><pre><span></span><code>After 3% then 7%: [110.21]
+Reversed conversion: [100.0]
+</code></pre></div>
+<!-- /output -->
+
+<h3 id="fit-with-a-project-strategy">Fit with a project strategy<a class="headerlink" href="#fit-with-a-project-strategy" title="Permanent link">&para;</a></h3>
+<p>Continue with <code>retail</code>, <code>mlflow</code> and the model imports above. This example uses
+the same recorded retail observations and chronological boundaries as the
+built-in strategy. Rates are fixed inputs; inherited <code>fit()</code> validates dates
+without learning from prices. The normal workflow creates separate strategy
+instances for validation and final fitting.</p>
+<!-- example: inflation-custom-training -->
+
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">examples.custom_metric</span><span class="w"> </span><span class="kn">import</span> <span class="n">weighted_mae</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">examples.retail_data</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_retail_pool</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit</span><span class="w"> </span><span class="kn">import</span> <span class="n">train_model</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">TrackingConfig</span><span class="p">,</span> <span class="n">TrainingConfig</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.training</span><span class="w"> </span><span class="kn">import</span> <span class="n">Holdout</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">ModelParams</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">annual_model</span><span class="p">(</span><span class="n">params</span><span class="p">:</span> <span class="n">ModelParams</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">InflationAdjustedModel</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">InflationAdjustedModel</span><span class="p">(</span>
+        <span class="n">CatBoostRegressionModel</span><span class="p">(</span><span class="n">params</span><span class="p">),</span>
+        <span class="n">inflation</span><span class="o">=</span><span class="n">AnnualRateTable</span><span class="p">({</span><span class="mi">2010</span><span class="p">:</span> <span class="mf">0.02</span><span class="p">,</span> <span class="mi">2011</span><span class="p">:</span> <span class="mf">0.08</span><span class="p">,</span> <span class="mi">2012</span><span class="p">:</span> <span class="mf">0.05</span><span class="p">}),</span>
+        <span class="n">reference_date</span><span class="o">=</span><span class="n">date</span><span class="p">(</span><span class="mi">2011</span><span class="p">,</span> <span class="mi">9</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span>
+    <span class="p">)</span>
+
+
+<span class="n">retail_data</span> <span class="o">=</span> <span class="n">load_retail_pool</span><span class="p">(</span><span class="n">download_if_missing</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<span class="n">annual_result</span> <span class="o">=</span> <span class="n">train_model</span><span class="p">(</span>
+    <span class="n">splitter</span><span class="o">=</span><span class="n">Holdout</span><span class="p">(</span>
+        <span class="n">retail_data</span><span class="p">,</span>
+        <span class="n">val_size</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">retail</span><span class="o">.</span><span class="n">validation</span><span class="p">),</span>
+        <span class="n">test_size</span><span class="o">=</span><span class="s2">"2011-10-01"</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">params</span><span class="o">=</span><span class="p">{</span>
+        <span class="s2">"iterations"</span><span class="p">:</span> <span class="mi">30</span><span class="p">,</span>
+        <span class="s2">"depth"</span><span class="p">:</span> <span class="mi">4</span><span class="p">,</span>
+        <span class="s2">"loss_function"</span><span class="p">:</span> <span class="s2">"RMSE"</span><span class="p">,</span>
+        <span class="s2">"random_seed"</span><span class="p">:</span> <span class="mi">42</span><span class="p">,</span>
+        <span class="s2">"thread_count"</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span>
+        <span class="s2">"verbose"</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="s2">"allow_writing_files"</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="p">},</span>
+    <span class="n">model_factory</span><span class="o">=</span><span class="n">annual_model</span><span class="p">,</span>
+    <span class="n">metric</span><span class="o">=</span><span class="n">weighted_mae</span><span class="p">,</span>
+    <span class="n">run_name</span><span class="o">=</span><span class="s2">"retail-annual-policy"</span><span class="p">,</span>
+    <span class="n">config</span><span class="o">=</span><span class="n">TrainingConfig</span><span class="p">(</span><span class="n">tracking</span><span class="o">=</span><span class="n">TrackingConfig</span><span class="p">(</span><span class="n">log_test_model</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">log_final_model</span><span class="o">=</span><span class="kc">False</span><span class="p">)),</span>
+<span class="p">)</span>
+<span class="n">annual_predictions</span> <span class="o">=</span> <span class="n">annual_result</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">predict_pool</span><span class="p">(</span><span class="n">retail</span><span class="o">.</span><span class="n">test</span><span class="p">)</span>
+<span class="k">assert</span> <span class="n">annual_result</span><span class="o">.</span><span class="n">test_metrics</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+<span class="nb">print</span><span class="p">(</span>
+    <span class="s2">"Custom-policy test MAE (GBP/item):"</span><span class="p">,</span>
+    <span class="nb">round</span><span class="p">(</span><span class="n">annual_result</span><span class="o">.</span><span class="n">test_metrics</span><span class="p">[</span><span class="s2">"mae"</span><span class="p">],</span> <span class="mi">2</span><span class="p">),</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"Predicted prices (GBP/item):"</span><span class="p">,</span> <span class="n">annual_predictions</span><span class="p">[:</span><span class="mi">5</span><span class="p">]</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">tolist</span><span class="p">())</span>
+</code></pre></div>
+<!-- output: inflation-custom-training -->
+<div class="highlight"><pre><span></span><code>Custom-policy test MAE (GBP/item): 2.08
+Predicted prices (GBP/item): [1.09, 3.9, 5.45, 7.21, 7.74]
+</code></pre></div>
+<!-- /output -->
+
+<p>The final model includes September's validation rows and predicts prices at
+October–November transaction dates. Metrics and configuration are logged to the
+local MLflow store configured above.</p>
+<p>Bundled model packaging reconstructs <code>ConstantRateInflation</code>, <code>ManualInflation</code>,
+<code>LogLinearInflation</code>, and <code>SplineInflation</code>. A custom strategy such as <code>AnnualRateTable</code> works for
+fitting and prediction, but <code>InflationAdjustedModel.log()</code> raises <code>ValueError</code>
+for it. Keep trial, validation and final model logging disabled, as above, or
+provide your own serving implementation that saves and restores the strategy.
+See <a href="../custom-model/#preserve-predictions-in-serving">the model adapter guide</a>
+for an executable persistence pattern.</p>
+<h2 id="api-reference">API reference<a class="headerlink" href="#api-reference" title="Permanent link">&para;</a></h2>
+<p>Import strategies from <code>ml_toolkit.inflation</code>.</p>
+<h3 id="adjustment-interface">Adjustment interface<a class="headerlink" href="#adjustment-interface" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h4 id="ml_toolkit.inflation.InflationAdjuster" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">InflationAdjuster</span>
+
+
+<a href="#ml_toolkit.inflation.InflationAdjuster" class="headerlink" title="Permanent link">&para;</a></h4>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="abc.ABC">ABC</span></code></p>
+
+
+
+        <p>Convert monetary values between price levels.</p>
+
+
+<details class="note" open>
+  <summary>Notes</summary>
+  <p>The inflation module accepts only non-null Polars Series with Date or
+Datetime dtype. factor(from_dates, to_dates) returns multipliers such that
+value_at_to_date = value_at_from_date * factor(from_dates, to_dates). Both
+date Series must have equal length; date broadcasting belongs to the
+caller. Simple strategies can keep the default no-op fit method; learned
+inflation models can override it.</p>
+</details>
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h5 id="ml_toolkit.inflation.InflationAdjuster.fit" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">fit</span>
+
+
+<a href="#ml_toolkit.inflation.InflationAdjuster.fit" class="headerlink" title="Permanent link">&para;</a></h5>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">fit</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="n">Pool</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Self</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Validate dates and return the strategy without learning parameters.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>data</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="Pool
+
+
+  
+      dataclass
+   (ml_toolkit.data.Pool)" href="../data/#ml_toolkit.data.Pool">Pool</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Training observations. The default implementation validates only
+data.time; learned subclasses can also use targets, weights and X.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="typing.Self">Self</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>This strategy, unchanged.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="TypeError">TypeError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>data.time is not a Polars Date/Datetime Series.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="ValueError">ValueError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>data.time contains nulls.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h5 id="ml_toolkit.inflation.InflationAdjuster.factor" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">factor</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-abstractmethod"><code>abstractmethod</code></small>
+  </span>
+
+<a href="#ml_toolkit.inflation.InflationAdjuster.factor" class="headerlink" title="Permanent link">&para;</a></h5>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">factor</span><span class="p">(</span><span class="n">from_dates</span><span class="p">:</span> <span class="n">Series</span><span class="p">,</span> <span class="n">to_dates</span><span class="p">:</span> <span class="n">Series</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">FloatArray</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Return one multiplicative price-level conversion factor per date pair.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>from_dates</code>
+            </td>
+            <td>
+                  <code><span title="polars.Series">Series</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Non-null Date/Datetime values representing original price dates.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>to_dates</code>
+            </td>
+            <td>
+                  <code><span title="polars.Series">Series</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Non-null Date/Datetime values representing desired price dates, with
+equal length to from_dates.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code>numpy.ndarray of shape (n_dates,)</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Factors converting values at from_dates to equivalent values at
+to_dates.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h5 id="ml_toolkit.inflation.InflationAdjuster.adjust" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">adjust</span>
+
+
+<a href="#ml_toolkit.inflation.InflationAdjuster.adjust" class="headerlink" title="Permanent link">&para;</a></h5>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">adjust</span><span class="p">(</span>
+    <span class="n">values</span><span class="p">:</span> <span class="n">FloatArray</span><span class="p">,</span> <span class="n">from_dates</span><span class="p">:</span> <span class="n">Series</span><span class="p">,</span> <span class="n">to_dates</span><span class="p">:</span> <span class="n">Series</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">FloatArray</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Apply price-level factors to monetary value arrays.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>values</code>
+            </td>
+            <td>
+                  <code><span title="numpy.ndarray">ndarray</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Float values at from_dates. A zero-dimensional array is broadcast to
+all dates; other arrays must contain exactly one value per date.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>from_dates</code>
+            </td>
+            <td>
+                  <code><span title="polars.Series">Series</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Non-null Date/Datetime values representing original price dates.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>to_dates</code>
+            </td>
+            <td>
+                  <code><span title="polars.Series">Series</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Non-null Date/Datetime values representing desired price dates, with
+equal length to from_dates.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code>numpy.ndarray of shape (n_dates,)</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Values expressed at the corresponding to_dates price levels.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="ValueError">ValueError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Date lengths differ, dates contain nulls, or values do not align with
+dates.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div><h3 id="inflation-strategies">Inflation strategies<a class="headerlink" href="#inflation-strategies" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h4 id="ml_toolkit.inflation.ConstantRateInflation" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">ConstantRateInflation</span>
+
+
+<a href="#ml_toolkit.inflation.ConstantRateInflation" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">ConstantRateInflation</span><span class="p">(</span><span class="n">annual_rate</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="InflationAdjuster (ml_toolkit.inflation.InflationAdjuster)" href="#ml_toolkit.inflation.InflationAdjuster">InflationAdjuster</a></code></p>
+
+
+
+        <p>Convert price levels using constant annual compound inflation.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>annual_rate</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Annual proportional rate greater than -1; 0.08 means 8% annual
+inflation.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="note" open>
+  <summary>Notes</summary>
+  <p>Elapsed years are computed using 365.25 days, including fractional days.</p>
+</details>
+
+<p><span class="doc-section-title">Examples:</span></p>
+    <p>Express 100 monetary units at a later price level, then reverse the conversion.
+These small amounts illustrate the calculation, not an observed price index.</p>
+    <div class="highlight"><pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">date</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">polars</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pl</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.inflation</span><span class="w"> </span><span class="kn">import</span> <span class="n">ConstantRateInflation</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">from_dates</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">Series</span><span class="p">([</span><span class="n">date</span><span class="p">(</span><span class="mi">2025</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">to_dates</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">Series</span><span class="p">([</span><span class="n">date</span><span class="p">(</span><span class="mi">2026</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">inflation</span> <span class="o">=</span> <span class="n">ConstantRateInflation</span><span class="p">(</span><span class="n">annual_rate</span><span class="o">=</span><span class="mf">0.08</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">later</span> <span class="o">=</span> <span class="n">inflation</span><span class="o">.</span><span class="n">adjust</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">100.0</span><span class="p">]),</span> <span class="n">from_dates</span><span class="p">,</span> <span class="n">to_dates</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">later</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+<span class="go">[107.99]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">inflation</span><span class="o">.</span><span class="n">adjust</span><span class="p">(</span><span class="n">later</span><span class="p">,</span> <span class="n">to_dates</span><span class="p">,</span> <span class="n">from_dates</span><span class="p">)</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+<span class="go">[100.0]</span>
+</code></pre></div>
+    <p>The forward value is slightly below 108 because these dates are 365 days
+apart and the annual compounding convention uses 365.25 days.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h5 id="ml_toolkit.inflation.ConstantRateInflation.factor" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">factor</span>
+
+
+<a href="#ml_toolkit.inflation.ConstantRateInflation.factor" class="headerlink" title="Permanent link">&para;</a></h5>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">factor</span><span class="p">(</span><span class="n">from_dates</span><span class="p">:</span> <span class="n">Series</span><span class="p">,</span> <span class="n">to_dates</span><span class="p">:</span> <span class="n">Series</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">FloatArray</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Calculate compound factors using elapsed time in 365.25-day years.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>from_dates</code>
+            </td>
+            <td>
+                  <code><span title="polars.Series">Series</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Non-null Date/Datetime values representing original price dates.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>to_dates</code>
+            </td>
+            <td>
+                  <code><span title="polars.Series">Series</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Non-null Date/Datetime values representing desired price dates, with
+equal length to from_dates.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code>numpy.ndarray of shape (n_dates,)</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>(1 + annual_rate) raised to elapsed years for each date pair.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="TypeError">TypeError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Dates are not Polars Date/Datetime Series.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="ValueError">ValueError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Dates contain nulls or have different lengths.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h4 id="ml_toolkit.inflation.ManualInflation" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">ManualInflation</span>
+
+
+<a href="#ml_toolkit.inflation.ManualInflation" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">ManualInflation</span><span class="p">(</span><span class="n">monthly_index</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="n">date</span><span class="p">,</span> <span class="nb">float</span><span class="p">])</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="InflationAdjuster (ml_toolkit.inflation.InflationAdjuster)" href="#ml_toolkit.inflation.InflationAdjuster">InflationAdjuster</a></code></p>
+
+
+
+        <p>Convert prices using a sparse monthly index with log-linear interpolation.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>monthly_index</code>
+            </td>
+            <td>
+                  <code><span title="dict">dict</span>[<span title="datetime.date">date</span>, <span title="float">float</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>At least two distinct anchor months mapped to finite, strictly positive
+index values. Keys are interpreted at month granularity.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="ValueError">ValueError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Too few anchors are supplied, a month occurs twice, or an index value
+is nonpositive or non-finite.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="note" open>
+  <summary>Notes</summary>
+  <p>Missing months between anchors are filled by linear interpolation in
+log(index), producing constant compound growth between anchors. Every day
+in a month uses that month's index. Extrapolation outside the supplied
+anchor range is forbidden.</p>
+</details>
+
+<p><span class="doc-section-title">Examples:</span></p>
+    <div class="highlight"><pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">date</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">polars</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pl</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">ml_toolkit.inflation</span><span class="w"> </span><span class="kn">import</span> <span class="n">ManualInflation</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">inflation</span> <span class="o">=</span> <span class="n">ManualInflation</span><span class="p">({</span><span class="n">date</span><span class="p">(</span><span class="mi">2026</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">):</span> <span class="mf">1.0</span><span class="p">,</span> <span class="n">date</span><span class="p">(</span><span class="mi">2026</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">1</span><span class="p">):</span> <span class="mf">1.21</span><span class="p">})</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">factor</span> <span class="o">=</span> <span class="n">inflation</span><span class="o">.</span><span class="n">factor</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="n">pl</span><span class="o">.</span><span class="n">Series</span><span class="p">([</span><span class="n">date</span><span class="p">(</span><span class="mi">2026</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">15</span><span class="p">)]),</span>
+<span class="gp">... </span>    <span class="n">pl</span><span class="o">.</span><span class="n">Series</span><span class="p">([</span><span class="n">date</span><span class="p">(</span><span class="mi">2026</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">28</span><span class="p">)]),</span>
+<span class="gp">... </span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">round</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">factor</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="mi">2</span><span class="p">)</span>
+<span class="go">1.1</span>
+</code></pre></div>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h5 id="ml_toolkit.inflation.ManualInflation.factor" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">factor</span>
+
+
+<a href="#ml_toolkit.inflation.ManualInflation.factor" class="headerlink" title="Permanent link">&para;</a></h5>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">factor</span><span class="p">(</span><span class="n">from_dates</span><span class="p">:</span> <span class="n">Series</span><span class="p">,</span> <span class="n">to_dates</span><span class="p">:</span> <span class="n">Series</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">FloatArray</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Calculate monthly destination-to-source price index ratios.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>from_dates</code>
+            </td>
+            <td>
+                  <code><span title="polars.Series">Series</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Non-null Date/Datetime values representing original price dates.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>to_dates</code>
+            </td>
+            <td>
+                  <code><span title="polars.Series">Series</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Non-null Date/Datetime values representing desired price dates, with
+equal length to from_dates.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code>numpy.ndarray of shape (n_dates,)</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Interpolated destination index divided by source index.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="ValueError">ValueError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Date lengths differ, dates contain nulls, or a month is outside the
+anchor range.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h4 id="ml_toolkit.inflation.LogLinearInflation" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">LogLinearInflation</span>
+
+
+<a href="#ml_toolkit.inflation.LogLinearInflation" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">LogLinearInflation</span><span class="p">(</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">alpha</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.001</span><span class="p">,</span>
+    <span class="n">control_features</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">extrapolation</span><span class="p">:</span> <span class="n">Extrapolation</span> <span class="o">=</span> <span class="s2">"linear"</span><span class="p">,</span>
+    <span class="n">damping_half_life_years</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="ml_toolkit.inflation._LearnedInflation">_LearnedInflation</span></code></p>
+
+
+
+        <p>Learn a constant compound trend while controlling for object composition.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>alpha</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Nonnegative L2 regularization of both temporal and control effects.</p>
+              </div>
+            </td>
+            <td>
+                  <code>0.001</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>control_features</code>
+            </td>
+            <td>
+                  <code>sequence of str or None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Controls from Pool.X. None uses every available column; an empty
+sequence fits a date-only model. Categories follow Pool.cat_features.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>extrapolation</code>
+            </td>
+            <td>
+                  <code>(&#39;linear&#39;, &#39;constant&#39;, &#39;error&#39;, &#39;damped&#39;)</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Outside training, continue the boundary log-index slope, hold the level,
+reject the date, or exponentially damp the future slope toward zero.
+Damped extrapolation before the first training date remains linear.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;linear&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>damping_half_life_years</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Positive number of years for the extrapolated future slope to halve.</p>
+              </div>
+            </td>
+            <td>
+                  <code>1.0</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="note" open>
+  <summary>Notes</summary>
+  <p>Fits a Gamma mean with log-link to positive targets, with linear numeric
+and one-hot categorical controls. The inferred temporal effect is a common
+index, not an object-specific or causal inflation estimate. Missing controls
+and time-correlated characteristics can limit its interpretation. Dates use
+elapsed time in 365.25-day years; timezone-aware datetimes use UTC instants.
+At least two distinct dates with positive weight are required.</p>
+</details>
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h4 id="ml_toolkit.inflation.SplineInflation" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">SplineInflation</span>
+
+
+<a href="#ml_toolkit.inflation.SplineInflation" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">SplineInflation</span><span class="p">(</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">n_knots</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">5</span><span class="p">,</span>
+    <span class="n">alpha</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.001</span><span class="p">,</span>
+    <span class="n">control_features</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">extrapolation</span><span class="p">:</span> <span class="n">Extrapolation</span> <span class="o">=</span> <span class="s2">"linear"</span><span class="p">,</span>
+    <span class="n">damping_half_life_years</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="ml_toolkit.inflation._LearnedInflation">_LearnedInflation</span></code></p>
+
+
+
+        <p>Learn a changing common price trend with a regularized cubic B-spline.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>n_knots</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Number of uniformly spaced knots over positive-weight training dates.
+Must be at least two; at least n_knots distinct dates are required.</p>
+              </div>
+            </td>
+            <td>
+                  <code>5</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>alpha</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Nonnegative L2 regularization of temporal basis and control effects.</p>
+              </div>
+            </td>
+            <td>
+                  <code>0.001</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>control_features</code>
+            </td>
+            <td>
+                  <code>sequence of str or None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Controls from Pool.X; None uses every column and an empty sequence uses
+dates only. Numeric effects are linear, categories are one-hot encoded.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>extrapolation</code>
+            </td>
+            <td>
+                  <code>(&#39;linear&#39;, &#39;constant&#39;, &#39;error&#39;, &#39;damped&#39;)</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Same boundary policy as LogLinearInflation. The spline polynomial is
+never continued outside training; linear uses its boundary tangent.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;linear&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>damping_half_life_years</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Positive number of years for the extrapolated future slope to halve.</p>
+              </div>
+            </td>
+            <td>
+                  <code>1.0</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="note" open>
+  <summary>Notes</summary>
+  <p>Uses the same weighted Gamma mean and shared-index assumption as
+LogLinearInflation. Only time is spline-transformed; feature/time
+interactions, separate group trends and seasonality are not modeled.</p>
+</details>
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div><h3 id="migrating-custom-strategies">Migrating custom strategies<a class="headerlink" href="#migrating-custom-strategies" title="Permanent link">&para;</a></h3>
+<p><code>InflationAdjuster.fit(dates, y, sample_weight)</code> has been replaced by
+<code>fit(data: Pool)</code>. Update overrides to read <code>data.time</code>, <code>data.y</code>, <code>data.weight</code>,
+and optionally <code>data.X</code>. Fixed strategies can continue inheriting the no-op fit,
+which now validates <code>data.time</code>. There is no <code>fit_pool</code> compatibility method;
+the date-pair APIs and existing fixed-strategy artifact formats are unchanged.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.code.copy", "navigation.sections", "navigation.top", "search.highlight"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"alias": true, "default": "stable", "provider": "mike"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
