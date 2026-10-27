@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from itertools import groupby
 from pathlib import Path
 
@@ -13,7 +14,13 @@ from ..feature_selection import FeatureSelectionResult
 from ..types import FloatArray
 from .utils import PlotError, numeric_vector, save_figure
 
-__all__ = ["rfe_progress", "top_k_ranking", "forward_progress"]
+__all__ = [
+    "rfe_progress",
+    "top_k_ranking",
+    "forward_progress",
+    "forward_improvement",
+    "best_iteration_progress",
+]
 
 
 def _validate_result(result: FeatureSelectionResult, selector: str) -> None:
@@ -54,6 +61,52 @@ def _protected(result: FeatureSelectionResult) -> tuple[str, ...]:
     if not isinstance(value, tuple):
         raise PlotError("protected_features must be a tuple of feature names")
     return value
+
+
+def _feature_ticks(counts: list[int]) -> list[int]:
+    """Keep actual feature counts readable on long or geometric schedules."""
+    values = sorted(set(counts))
+    if len(values) <= 8:
+        return values
+    return sorted(
+        {
+            min(values, key=lambda value: abs(value - target))
+            for target in np.linspace(values[0], values[-1], 8)
+        }
+    )
+
+
+@dataclass(frozen=True)
+class _ForwardRound:
+    count: int
+    indices: tuple[int, ...]
+    best: int
+    accepted: bool
+    baseline: bool
+
+
+def _forward_rounds(
+    result: FeatureSelectionResult, scores: FloatArray, maximize: bool
+) -> list[_ForwardRound]:
+    protected = _protected(result)
+    rounds: list[_ForwardRound] = []
+    for size, group in groupby(
+        range(len(result.steps)), key=lambda i: len(result.steps[i].features)
+    ):
+        indices = tuple(group)
+        baseline = bool(protected) and not rounds and size == len(protected)
+        best = (
+            indices[0]
+            if baseline
+            else (max if maximize else min)(indices, key=lambda i: scores[i])
+        )
+        rounds.append(
+            _ForwardRound(size, indices, best, size <= len(result.features), baseline)
+        )
+    accepted = [item.best for item in rounds if item.accepted]
+    if not accepted or accepted[-1] != result.selected_step:
+        raise PlotError("Forward history must identify its accepted round winners")
+    return rounds
 
 
 def rfe_progress(
@@ -122,12 +175,24 @@ def rfe_progress(
                 label="Selected subset",
                 zorder=5,
             )
+        fraction = (
+            (counts[chosen] - min(counts)) / (max(counts) - min(counts))
+            if max(counts) != min(counts)
+            else 0.5
+        )
+        anchor = "right" if fraction < 0.15 else "left" if fraction > 0.85 else "center"
+        x_offset = -8 if anchor == "right" else 8 if anchor == "left" else 0
+        y_offset = (
+            16
+            if scores[chosen] < (float(np.min(scores)) + float(np.max(scores))) / 2
+            else -34
+        )
         ax.annotate(
             f"Selected: {counts[chosen]} features\n{metric} = {scores[chosen]:.6g}",
             (counts[chosen], scores[chosen]),
-            xytext=(0, -34),
+            xytext=(x_offset, y_offset),
             textcoords="offset points",
-            ha="center",
+            ha=anchor,
             fontsize=9,
         )
         ax.set(
@@ -135,7 +200,7 @@ def rfe_progress(
             ylabel=f"Validation {metric} ({'↑ higher' if maximize else '↓ lower'} is better)",
             title="RFE feature selection",
         )
-        ax.set_xticks(counts)
+        ax.set_xticks(_feature_ticks(counts))
         ax.set_xlim(max(counts) + 0.5, min(counts) - 0.5)
         ax.grid(axis="y", alpha=0.2)
         ax.legend()
@@ -277,10 +342,7 @@ def forward_progress(
     max_fits = _number(result, "max_fits")
     protected = _protected(result)
     counts = [len(step.features) for step in result.steps]
-    groups = [
-        (size, list(indices))
-        for size, indices in groupby(range(len(result.steps)), key=counts.__getitem__)
-    ]
+    rounds = _forward_rounds(result, scores, maximize)
     # Reconstruct accepted winners from the model-free, chronological history.
     accepted: list[int] = []
     labels: list[str] = []
@@ -288,12 +350,12 @@ def forward_progress(
     candidate_y: list[float] = []
     rejected: int | None = None
     previous = set(protected)
-    for size, indices in groups:
-        if protected and size == len(protected):
-            accepted.append(indices[0])
+    for item in rounds:
+        size, indices, best = item.count, item.indices, item.best
+        if item.baseline:
+            accepted.append(best)
             labels.append("Protected baseline")
             continue
-        best = (max if maximize else min)(indices, key=lambda i: scores[i])
         # Keep winners on the round's center so highlights cover their marks.
         # Other candidates use deterministic jitter, including exact score ties.
         spread = np.linspace(-0.18, 0.18, len(indices))
@@ -301,15 +363,13 @@ def forward_progress(
         for index in indices:
             candidate_x.append(size + (0.0 if index == best else float(next(offsets))))
             candidate_y.append(float(scores[index]))
-        if size <= len(result.features):
+        if item.accepted:
             accepted.append(best)
             added = [n for n in result.steps[best].features if n not in previous]
             labels.append("+" + ", ".join(added))
             previous = set(result.steps[best].features)
         else:
             rejected = best
-    if not accepted or accepted[-1] != result.selected_step:
-        raise PlotError("Forward history must identify its accepted round winners")
     if rejected is not None:
         improvement = float(scores[rejected] - scores[result.selected_step])
         if not maximize:
@@ -384,13 +444,249 @@ def forward_progress(
             ylabel=f"Validation {metric} ({'↑ higher' if maximize else '↓ lower'} is better)",
             title=f"Forward feature selection\n{stop}",
         )
-        ax.set_xticks([size for size, _ in groups])
+        ax.set_xticks(_feature_ticks([item.count for item in rounds]))
         ax.set_xlim(min(counts) - 0.5, max(counts) + 0.5)
         # Reserve room above the best candidates for feature-name annotations.
         span = float(np.ptp(scores)) or max(abs(float(scores[0])) * 0.05, 0.01)
         ax.set_ylim(
             float(np.min(scores)) - span * 0.08, float(np.max(scores)) + span * 0.18
         )
+        ax.grid(axis="y", alpha=0.2)
+        ax.legend()
+        fig.tight_layout()
+        save_figure(fig, save_fig, config=figure)
+    finally:
+        plt.close(fig)
+
+
+def forward_improvement(
+    result: FeatureSelectionResult,
+    save_fig: str | Path,
+    *,
+    figure: FigureConfig | None = None,
+) -> None:
+    """Save each Forward round's best improvement over its accepted baseline.
+
+    Parameters
+    ----------
+    result : FeatureSelectionResult
+        One complete Forward search history, including rejected candidates.
+    save_fig : str or pathlib.Path
+        Destination figure path; parent directories are created.
+    figure : FigureConfig or None, default None
+        Shared export size, DPI and format.
+
+    Notes
+    -----
+    Positive improvement always means better quality, for either objective
+    direction. Only the round's best candidate is compared to the preceding
+    accepted subset. Without protected features the initial singleton round
+    establishes a baseline and has no artificial improvement over zero.
+    Writes no file if no round can be compared. Uses one stored run, with no
+    extra fits or uncertainty estimates, and always closes created figures.
+    """
+    _validate_result(result, "forward")
+    metric, maximize, scores = _objective(result)
+    threshold = _number(result, "min_improvement")
+    rounds = _forward_rounds(result, scores, maximize)
+    previous: int | None = None
+    counts: list[int] = []
+    gains: list[float] = []
+    labels: list[str] = []
+    winners: list[int] = []
+    accepted: list[bool] = []
+    for item in rounds:
+        if previous is not None and not item.baseline:
+            gain = float(scores[item.best] - scores[previous])
+            counts.append(item.count)
+            gains.append(gain if maximize else -gain)
+            added = [
+                n
+                for n in result.steps[item.best].features
+                if n not in result.steps[previous].features
+            ]
+            labels.append(
+                "+" + ", ".join(added) + ("" if item.accepted else " (rejected)")
+            )
+            winners.append(item.best)
+            accepted.append(item.accepted)
+        if item.accepted:
+            previous = item.best
+    if not gains:
+        return
+    fig, ax = plt.subplots(figsize=(11, 6))
+    try:
+        ax.axhline(0, color="0.8", linewidth=1)
+        ax.axhline(
+            threshold,
+            color="0.4",
+            linestyle="--",
+            linewidth=1,
+            label=f"min_improvement = {threshold:g} (strictly greater required)",
+        )
+        ax.plot(
+            counts, gains, color="0.6", linewidth=1, label="Best candidate by round"
+        )
+        for status, marker, color, label in (
+            (True, "o", "C0", "Accepted addition"),
+            (False, "D", "C1", "Rejected addition"),
+        ):
+            positions = [i for i, value in enumerate(accepted) if value == status]
+            if positions:
+                ax.scatter(
+                    [counts[i] for i in positions],
+                    [gains[i] for i in positions],
+                    marker=marker,
+                    color=color,
+                    s=55,
+                    label=label,
+                    zorder=3,
+                )
+        for count, gain, label in zip(counts, gains, labels):
+            ax.annotate(
+                label,
+                (count, gain),
+                xytext=(0, 13),
+                textcoords="offset points",
+                ha="center",
+                fontsize=9,
+            )
+        if result.selected_step in winners:
+            chosen = winners.index(result.selected_step)
+            ax.scatter(
+                [counts[chosen]],
+                [gains[chosen]],
+                facecolors="none",
+                edgecolors="C0",
+                linewidths=2,
+                s=160,
+                label="Selected subset",
+                zorder=4,
+            )
+        ax.set(
+            xlabel="Candidate feature count (selection rounds)",
+            ylabel=f"Validation {metric} improvement (higher is better)",
+            title=f"Forward feature selection: improvement by round\nSelected: {len(result.features)} features",
+        )
+        ax.set_xticks(_feature_ticks(counts))
+        ax.set_xlim(min(counts) - 0.5, max(counts) + 0.5)
+        lo, hi = min(0, threshold, *gains), max(0, threshold, *gains)
+        span = hi - lo or max(abs(hi) * 0.05, 0.01)
+        ax.set_ylim(lo - span * 0.10, hi + span * 0.25)
+        ax.grid(axis="y", alpha=0.2)
+        ax.legend()
+        fig.tight_layout()
+        save_figure(fig, save_fig, config=figure)
+    finally:
+        plt.close(fig)
+
+
+def best_iteration_progress(
+    result: FeatureSelectionResult,
+    save_fig: str | Path,
+    *,
+    figure: FigureConfig | None = None,
+) -> None:
+    """Save zero-based best iteration against the evaluated feature count.
+
+    Parameters
+    ----------
+    result : FeatureSelectionResult
+        One built-in selector's stored search history.
+    save_fig : str or pathlib.Path
+        Destination figure path; parent directories are created.
+    figure : FigureConfig or None, default None
+        Shared export size, DPI and format.
+
+    Notes
+    -----
+    Forward shows all candidates without connecting alternative subsets into a
+    path. RFE and Top-K connect their chronological subsets, leaving gaps when
+    iterations are unavailable. None is never converted to zero. If every step
+    reports None, no file is written. Zero is a valid best iteration. Creates no
+    models and always closes created figures.
+    """
+    selector = result.settings.get("selector")
+    if not isinstance(selector, str) or selector not in ("rfe", "top_k", "forward"):
+        raise PlotError("Best-iteration plots require a built-in selector history")
+    _validate_result(result, selector)
+    valid = [
+        i for i, step in enumerate(result.steps) if step.best_iteration is not None
+    ]
+    if not valid:
+        return
+    values = numeric_vector(
+        [
+            step.best_iteration
+            for step in result.steps
+            if step.best_iteration is not None
+        ],
+        "best_iteration",
+    )
+    if (values < 0).any() or (values != np.floor(values)).any():
+        raise PlotError("best_iteration must be a nonnegative integer or None")
+    counts = [len(step.features) for step in result.steps]
+    positions = [float(n) for n in counts]
+    if selector == "forward":
+        for size, group in groupby(range(len(counts)), key=counts.__getitem__):
+            indices = list(group)
+            offsets = (
+                np.linspace(-0.18, 0.18, len(indices)) if len(indices) > 1 else [0.0]
+            )
+            for i, offset in zip(indices, offsets):
+                positions[i] = size + float(offset)
+    fig, ax = plt.subplots(figsize=(10, 6))
+    try:
+        if selector != "forward":
+            iterations = [
+                np.nan if step.best_iteration is None else step.best_iteration
+                for step in result.steps
+            ]
+            ax.plot(positions, iterations, color="C0", linewidth=1.5)
+        ax.scatter(
+            [positions[i] for i in valid],
+            values,
+            color="C0",
+            s=35,
+            label=(
+                "Evaluated candidate" if selector == "forward" else "Evaluated subset"
+            ),
+        )
+        chosen = result.selected_step
+        if chosen in valid:
+            ax.scatter(
+                [positions[chosen]],
+                [result.steps[chosen].best_iteration],
+                facecolors="none",
+                edgecolors="C0",
+                linewidths=2,
+                s=160,
+                label="Selected subset",
+                zorder=4,
+            )
+        else:
+            ax.text(
+                0.98,
+                0.02,
+                "Selected subset: best iteration unavailable",
+                transform=ax.transAxes,
+                ha="right",
+                va="bottom",
+                fontsize=9,
+            )
+        ax.set(
+            xlabel=(
+                "Number of features (selection rounds)"
+                if selector == "forward"
+                else "Number of features (selection proceeds left to right)"
+            ),
+            ylabel="Best iteration (zero-based)",
+            title=f"{'Top-K' if selector == 'top_k' else selector.upper() if selector == 'rfe' else 'Forward'} feature selection: best iteration",
+        )
+        ax.set_xticks(_feature_ticks(counts))
+        ax.set_yticks(_feature_ticks([int(value) for value in values]))
+        limits = (min(counts) - 0.5, max(counts) + 0.5)
+        ax.set_xlim(*limits if selector == "forward" else limits[::-1])
         ax.grid(axis="y", alpha=0.2)
         ax.legend()
         fig.tight_layout()

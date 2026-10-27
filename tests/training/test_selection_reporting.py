@@ -51,7 +51,7 @@ from tests.support.training import (
     ],
 )
 @pytest.mark.parametrize("format", ["png", "svg", "pdf"])
-def test_one_plot_per_split_in_existing_folder_even_when_reports_disabled(
+def test_single_run_plots_per_split_in_existing_folder_even_when_reports_disabled(
     tmp_path,
     selector,
     filename,
@@ -62,6 +62,10 @@ def test_one_plot_per_split_in_existing_folder_even_when_reports_disabled(
     calls = {"fit": 0, "predict": 0, "rank": 0}
 
     class RecordingModel(MeanModel):
+        @property
+        def best_iteration(self):
+            return 0
+
         def fit(self, train, validation=None):
             calls["fit"] += 1
             return super().fit(train, validation)
@@ -100,7 +104,14 @@ def test_one_plot_per_split_in_existing_folder_even_when_reports_disabled(
         assert not any(p.startswith("feature_selection/") for p in paths)
         plots = [p for p in paths if p.endswith((".png", ".svg", ".pdf"))]
         if run.data.tags["mlflow.runName"].startswith("validation/split_"):
-            assert plots == ([f"selection/{filename}.{format}"] if filename else [])
+            expected = (
+                {f"selection/{filename}.{format}", f"selection/best_iteration.{format}"}
+                if filename
+                else set()
+            )
+            if filename == "forward_progress":
+                expected.add(f"selection/forward_improvement.{format}")
+            assert set(plots) == expected
             assert ("selection/history.json" in paths) == (selector is not None)
             assert ("selection/n_fits" in run.data.metrics) == (selector is not None)
         else:
@@ -158,3 +169,16 @@ def test_custom_selector_skips_without_creating_temporary_files(monkeypatch):
         ReportingConfig(),
         stage="validation/split_1",
     )
+
+
+def test_optional_diagnostics_skip_unavailable_history(monkeypatch):
+    paths = []
+    monkeypatch.setattr(
+        "ml_toolkit.training.reporting.tracking.log_artifact",
+        lambda path, artifact_path: paths.append(f"{artifact_path}/{path.name}"),
+    )
+    result = forward_history()
+    # Only a first singleton round: no earlier model to compare or iterations.
+    result = replace(result, features=("a",), selected_step=0, steps=result.steps[:3])
+    report_feature_selection(result, ReportingConfig(), stage="validation/split_1")
+    assert paths == ["selection/forward_progress.png"]
