@@ -56,7 +56,61 @@ def test_one_calendar_panel_marks_boundary_and_keeps_gaps(
             [mdates.date2num(current)] * 2
         )
         assert {text.get_text() for text in ax.texts} == {"REFERENCE", "CURRENT"}
-        assert ax.get_legend_handles_labels()[1] == ["low", "high"]
+        assert [text.get_text() for text in ax.get_legend().get_texts()] == [
+            "low",
+            "high",
+        ]
+    finally:
+        for fig in figures:
+            plt.close(fig)
+
+
+@pytest.mark.parametrize(
+    "levels,shares",
+    [
+        pytest.param(
+            ["[0, 1)", "__NULL__", "__ERROR__", "__UNSEEN__"],
+            [0.4, 0.3, 0.2, 0.1],
+            id="mixed-levels",
+        ),
+        pytest.param(
+            ["__NULL__", "__ERROR__", "__UNSEEN__"],
+            [0.5, 0.3, 0.2],
+            id="special-levels-only",
+        ),
+        pytest.param(["__NULL__"], [1.0], id="null-only"),
+        pytest.param(["regular", "_custom"], [0.6, 0.4], id="custom-underscore"),
+        pytest.param(
+            ["a", "b", "c", "d", "__NULL__", "__ERROR__", "__UNSEEN__", "_custom"],
+            [0.1, 0.2, 0.1, 0.2, 0.0, 0.1, 0.1, 0.2],
+            id="multiple-rows-with-zero-share",
+        ),
+    ],
+)
+def test_legend_keeps_all_level_labels_and_matches_bar_colors(
+    levels, shares, monkeypatch, tmp_path
+):
+    distribution = pl.DataFrame(
+        {
+            "feature": ["x"] * len(levels),
+            "period_start": [datetime(2025, 1, 1)] * len(levels),
+            "sample": ["reference"] * len(levels),
+            "level": levels,
+            "share": shares,
+        }
+    )
+    figures = []
+    monkeypatch.setattr(psi, "save_figure", lambda fig, *a, **k: figures.append(fig))
+    try:
+        psi.time_psi_level_distribution(distribution, "x", tmp_path / "psi.png")
+        ax = figures[0].axes[0]
+        legend = ax.get_legend()
+        assert [text.get_text() for text in legend.get_texts()] == levels
+        assert len(legend.get_patches()) == len(levels)
+        assert [bar.get_height() for bar in ax.patches] == pytest.approx(shares)
+        for index, (key, bar) in enumerate(zip(legend.get_patches(), ax.patches)):
+            assert key.get_facecolor() == pytest.approx(bar.get_facecolor())
+            assert bar.get_facecolor() == pytest.approx(plt.get_cmap("tab20")(index))
     finally:
         for fig in figures:
             plt.close(fig)

@@ -4,8 +4,44 @@ import pytest
 
 from ml_toolkit.config import FeatureLevelConfig
 from ml_toolkit.feature_levels import LevelTransformer
+from ml_toolkit.plots import regression
 from ml_toolkit.plots.regression import observed_fitted_by_level
 from ml_toolkit.plots.utils import PlotError
+
+
+def test_special_levels_and_underscore_sample_labels_remain_visible(
+    monkeypatch, tmp_path
+):
+    levels = ("__NULL__", "__ERROR__", "__UNSEEN__", "_custom")
+    figures = []
+    monkeypatch.setattr(
+        regression, "save_figure", lambda fig, *a, **k: figures.append(fig)
+    )
+    observed_fitted_by_level(
+        pl.Series(levels),
+        [1, 2, 3, 4],
+        [2, 3, 4, 5],
+        pl.Series(levels),
+        [2, 3, 4, 5],
+        [3, 4, 5, 6],
+        tmp_path / "comparison.png",
+        level_order=levels,
+        reference_label="__reference__",
+        current_label="_current",
+    )
+    ax = figures[0].axes[0]
+    assert [text.get_text() for text in ax.get_xticklabels()] == list(levels)
+    legend = ax.get_legend()
+    assert [text.get_text() for text in legend.get_texts()] == [
+        "Observed — __reference__",
+        "Fitted — __reference__",
+        "Observed — _current",
+        "Fitted — _current",
+    ]
+    assert len(legend.get_lines()) == len(ax.lines) == 4
+    for key, line in zip(legend.get_lines(), ax.lines):
+        assert key.get_color() == line.get_color()
+        assert key.get_linestyle() == line.get_linestyle()
 
 
 def test_weighted_comparison_keeps_level_order_and_gaps(tmp_path):
