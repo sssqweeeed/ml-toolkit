@@ -102,6 +102,9 @@ the fitted native model.
 control both methods of every evaluator and data analyzer, plus PSI/SHAP. Defaults are false, true,
 true, and true. Reports that require held-out rows skip `final_fit`.
 Core training metrics are calculated independently. PSI and SHAP are opt-in.
+Feature-selection search plots are also independent of these stage switches:
+they are always written to each split's existing `selection/` folder when a
+built-in selector runs. See [selection plots](../api/feature-selection.md#automatic-selection-plots).
 Shared `figure`, feature-level definitions, and `n_bins` come from that config;
 each report page explains which settings it uses.
 
