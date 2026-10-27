@@ -4,14 +4,14 @@ A Python toolkit for model training, time-series validation, feature selection,
 Optuna tuning, metrics, diagnostic plots, PSI, inflation adjustment, and MLflow
 integration.
 
-[Stable documentation](https://sssqweeeed.github.io/ml-toolkit/stable/) · [Development documentation](https://sssqweeeed.github.io/ml-toolkit/dev/) · [Getting started](https://sssqweeeed.github.io/ml-toolkit/stable/getting-started/)
+[Stable documentation](https://sssqweeeed.github.io/ml-toolkit/stable/) · [Getting started](https://sssqweeeed.github.io/ml-toolkit/stable/getting-started/)
 
 ## Installation
 
 Requires Python 3.11 or later.
 
 ```bash
-python -m pip install 'ml-toolkit @ git+https://github.com/sssqweeeed/ml-toolkit.git@v0.2.0'
+python -m pip install 'ml-toolkit @ git+https://github.com/sssqweeeed/ml-toolkit.git@v0.3.0'
 ```
 
 The Python import is `ml_toolkit`. Installation from a release tag requires Git.
@@ -24,7 +24,7 @@ Check out the matching release for its example loaders, then cache the original
 and predict hourly rental counts using recorded weather and calendar features:
 
 ```bash
-git clone --branch v0.2.0 --depth 1 https://github.com/sssqweeeed/ml-toolkit.git
+git clone --branch v0.3.0 --depth 1 https://github.com/sssqweeeed/ml-toolkit.git
 cd ml-toolkit
 python -m examples.prepare_data --dataset bike
 ```
@@ -90,3 +90,10 @@ additional metrics and tables. Both interfaces support project implementations.
 The example logs metrics and configuration to a local MLflow store using
 `mlflow.db`. See the [documentation](https://sssqweeeed.github.io/ml-toolkit/)
 for model packaging, tuning, reports, and other tasks.
+
+Training prints concise progress and a metric summary by default. Set
+`TrainingConfig(verbosity="verbose")` for split sizes and detailed results,
+`verbosity="debug"` for internal diagnostics, or `verbosity="silent"` to disable
+automatic ml-toolkit output. No logger setup is required. See
+[console verbosity](docs/api/configuration.md#console-verbosity) for all levels;
+CatBoost, Optuna and MLflow retain their own output settings.

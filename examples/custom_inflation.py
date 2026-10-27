@@ -24,7 +24,7 @@ class AnnualRateTable(InflationAdjuster):
     Partial years use elapsed calendar days divided by days in that year.
     Datetimes use their local calendar date. The range includes January 1
     after the final configured year. Rates are fixed policy inputs; inherited
-    fit validates dates and does not estimate parameters from targets.
+    fit(data) validates data.time and does not estimate parameters from targets.
     """
 
     def __init__(self, annual_rates: dict[int, float]) -> None:

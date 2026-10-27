@@ -15,7 +15,9 @@ import pandas as pd
 import polars as pl
 import pytest
 
-from ml_toolkit.inflation import ConstantRateInflation, ManualInflation
+from ml_toolkit.inflation import (
+    ConstantRateInflation, LogLinearInflation, ManualInflation, SplineInflation,
+)
 from ml_toolkit.models import (
     CatBoostClassificationModel,
     CatBoostLogLinkRegressionModel,
@@ -110,6 +112,8 @@ def check_bundled_inference(
         "inflation_native",
         "inflation_log_link",
         "inflation_gamma",
+        "inflation_log_linear",
+        "inflation_spline",
     ],
 )
 def test_models_from_code_roundtrip_outside_repository(
@@ -158,11 +162,14 @@ def test_models_from_code_roundtrip_outside_repository(
         regressor = regressor_factory(
             {**PARAMS, "loss_function": "Gamma"} if kind == "inflation_gamma" else PARAMS
         )
-        inflation = (
-            ConstantRateInflation(0.03)
-            if kind == "inflation_native"
-            else ManualInflation({date(2024, 1, 1): 1.0, date(2025, 1, 1): 1.1})
-        )
+        if kind == "inflation_native":
+            inflation = ConstantRateInflation(0.03)
+        elif kind == "inflation_log_linear":
+            inflation = LogLinearInflation(extrapolation="damped")
+        elif kind == "inflation_spline":
+            inflation = SplineInflation(n_knots=4)
+        else:
+            inflation = ManualInflation({date(2024, 1, 1): 1.0, date(2025, 1, 1): 1.1})
         model = InflationAdjustedModel(regressor, inflation, date(2024, 1, 1))
     model.fit(data.take(range(32)), data.take(range(32, 48)))
     frame = data.to_model_input(categorical_as_strings=True)

@@ -13,7 +13,8 @@ from tests.support.training import MeanModel, mae, make_identified_data, setup_m
 from tests.support.evaluators import CallbackEvaluator
 
 
-def test_custom_splitter_controls_final_rows_and_execution_order(tmp_path):
+@pytest.mark.parametrize("verbosity", ["silent", "normal", "verbose", "debug"])
+def test_custom_splitter_controls_final_rows_and_execution_order(tmp_path, capsys, verbosity):
     setup_mlflow(tmp_path)
     data = make_identified_data()
     events, fits, reports = [], [], []
@@ -76,7 +77,8 @@ def test_custom_splitter_controls_final_rows_and_execution_order(tmp_path):
         metric=mae,
         run_name="custom-splitter",
         config=TrainingConfig(
-            tracking=TrackingConfig(log_test_model=False, log_final_model=False)
+            tracking=TrackingConfig(log_test_model=False, log_final_model=False),
+            verbosity=verbosity,
         ),
         prediction_evaluators=CallbackEvaluator(name="rows", evaluate=evaluate),
     )
@@ -90,6 +92,12 @@ def test_custom_splitter_controls_final_rows_and_execution_order(tmp_path):
     assert result.params["iterations"] == 12
     assert reports == [["train", "val"], ["train", "val"], ["train", "test"]]
     assert result.test_metrics is not None
+    output = capsys.readouterr().err
+    if verbosity != "silent":
+        assert output.index("Starting validation split 7") < output.index("Starting validation split 2")
+    if verbosity in ("verbose", "debug"):
+        assert "Split 7: 2 selected features; best iteration (zero-based): 7" in output
+        assert "Split 2: 2 selected features; best iteration (zero-based): 11" in output
     parent = next(
         run
         for run in mlflow.search_runs(output_format="list")
@@ -103,7 +111,8 @@ def test_custom_splitter_controls_final_rows_and_execution_order(tmp_path):
     config = mlflow.artifacts.load_dict(
         f"runs:/{parent.info.run_id}/configuration/requested.json"
     )
-    assert set(config) == {"tuning", "reporting", "tracking", "fit_on_test"}
+    assert set(config) == {"tuning", "reporting", "tracking", "fit_on_test", "verbosity"}
+    assert config["verbosity"] == verbosity
 
 
 @pytest.mark.parametrize(

@@ -1,18 +1,19 @@
 """Input checks and figure handling shared by the plot families."""
 
-import logging
 from collections.abc import Sized
 from pathlib import Path
+import re
 
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.figure import Figure
 from numpy.typing import ArrayLike
 
+from .._console import Logger
 from ..config import FigureConfig
 from ..types import FloatArray
 
-logger = logging.getLogger(__name__)
+logger = Logger(__name__)
 
 
 class PlotError(ValueError):
@@ -67,3 +68,8 @@ def save_figure(
         plt.close(fig)
     logger.debug("Saved figure to %s", path)
     return path
+
+
+def feature_filename(index: int, feature: str, format: str) -> str:
+    safe = re.sub(r"[^A-Za-z0-9_.-]+", "_", feature).strip("._")[:60] or "feature"
+    return f"{index:03d}_{safe}.{format}"

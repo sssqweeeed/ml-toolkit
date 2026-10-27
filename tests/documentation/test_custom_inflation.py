@@ -8,6 +8,7 @@ import polars as pl
 import pytest
 
 from examples.custom_inflation import AnnualRateTable
+from ml_toolkit.data import Pool
 from ml_toolkit.inflation import inflation_from_config
 
 pytestmark = pytest.mark.documentation
@@ -31,7 +32,8 @@ def test_fixed_policy_fit_keeps_rates_and_uses_local_calendar_dates():
     zone = ZoneInfo("Asia/Tokyo")
     start = pl.Series([datetime(2024, 1, 1, 0, 30, tzinfo=zone)])
     end = pl.Series([datetime(2025, 1, 1, 0, 30, tzinfo=zone)])
-    assert strategy.fit(start, np.array([100.0])) is strategy
+    data = Pool(pl.DataFrame({"x": [1]}), pl.Series([100.0]), start, pl.Series([1.0]))
+    assert strategy.fit(data) is strategy
     np.testing.assert_allclose(strategy.factor(start, end), [1.08])
 
 

@@ -21,47 +21,45 @@ release = load("publish_release")
 docs = load("publish_docs")
 
 
-@pytest.mark.parametrize(
-    "path",
-    [
-        "pyproject.toml",
-        "tests/conftest.py",
-        "tests/support/training.py",
-        "src/ml_toolkit/_rows.py",
-        "new-module.py",
-    ],
-)
-def test_shared_or_unknown_changes_expand_coverage(path):
-    selected, _ = checks.select_tests([path])
-    assert selected == ["tests"]
-
-
-def test_model_changes_cover_training_and_serving_consumers():
-    selected, documentation = checks.select_tests(["src/ml_toolkit/models/catboost.py"])
-    assert {"tests/models", "tests/training", "tests/tracking"} <= set(selected)
-    assert documentation
-
-
-def test_docs_changes_keep_core_and_enable_recipes():
-    selected, documentation = checks.select_tests(["docs/getting-started.md"])
-    assert set(selected) == checks.CORE
-    assert documentation
-
-
-def test_dev_push_uses_core_after_pr_validation(tmp_path, monkeypatch):
+@pytest.mark.parametrize("branch", ["dev", "main"])
+@pytest.mark.parametrize("event_name", ["pull_request", "workflow_dispatch"])
+@pytest.mark.parametrize("tags", ["v0.1.0", "v0.2.0"])
+def test_full_validation_is_reserved_for_main(tmp_path, monkeypatch, branch, event_name, tags):
     event = tmp_path / "event.json"
-    event.write_text(json.dumps({"before": "0" * 40}))
+    payload = {}
+    if event_name == "pull_request":
+        payload["pull_request"] = {
+            "base": {"ref": branch},
+            "head": {"sha": "candidate-head"},
+            "title": "chore(release): 0.2.0",
+            "body": "- Improve model training.",
+        }
+    event.write_text(json.dumps(payload))
     output = tmp_path / "output"
     monkeypatch.setenv("GITHUB_EVENT_PATH", str(event))
     monkeypatch.setenv("GITHUB_OUTPUT", str(output))
-    monkeypatch.setenv("GITHUB_EVENT_NAME", "push")
-    monkeypatch.setenv("GITHUB_REF_NAME", "dev")
-    monkeypatch.setattr(checks, "git", lambda *args: "revision")
-    monkeypatch.setattr(checks, "package_version", lambda: "0.1.0")
+    monkeypatch.setenv("GITHUB_REF_NAME", branch)
+    monkeypatch.setattr(
+        checks, "git", lambda *args: tags if args[0] == "tag" else "manual-head"
+    )
+    monkeypatch.setattr(checks, "package_version", lambda: "0.2.0")
+    if branch == "dev":
+        with pytest.raises(ValueError, match="only available for main"):
+            checks.plan()
+        assert not output.exists()
+        return
+    if event_name == "pull_request" and tags == "v0.2.0":
+        with pytest.raises(ValueError, match="newer than every published version"):
+            checks.plan()
+        assert not output.exists()
+        return
     checks.plan()
     values = dict(line.split("=", 1) for line in output.read_text().splitlines())
-    assert set(json.loads(values["tests"])) == checks.CORE
-    assert values["full"] == values["docs"] == "false"
+    assert json.loads(values["matrix"]) == {"python": ["3.11", "3.12"]}
+    assert values["revision"] == (
+        "candidate-head" if event_name == "pull_request" else "manual-head"
+    )
+    assert values["version"] == "0.2.0"
 
 
 @pytest.mark.parametrize(
@@ -122,3 +120,23 @@ def test_legacy_redirects_preserve_versioned_pages(tmp_path):
         in (tmp_path / "api/training/index.html").read_text()
     )
     assert "../../stable/evaluation/" in (tmp_path / "api/plots/index.html").read_text()
+
+
+def test_retired_dev_links_redirect_without_changing_released_docs(tmp_path):
+    page = tmp_path / "0.2.0" / "api" / "training" / "index.html"
+    page.parent.mkdir(parents=True)
+    page.write_text("released page")
+    (tmp_path / "0.2.0/index.html").write_text("release home")
+    (tmp_path / "index.html").write_text("stable landing")
+    docs.add_legacy_redirects(tmp_path, "0.2.0")
+    assert '../stable/' in (tmp_path / "dev/index.html").read_text()
+    assert (
+        "../../../stable/api/training/index.html"
+        in (tmp_path / "dev/api/training/index.html").read_text()
+    )
+    assert "../../stable/api/custom-model/" in (
+        tmp_path / "dev/custom-model/index.html"
+    ).read_text()
+    assert page.read_text() == "released page"
+    assert (tmp_path / "0.2.0/index.html").read_text() == "release home"
+    assert (tmp_path / "index.html").read_text() == "stable landing"

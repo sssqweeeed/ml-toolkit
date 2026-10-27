@@ -1,5 +1,6 @@
 """Inflation adapter prediction dates and timestamp precision."""
 
+import warnings
 from datetime import date, timedelta
 
 import numpy as np
@@ -10,6 +11,34 @@ import pytest
 from ml_toolkit.inflation import ConstantRateInflation, ManualInflation
 from ml_toolkit.models import CatBoostRegressionModel, InflationAdjustedModel
 from tests.models.support import PARAMS
+
+
+def test_inflation_predicts_fragmented_frame_without_warning(data, monkeypatch):
+    from dataclasses import replace
+
+    data = replace(
+        data,
+        X=data.X.with_columns(
+            [pl.col("signal").alias(f"feature_{i}") for i in range(105)]
+        ),
+    )
+    model = InflationAdjustedModel(
+        CatBoostRegressionModel(PARAMS), ConstantRateInflation(0.03), date(2024, 1, 1)
+    ).fit(data)
+    expected = model.predict_frame(
+        data.X.with_columns(data.time.alias(model.prediction_date_column))
+    )
+    frame = data.to_model_input()
+    frame.index = pd.Index(np.arange(len(frame))[::-1] + 100)
+    original = frame.copy(deep=True)
+    monkeypatch.setattr(type(data), "to_model_input", lambda self: frame)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", pd.errors.PerformanceWarning)
+        actual = model.predict_pool(data)
+
+    np.testing.assert_allclose(actual, expected, rtol=1e-14)
+    pd.testing.assert_frame_equal(frame, original)
 
 
 @pytest.mark.parametrize("manual", [False, True])

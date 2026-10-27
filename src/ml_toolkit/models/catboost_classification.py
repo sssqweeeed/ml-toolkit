@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Self, cast
 
@@ -14,15 +13,15 @@ from mlflow.models.model import ModelInfo
 from mlflow.pyfunc.model import PythonModel
 from mlflow.pyfunc.utils import pyfunc
 
+from .._console import Logger
 from ..data import validate_training_categories
-from ..tracking.state import ClassificationState
+from ..tracking.state import ClassificationState, read_state
 from ..types import FloatArray, IntArray, ModelParams
 from ._catboost import (
     feature_importances,
     native_fit,
     normalize_loss,
     prepare_frame,
-    read_state,
     refit_parameters,
 )
 from .losses.pu.common import (
@@ -36,7 +35,7 @@ if TYPE_CHECKING:
     from ..config import TrackingConfig
     from ..training.contracts import Pool
 
-logger = logging.getLogger("ml_toolkit.models.catboost_classification")
+logger = Logger("ml_toolkit.models.catboost_classification")
 
 
 class CatBoostClassificationModel(PythonModel):
@@ -443,7 +442,7 @@ class CatBoostClassificationModel(PythonModel):
     def _select_threshold(
         y_true: FloatArray, probabilities: FloatArray, weight: FloatArray | None = None
     ) -> tuple[float, float]:
-        from ..metrics._binary import binary_threshold_scores
+        from ..metrics.classification import binary_threshold_scores
 
         y = np.asarray(y_true, dtype=float)
         p = np.asarray(probabilities, dtype=float)
@@ -499,7 +498,7 @@ class CatBoostClassificationModel(PythonModel):
         conda_env: Path | None,
         extra_artifacts: Mapping[str, str] | None = None,
     ) -> ModelInfo:
-        from ..tracking._model_state import log_catboost
+        from ..tracking.model_artifacts import log_catboost
 
         return log_catboost(
             self,

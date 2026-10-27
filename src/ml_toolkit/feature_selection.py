@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import logging
-
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from math import isfinite
@@ -12,6 +10,7 @@ from typing import TYPE_CHECKING, Literal, Protocol, TypeAlias
 
 import numpy as np
 
+from ._console import Logger
 from .data import validate_training_data, validate_training_categories
 from .metrics import Metric
 from .models.base import Model
@@ -20,7 +19,7 @@ from .types import ModelParams
 if TYPE_CHECKING:
     from .training.contracts import FeatureRanker, Pool
 
-logger = logging.getLogger(__name__)
+logger = Logger(__name__)
 
 SelectionSettings: TypeAlias = dict[
     str, str | int | float | bool | None | tuple[str, ...]
@@ -227,6 +226,7 @@ def _evaluate(
             raise ValueError("Feature importance must be finite")
         importances = {name: float(importances[name]) for name in names}
         ranking_seconds = perf_counter() - started
+    logger.debug("Selection candidate: %s features=%s; metrics=%s", len(names), names, scores)
     return FeatureSelectionStep(
         names,
         scores,
@@ -361,8 +361,9 @@ class RFESelector:
             "Completed feature selection: %s features selected at step %s",
             len(history[selected].features),
             selected + 1,
+            console=False,
         )
-        logger.debug("Selected features: %s", history[selected].features)
+        logger.debug("Selected features: %s", history[selected].features, console=False)
         return FeatureSelectionResult(
             history[selected].features,
             selected,

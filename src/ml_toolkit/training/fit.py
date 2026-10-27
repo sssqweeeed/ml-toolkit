@@ -1,11 +1,11 @@
 """The complete train/validation unit and last-split final refitting."""
 
-import logging
 from collections.abc import Callable
 from dataclasses import asdict, replace
 
 from optuna import Trial
 
+from .._console import Logger, datasets, message
 from ..config import TrainingConfig
 from ..metrics import Metric
 from ..models.base import Model
@@ -21,7 +21,7 @@ from ..data_analysis import DataAnalyzer
 from .results import SplitResult
 from .tuning import tune_optuna
 
-logger = logging.getLogger(__name__)
+logger = Logger(__name__)
 
 
 def fit_split(
@@ -48,10 +48,13 @@ def fit_split(
         index,
         len(train),
         len(validation),
+        console=False,
     )
+    datasets(f"Validation split {index} data", {"train": train, "validation": validation})
     with tracking.run(f"validation/split_{index}"):
         selection = None
         if feature_selector is not None:
+            logger.info("Starting feature selection")
             selection = feature_selector.select(
                 train=train,
                 validation=validation,
@@ -75,6 +78,11 @@ def fit_split(
                 raise ValueError(
                     "Selector selected_step must identify its returned features"
                 )
+            message(
+                "Completed feature selection: %s features selected at step %s",
+                len(names), selection.selected_step + 1,
+            )
+            message("Selected features: %s", names, verbosity="debug")
             train = train.select_features(names)
             validation = validation.select_features(names)
             tracking.log_json(asdict(selection), "selection/history.json")
@@ -164,6 +172,12 @@ def fit_split(
             feature_selection=selection,
             tuning=tuning,
         )
+    message(
+        "Split %s: %s selected features; best iteration (zero-based): %s",
+        index, len(result.features),
+        "—" if result.best_iteration is None else result.best_iteration,
+        verbosity="verbose",
+    )
     logger.info("Completed validation split %s", index)
     return result
 

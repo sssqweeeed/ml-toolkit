@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-import logging
 from datetime import date
 from typing import TYPE_CHECKING, Any, Self, cast
 
@@ -13,17 +12,17 @@ import polars as pl
 from mlflow.models.model import ModelInfo
 from mlflow.pyfunc.model import PythonModel
 
+from .._console import Logger
 from ..inflation import InflationAdjuster, inflation_from_config
-from ..tracking.state import InflationState
+from ..tracking.state import InflationState, read_state
 from ..types import FloatArray, ModelParams
-from ._catboost import read_state
 from .catboost_regression import CatBoostLogLinkRegressionModel, CatBoostRegressionModel
 
 if TYPE_CHECKING:
     from ..config import TrackingConfig
     from ..training.contracts import Pool
 
-logger = logging.getLogger(__name__)
+logger = Logger(__name__)
 
 
 class InflationAdjustedModel(PythonModel):
@@ -142,11 +141,7 @@ class InflationAdjustedModel(PythonModel):
             raise RuntimeError(
                 "Configure model, inflation and reference_date before fitting"
             )
-        self.inflation.fit(
-            dates=train.time,
-            y=train.y.to_numpy(),
-            sample_weight=train.weight.to_numpy(),
-        )
+        self.inflation.fit(train)
         normalized_train = self._at_reference_date(train)
         normalized_validation = (
             None if validation is None else self._at_reference_date(validation)
@@ -174,12 +169,15 @@ class InflationAdjustedModel(PythonModel):
             raise ValueError(
                 "prediction_date_column must not overwrite a model feature"
             )
-        frame[self.prediction_date_column] = pd.Series(
+        prediction_dates = pd.Series(
             data.time.to_list(),
             index=frame.index,
             dtype="datetime64[ns]",
+            name=self.prediction_date_column,
         )
-        return self.predict_frame(frame)
+        # Pool conversion keeps separate numeric blocks to share Arrow buffers.
+        # Concatenation adds dates without inserting into that fragmented frame.
+        return self.predict_frame(pd.concat([frame, prediction_dates], axis=1))
 
     def predict_frame(
         self,
@@ -302,7 +300,7 @@ class InflationAdjustedModel(PythonModel):
         inflation metadata to configured MLflow tracking.
         """
         from ..config import TrackingConfig
-        from ..tracking._model_state import log_catboost
+        from ..tracking.model_artifacts import log_catboost
 
         config = TrackingConfig() if config is None else config
         name = config.model_name
@@ -335,11 +333,13 @@ class InflationAdjustedModel(PythonModel):
         sample_frame = sample.to_model_input(
             n_rows=config.input_example_rows, categorical_as_strings=True
         ).loc[:, self.model.feature_names]
-        sample_frame[self.prediction_date_column] = pd.Series(
+        prediction_dates = pd.Series(
             sample.time.head(len(sample_frame)).to_list(),
             dtype="datetime64[ns]",
             index=sample_frame.index,
+            name=self.prediction_date_column,
         )
+        sample_frame = pd.concat([sample_frame, prediction_dates], axis=1)
         sample_prediction = self.predict(None, sample_frame)
 
         wrapper_info = log_catboost(

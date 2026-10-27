@@ -130,7 +130,7 @@ def positive_capture(
     """
     u, capture = positive_capture_curve(labels, probabilities, weights)
     fig, ax = plt.subplots(figsize=(9, 6))
-    ax.plot(u * 100, capture * 100)
+    ax.plot(u * 100, capture * 100, label="Model")
     ax.plot([0, 100], [0, 100], color="gray", linestyle="--", label="Random ranking")
     ax.set(
         xlabel="Unlabeled cases flagged (%)",

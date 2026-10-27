@@ -1,4 +1,3 @@
-import argparse
 import json
 import os
 from pathlib import Path
@@ -6,27 +5,6 @@ import re
 import subprocess
 import tomllib
 
-CORE = {
-    "tests/config",
-    "tests/data",
-    "tests/metrics",
-    "tests/typing",
-    "tests/automation",
-}
-DEPENDENTS = {
-    "data.py": {"data", "training", "models", "tracking", "plots"},
-    "config": {"config", "training", "models", "tracking", "plots"},
-    "metrics": {"metrics", "training", "plots", "tracking"},
-    "models": {"models", "training", "tracking"},
-    "training": {"training", "models", "tracking"},
-    "plots": {"plots", "training", "tracking"},
-    "psi": {"psi", "plots", "training"},
-    "temporal": {"temporal", "training", "plots"},
-    "tracking": {"tracking", "models", "training"},
-    "evaluation.py": {"training", "plots", "tracking"},
-    "data_analysis.py": {"training", "plots", "tracking"},
-    "feature_selection.py": {"training", "models", "tracking"},
-}
 SUBJECT = re.compile(
     r"(?:feat|fix|perf|refactor|docs|test|build|ci|chore|revert)(?:\([a-z0-9_-]+\))?!?: .+"
 )
@@ -35,37 +13,6 @@ VERSION = re.compile(r"(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)")
 
 def git(*args: str) -> str:
     return subprocess.check_output(["git", *args], text=True).strip()
-
-
-def select_tests(paths: list[str]) -> tuple[list[str], bool]:
-    selected = set(CORE)
-    broad = False
-    docs = False
-    for path in paths:
-        if path.startswith(("docs/", "examples/", "tests/documentation/")) or path in {
-            "README.md",
-            "mkdocs.yml",
-            "requirements-docs.txt",
-            "requirements-examples.txt",
-        }:
-            docs = True
-        elif path.startswith("src/ml_toolkit/"):
-            docs = True
-            key = path.removeprefix("src/ml_toolkit/").split("/")[0]
-            if key in DEPENDENTS:
-                selected.update(f"tests/{name}" for name in DEPENDENTS[key])
-            else:
-                broad = True
-        elif path.startswith("tests/"):
-            parts = path.split("/")
-            if len(parts) < 3 or parts[1] in {"support", "typecheck"}:
-                broad = True
-            else:
-                selected.add(f"tests/{parts[1]}")
-        else:
-            broad = True
-            docs = True
-    return (["tests"] if broad else sorted(selected)), docs
 
 
 def validate_pr(title: str, body: str) -> None:
@@ -100,35 +47,21 @@ def validate_version(version: str, tags: list[str]) -> None:
 def plan() -> None:
     event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text())
     pr = event.get("pull_request")
-    full = (
-        pr["base"]["ref"] == "main" if pr else os.environ["GITHUB_REF_NAME"] == "main"
-    )
+    branch = pr["base"]["ref"] if pr else os.environ["GITHUB_REF_NAME"]
+    if branch != "main":
+        raise ValueError("Full CI validation is only available for main candidates")
     if pr:
         validate_pr(pr["title"], pr.get("body") or "")
-        base = pr["base"]["sha"]
         revision = pr["head"]["sha"]
     else:
-        base = event.get("before", "")
         revision = git("rev-parse", "HEAD")
-    if not base or set(base) == {"0"}:
-        paths = ["pyproject.toml"]
-    else:
-        paths = git("diff", "--name-only", base, "HEAD").splitlines()
-    tests, docs = select_tests(paths)
-    # Protected dev merges have already passed their affected PR checks.
-    # Recheck integration with the core suite instead of repeating release tests.
-    if not pr and os.environ["GITHUB_EVENT_NAME"] == "push" and not full:
-        tests, docs = sorted(CORE), False
     version = package_version()
-    if full:
+    if pr:
         validate_version(version, git("tag", "--list").splitlines())
-        if pr and pr["title"] != f"chore(release): {version}":
-            raise ValueError(f"Release PR title must be chore(release): {version}")
+    if pr and pr["title"] != f"chore(release): {version}":
+        raise ValueError(f"Release PR title must be chore(release): {version}")
     values = {
-        "full": str(full).lower(),
-        "docs": str(docs or full).lower(),
-        "tests": json.dumps(tests),
-        "matrix": json.dumps({"python": ["3.11", "3.12"] if full else ["3.12"]}),
+        "matrix": json.dumps({"python": ["3.11", "3.12"]}),
         "version": version,
         "revision": revision,
     }
@@ -137,31 +70,5 @@ def plan() -> None:
             stream.write(f"{key}={value}\n")
 
 
-def run_tests() -> None:
-    paths: list[str] = json.loads(os.environ["TEST_PATHS"])
-    if os.environ["FULL"] == "true":
-        paths = ["tests"]
-    subprocess.run(
-        [
-            "python",
-            "-m",
-            "pytest",
-            *paths,
-            "-n",
-            "2",
-            "--dist",
-            "loadscope",
-            "--ignore=tests/documentation",
-        ],
-        check=True,
-    )
-
-
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("command", choices=["plan", "test"])
-    args = parser.parse_args()
-    if args.command == "plan":
-        plan()
-    else:
-        run_tests()
+    plan()

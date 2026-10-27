@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass, field
 
 import polars as pl
 
+from .._console import Logger
 from .config import PSIConfig
 from .distributions import (
     TIME_SCHEMA,
@@ -18,7 +18,7 @@ from ..feature_levels import FeatureLevels, LevelTransformer
 from .results import PSIResult
 from .score import psi
 
-logger = logging.getLogger(__name__)
+logger = Logger(__name__)
 
 
 def resolve_time(data: pl.DataFrame, time: pl.Series | str | None) -> pl.Series | None:

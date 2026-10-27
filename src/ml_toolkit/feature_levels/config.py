@@ -4,9 +4,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 import numpy as np
+
+if TYPE_CHECKING:
+    from ..data import Pool
 
 FeatureScalar = str | int | float | bool | date | datetime
 
@@ -121,3 +124,29 @@ class FeatureLevels:
     levels: tuple[str, ...]
     boundaries: tuple[float, ...] = ()
     categories: tuple[FeatureScalar, ...] = ()
+
+
+def feature_definitions(
+    data: Pool, features: tuple[FeatureLevelConfig, ...] | None
+) -> tuple[FeatureLevelConfig, ...]:
+    if features is not None:
+        return features
+    return tuple(
+        FeatureLevelConfig(
+            name,
+            (
+                "categorical"
+                if name in data.cat_features or not dtype.is_numeric()
+                else "numerical"
+            ),
+        )
+        for name, dtype in data.X.schema.items()
+    )
+
+
+def validate_features(features: tuple[str, ...] | None) -> None:
+    if features is not None and (
+        any(not name.strip() for name in features)
+        or len(set(features)) != len(features)
+    ):
+        raise ValueError("features must contain unique nonempty names")

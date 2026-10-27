@@ -15,22 +15,19 @@ import re
 import numpy as np
 import polars as pl
 
-from ._reporting import (
-    feature_definitions,
-    feature_filename,
-    validate_features,
-    validate_split,
-)
-from .data_analysis import (
-    NumericalFeatureDistributions as _NumericalFeatureDistributions,
-)
 from ._time import PERIOD_INTERVALS
 from ._rows import row_indexer
 from .config import FigureConfig
 from .data import Pool
+from .data_analysis import validate_split
+from .data_analysis import (
+    NumericalFeatureDistributions as _NumericalFeatureDistributions,
+)
 from .feature_levels import FeatureLevelConfig, LevelTransformer
+from .feature_levels.config import feature_definitions, validate_features
 from .metrics.ranking import ranking_metrics
 from .plots import classification, pu, ranking, regression
+from .plots.utils import feature_filename
 from .types import FloatArray, TimePeriod
 
 

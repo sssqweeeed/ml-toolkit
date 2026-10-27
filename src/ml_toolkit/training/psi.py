@@ -3,8 +3,8 @@
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from .._reporting import feature_definitions
 from ..config import ReportingConfig, TrackingConfig
+from ..feature_levels.config import feature_definitions
 from ..models.base import Model
 from ..psi import PSIBaseline, PSIConfig
 from .contracts import Pool
