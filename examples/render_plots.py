@@ -23,6 +23,7 @@ PAGES = (
     "docs/evaluation/model.md",
     "docs/evaluation/permutation.md",
     "docs/evaluation/robustness.md",
+    "docs/evaluation/metric-trend.md",
     "docs/evaluation/classification.md",
     "docs/evaluation/observed-fitted.md",
     "docs/evaluation/ranking.md",
@@ -38,6 +39,7 @@ FIGURE_NAMES = (
     "shrink-mae.png",
     "permutation-mae.png",
     "robustness-missing.png",
+    "metric-trend-mae.png",
     "precision_recall/test/precision_recall.png",
     "f1_threshold/test/f1_threshold.png",
     "calibration/test/calibration.png",
@@ -123,7 +125,12 @@ def _validate_results(page: str, namespace: dict[str, object]) -> None:
         assert example.split.to_list() == ["train"] * len(example.train) + [
             "test"
         ] * len(example.test)
-    if page.endswith("robustness.md"):
+    if page.endswith("metric-trend.md"):
+        trend = cast(pl.DataFrame, namespace["table"])
+        assert trend["period_start"].n_unique() == 24
+        assert trend["metric"].unique().to_list() == ["mae"]
+        assert trend["sum_weight"].min() > 0
+    elif page.endswith("robustness.md"):
         table = cast(pl.DataFrame, namespace["table"])
         assert table.height == 31
         baseline = table.filter(pl.col("is_baseline"))["value"][0]

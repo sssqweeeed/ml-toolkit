@@ -12,6 +12,7 @@ reports that do not use predictions, see [Data analysis](../data-analysis/index.
 | How much outcome is captured in the highest-ranked rows? | [Ranking](ranking.md) | `Gains`, `Lift` |
 | How are known positives ranked among unlabeled rows? | [Positive-unlabeled](pu.md) | `PUScoreDistribution`, `PUPositiveCapture` |
 | How do metrics vary by segment? | [Metrics by group](observed-fitted.md#metrics-by-group) | `GroupedMetrics` |
+| How does quality change across calendar windows? | [Metrics over time](metric-trend.md) | `MetricTrend` |
 | How do metrics change with fewer boosting iterations? | [Model shrink curves](model.md) | `model_evaluators=[ShrinkCurve(...)]` |
 | Which inputs support held-out model quality? | [Permutation importance](permutation.md) | `model_evaluators=[PermutationImportance(...)]` |
 | How sensitive is quality to missing or changed inputs? | [Input robustness](robustness.md) | `model_evaluators=[RobustnessCurve(...)]` |
