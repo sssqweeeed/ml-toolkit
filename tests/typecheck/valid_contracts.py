@@ -42,6 +42,7 @@ from ml_toolkit.model_evaluation import ModelEvaluator, ShrinkCurve, Permutation
 from ml_toolkit.inflation import ConstantRateInflation, LogLinearInflation, SplineInflation
 from ml_toolkit.evaluation import GroupedMetrics, PredictionEvaluator, TimeObservedFitted
 from ml_toolkit.evaluation import MetricTrend
+from ml_toolkit.evaluation import Residuals, ResidualResult
 from ml_toolkit.config import FigureConfig, FeatureLevelConfig
 from ml_toolkit.training import Pool as TrainingPool
 
@@ -90,6 +91,7 @@ def metric_contracts(y: FloatArray, prediction: FloatArray, weight: FloatArray) 
 
 
 def contracts(data: Pool) -> None:
+    assert_type(Residuals(loss="poisson").calculate(data=data, prediction=data.y.to_numpy(), split=pl.Series()), ResidualResult)
     assert_type(MetricTrend(metric=dictionary_metric).calculate(data=data, prediction=data.y.to_numpy(), split=pl.Series()), pl.DataFrame)
     assert_type(RobustnessCurve(features=("age",), mode="missing"), RobustnessCurve)
     assert_type(PermutationImportance(score="mae", direction="minimize"), PermutationImportance)

@@ -17,6 +17,7 @@ import polars as pl
 
 from ._prediction_evaluator import PredictionEvaluator
 from ._metric_trend import MetricTrend
+from ._residuals import ResidualResult, Residuals
 from ._time import PERIOD_INTERVALS
 from ._rows import row_indexer
 from ._grouping import row_groups, validate_grouping
@@ -927,6 +928,8 @@ class NumericalFeatureDistributions(PredictionEvaluator):
 __all__ = [
     "PredictionEvaluator",
     "MetricTrend",
+    "Residuals",
+    "ResidualResult",
     "PrecisionRecall",
     "F1Threshold",
     "Calibration",

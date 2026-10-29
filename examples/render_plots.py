@@ -24,6 +24,7 @@ PAGES = (
     "docs/evaluation/permutation.md",
     "docs/evaluation/robustness.md",
     "docs/evaluation/metric-trend.md",
+    "docs/evaluation/residuals.md",
     "docs/evaluation/classification.md",
     "docs/evaluation/observed-fitted.md",
     "docs/evaluation/ranking.md",
@@ -40,6 +41,7 @@ FIGURE_NAMES = (
     "permutation-mae.png",
     "robustness-missing.png",
     "metric-trend-mae.png",
+    "residuals-diagnostics.png",
     "precision_recall/test/precision_recall.png",
     "f1_threshold/test/f1_threshold.png",
     "calibration/test/calibration.png",
@@ -125,7 +127,14 @@ def _validate_results(page: str, namespace: dict[str, object]) -> None:
         assert example.split.to_list() == ["train"] * len(example.train) + [
             "test"
         ] * len(example.test)
-    if page.endswith("metric-trend.md"):
+    if page.endswith("residuals.md"):
+        from ml_toolkit.evaluation import ResidualResult
+
+        diagnostics = cast(ResidualResult, namespace["diagnostics"])
+        assert diagnostics.rows.height == len(example.data)
+        assert diagnostics.worst.height == 30
+        np.testing.assert_allclose(diagnostics.bins["sum_weight"].sum(), len(example.data))
+    elif page.endswith("metric-trend.md"):
         trend = cast(pl.DataFrame, namespace["table"])
         assert trend["period_start"].n_unique() == 24
         assert trend["metric"].unique().to_list() == ["mae"]

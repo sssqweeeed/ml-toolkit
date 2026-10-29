@@ -40,6 +40,7 @@ nav:
       - Permutation importance: evaluation/permutation.md
       - Input robustness: evaluation/robustness.md
       - Metrics over time: evaluation/metric-trend.md
+      - Residuals and large errors: evaluation/residuals.md
       - Classification: evaluation/classification.md
       - Observed versus fitted: evaluation/observed-fitted.md
       - Ranking: evaluation/ranking.md

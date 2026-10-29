@@ -166,10 +166,12 @@ metrics: Metric = lambda y, prediction, weight: MetricScores({"mae": 1.0})
 from ml_toolkit.data_analysis import DataAnalyzer, NumericalFeatureDistributions
 from ml_toolkit.model_evaluation import ShrinkCurve, PermutationImportance, RobustnessCurve
 from ml_toolkit.evaluation import MetricTrend
+from ml_toolkit.evaluation import Residuals
 
 PermutationImportance(score="mae", direction="lowest")  # expected-type-error
 RobustnessCurve(features=("age",), mode="invalid")  # expected-type-error
 MetricTrend(metric=metrics, period="fortnight")  # expected-type-error
+Residuals(loss="logloss")  # expected-type-error
 
 
 def wrong_report_kind(data: Pool) -> None:

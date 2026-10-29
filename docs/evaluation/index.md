@@ -9,6 +9,7 @@ reports that do not use predictions, see [Data analysis](../data-analysis/index.
 | --- | --- | --- |
 | Which probability threshold balances precision and recall? Are probabilities calibrated? | [Classification](classification.md) | `PrecisionRecall`, `F1Threshold`, `Calibration` |
 | Where do predicted means differ from observations? | [Observed versus fitted](observed-fitted.md) | `ObservedFitted`, `TimeObservedFitted` |
+| How are errors distributed, and which rows contribute most? | [Residuals and large errors](residuals.md) | `Residuals` |
 | How much outcome is captured in the highest-ranked rows? | [Ranking](ranking.md) | `Gains`, `Lift` |
 | How are known positives ranked among unlabeled rows? | [Positive-unlabeled](pu.md) | `PUScoreDistribution`, `PUPositiveCapture` |
 | How do metrics vary by segment? | [Metrics by group](observed-fitted.md#metrics-by-group) | `GroupedMetrics` |
