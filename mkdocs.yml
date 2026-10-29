@@ -37,6 +37,7 @@ nav:
   - Evaluation:
       - Overview: evaluation/index.md
       - Model shrink curves: evaluation/model.md
+      - Permutation importance: evaluation/permutation.md
       - Classification: evaluation/classification.md
       - Observed versus fitted: evaluation/observed-fitted.md
       - Ranking: evaluation/ranking.md

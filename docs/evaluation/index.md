@@ -13,6 +13,7 @@ reports that do not use predictions, see [Data analysis](../data-analysis/index.
 | How are known positives ranked among unlabeled rows? | [Positive-unlabeled](pu.md) | `PUScoreDistribution`, `PUPositiveCapture` |
 | How do metrics vary by segment? | [Metrics by group](observed-fitted.md#metrics-by-group) | `GroupedMetrics` |
 | How do metrics change with fewer boosting iterations? | [Model shrink curves](model.md) | `model_evaluators=[ShrinkCurve(...)]` |
+| Which inputs support held-out model quality? | [Permutation importance](permutation.md) | `model_evaluators=[PermutationImportance(...)]` |
 | Which features contribute to predictions? | [Feature importance and SHAP](explainability.md) | `ReportingConfig(shap=ShapConfig(...))` and direct plots |
 
 Every family guide places evaluator configuration beside the resulting figures,

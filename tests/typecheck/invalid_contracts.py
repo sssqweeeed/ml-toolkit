@@ -164,7 +164,9 @@ metrics: Metric = lambda y, prediction, weight: MetricScores({"mae": 1.0})
 
 
 from ml_toolkit.data_analysis import DataAnalyzer, NumericalFeatureDistributions
-from ml_toolkit.model_evaluation import ShrinkCurve
+from ml_toolkit.model_evaluation import ShrinkCurve, PermutationImportance
+
+PermutationImportance(score="mae", direction="lowest")  # expected-type-error
 
 
 def wrong_report_kind(data: Pool) -> None:

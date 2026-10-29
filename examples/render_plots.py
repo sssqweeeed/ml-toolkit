@@ -21,6 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 PAGES = (
     "docs/evaluation/index.md",
     "docs/evaluation/model.md",
+    "docs/evaluation/permutation.md",
     "docs/evaluation/classification.md",
     "docs/evaluation/observed-fitted.md",
     "docs/evaluation/ranking.md",
@@ -34,6 +35,7 @@ PAGES = (
 )
 FIGURE_NAMES = (
     "shrink-mae.png",
+    "permutation-mae.png",
     "precision_recall/test/precision_recall.png",
     "f1_threshold/test/f1_threshold.png",
     "calibration/test/calibration.png",
@@ -119,7 +121,13 @@ def _validate_results(page: str, namespace: dict[str, object]) -> None:
         assert example.split.to_list() == ["train"] * len(example.train) + [
             "test"
         ] * len(example.test)
-    if page.endswith("model.md"):
+    if page.endswith("permutation.md"):
+        importance = cast(pl.DataFrame, namespace["importance"])
+        assert importance.height == 12
+        assert importance["features"].list.len().max() == 2
+        assert importance["baseline"].n_unique() == 1
+        assert importance["importance"].is_finite().all()
+    elif page.endswith("model.md"):
         table = cast(pl.DataFrame, namespace["table"])
         assert table.height == 24
         assert table["n_iterations"].n_unique() == 12
