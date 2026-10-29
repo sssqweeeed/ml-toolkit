@@ -346,6 +346,8 @@ Import the CatBoost adapters, `InflationAdjustedModel`, and `Model` from
         - fit
         - predict_frame
         - predict_pool
+        - n_iterations
+        - shrink
         - predict
         - log
         - native_model
@@ -364,6 +366,8 @@ Import the CatBoost adapters, `InflationAdjustedModel`, and `Model` from
         - fit
         - predict_frame
         - predict_pool
+        - n_iterations
+        - shrink
         - predict
         - log
         - baseline
@@ -376,6 +380,8 @@ Import the CatBoost adapters, `InflationAdjustedModel`, and `Model` from
         - fit
         - predict_frame
         - predict_pool
+        - n_iterations
+        - shrink
         - predict_labels
         - predict_labels_pool
         - predict
@@ -398,6 +404,8 @@ Import the CatBoost adapters, `InflationAdjustedModel`, and `Model` from
         - fit
         - predict_frame
         - predict_pool
+        - n_iterations
+        - shrink
         - predict_labels
         - predict_labels_pool
         - predict
@@ -414,6 +422,8 @@ Import the CatBoost adapters, `InflationAdjustedModel`, and `Model` from
         - fit
         - predict_frame
         - predict_pool
+        - n_iterations
+        - shrink
         - predict
         - log
         - native_model
@@ -425,6 +435,9 @@ Import the CatBoost adapters, `InflationAdjustedModel`, and `Model` from
     options:
       merge_init_into_class: true
       members:
+        - predict_pool
+        - n_iterations
+        - shrink
         - predict
         - log
         - native_model

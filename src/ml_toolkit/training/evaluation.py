@@ -12,6 +12,8 @@ from ..data_analysis import DataAnalyzer
 from ..data import validate_auxiliary_pair
 import polars as pl
 from ..metrics import Metric
+from ..metrics._evaluation import calculate_metrics as calculate_metrics
+from ..model_evaluation import ModelEvaluator
 from ..models.base import Model
 from ..tracking import runs as tracking
 from ..types import FloatArray
@@ -27,18 +29,6 @@ class EvaluationResult:
     heldout_metrics: dict[str, float] | None
 
 
-def calculate_metrics(
-    metric: Metric, data: Pool, prediction: FloatArray
-) -> dict[str, float]:
-    if prediction.shape != (len(data),) or not np.isfinite(prediction).all():
-        raise ValueError("Predictions must contain one finite value per row")
-    return metric(
-        data.y.to_numpy().astype(float),
-        prediction,
-        data.weight.to_numpy().astype(float),
-    ).to_dict()
-
-
 def evaluate_model(
     model: Model,
     train: Pool,
@@ -48,6 +38,7 @@ def evaluate_model(
     evaluators: tuple[PredictionEvaluator, ...],
     *,
     analyzers: tuple[DataAnalyzer, ...] = (),
+    model_evaluators: tuple[ModelEvaluator, ...] = (),
     stage: TrainingStage,
     name: str,
     split: DatasetSplit = DatasetSplit.VAL,
@@ -94,7 +85,7 @@ def evaluate_model(
         "final_fit": reporting.on_final_fit,
     }[stage]
     if enabled and (
-        evaluators or analyzers or reporting.psi or reporting.shap is not None
+        evaluators or model_evaluators or analyzers or reporting.psi or reporting.shap is not None
     ):
         data = _combine_pools(train, heldout)
         prediction = (
@@ -114,6 +105,8 @@ def evaluate_model(
             prediction=prediction,
             split=labels,
             evaluators=evaluators,
+            model_evaluators=model_evaluators,
+            metric=metric,
             analyzers=analyzers,
             config=reporting,
             stage=name,

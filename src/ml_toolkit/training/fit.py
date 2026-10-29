@@ -17,6 +17,7 @@ from ..data import validate_training_categories
 from .evaluation import evaluate_model
 from .psi import prepare_psi_baseline, log_model_with_baseline
 from ..evaluation import PredictionEvaluator
+from ..model_evaluation import ModelEvaluator
 from ..data_analysis import DataAnalyzer
 from .results import SplitResult
 from .reporting import report_feature_selection
@@ -38,6 +39,7 @@ def fit_split(
     analyzers: tuple[DataAnalyzer, ...],
     param_space: Callable[[Trial], ModelParams] | None,
     index: int,
+    model_evaluators: tuple[ModelEvaluator, ...] = (),
 ) -> SplitResult:
     validate_training_categories(train)
     validate_training_categories(validation)
@@ -132,6 +134,7 @@ def fit_split(
                     config.reporting,
                     evaluators,
                     analyzers=analyzers,
+                    model_evaluators=model_evaluators,
                     psi_baseline=baseline,
                     stage="tuning",
                     name=f"validation/split_{index}/tuning",
@@ -165,6 +168,7 @@ def fit_split(
             config.reporting,
             evaluators,
             analyzers=analyzers,
+            model_evaluators=model_evaluators,
             psi_baseline=baseline,
             stage="validation",
             name=f"validation/split_{index}",

@@ -20,6 +20,7 @@ from typing import cast
 ROOT = Path(__file__).resolve().parents[1]
 PAGES = (
     "docs/evaluation/index.md",
+    "docs/evaluation/model.md",
     "docs/evaluation/classification.md",
     "docs/evaluation/observed-fitted.md",
     "docs/evaluation/ranking.md",
@@ -32,6 +33,7 @@ PAGES = (
     "docs/evaluation/custom.md",
 )
 FIGURE_NAMES = (
+    "shrink-mae.png",
     "precision_recall/test/precision_recall.png",
     "f1_threshold/test/f1_threshold.png",
     "calibration/test/calibration.png",
@@ -117,7 +119,21 @@ def _validate_results(page: str, namespace: dict[str, object]) -> None:
         assert example.split.to_list() == ["train"] * len(example.train) + [
             "test"
         ] * len(example.test)
-    if page.endswith("classification.md"):
+    if page.endswith("model.md"):
+        table = cast(pl.DataFrame, namespace["table"])
+        assert table.height == 24
+        assert table["n_iterations"].n_unique() == 12
+        for part, pool in (("train", example.train), ("test", example.test)):
+            prediction = example.model.predict_pool(pool)
+            expected = np.average(
+                abs(pool.y.to_numpy() - prediction), weights=pool.weight.to_numpy()
+            )
+            actual = table.filter(
+                (pl.col("split") == part)
+                & (pl.col("n_iterations") == example.model.n_iterations)
+            )["value"][0]
+            np.testing.assert_allclose(actual, expected)
+    elif page.endswith("classification.md"):
         curve = cast(pd.DataFrame, namespace["curve"])
         assert len(curve) > 1000
         assert curve.equals(cast(pd.DataFrame, namespace["precision_recall_table"]))
