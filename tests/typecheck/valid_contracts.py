@@ -38,7 +38,7 @@ from ml_toolkit.models import CatBoostPUClassificationModel, CatBoostRegressionM
 from ml_toolkit.models.base import Model
 from ml_toolkit.models import ShrinkableModel
 from ml_toolkit.models.lightgbm import LightGBMServingModel
-from ml_toolkit.model_evaluation import ModelEvaluator, ShrinkCurve, PermutationImportance
+from ml_toolkit.model_evaluation import ModelEvaluator, ShrinkCurve, PermutationImportance, RobustnessCurve
 from ml_toolkit.inflation import ConstantRateInflation, LogLinearInflation, SplineInflation
 from ml_toolkit.evaluation import GroupedMetrics, PredictionEvaluator, TimeObservedFitted
 from ml_toolkit.config import FigureConfig, FeatureLevelConfig
@@ -89,6 +89,7 @@ def metric_contracts(y: FloatArray, prediction: FloatArray, weight: FloatArray) 
 
 
 def contracts(data: Pool) -> None:
+    assert_type(RobustnessCurve(features=("age",), mode="missing"), RobustnessCurve)
     assert_type(PermutationImportance(score="mae", direction="minimize"), PermutationImportance)
     shrinkable: ShrinkableModel = CatBoostRegressionModel({"iterations": 10})
     assert_type(shrinkable.shrink(2), CatBoostRegressionModel)

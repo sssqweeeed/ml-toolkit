@@ -8,6 +8,7 @@ import polars as pl
 
 from ._model_evaluator import ModelEvaluator
 from ._permutation_importance import PermutationImportance
+from ._robustness_curve import RobustnessCurve
 from .config import FigureConfig
 from .data import Pool
 from .data_analysis import validate_split
@@ -192,4 +193,4 @@ class ShrinkCurve(ModelEvaluator):
         return paths
 
 
-__all__ = ["ModelEvaluator", "ShrinkCurve", "PermutationImportance"]
+__all__ = ["ModelEvaluator", "ShrinkCurve", "PermutationImportance", "RobustnessCurve"]
