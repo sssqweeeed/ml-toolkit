@@ -28,6 +28,7 @@ from .feature_levels import FeatureLevelConfig, LevelTransformer
 from .feature_levels.config import feature_definitions, validate_features
 from .metrics.ranking import ranking_metrics
 from .metrics import Metric
+from .metrics._evaluation import validate_prediction
 from .plots import classification, pu, ranking, regression
 from .plots.utils import feature_filename
 from .types import FloatArray, TimePeriod
@@ -119,8 +120,7 @@ class PredictionEvaluator:
 
 
 def validate_inputs(data: Pool, prediction: FloatArray, split: pl.Series) -> None:
-    if prediction.shape != (len(data),) or not np.isfinite(prediction).all():
-        raise ValueError("Predictions must contain one finite value per row")
+    validate_prediction(data, prediction)
     validate_split(data, split)
 
 

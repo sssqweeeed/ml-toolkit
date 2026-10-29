@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from copy import deepcopy
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Self, cast
 
@@ -62,6 +63,27 @@ class CatBoostRegressionModel(PythonModel):
         self._effective_prediction_type = prediction_type
         self._model = None
         self._baseline = None
+        self._retained_iterations: int | None = None
+
+    @property
+    def n_iterations(self) -> int:
+        """Return the number of fitted trees used for prediction."""
+        return int(self.native_model.tree_count_)
+
+    def shrink(self, n_iterations: int) -> Self:
+        """Return an independent fitted prefix, preserving prediction scale.
+
+        n_iterations must be an integer from one through the fitted size.
+        The copy's refit budget equals its retained size.
+        """
+        from ._shrink import validate_size
+
+        validate_size(n_iterations, self.n_iterations)
+        native = self.native_model.copy()
+        native.shrink(n_iterations, ntree_start=0)
+        result = deepcopy(self, {id(self.native_model): native})
+        result._retained_iterations = n_iterations
+        return result
 
     @property
     def task(self) -> str:
@@ -85,7 +107,7 @@ class CatBoostRegressionModel(PythonModel):
     def best_iteration(self) -> int | None:
         """Return the zero-based best iteration index, or None when unavailable."""
         value = self.native_model.get_best_iteration()
-        if value is None or value < 0:
+        if value is None or value < 0 or value >= self.n_iterations:
             return None
         return int(value)
 
@@ -120,7 +142,12 @@ class CatBoostRegressionModel(PythonModel):
             The adapter has not been fitted.
         """
         self.native_model
-        params = refit_parameters(self.params, self.best_iteration)
+        iteration = (
+            self.best_iteration
+            if self._retained_iterations is None
+            else self._retained_iterations - 1
+        )
+        params = refit_parameters(self.params, iteration)
         return params
 
     @property
@@ -163,6 +190,7 @@ class CatBoostRegressionModel(PythonModel):
             Fitted model, replacing previous state. Manual baselines are folded
             into native bias once; native initialization is left unchanged.
         """
+        self._retained_iterations = None
         logger.debug(
             "Fitting CatBoost regressor: %s training rows, validation=%s",
             len(train),
@@ -380,6 +408,7 @@ class CatBoostRegressionModel(PythonModel):
             "baseline": self.baseline,
             "baseline_mode": self.baseline_mode,
             "training_params": self.params.copy(),
+            "retained_iterations": self._retained_iterations,
         }
 
     def restore_state(self, state: RegressionState, model_path: str) -> None:
@@ -391,6 +420,7 @@ class CatBoostRegressionModel(PythonModel):
             "effective_prediction_type", self.prediction_type
         )
         self._baseline = state["baseline"]
+        self._retained_iterations = state.get("retained_iterations")
 
     def load_context(self, context: Any) -> None:
         state = cast(

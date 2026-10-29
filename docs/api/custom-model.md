@@ -125,6 +125,13 @@ own serving environment.
 
 ## Backend and diagnostic constraints
 
+Model shrinking is an optional capability, separate from `Model`. Implement
+`n_iterations`, `shrink(k)` returning an independent fitted adapter, and
+`predict_pool` to support [model shrink curves](../evaluation/model.md).
+Preserve fitted preprocessing and inverse transformations in the copy; its
+predictions must stay in the task metric's target units. Existing custom
+adapters remain usable without this capability unless a shrink report runs.
+
 Training adapters expose a CatBoost or LightGBM backend through `native_model`;
 generic scikit-learn estimators do not satisfy this contract.
 `LightGBMServingModel` packages an already trained model and does not implement the

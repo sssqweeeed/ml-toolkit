@@ -12,6 +12,7 @@ reports that do not use predictions, see [Data analysis](../data-analysis/index.
 | How much outcome is captured in the highest-ranked rows? | [Ranking](ranking.md) | `Gains`, `Lift` |
 | How are known positives ranked among unlabeled rows? | [Positive-unlabeled](pu.md) | `PUScoreDistribution`, `PUPositiveCapture` |
 | How do metrics vary by segment? | [Metrics by group](observed-fitted.md#metrics-by-group) | `GroupedMetrics` |
+| How do metrics change with fewer boosting iterations? | [Model shrink curves](model.md) | `model_evaluators=[ShrinkCurve(...)]` |
 | Which features contribute to predictions? | [Feature importance and SHAP](explainability.md) | `ReportingConfig(shap=ShapConfig(...))` and direct plots |
 
 Every family guide places evaluator configuration beside the resulting figures,
@@ -91,6 +92,10 @@ non-null String `split` Series containing `train` and at most one of `val` or
 optional. Training passes train + val during validation and tuning, and train +
 test during the `test` stage. The `final_fit` stage receives only train rows.
 
+For reports that need the fitted adapter and task metric, pass
+[`model_evaluators`](model.md). These run after prediction evaluators and before
+data analyzers, using the same stage switches and shared namespace rules.
+
 Classification, ranking, and PU reports use only the held-out rows. Comparison
 reports show train and held-out rows together and skip incomplete pairs.
 `GroupedMetrics` also supports train-only data and exports additional metrics
@@ -108,7 +113,7 @@ built-in selector runs. See [selection plots](../api/feature-selection.md#automa
 Shared `figure`, feature-level definitions, and `n_bins` come from that config;
 each report page explains which settings it uses.
 
-Names must be unique across evaluators and data analyzers ignoring case, start with an ASCII letter or digit, and
+Names must be unique across prediction/model evaluators and data analyzers ignoring case, start with an ASCII letter or digit, and
 contain only ASCII letters, digits, underscores, hyphens, or dots. Enabled PSI
 and SHAP reserve `psi` and `shap`. Give repeated report instances distinct names.
 Extra metrics are logged as `<name>/<key>`, and do not enter CV averages,

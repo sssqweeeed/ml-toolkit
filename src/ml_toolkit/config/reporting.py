@@ -80,7 +80,7 @@ class ShapConfig:
 class ReportingConfig:
     """Enable reporting by training stage and configure PSI, SHAP and exports.
 
-    Stage switches gate prediction evaluators, data analyzers, PSI and SHAP,
+    Stage switches gate prediction/model evaluators, data analyzers, PSI and SHAP,
     including their additional metrics and report artifacts, not training
     metrics or optimization. PSI baseline packaging follows model logging flags
     independently of stage report switches. All validation folds use the same settings.

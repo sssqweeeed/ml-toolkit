@@ -164,9 +164,13 @@ metrics: Metric = lambda y, prediction, weight: MetricScores({"mae": 1.0})
 
 
 from ml_toolkit.data_analysis import DataAnalyzer, NumericalFeatureDistributions
+from ml_toolkit.model_evaluation import ShrinkCurve
 
 
 def wrong_report_kind(data: Pool) -> None:
+    train_model(splitter=Holdout(data), params={}, model_factory=CatBoostRegressionModel, metric=metrics, run_name="wrong-model-report", config=TrainingConfig(), model_evaluators=PredictionEvaluator(name="prediction"))  # expected-type-error
+    train_model(splitter=Holdout(data), params={}, model_factory=CatBoostRegressionModel, metric=metrics, run_name="wrong-model-report", config=TrainingConfig(), prediction_evaluators=ShrinkCurve())  # expected-type-error
+    CatBoostRegressionModel().shrink(2.5)  # expected-type-error
     train_model(splitter=Holdout(data), params={}, model_factory=CatBoostRegressionModel, metric=metrics, run_name="wrong-kind", config=TrainingConfig(), data_analyzers=PredictionEvaluator(name="prediction"))  # expected-type-error
     train_model(splitter=Holdout(data), params={}, model_factory=CatBoostRegressionModel, metric=metrics, run_name="wrong-kind", config=TrainingConfig(), prediction_evaluators=NumericalFeatureDistributions())  # expected-type-error
     DataAnalyzer(name="data").evaluate(data=data, split=pl.Series(), prediction=data.y.to_numpy())  # expected-type-error

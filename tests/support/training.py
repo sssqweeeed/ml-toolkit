@@ -138,6 +138,24 @@ class MeanModel:
         mlflow.log_dict({"mean": self.mean}, "model.json")
 
 
+class PrefixModel(MeanModel):
+    """Deterministic fitted model with a shrink-dependent prediction signal."""
+
+    @property
+    def n_iterations(self):
+        return self.params.get("iterations", 8)
+
+    def shrink(self, n_iterations):
+        from copy import deepcopy
+
+        result = deepcopy(self)
+        result.params["iterations"] = n_iterations
+        return result
+
+    def predict_pool(self, data):
+        return super().predict_pool(data) + data.X["x"].to_numpy() / self.n_iterations
+
+
 def mae(y, prediction, weight):
     return MetricScores({"mae": np.average(np.abs(y - prediction), weights=weight)})
 

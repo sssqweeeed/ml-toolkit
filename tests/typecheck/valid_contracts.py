@@ -36,6 +36,9 @@ from ml_toolkit.metrics import (
 )
 from ml_toolkit.models import CatBoostPUClassificationModel, CatBoostRegressionModel
 from ml_toolkit.models.base import Model
+from ml_toolkit.models import ShrinkableModel
+from ml_toolkit.models.lightgbm import LightGBMServingModel
+from ml_toolkit.model_evaluation import ModelEvaluator, ShrinkCurve
 from ml_toolkit.inflation import ConstantRateInflation, LogLinearInflation, SplineInflation
 from ml_toolkit.evaluation import GroupedMetrics, PredictionEvaluator, TimeObservedFitted
 from ml_toolkit.config import FigureConfig, FeatureLevelConfig
@@ -86,6 +89,17 @@ def metric_contracts(y: FloatArray, prediction: FloatArray, weight: FloatArray) 
 
 
 def contracts(data: Pool) -> None:
+    shrinkable: ShrinkableModel = CatBoostRegressionModel({"iterations": 10})
+    assert_type(shrinkable.shrink(2), CatBoostRegressionModel)
+    assert_type(CatBoostPUClassificationModel().shrink(2), CatBoostPUClassificationModel)
+    assert_type(LightGBMServingModel().shrink(2), LightGBMServingModel)
+    report: ModelEvaluator = ShrinkCurve(max_points=20)
+    assert_type(ShrinkCurve().calculate(model=shrinkable, metric=dictionary_metric, data=data, split=pl.Series()), pl.DataFrame)
+    train_model(
+        splitter=Holdout(data), params={}, model_factory=CatBoostRegressionModel,
+        metric=dictionary_metric, run_name="model-reports", config=TrainingConfig(),
+        model_evaluators=[report],
+    )
     assert_type(data.auxiliary_features, pl.DataFrame | None)
     assert_type(data.to_analysis_frame(), pl.DataFrame)
     assert_type(data.to_analysis_frame(["segment", "age"]), pl.DataFrame)

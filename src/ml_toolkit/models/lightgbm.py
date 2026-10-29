@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping, Sequence
+from copy import deepcopy
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Self
 
 import lightgbm
 import numpy as np
@@ -54,6 +55,41 @@ class LightGBMServingModel(PythonModel):
             list(numerical_features) if numerical_features is not None else []
         )
         self.cat_features = list(cat_features) if cat_features is not None else []
+
+    @property
+    def n_iterations(self) -> int:
+        """Return the iteration count used by the serving prediction default.
+
+        A positive best_iteration limits ordinary LightGBM predictions even
+        when the Booster retains additional iterations.
+        """
+        native = self.native_model
+        available = native.current_iteration()
+        return (
+            min(native.best_iteration, available)
+            if native.best_iteration > 0
+            else available
+        )
+
+    def shrink(self, n_iterations: int) -> Self:
+        """Return an independent Booster prefix without fitting new trees."""
+        from ._shrink import validate_size
+
+        validate_size(n_iterations, self.n_iterations)
+        native = self.native_model
+        reduced = lightgbm.Booster(
+            model_str=native.model_to_string(
+                start_iteration=0, num_iteration=n_iterations
+            )
+        )
+        # Exclude the estimator too: its training state is not part of serving.
+        result = deepcopy(self, {id(self.model): reduced})
+        result.model = reduced
+        return result
+
+    def predict_pool(self, data: Pool) -> FloatArray:
+        """Predict pool rows using the same feature preparation as serving."""
+        return self.predict(None, data.to_model_input())
 
     @property
     def task(self) -> str:
