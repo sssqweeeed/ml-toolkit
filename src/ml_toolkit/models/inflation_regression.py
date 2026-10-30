@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from copy import deepcopy
 from datetime import date
 from typing import TYPE_CHECKING, Any, Self, cast
 
@@ -63,6 +64,20 @@ class InflationAdjustedModel(PythonModel):
         self.inflation = inflation
         self.reference_date = reference_date
         self.prediction_date_column = prediction_date_column
+
+    @property
+    def n_iterations(self) -> int:
+        """Return the wrapped fitted regressor's iteration count."""
+        if self.model is None:
+            raise RuntimeError("Model has not been fitted")
+        return self.model.n_iterations
+
+    def shrink(self, n_iterations: int) -> Self:
+        """Return an independent prefix with the fitted inflation state copied."""
+        if self.model is None:
+            raise RuntimeError("Model has not been fitted")
+        reduced = self.model.shrink(n_iterations)
+        return deepcopy(self, {id(self.model): reduced})
 
     @property
     def native_model(self) -> catboost.CatBoostRegressor:

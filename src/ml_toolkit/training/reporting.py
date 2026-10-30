@@ -21,6 +21,8 @@ from ..feature_levels import LevelTransformer
 from ..feature_levels.config import feature_definitions
 from ..feature_selection import FeatureSelectionResult
 from ..models.base import Model
+from ..model_evaluation import ModelEvaluator
+from ..metrics import Metric
 from ..plots import psi as psi_plots
 from ..plots.utils import feature_filename
 from ..psi import PSIBaseline, compare_psi
@@ -34,6 +36,7 @@ def prepare_evaluators(
     evaluators: PredictionEvaluator | list[PredictionEvaluator] | None,
     config: ReportingConfig,
     analyzers: tuple[DataAnalyzer, ...] = (),
+    model_evaluators: tuple[ModelEvaluator, ...] = (),
 ) -> tuple[PredictionEvaluator, ...]:
     """Normalize and validate names before fitting, even for disabled stages."""
     items = (
@@ -47,7 +50,7 @@ def prepare_evaluators(
         reserved.add("psi")
     if config.shap is not None:
         reserved.add("shap")
-    for item in (*items, *analyzers):
+    for item in (*items, *model_evaluators, *analyzers):
         name = item.name.casefold()
         if name in names or name in reserved:
             raise ValueError(
@@ -55,6 +58,16 @@ def prepare_evaluators(
             )
         names.add(name)
     return items
+
+
+def prepare_model_evaluators(
+    evaluators: ModelEvaluator | list[ModelEvaluator] | None,
+) -> tuple[ModelEvaluator, ...]:
+    """Normalize fitted-model reports independently of prediction reports."""
+    return (
+        () if evaluators is None
+        else tuple(evaluators) if isinstance(evaluators, list) else (evaluators,)
+    )
 
 
 def prepare_analyzers(
@@ -156,10 +169,14 @@ def report_predictions(
     config: ReportingConfig,
     stage: str,
     analyzers: tuple[DataAnalyzer, ...] = (),
+    model_evaluators: tuple[ModelEvaluator, ...] = (),
+    metric: Metric | None = None,
     psi_baseline: PSIBaseline | None = None,
 ) -> None:
     """Run one already-enabled fit's reports; stage is only error context."""
     validate_inputs(data, prediction, split)
+    if model_evaluators and metric is None:
+        raise ValueError("metric is required for model evaluators")
     for evaluator in evaluators:
         _run_report(
             name=evaluator.name,
@@ -177,6 +194,19 @@ def report_predictions(
             ),
             context=f"Prediction evaluation evaluator={evaluator.name}, stage={stage}",
         )
+    if metric is not None:
+        for model_evaluator in model_evaluators:
+            _run_report(
+                name=model_evaluator.name,
+                evaluate=lambda: model_evaluator.evaluate(
+                    model=model, metric=metric, data=data, split=split
+                ),
+                write=lambda root: model_evaluator.write_artifacts(
+                    model=model, metric=metric, data=data, split=split,
+                    artifact_dir=root, figure=config.figure,
+                ),
+                context=f"Model evaluation evaluator={model_evaluator.name}, stage={stage}",
+            )
     report_data(
         data=data,
         split=split,

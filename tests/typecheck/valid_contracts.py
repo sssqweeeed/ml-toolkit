@@ -36,8 +36,13 @@ from ml_toolkit.metrics import (
 )
 from ml_toolkit.models import CatBoostPUClassificationModel, CatBoostRegressionModel
 from ml_toolkit.models.base import Model
+from ml_toolkit.models import ShrinkableModel
+from ml_toolkit.models.lightgbm import LightGBMServingModel
+from ml_toolkit.model_evaluation import ModelEvaluator, ShrinkCurve, PermutationImportance, RobustnessCurve
 from ml_toolkit.inflation import ConstantRateInflation, LogLinearInflation, SplineInflation
 from ml_toolkit.evaluation import GroupedMetrics, PredictionEvaluator, TimeObservedFitted
+from ml_toolkit.evaluation import MetricTrend
+from ml_toolkit.evaluation import Residuals, ResidualResult
 from ml_toolkit.config import FigureConfig, FeatureLevelConfig
 from ml_toolkit.training import Pool as TrainingPool
 
@@ -86,6 +91,21 @@ def metric_contracts(y: FloatArray, prediction: FloatArray, weight: FloatArray) 
 
 
 def contracts(data: Pool) -> None:
+    assert_type(Residuals(loss="poisson").calculate(data=data, prediction=data.y.to_numpy(), split=pl.Series()), ResidualResult)
+    assert_type(MetricTrend(metric=dictionary_metric).calculate(data=data, prediction=data.y.to_numpy(), split=pl.Series()), pl.DataFrame)
+    assert_type(RobustnessCurve(features=("age",), mode="missing"), RobustnessCurve)
+    assert_type(PermutationImportance(score="mae", direction="minimize"), PermutationImportance)
+    shrinkable: ShrinkableModel = CatBoostRegressionModel({"iterations": 10})
+    assert_type(shrinkable.shrink(2), CatBoostRegressionModel)
+    assert_type(CatBoostPUClassificationModel().shrink(2), CatBoostPUClassificationModel)
+    assert_type(LightGBMServingModel().shrink(2), LightGBMServingModel)
+    report: ModelEvaluator = ShrinkCurve(max_points=20)
+    assert_type(ShrinkCurve().calculate(model=shrinkable, metric=dictionary_metric, data=data, split=pl.Series()), pl.DataFrame)
+    train_model(
+        splitter=Holdout(data), params={}, model_factory=CatBoostRegressionModel,
+        metric=dictionary_metric, run_name="model-reports", config=TrainingConfig(),
+        model_evaluators=[report],
+    )
     assert_type(data.auxiliary_features, pl.DataFrame | None)
     assert_type(data.to_analysis_frame(), pl.DataFrame)
     assert_type(data.to_analysis_frame(["segment", "age"]), pl.DataFrame)

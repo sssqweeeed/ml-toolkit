@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from copy import deepcopy
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Self, cast
 
@@ -59,6 +60,30 @@ class CatBoostClassificationModel(PythonModel):
         self._pu_loss: str | None = None
         self._pu_prior: float | None = None
         self._best_iteration: int | None = None
+        self._retained_iterations: int | None = None
+
+    @property
+    def n_iterations(self) -> int:
+        """Return the number of fitted trees used for probability prediction."""
+        return int(self.native_model.tree_count_)
+
+    def shrink(self, n_iterations: int) -> Self:
+        """Return an independent prefix, preserving baseline and threshold.
+
+        n_iterations must be an integer from one through the fitted size.
+        Shrinking never reselects a decision threshold. Validation F1 is cleared
+        when predictions change; the copy's refit budget is its retained size.
+        """
+        from ._shrink import validate_size
+
+        validate_size(n_iterations, self.n_iterations)
+        native = self.native_model.copy()
+        native.shrink(n_iterations, ntree_start=0)
+        result = deepcopy(self, {id(self.native_model): native})
+        result._retained_iterations = n_iterations
+        if n_iterations < self.n_iterations:
+            result._validation_f1 = None
+        return result
 
     @property
     def native_model(self) -> catboost.CatBoostClassifier:
@@ -111,10 +136,10 @@ class CatBoostClassificationModel(PythonModel):
     @property
     def best_iteration(self) -> int | None:
         """Return the zero-based best iteration index, or None when unavailable."""
-        if self._best_iteration is not None:
-            return self._best_iteration
-        value = self.native_model.get_best_iteration()
-        if value is None or value < 0:
+        value = self._best_iteration
+        if value is None:
+            value = self.native_model.get_best_iteration()
+        if value is None or value < 0 or value >= self.n_iterations:
             return None
         return int(value)
 
@@ -150,7 +175,12 @@ class CatBoostClassificationModel(PythonModel):
             The adapter has not been fitted.
         """
         self.native_model
-        params = refit_parameters(self.params, self.best_iteration)
+        iteration = (
+            self.best_iteration
+            if self._retained_iterations is None
+            else self._retained_iterations - 1
+        )
+        params = refit_parameters(self.params, iteration)
         if self._threshold is not None:
             params["decision_threshold"] = self._threshold
         return params
@@ -224,6 +254,7 @@ class CatBoostClassificationModel(PythonModel):
                 )
         self._validation_f1 = None
         self._best_iteration = None
+        self._retained_iterations = None
         self._validate_params(params, train, validation)
         baseline = self._calculate_baseline(train)
         params["boost_from_average"] = False
@@ -523,6 +554,7 @@ class CatBoostClassificationModel(PythonModel):
             "pu_prior": self._pu_prior,
             "best_iteration": self._best_iteration,
             "training_params": self.params.copy(),
+            "retained_iterations": self._retained_iterations,
         }
 
     def load_context(self, context: Any) -> None:
@@ -538,6 +570,7 @@ class CatBoostClassificationModel(PythonModel):
         self._validation_f1 = state["validation_f1"]
         self._pu_loss, self._pu_prior = state["pu_loss"], state["pu_prior"]
         self._best_iteration = state["best_iteration"]
+        self._retained_iterations = state.get("retained_iterations")
         logger.debug("Loaded CatBoost classifier: PU loss=%s", self._pu_loss)
 
 

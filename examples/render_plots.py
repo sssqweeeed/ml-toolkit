@@ -20,6 +20,11 @@ from typing import cast
 ROOT = Path(__file__).resolve().parents[1]
 PAGES = (
     "docs/evaluation/index.md",
+    "docs/evaluation/model.md",
+    "docs/evaluation/permutation.md",
+    "docs/evaluation/robustness.md",
+    "docs/evaluation/metric-trend.md",
+    "docs/evaluation/residuals.md",
     "docs/evaluation/classification.md",
     "docs/evaluation/observed-fitted.md",
     "docs/evaluation/ranking.md",
@@ -32,6 +37,11 @@ PAGES = (
     "docs/evaluation/custom.md",
 )
 FIGURE_NAMES = (
+    "shrink-mae.png",
+    "permutation-mae.png",
+    "robustness-missing.png",
+    "metric-trend-mae.png",
+    "residuals-diagnostics.png",
     "precision_recall/test/precision_recall.png",
     "f1_threshold/test/f1_threshold.png",
     "calibration/test/calibration.png",
@@ -117,7 +127,45 @@ def _validate_results(page: str, namespace: dict[str, object]) -> None:
         assert example.split.to_list() == ["train"] * len(example.train) + [
             "test"
         ] * len(example.test)
-    if page.endswith("classification.md"):
+    if page.endswith("residuals.md"):
+        from ml_toolkit.evaluation import ResidualResult
+
+        diagnostics = cast(ResidualResult, namespace["diagnostics"])
+        assert diagnostics.rows.height == len(example.data)
+        assert diagnostics.worst.height == 30
+        np.testing.assert_allclose(diagnostics.bins["sum_weight"].sum(), len(example.data))
+    elif page.endswith("metric-trend.md"):
+        trend = cast(pl.DataFrame, namespace["table"])
+        assert trend["period_start"].n_unique() == 24
+        assert trend["metric"].unique().to_list() == ["mae"]
+        assert trend["sum_weight"].min() > 0
+    elif page.endswith("robustness.md"):
+        table = cast(pl.DataFrame, namespace["table"])
+        assert table.height == 31
+        baseline = table.filter(pl.col("is_baseline"))["value"][0]
+        unmodified = table.filter((~pl.col("is_baseline")) & (pl.col("level") == 0))
+        np.testing.assert_allclose(unmodified["value"].to_numpy(), baseline)
+    elif page.endswith("permutation.md"):
+        importance = cast(pl.DataFrame, namespace["importance"])
+        assert importance.height == 12
+        assert importance["features"].list.len().max() == 2
+        assert importance["baseline"].n_unique() == 1
+        assert importance["importance"].is_finite().all()
+    elif page.endswith("model.md"):
+        table = cast(pl.DataFrame, namespace["table"])
+        assert table.height == 24
+        assert table["n_iterations"].n_unique() == 12
+        for part, pool in (("train", example.train), ("test", example.test)):
+            prediction = example.model.predict_pool(pool)
+            expected = np.average(
+                abs(pool.y.to_numpy() - prediction), weights=pool.weight.to_numpy()
+            )
+            actual = table.filter(
+                (pl.col("split") == part)
+                & (pl.col("n_iterations") == example.model.n_iterations)
+            )["value"][0]
+            np.testing.assert_allclose(actual, expected)
+    elif page.endswith("classification.md"):
         curve = cast(pd.DataFrame, namespace["curve"])
         assert len(curve) > 1000
         assert curve.equals(cast(pd.DataFrame, namespace["precision_recall_table"]))

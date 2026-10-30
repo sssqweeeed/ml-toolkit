@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, Protocol, Self
+from typing import TYPE_CHECKING, Protocol, Self, runtime_checkable
 
 import catboost
 from mlflow.models.model import ModelInfo
@@ -13,6 +13,32 @@ if TYPE_CHECKING:
 
     from ..config import TrackingConfig
     from ..training.contracts import Pool
+
+
+@runtime_checkable
+class ShrinkableModel(Protocol):
+    """Optional fitted prediction adapter supporting independent prefix copies.
+
+    Sizes count boosting iterations, starting at one, rather than zero-based
+    best-iteration indices. Implementing this protocol does not require fit/log.
+    """
+
+    @property
+    def n_iterations(self) -> int:
+        """Return the number of iterations used by ordinary predictions."""
+        ...
+
+    def shrink(self, n_iterations: int) -> Self:
+        """Return an independent adapter retaining the first n_iterations.
+
+        Reject non-integers and sizes outside [1, n_iterations]. The original
+        adapter, its fitted state and predictions must remain unchanged.
+        """
+        ...
+
+    def predict_pool(self, data: Pool) -> FloatArray:
+        """Return task-scale predictions, including fitted transformations."""
+        ...
 
 
 class Model(Protocol):

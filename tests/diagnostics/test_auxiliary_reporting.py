@@ -105,7 +105,7 @@ def test_numerical_distribution_receives_original_values_and_infers_auxiliaries(
 ):
     captured = []
     monkeypatch.setattr(
-        "ml_toolkit.data_analysis.monitoring.time_feature_distribution",
+        "ml_toolkit.plots.monitoring.time_feature_distribution",
         lambda reference, current, name, *a, **kw: captured.append(
             (name, reference[name], current[name])
         ),

@@ -119,7 +119,7 @@ def test_distribution_interface_matches_legacy_plot(tmp_path, monkeypatch, forma
         calls.append((args, kwargs))
 
     monkeypatch.setattr(
-        "ml_toolkit.data_analysis.monitoring.time_feature_distribution", capture
+        "ml_toolkit.plots.monitoring.time_feature_distribution", capture
     )
     inputs = dict(
         data=data,

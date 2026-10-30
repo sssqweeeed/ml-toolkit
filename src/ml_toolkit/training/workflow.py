@@ -19,8 +19,9 @@ from .contracts import (
 )
 from .evaluation import evaluate_model
 from .psi import prepare_psi_baseline, log_model_with_baseline
-from .reporting import prepare_evaluators, prepare_analyzers
+from .reporting import prepare_evaluators, prepare_analyzers, prepare_model_evaluators
 from ..evaluation import PredictionEvaluator
+from ..model_evaluation import ModelEvaluator
 from ..data_analysis import DataAnalyzer
 from .fit import refit_model, fit_split
 from .results import SplitResult, TrainingResult, ValidationResult
@@ -43,6 +44,7 @@ def train_model(
         PredictionEvaluator | list[PredictionEvaluator] | None
     ) = None,
     data_analyzers: DataAnalyzer | list[DataAnalyzer] | None = None,
+    model_evaluators: ModelEvaluator | list[ModelEvaluator] | None = None,
 ) -> TrainingResult:
     """Tune, validate, refit and optionally test a complete training workflow.
 
@@ -76,9 +78,14 @@ def train_model(
         None or an empty list disables evaluator calls, not data analysis or PSI/SHAP.
     data_analyzers : DataAnalyzer, list[DataAnalyzer], or None, default None
         Data reports receiving the same pool and split labels without predictions.
-        Called in list order after prediction evaluators, using the same stage
-        flags and selected features. Names must be unique across both lists and
+        Called in list order after prediction/model evaluators, using the same stage
+        flags and selected features. Names must be unique across all report lists and
         enabled PSI/SHAP. None or [] disables custom data reports, not PSI.
+
+    model_evaluators : ModelEvaluator, list[ModelEvaluator], or None, default None
+        Reports receiving the fitted adapter, task metric and aligned data/split
+        labels. Run after prediction evaluators and before data analyzers, under
+        the same reporting stage flags. Names are unique across all reports.
 
     Returns
     -------
@@ -116,8 +123,9 @@ def train_model(
         if config.tuning is not None and param_space is None:
             raise ValueError("param_space is required when tuning is enabled")
         analyzers = prepare_analyzers(data_analyzers)
+        model_reports = prepare_model_evaluators(model_evaluators)
         evaluators = prepare_evaluators(
-            prediction_evaluators, config.reporting, analyzers
+            prediction_evaluators, config.reporting, analyzers, model_reports
         )
 
         logger.info("Starting training run %s", run_name)
@@ -157,6 +165,17 @@ def train_model(
                 ],
                 "configuration/data_analyzers.json",
             )
+            tracking.log_json(
+                [
+                    {
+                        "name": item.name,
+                        "class": f"{type(item).__module__}.{type(item).__qualname__}",
+                        "parameters": item.parameters(),
+                    }
+                    for item in model_reports
+                ],
+                "configuration/model_evaluators.json",
+            )
             logger.info("Starting validation")
             with tracking.run("validation"):
                 split_results: list[SplitResult] = []
@@ -180,6 +199,7 @@ def train_model(
                             feature_selector=feature_selector,
                             evaluators=evaluators,
                             analyzers=analyzers,
+                            model_evaluators=model_reports,
                             param_space=param_space,
                             index=part.index,
                         )
@@ -244,6 +264,7 @@ def train_model(
                     config.reporting,
                     evaluators,
                     analyzers=analyzers,
+                    model_evaluators=model_reports,
                     psi_baseline=baseline,
                     stage=stage,
                     name=stage,
@@ -306,6 +327,7 @@ def train_model(
                         config.reporting,
                         evaluators,
                         analyzers=analyzers,
+                        model_evaluators=model_reports,
                         psi_baseline=baseline,
                         stage="final_fit",
                         name="final_fit",

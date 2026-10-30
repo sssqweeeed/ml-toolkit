@@ -16,6 +16,7 @@ class RegressionState(TypedDict):
     baseline: float | None
     baseline_mode: str
     training_params: ModelParams
+    retained_iterations: NotRequired[int | None]
 
 
 class ClassificationState(TypedDict):
@@ -30,6 +31,7 @@ class ClassificationState(TypedDict):
     pu_prior: float | None
     best_iteration: int | None
     training_params: ModelParams
+    retained_iterations: NotRequired[int | None]
 
 
 class InflationState(TypedDict):
