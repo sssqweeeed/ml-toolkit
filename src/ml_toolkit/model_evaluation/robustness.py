@@ -7,15 +7,15 @@ from typing import Literal
 import numpy as np
 import polars as pl
 
-from ._model_evaluator import ModelEvaluator
-from .config import FigureConfig
-from .data import Pool
-from .data_analysis import validate_split
-from .metrics import Metric
-from .metrics._evaluation import calculate_metrics
-from .models.base import Model, ShrinkableModel
-from .plots.utils import feature_filename
-from .types import FloatArray
+from .base import ModelEvaluator
+from ..config import FigureConfig
+from ..data import Pool
+from ..data_analysis._common import validate_split
+from ..metrics import Metric
+from ..metrics._evaluation import calculate_metrics
+from ..models.base import Model, ShrinkableModel
+from ..plots.utils import feature_filename
+from ..types import FloatArray
 
 _SCHEMA = {
     "split": pl.String,
@@ -362,7 +362,7 @@ class RobustnessCurve(ModelEvaluator):
         artifact_dir: Path,
         figure: FigureConfig,
     ) -> list[Path]:
-        from .plots.robustness import robustness_curve
+        from ..plots.robustness import robustness_curve
 
         table = self.calculate(model=model, metric=metric, data=data, split=split)
         if table.is_empty():

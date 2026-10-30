@@ -6,10 +6,10 @@ import re
 
 import polars as pl
 
-from .config import FigureConfig
-from .data import Pool
-from .feature_levels import FeatureLevelConfig
-from .types import FloatArray
+from ..config import FigureConfig
+from ..data import Pool
+from ..feature_levels import FeatureLevelConfig
+from ..types import FloatArray
 
 
 @dataclass(frozen=True, kw_only=True)

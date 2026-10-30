@@ -1,21 +1,17 @@
-"""Reports that evaluate fitted models rather than a single prediction vector."""
+"""Task-metric curves for independent fitted ensemble prefixes."""
 
 from dataclasses import dataclass
 from pathlib import Path
-
 import numpy as np
 import polars as pl
-
-from ._model_evaluator import ModelEvaluator
-from ._permutation_importance import PermutationImportance
-from ._robustness_curve import RobustnessCurve
-from .config import FigureConfig
-from .data import Pool
-from .data_analysis import validate_split
-from .metrics import Metric
-from .metrics._evaluation import calculate_metrics
-from .models.base import Model, ShrinkableModel
-from .plots.utils import feature_filename
+from .base import ModelEvaluator
+from ..config import FigureConfig
+from ..data import Pool
+from ..data_analysis._common import validate_split
+from ..metrics import Metric
+from ..metrics._evaluation import calculate_metrics
+from ..models.base import Model, ShrinkableModel
+from ..plots.utils import feature_filename
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -177,7 +173,7 @@ class ShrinkCurve(ModelEvaluator):
         artifact_dir: Path,
         figure: FigureConfig,
     ) -> list[Path]:
-        from .plots.model_evaluation import shrink_curve
+        from ..plots.model_evaluation import shrink_curve
 
         table = self.calculate(model=model, metric=metric, data=data, split=split)
         artifact_dir.mkdir(parents=True, exist_ok=True)
@@ -191,6 +187,3 @@ class ShrinkCurve(ModelEvaluator):
             shrink_curve(table, metric=key, save_fig=path, figure=figure)
             paths.append(path)
         return paths
-
-
-__all__ = ["ModelEvaluator", "ShrinkCurve", "PermutationImportance", "RobustnessCurve"]

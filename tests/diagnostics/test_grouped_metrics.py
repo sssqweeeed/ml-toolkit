@@ -140,7 +140,7 @@ def test_typed_missing_and_multicolumn_groups(inputs, dtype, values):
 def test_time_groups_and_limits_use_exact_keys(inputs, monkeypatch, tmp_path):
     calls = []
     monkeypatch.setattr(
-        "ml_toolkit.evaluation.regression.time_observed_fitted",
+        "ml_toolkit.plots.regression.time_observed_fitted",
         lambda *a, **kw: calls.append(kw),
     )
     common = dict(

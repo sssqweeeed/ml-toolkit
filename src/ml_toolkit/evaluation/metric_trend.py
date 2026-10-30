@@ -6,16 +6,16 @@ from pathlib import Path
 import numpy as np
 import polars as pl
 
-from ._prediction_evaluator import PredictionEvaluator
-from ._time import PERIOD_INTERVALS, period_starts
-from .config import FigureConfig
-from .data import Pool
-from .data_analysis import validate_split
-from .feature_levels import FeatureLevelConfig
-from .metrics import Metric
-from .metrics._evaluation import validate_prediction
-from .plots.utils import feature_filename
-from .types import FloatArray, IntArray, TimePeriod
+from .base import PredictionEvaluator
+from .._time import PERIOD_INTERVALS, period_starts
+from ..config import FigureConfig
+from ..data import Pool
+from ..data_analysis._common import validate_split
+from ..feature_levels import FeatureLevelConfig
+from ..metrics import Metric
+from ..metrics._evaluation import validate_prediction
+from ..plots.utils import feature_filename
+from ..types import FloatArray, IntArray, TimePeriod
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -232,7 +232,7 @@ class MetricTrend(PredictionEvaluator):
         features: tuple[FeatureLevelConfig, ...] | None,
         n_bins: int,
     ) -> list[Path]:
-        from .plots.metric_trend import metric_trend
+        from ..plots.metric_trend import metric_trend
 
         table = self.calculate(data=data, prediction=prediction, split=split)
         artifact_dir.mkdir(parents=True, exist_ok=True)

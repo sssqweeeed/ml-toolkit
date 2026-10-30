@@ -6,10 +6,10 @@ import re
 
 import polars as pl
 
-from .config import FigureConfig
-from .data import Pool
-from .metrics import Metric
-from .models.base import Model, ShrinkableModel
+from ..config import FigureConfig
+from ..data import Pool
+from ..metrics import Metric
+from ..models.base import Model, ShrinkableModel
 
 
 @dataclass(frozen=True, kw_only=True)

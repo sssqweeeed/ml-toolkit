@@ -7,13 +7,13 @@ from typing import Literal
 import numpy as np
 import polars as pl
 
-from ._model_evaluator import ModelEvaluator
-from .config import FigureConfig
-from .data import Pool
-from .data_analysis import validate_split
-from .metrics import Metric
-from .metrics._evaluation import calculate_metrics
-from .models.base import Model, ShrinkableModel
+from .base import ModelEvaluator
+from ..config import FigureConfig
+from ..data import Pool
+from ..data_analysis._common import validate_split
+from ..metrics import Metric
+from ..metrics._evaluation import calculate_metrics
+from ..models.base import Model, ShrinkableModel
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -227,7 +227,7 @@ class PermutationImportance(ModelEvaluator):
         artifact_dir: Path,
         figure: FigureConfig,
     ) -> list[Path]:
-        from .plots.permutation_importance import permutation_importance
+        from ..plots.permutation_importance import permutation_importance
 
         table = self.calculate(model=model, metric=metric, data=data, split=split)
         if table.is_empty():

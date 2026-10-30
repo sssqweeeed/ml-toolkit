@@ -7,13 +7,13 @@ from typing import Literal, cast
 import numpy as np
 import polars as pl
 
-from ._prediction_evaluator import PredictionEvaluator
-from .config import FigureConfig
-from .data import Pool
-from .data_analysis import validate_split
-from .feature_levels import FeatureLevelConfig
-from .metrics._evaluation import validate_prediction
-from .types import FloatArray, IntArray
+from .base import PredictionEvaluator
+from ..config import FigureConfig
+from ..data import Pool
+from ..data_analysis._common import validate_split
+from ..feature_levels import FeatureLevelConfig
+from ..metrics._evaluation import validate_prediction
+from ..types import FloatArray, IntArray
 
 ResidualLoss = Literal["squared", "absolute", "poisson", "gamma"]
 
@@ -359,7 +359,7 @@ class Residuals(PredictionEvaluator):
         features: tuple[FeatureLevelConfig, ...] | None,
         n_bins: int,
     ) -> list[Path]:
-        from .plots.residuals import residual_diagnostics
+        from ..plots.residuals import residual_diagnostics
 
         result = self.calculate(data=data, prediction=prediction, split=split)
         artifact_dir.mkdir(parents=True, exist_ok=True)

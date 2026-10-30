@@ -45,9 +45,9 @@ def test_independent_fits_produce_identical_train_levels(monkeypatch, psi, obser
         levels.append(self.feature_levels)
         return result
 
-    import ml_toolkit.evaluation as evaluation
+    from ml_toolkit.plots import regression
 
-    original = evaluation.regression.observed_fitted_by_level
+    original = regression.observed_fitted_by_level
 
     def plot(*args, **kwargs):
         result = original(*args, **kwargs)
@@ -55,7 +55,7 @@ def test_independent_fits_produce_identical_train_levels(monkeypatch, psi, obser
         return result
 
     monkeypatch.setattr(LevelTransformer, "fit", capture)
-    monkeypatch.setattr(evaluation.regression, "observed_fitted_by_level", plot)
+    monkeypatch.setattr(regression, "observed_fitted_by_level", plot)
     monkeypatch.setattr(
         "ml_toolkit.training.reporting.tracking.log_artifact",
         lambda path, artifact_path: artifacts.append(f"{artifact_path}/{path.name}"),
