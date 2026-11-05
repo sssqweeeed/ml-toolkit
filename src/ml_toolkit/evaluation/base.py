@@ -17,7 +17,9 @@ class PredictionEvaluator:
     """Named additional metrics and artifacts; neither method is mandatory.
 
     ``evaluate`` keys are logged under ``<name>/<key>`` and do not become CV
-    averages or optimization objectives. Return finite scalar values only.
+    averages or ordinary training results. Pass this instance to
+    ``TuningConfig.evaluator`` to select one returned key as a trial objective.
+    Return finite scalar values only.
     ``write_artifacts`` receives shared figure and feature-level settings.
     Only returned files are uploaded under ``<name>/``. The directory is deleted
     after uploading.
@@ -49,7 +51,9 @@ class PredictionEvaluator:
         -------
         dict of str to float
             Finite values logged as ``<name>/<key>``. Include the sample in keys
-            when relevant; these values do not become optimization objectives.
+            when relevant. TuningConfig.metric selects an exact returned key when
+            this instance is configured as its evaluator. Calculate that score
+            from validation rows, identified by split == "val".
         """
         return {}
 

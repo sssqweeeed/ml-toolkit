@@ -32,8 +32,8 @@ def tune_optuna(
     score : Callable[[ModelParams], float]
         Receives complete copied parameters and returns one finite objective.
     config : TuningConfig
-        Direction, trial/time budget and TPE seed. metric is interpreted by
-        the workflow callback rather than this optimizer.
+        Direction, trial/time budget and TPE seed. metric and evaluator are
+        interpreted by the workflow callback rather than this optimizer.
 
     Returns
     -------
@@ -56,9 +56,13 @@ def tune_optuna(
         parameters[trial.number] = params.copy()
         with tracking.run(f"trial_{trial.number + 1}"):
             tracking.log_params(params)
-            value = score(params.copy())
-            if not np.isfinite(value):
-                raise ValueError("score must return a finite numeric scalar")
+            try:
+                value = score(params.copy())
+                if not np.isfinite(value):
+                    raise ValueError("score must return a finite numeric scalar")
+            except Exception as exc:
+                exc.add_note(f"Optuna trial={trial.number} (zero-based)")
+                raise
             value = float(value)
             tracking.log_metrics({"objective": value})
             logger.debug(

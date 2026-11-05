@@ -126,24 +126,42 @@ def fit_split(
                     log_model=config.tracking.log_trial_models,
                     stage="tuning",
                 )
-                trial_scores = evaluate_model(
-                    trial_model,
-                    train,
-                    validation,
-                    metric,
-                    config.reporting,
-                    evaluators,
-                    analyzers=analyzers,
-                    model_evaluators=model_evaluators,
-                    psi_baseline=baseline,
-                    stage="tuning",
-                    name=f"validation/split_{index}/tuning",
-                )
+                try:
+                    trial_scores = evaluate_model(
+                        trial_model,
+                        train,
+                        validation,
+                        metric,
+                        config.reporting,
+                        evaluators,
+                        analyzers=analyzers,
+                        model_evaluators=model_evaluators,
+                        psi_baseline=baseline,
+                        stage="tuning",
+                        name=f"validation/split_{index}/tuning",
+                        objective_evaluator=tuning_config.evaluator,
+                    )
+                except Exception as exc:
+                    if tuning_config.evaluator is not None:
+                        exc.add_note(
+                            f"Tuning evaluator={tuning_config.evaluator.name}, "
+                            f"metric={tuning_config.metric!r}, split={index}"
+                        )
+                    raise
                 if config.tracking.log_trial_models:
                     log_model_with_baseline(
                         trial_model, validation, model_tracking, baseline
                     )
-                return (trial_scores.heldout_metrics or {})[tuning_config.metric]
+                if tuning_config.evaluator is None:
+                    return (trial_scores.heldout_metrics or {})[tuning_config.metric]
+                objective_metrics = trial_scores.objective_metrics or {}
+                if tuning_config.metric not in objective_metrics:
+                    raise ValueError(
+                        f"Tuning evaluator={tuning_config.evaluator.name}, "
+                        f"metric={tuning_config.metric!r}, split={index}: "
+                        f"objective key is missing; available keys: {sorted(objective_metrics)}"
+                    )
+                return objective_metrics[tuning_config.metric]
 
             tuning = tune_optuna(
                 base_params=params,

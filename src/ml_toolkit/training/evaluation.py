@@ -18,7 +18,7 @@ from ..models.base import Model
 from ..tracking import runs as tracking
 from ..types import FloatArray
 from .contracts import DatasetSplit, Pool, TrainingStage
-from .reporting import report_predictions
+from .reporting import evaluate_report_metrics, report_predictions
 
 logger = Logger(__name__)
 
@@ -27,6 +27,7 @@ logger = Logger(__name__)
 class EvaluationResult:
     train_metrics: dict[str, float]
     heldout_metrics: dict[str, float] | None
+    objective_metrics: dict[str, float] | None = None
 
 
 def evaluate_model(
@@ -43,6 +44,7 @@ def evaluate_model(
     name: str,
     split: DatasetSplit = DatasetSplit.VAL,
     psi_baseline: PSIBaseline | None = None,
+    objective_evaluator: PredictionEvaluator | None = None,
 ) -> EvaluationResult:
     datasets = [(DatasetSplit.TRAIN, train)]
     if heldout is not None:
@@ -84,9 +86,11 @@ def evaluate_model(
         "test": reporting.on_test,
         "final_fit": reporting.on_final_fit,
     }[stage]
-    if enabled and (
+    reports_enabled = enabled and bool(
         evaluators or model_evaluators or analyzers or reporting.psi or reporting.shap is not None
-    ):
+    )
+    objective_metrics = None
+    if reports_enabled or objective_evaluator is not None:
         data = _combine_pools(train, heldout)
         prediction = (
             predictions[DatasetSplit.TRAIN]
@@ -99,20 +103,30 @@ def evaluate_model(
                 for part, pool in datasets
             ]
         ).rename("split")
-        report_predictions(
-            model=model,
-            data=data,
-            prediction=prediction,
-            split=labels,
-            evaluators=evaluators,
-            model_evaluators=model_evaluators,
-            metric=metric,
-            analyzers=analyzers,
-            config=reporting,
-            stage=name,
-            psi_baseline=psi_baseline,
-        )
-    return EvaluationResult(scores[DatasetSplit.TRAIN], scores.get(split))
+        if objective_evaluator is not None:
+            objective_metrics = evaluate_report_metrics(
+                name=objective_evaluator.name,
+                evaluate=lambda: objective_evaluator.evaluate(
+                    data=data, prediction=prediction, split=labels
+                ),
+                context=f"Prediction evaluation evaluator={objective_evaluator.name}, stage={name}",
+            )
+        if reports_enabled:
+            report_predictions(
+                model=model,
+                data=data,
+                prediction=prediction,
+                split=labels,
+                evaluators=evaluators,
+                model_evaluators=model_evaluators,
+                metric=metric,
+                analyzers=analyzers,
+                config=reporting,
+                stage=name,
+                psi_baseline=psi_baseline,
+                scored_evaluator=objective_evaluator,
+            )
+    return EvaluationResult(scores[DatasetSplit.TRAIN], scores.get(split), objective_metrics)
 
 
 def _combine_pools(train: Pool, heldout: Pool | None) -> Pool:

@@ -105,6 +105,13 @@ The core `metric=` drives training results; `audit/test/mae` is the additional
 logged metric. The CSV contains the actual test timestamps, targets, predictions,
 and weights, so its rows reproduce the extra score.
 
+To use this evaluator as an Optuna objective, pass its instance to
+`TuningConfig.evaluator` and select `metric="val/mae"`. The evaluator then runs on
+each trial even when reporting is disabled. Reporting remains an explicit choice
+through `prediction_evaluators`; using the same instance reuses its trial scores.
+The [parameter-tuning guide](../api/tuning.md#tune-with-an-evaluator) shows the
+complete executable workflow and explains objective errors and logging.
+
 Use a different name for each instance. Override `parameters()` only when your
 report has settings to record; return explicit JSON-compatible values rather
 than internal data or fitted state. This evaluator needs no override.

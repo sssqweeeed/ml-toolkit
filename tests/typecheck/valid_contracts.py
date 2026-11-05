@@ -20,7 +20,7 @@ import pandas as pd
 from examples.project_pool import ProjectPool
 from examples.custom_model import model_factory
 from ml_toolkit import Pool, TrainingResult, train_model
-from ml_toolkit.config import ReportingConfig, TrainingConfig
+from ml_toolkit.config import ReportingConfig, TrainingConfig, TuningConfig
 from ml_toolkit.metrics import (
     Metric,
     MetricScores,
@@ -129,6 +129,9 @@ def contracts(data: Pool) -> None:
         BusinessEvaluator(name="quality"),
     ]
     assert_type(evaluators[0].name, str)
+    tuning = TuningConfig(evaluator=evaluators[0], metric="val/profit", direction="maximize")
+    assert_type(tuning.evaluator, PredictionEvaluator | None)
+    TuningConfig(evaluator=None, metric="mae", direction="minimize")
     inputs: tuple[PredictionEvaluator | list[PredictionEvaluator] | None, ...] = (
         None,
         evaluators[0],
