@@ -105,6 +105,12 @@ def fit_split(
                             selection.selected_step
                         ].metrics.items()
                     },
+                    **{
+                        f"selection/objective_metrics/{key}": value
+                        for key, value in (
+                            selection.steps[selection.selected_step].objective_metrics or {}
+                        ).items()
+                    },
                 }
             )
             report_feature_selection(

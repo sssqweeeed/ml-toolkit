@@ -98,6 +98,9 @@ def invalid_test_sizes(data: Pool) -> None:
     Holdout(data, test_size={"start_date": "2025-01-01"})  # expected-type-error
 
 RFESelector(ranker=importance_ranker, min_features=1, metric='mae', direction='minimize', holdout=None)  # expected-type-error
+RFESelector(ranker=importance_ranker, min_features=1, metric='mae', direction='minimize', evaluator='business')  # expected-type-error
+ForwardSelector(max_features=1, max_fits=2, metric='mae', direction='minimize', evaluator=['business'])  # expected-type-error
+TopKSelector(k=1, ranker=importance_ranker, evaluator=PredictionEvaluator(name='business'))  # expected-type-error
 
 from ml_toolkit.config import FeatureLevelConfig
 

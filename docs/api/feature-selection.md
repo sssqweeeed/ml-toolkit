@@ -94,7 +94,8 @@ error. With no protected columns it starts by comparing every singleton.
 prefer the original feature order. `steps` contains all evaluated candidates,
 including rejected ones, with metrics and timings; `selected_step` identifies
 the returned subset. No fitted models are retained. `settings` records concrete
-JSON-compatible configuration; executable rankers are excluded.
+JSON-compatible configuration; executable rankers and evaluators are excluded.
+An evaluator-based selector records its evaluator's name under `evaluator`.
 Its public type, `ml_toolkit.feature_selection.SelectionSettings`, is a flat
 dictionary with string keys and values of type `str`, `int`, `float`, `bool`,
 `None`, or `tuple[str, ...]`. Use it for a custom selector's configuration;
@@ -103,8 +104,96 @@ the tuple form records feature names.
 Each validation run stores concrete settings and every evaluated subset in
 `selection/history.json`, including scores, timings, available importances and
 `selected_step`.
-The selected scores are logged under `selection/metrics/<name>`; fit count,
+Ordinary validation scores remain in each step's `metrics`; an evaluator's
+scores are stored separately in `objective_metrics`, or `None` when no evaluator
+is configured. The selected ordinary scores are logged under
+`selection/metrics/<name>`, and selected evaluator scores under
+`selection/objective_metrics/<key>`; fit count,
 feature count and selected index have separate `selection/` entries.
+
+### Use an evaluator objective
+
+RFE and Forward accept an optional `PredictionEvaluator` instance. `metric`
+selects its exact returned key, without the evaluator's name. Omitting
+`evaluator`, or setting it to `None`, uses the ordinary validation metric.
+Top-K selects exactly `k` features from its ranker and has no evaluator option.
+
+Continue with the setup above. The reusable
+[custom evaluator](../evaluation/custom.md) computes weighted validation MAE;
+the ordinary frequency metric continues to populate each candidate's `metrics`.
+
+<!-- example: selection-evaluator -->
+
+```python
+from examples.custom_evaluator import PredictionAudit
+
+audit = PredictionAudit(name="audit")
+evaluator_selectors = (
+    RFESelector(
+        min_features=3,
+        ranker=importance_ranker,
+        evaluator=audit,
+        metric="val/mae",
+        direction="minimize",
+        max_fits=3,
+    ),
+    ForwardSelector(
+        evaluator=audit,
+        metric="val/mae",
+        direction="minimize",
+        max_features=2,
+        max_fits=21,
+    ),
+)
+for selector in evaluator_selectors:
+    selection = selector.select(
+        train=partition.train,
+        validation=partition.heldout,
+        params=params,
+        model_factory=CatBoostLogLinkRegressionModel,
+        metric=metrics_frequency,
+    )
+    chosen = selection.steps[selection.selected_step]
+    assert chosen.objective_metrics is not None
+    print(
+        type(selector).__name__,
+        "features:", len(selection.features),
+        "validation MAE:", round(chosen.objective_metrics["val/mae"], 3),
+    )
+```
+
+<!-- output: selection-evaluator -->
+```text
+RFESelector features: 6 validation MAE: 128.957
+ForwardSelector features: 2 validation MAE: 130.012
+```
+<!-- /output -->
+
+Pass either configured selector through `train_model(feature_selector=...)` to
+record its history and draw its search plots in the normal workflow. Plots use
+`objective_metrics` when present and label the evaluator and metric. Ordinary
+metrics, CV averages, and independent test scores keep their usual meanings.
+
+For each candidate, the evaluator receives one combined train/validation pool,
+aligned predictions, and `split` labels. It must select validation rows for its
+objective; training rows can supply a comparison baseline. `data.X` contains the
+candidate's selected features. Put metadata needed for every candidate in
+`auxiliary_features`, which is retained along with targets, dates, weights, and
+object IDs. Test rows are never passed into feature selection.
+
+RFE uses the evaluator to choose the smallest visited subset within
+`score_tolerance` of its best score; its ranker still controls elimination.
+Forward uses it to compare additions and apply `min_improvement`, including a
+protected-only baseline. Both thresholds are in the evaluator score's units.
+
+Evaluator scoring runs independently of reporting flags. It calls only
+`evaluate()`, once per fitted candidate, without generating evaluator artifacts.
+Standalone selection starts no tracking runs and logs no metrics. Ordinary
+selection predicts only validation rows; using an evaluator also predicts
+training rows for each candidate, without additional model fits. The requested
+key must exist and every evaluator score must be finite. Errors identify the
+evaluator, requested key, and candidate feature subset. Evaluator scores stay
+separate from ordinary scores even when their keys are identical.
 
 ### Automatic selection plots
 

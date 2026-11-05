@@ -41,6 +41,39 @@ def figures(monkeypatch):
     return captured
 
 
+def test_rfe_plot_uses_evaluator_scores_with_colliding_ordinary_keys(tmp_path, figures):
+    result = history(
+        "rfe",
+        [
+            replace(step(names, 1000 + index), objective_metrics={"score": score})
+            for index, (names, score) in enumerate([("abc", 1.0), ("ab", 3.0), ("a", 2.0)])
+        ],
+        1, score_tolerance=0, evaluator="business",
+    )
+    plots.rfe_progress(result, tmp_path / "evaluator-rfe.png")
+    ax = figures[0].axes[0]
+    line = next(line for line in ax.lines if line.get_label() == "Evaluated subset")
+    np.testing.assert_array_equal(line.get_ydata(), [1.0, 3.0, 2.0])
+    assert "business/score" in ax.get_ylabel()
+
+
+def test_forward_plots_use_evaluator_scores_for_path_and_improvements(tmp_path, figures):
+    original = forward_history()
+    result = replace(
+        original,
+        steps=tuple(
+            replace(step, metrics={"score": 1000 + index}, objective_metrics=step.metrics.copy())
+            for index, step in enumerate(original.steps)
+        ),
+        settings={**original.settings, "evaluator": "business"},
+    )
+    plots.forward_progress(result, tmp_path / "evaluator-forward.png")
+    plots.forward_improvement(result, tmp_path / "evaluator-improvement.png")
+    np.testing.assert_allclose(figures[0].axes[0].lines[0].get_ydata(), [0.6, 0.7])
+    np.testing.assert_allclose(figures[1].axes[0].lines[2].get_ydata(), [0.1, 0.001])
+    assert "business/score" in figures[0].axes[0].get_ylabel()
+
+
 @pytest.mark.parametrize("direction,sign", [("maximize", 1), ("minimize", -1)])
 def test_rfe_real_scores_best_choice_and_tolerance(tmp_path, figures, direction, sign):
     scores = np.array([0.80, 0.818, 0.816, 0.79]) * sign

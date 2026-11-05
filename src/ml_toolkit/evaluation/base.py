@@ -19,6 +19,8 @@ class PredictionEvaluator:
     ``evaluate`` keys are logged under ``<name>/<key>`` and do not become CV
     averages or ordinary training results. Pass this instance to
     ``TuningConfig.evaluator`` to select one returned key as a trial objective.
+    ``RFESelector.evaluator`` and ``ForwardSelector.evaluator`` select candidate
+    feature subsets in the same way, retaining scores in selection history.
     Return finite scalar values only.
     ``write_artifacts`` receives shared figure and feature-level settings.
     Only returned files are uploaded under ``<name>/``. The directory is deleted
@@ -51,9 +53,10 @@ class PredictionEvaluator:
         -------
         dict of str to float
             Finite values logged as ``<name>/<key>``. Include the sample in keys
-            when relevant. TuningConfig.metric selects an exact returned key when
-            this instance is configured as its evaluator. Calculate that score
-            from validation rows, identified by split == "val".
+            when relevant. Evaluator-based tuning, RFE, and Forward select an exact
+            returned key through their metric setting. Calculate that score from
+            validation rows, identified by split == "val". Standalone selection
+            returns scores in its history without logging them.
         """
         return {}
 
