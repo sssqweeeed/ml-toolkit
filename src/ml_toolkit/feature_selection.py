@@ -9,14 +9,17 @@ from time import perf_counter
 from typing import TYPE_CHECKING, Literal, Protocol, TypeAlias
 
 import numpy as np
+import polars as pl
 
 from ._console import Logger
 from .data import validate_training_data, validate_training_categories
 from .metrics import Metric
+from .metrics._evaluation import validate_prediction
 from .models.base import Model
 from .types import ModelParams
 
 if TYPE_CHECKING:
+    from .evaluation import PredictionEvaluator
     from .training.contracts import FeatureRanker, Pool
 
 logger = Logger(__name__)
@@ -59,6 +62,9 @@ class FeatureSelectionStep:
         Elapsed ranking and importance validation time, or zero when no ranking is performed.
     best_iteration : int or None
         Adapter's zero-based best iteration; not used for final fitting.
+    objective_metrics : dict[str, float] or None, default None
+        Finite evaluator scores with their exact returned keys, separate from
+        ordinary metrics. None means the ordinary metric supplies the objective.
     """
 
     features: tuple[str, ...]
@@ -69,6 +75,7 @@ class FeatureSelectionStep:
     evaluation_seconds: float
     ranking_seconds: float
     best_iteration: int | None
+    objective_metrics: dict[str, float] | None = None
 
 
 @dataclass(frozen=True)
@@ -86,7 +93,8 @@ class FeatureSelectionResult:
 
     settings : SelectionSettings
         Flat configuration with string keys and scalar or string-tuple values;
-        excludes models and rankers.
+        excludes models, rankers and evaluator objects. Evaluator-based selectors
+        record the evaluator name under "evaluator".
 
     Notes
     -----
@@ -188,6 +196,7 @@ def _evaluate(
     metric: Metric,
     objective: str | None = None,
     ranker: FeatureRanker | None = None,
+    evaluator: PredictionEvaluator | None = None,
 ) -> FeatureSelectionStep:
     train = train.select_features(names)
     validation = validation.select_features(names)
@@ -196,8 +205,7 @@ def _evaluate(
     fit_seconds = perf_counter() - started
     started = perf_counter()
     prediction = model.predict_pool(validation)
-    if prediction.shape != (len(validation),) or not np.isfinite(prediction).all():
-        raise ValueError("Predictions must contain one finite value per row")
+    validate_prediction(validation, prediction)
     scores = dict(
         metric(
             validation.y.to_numpy().astype(float),
@@ -205,13 +213,37 @@ def _evaluate(
             validation.weight.to_numpy().astype(float),
         ).to_dict()
     )
-    if objective is not None:
-        if objective not in scores:
-            raise ValueError(
-                f"Metric {objective!r} is unavailable. Available metrics: {sorted(scores)}"
+    objective_metrics = None
+    try:
+        if evaluator is not None:
+            from .evaluation._inputs import combine_evaluation_pools
+            from .evaluation._metrics import validate_report_metrics
+
+            train_prediction = model.predict_pool(train)
+            validate_prediction(train, train_prediction)
+            data = combine_evaluation_pools(train, validation)
+            labels = pl.Series("split", ["train"] * len(train) + ["val"] * len(validation))
+            objective_metrics = validate_report_metrics(
+                evaluator.evaluate(
+                    data=data,
+                    prediction=np.concatenate([train_prediction, prediction]),
+                    split=labels,
+                )
             )
-        if not np.isfinite(scores[objective]):
-            raise ValueError(f"Selection metric {objective!r} must be finite")
+        objective_scores = scores if objective_metrics is None else objective_metrics
+        if objective is not None:
+            if objective not in objective_scores:
+                raise ValueError(
+                    f"Metric {objective!r} is unavailable. Available metrics: {sorted(objective_scores)}"
+                )
+            if not np.isfinite(objective_scores[objective]):
+                raise ValueError(f"Selection metric {objective!r} must be finite")
+    except Exception as exc:
+        if evaluator is not None:
+            exc.add_note(
+                f"Feature selection evaluator={evaluator.name}, metric={objective!r}, features={names}"
+            )
+        raise
     evaluation_seconds = perf_counter() - started
     importances: dict[str, float] = {}
     ranking_seconds = 0.0
@@ -236,6 +268,7 @@ def _evaluate(
         evaluation_seconds,
         ranking_seconds,
         model.best_iteration,
+        objective_metrics,
     )
 
 
@@ -249,7 +282,7 @@ class RFESelector:
         Requested minimum subset size, reached when the fit budget permits.
         The selected result can be larger.
     metric : str
-        Name of the finite validation score to optimize.
+        Ordinary validation score key, or the exact key returned by evaluator.
     direction : Literal['minimize', 'maximize']
         Objective direction.
     ranker : FeatureRanker
@@ -260,6 +293,12 @@ class RFESelector:
         Choose the smallest visited subset within this absolute distance of best.
     protected_features : tuple[str, ...], default ()
         Unique columns retained throughout, counted within min_features.
+    evaluator : PredictionEvaluator or None, default None
+        Optional objective evaluator called once per fitted subset with combined
+        train/validation rows and predictions. Select validation rows using split
+        labels. Candidate features and unchanged auxiliary fields are available.
+        Its evaluate method runs without tracking or artifact generation. None
+        uses the ordinary metric. The ranker still controls feature elimination.
 
     Notes
     -----
@@ -274,6 +313,7 @@ class RFESelector:
     max_fits: int = 6
     score_tolerance: float = 0.0
     protected_features: tuple[str, ...] = ()
+    evaluator: PredictionEvaluator | None = None
 
     def __post_init__(self) -> None:
         _validate_options(self.min_features, self.protected_features)
@@ -332,6 +372,7 @@ class RFESelector:
                 metric,
                 self.metric,
                 self.ranker if index + 1 < len(sizes) else None,
+                evaluator=self.evaluator,
             )
             if index + 1 < len(sizes):
                 ranked = sorted(
@@ -345,7 +386,10 @@ class RFESelector:
                 )
                 names = tuple(n for n in names if n in keep)
             history.append(step)
-        scores = [step.metrics[self.metric] for step in history]
+        scores = [
+            (step.metrics if step.objective_metrics is None else step.objective_metrics)[self.metric]
+            for step in history
+        ]
         best = min(scores) if self.direction == "minimize" else max(scores)
         eligible = [
             i
@@ -376,6 +420,7 @@ class RFESelector:
                 "max_fits": self.max_fits,
                 "score_tolerance": self.score_tolerance,
                 "protected_features": self.protected_features,
+                **({"evaluator": self.evaluator.name} if self.evaluator is not None else {}),
             },
         )
 
@@ -474,7 +519,7 @@ class ForwardSelector:
     Parameters
     ----------
     metric : str
-        Name of the finite validation objective.
+        Ordinary validation score key, or the exact key returned by evaluator.
     direction : Literal['minimize', 'maximize']
         Objective direction.
     max_features : int
@@ -486,6 +531,12 @@ class ForwardSelector:
         Strict minimum absolute improvement required to accept an addition.
     protected_features : tuple[str, ...], default ()
         Mandatory starting subset. Without it, compare every singleton first.
+    evaluator : PredictionEvaluator or None, default None
+        Optional objective evaluator called once per fitted subset with combined
+        train/validation rows and predictions, including a protected baseline.
+        Select validation rows using split labels. Candidate features and unchanged
+        auxiliary fields are available. Its evaluate method runs without tracking
+        or artifact generation. None uses the ordinary metric.
 
     Notes
     -----
@@ -500,6 +551,7 @@ class ForwardSelector:
     max_fits: int
     min_improvement: float = 0.0
     protected_features: tuple[str, ...] = ()
+    evaluator: PredictionEvaluator | None = None
 
     def __post_init__(self) -> None:
         _validate_options(self.max_features, self.protected_features)
@@ -557,6 +609,7 @@ class ForwardSelector:
                     model_factory,
                     metric,
                     self.metric,
+                    evaluator=self.evaluator,
                 )
             )
             selected_index = 0
@@ -576,16 +629,21 @@ class ForwardSelector:
                         model_factory,
                         metric,
                         self.metric,
+                        evaluator=self.evaluator,
                     )
                 )
             choose = min if self.direction == "minimize" else max
+            scores = [
+                (step.metrics if step.objective_metrics is None else step.objective_metrics)[self.metric]
+                for step in history
+            ]
             best_index = choose(
                 range(first, len(history)),
-                key=lambda i: history[i].metrics[self.metric],
+                key=scores.__getitem__,
             )
             if selected_index >= 0:
-                previous = history[selected_index].metrics[self.metric]
-                best = history[best_index].metrics[self.metric]
+                previous = scores[selected_index]
+                best = scores[best_index]
                 improvement = (
                     previous - best if self.direction == "minimize" else best - previous
                 )
@@ -605,5 +663,6 @@ class ForwardSelector:
                 "max_fits": self.max_fits,
                 "min_improvement": self.min_improvement,
                 "protected_features": self.protected_features,
+                **({"evaluator": self.evaluator.name} if self.evaluator is not None else {}),
             },
         )

@@ -1,11 +1,9 @@
 """Execute additional reporting and upload its explicitly selected artifacts."""
 
 from collections.abc import Callable
-import re
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-import numpy as np
 import polars as pl
 
 from .._console import Logger
@@ -17,6 +15,7 @@ from ..evaluation import (
     comparison_pair,
     validate_inputs,
 )
+from ..evaluation._metrics import validate_report_metrics
 from ..feature_levels import LevelTransformer
 from ..feature_levels.config import feature_definitions
 from ..feature_selection import FeatureSelectionResult
@@ -246,19 +245,7 @@ def evaluate_report_metrics(
     context: str,
 ) -> dict[str, float]:
     try:
-        values = evaluate()
-        metrics: dict[str, float] = {}
-        for key, value in values.items():
-            if (
-                not re.fullmatch(r"[\w .\-/]+", key)
-                or not key.strip()
-                or any(part in ("", ".", "..") for part in key.split("/"))
-            ):
-                raise ValueError(f"Invalid report metric name: {key!r}")
-            numeric = float(value)
-            if not np.isfinite(numeric):
-                raise ValueError(f"Report metric {key!r} must be finite")
-            metrics[key] = numeric
+        metrics = validate_report_metrics(evaluate())
         if metrics:
             tracking.log_metrics({f"{name}/{key}": value for key, value in metrics.items()})
         return metrics

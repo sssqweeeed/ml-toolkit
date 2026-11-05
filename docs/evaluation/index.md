@@ -128,6 +128,10 @@ training results. To optimize one returned score, pass the evaluator object to
 `TuningConfig.evaluator` and select the exact returned key with `metric`.
 See [evaluator objectives](../api/tuning.md#tune-with-an-evaluator) for a runnable
 example, scheduling, and validation rules.
+RFE and Forward can also use the evaluator object to choose feature subsets;
+see [feature-selection objectives](../api/feature-selection.md#use-an-evaluator-objective).
+They calculate candidate scores independently of reporting switches and store
+them separately from ordinary metrics in selection history.
 
 Only returned files are uploaded beneath `<name>/`. Single-sample reports use
 `val/` or `test/` subdirectories; comparison reports use their report root.

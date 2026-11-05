@@ -132,6 +132,21 @@ def contracts(data: Pool) -> None:
     tuning = TuningConfig(evaluator=evaluators[0], metric="val/profit", direction="maximize")
     assert_type(tuning.evaluator, PredictionEvaluator | None)
     TuningConfig(evaluator=None, metric="mae", direction="minimize")
+    rfe = RFESelector(
+        evaluator=evaluators[0], metric="val/profit", direction="maximize",
+        min_features=1, ranker=importance_ranker,
+    )
+    forward = ForwardSelector(
+        evaluator=evaluators[0], metric="val/profit", direction="maximize",
+        max_features=2, max_fits=5,
+    )
+    assert_type(rfe.evaluator, PredictionEvaluator | None)
+    assert_type(forward.evaluator, PredictionEvaluator | None)
+    selection = rfe.select(
+        train=data, validation=data, params={}, model_factory=CatBoostRegressionModel,
+        metric=dictionary_metric,
+    )
+    assert_type(selection.steps[0].objective_metrics, dict[str, float] | None)
     inputs: tuple[PredictionEvaluator | list[PredictionEvaluator] | None, ...] = (
         None,
         evaluators[0],

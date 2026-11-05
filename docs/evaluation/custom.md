@@ -112,6 +112,12 @@ through `prediction_evaluators`; using the same instance reuses its trial scores
 The [parameter-tuning guide](../api/tuning.md#tune-with-an-evaluator) shows the
 complete executable workflow and explains objective errors and logging.
 
+RFE and Forward also accept the instance through their `evaluator` argument.
+Select `metric="val/mae"` to guide subset choice while ordinary metrics remain
+available in selection history. See the
+[feature-selection example](../api/feature-selection.md#use-an-evaluator-objective)
+for both algorithms and their scoring and metadata rules.
+
 Use a different name for each instance. Override `parameters()` only when your
 report has settings to record; return explicit JSON-compatible values rather
 than internal data or fitted state. This evaluator needs no override.

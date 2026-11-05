@@ -43,10 +43,18 @@ def _objective(result: FeatureSelectionResult) -> tuple[str, bool, FloatArray]:
     if direction not in ("minimize", "maximize"):
         raise PlotError("Selection direction must be minimize or maximize")
     try:
-        scores = numeric_vector([step.metrics[metric] for step in result.steps], metric)
+        scores = numeric_vector(
+            [
+                (step.metrics if step.objective_metrics is None else step.objective_metrics)[metric]
+                for step in result.steps
+            ],
+            metric,
+        )
     except KeyError as exc:
         raise PlotError(f"Selection metric {metric!r} is missing from history") from exc
-    return metric, direction == "maximize", scores
+    evaluator = result.settings.get("evaluator")
+    label = f"{evaluator}/{metric}" if evaluator is not None else metric
+    return label, direction == "maximize", scores
 
 
 def _number(result: FeatureSelectionResult, name: str) -> float:
