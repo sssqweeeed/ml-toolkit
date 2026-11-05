@@ -111,6 +111,9 @@ the fitted native model.
 control both methods of every evaluator and data analyzer, plus PSI/SHAP. Defaults are false, true,
 true, and true. Reports that require held-out rows skip `final_fit`.
 Core training metrics are calculated independently. PSI and SHAP are opt-in.
+An evaluator configured in `TuningConfig.evaluator` calculates trial objectives
+independently of reporting switches. Its reports still require explicitly
+including the same instance in `prediction_evaluators`.
 Feature-selection search plots are also independent of these stage switches:
 they are always written to each split's existing `selection/` folder when a
 built-in selector runs. See [selection plots](../api/feature-selection.md#automatic-selection-plots).
@@ -120,8 +123,11 @@ each report page explains which settings it uses.
 Names must be unique across prediction/model evaluators and data analyzers ignoring case, start with an ASCII letter or digit, and
 contain only ASCII letters, digits, underscores, hyphens, or dots. Enabled PSI
 and SHAP reserve `psi` and `shap`. Give repeated report instances distinct names.
-Extra metrics are logged as `<name>/<key>`, and do not enter CV averages,
-training results, or optimization objectives.
+Extra metrics are logged as `<name>/<key>` and do not enter CV averages or ordinary
+training results. To optimize one returned score, pass the evaluator object to
+`TuningConfig.evaluator` and select the exact returned key with `metric`.
+See [evaluator objectives](../api/tuning.md#tune-with-an-evaluator) for a runnable
+example, scheduling, and validation rules.
 
 Only returned files are uploaded beneath `<name>/`. Single-sample reports use
 `val/` or `test/` subdirectories; comparison reports use their report root.

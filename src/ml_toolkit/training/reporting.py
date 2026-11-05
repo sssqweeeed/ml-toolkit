@@ -37,6 +37,7 @@ def prepare_evaluators(
     config: ReportingConfig,
     analyzers: tuple[DataAnalyzer, ...] = (),
     model_evaluators: tuple[ModelEvaluator, ...] = (),
+    objective_evaluator: PredictionEvaluator | None = None,
 ) -> tuple[PredictionEvaluator, ...]:
     """Normalize and validate names before fitting, even for disabled stages."""
     items = (
@@ -50,7 +51,12 @@ def prepare_evaluators(
         reserved.add("psi")
     if config.shap is not None:
         reserved.add("shap")
-    for item in (*items, *model_evaluators, *analyzers):
+    checked = items
+    if objective_evaluator is not None and not any(
+        item is objective_evaluator for item in items
+    ):
+        checked = (*items, objective_evaluator)
+    for item in (*checked, *model_evaluators, *analyzers):
         name = item.name.casefold()
         if name in names or name in reserved:
             raise ValueError(
@@ -172,6 +178,7 @@ def report_predictions(
     model_evaluators: tuple[ModelEvaluator, ...] = (),
     metric: Metric | None = None,
     psi_baseline: PSIBaseline | None = None,
+    scored_evaluator: PredictionEvaluator | None = None,
 ) -> None:
     """Run one already-enabled fit's reports; stage is only error context."""
     validate_inputs(data, prediction, split)
@@ -180,8 +187,11 @@ def report_predictions(
     for evaluator in evaluators:
         _run_report(
             name=evaluator.name,
-            evaluate=lambda: evaluator.evaluate(
-                data=data, prediction=prediction, split=split
+            evaluate=(
+                None if evaluator is scored_evaluator
+                else lambda: evaluator.evaluate(
+                    data=data, prediction=prediction, split=split
+                )
             ),
             write=lambda root: evaluator.write_artifacts(
                 data=data,
@@ -229,14 +239,12 @@ def report_predictions(
             raise
 
 
-def _run_report(
+def evaluate_report_metrics(
     *,
     name: str,
     evaluate: Callable[[], dict[str, float]],
-    write: Callable[[Path], list[Path]],
     context: str,
-) -> None:
-    """Apply the same metric and artifact rules to both report interfaces."""
+) -> dict[str, float]:
     try:
         values = evaluate()
         metrics: dict[str, float] = {}
@@ -250,9 +258,26 @@ def _run_report(
             numeric = float(value)
             if not np.isfinite(numeric):
                 raise ValueError(f"Report metric {key!r} must be finite")
-            metrics[f"{name}/{key}"] = numeric
+            metrics[key] = numeric
         if metrics:
-            tracking.log_metrics(metrics)
+            tracking.log_metrics({f"{name}/{key}": value for key, value in metrics.items()})
+        return metrics
+    except Exception as exc:
+        exc.add_note(context)
+        raise
+
+
+def _run_report(
+    *,
+    name: str,
+    evaluate: Callable[[], dict[str, float]] | None,
+    write: Callable[[Path], list[Path]],
+    context: str,
+) -> None:
+    """Apply the same metric and artifact rules to both report interfaces."""
+    if evaluate is not None:
+        evaluate_report_metrics(name=name, evaluate=evaluate, context=context)
+    try:
         with TemporaryDirectory(prefix="ml-toolkit-report-") as directory:
             root = Path(directory).resolve()
             upload_artifacts(root, write(root), name)

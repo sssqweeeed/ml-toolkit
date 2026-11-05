@@ -75,7 +75,9 @@ def train_model(
         Named evaluators called in list order with one combined pool and aligned
         train and optional val or test labels per fit. Names are unique ignoring
         case; object IDs are optional. ReportingConfig stage flags gate all reports.
-        None or an empty list disables evaluator calls, not data analysis or PSI/SHAP.
+        None or an empty list disables prediction reports, not data analysis or PSI/SHAP.
+        An evaluator configured as a tuning objective runs on trials independently;
+        include the same instance here to also enable its reports.
     data_analyzers : DataAnalyzer, list[DataAnalyzer], or None, default None
         Data reports receiving the same pool and split labels without predictions.
         Called in list order after prediction/model evaluators, using the same stage
@@ -124,8 +126,10 @@ def train_model(
             raise ValueError("param_space is required when tuning is enabled")
         analyzers = prepare_analyzers(data_analyzers)
         model_reports = prepare_model_evaluators(model_evaluators)
+        objective_evaluator = None if config.tuning is None else config.tuning.evaluator
         evaluators = prepare_evaluators(
-            prediction_evaluators, config.reporting, analyzers, model_reports
+            prediction_evaluators, config.reporting, analyzers, model_reports,
+            objective_evaluator,
         )
 
         logger.info("Starting training run %s", run_name)
@@ -135,7 +139,19 @@ def train_model(
             len(splitter.data.X.columns),
         )
         with tracking.run(run_name):
-            tracking.log_json(asdict(config), "configuration/requested.json")
+            requested: dict[str, object] = asdict(replace(config, tuning=None))
+            if config.tuning is not None:
+                tuning_settings: dict[str, object] = asdict(
+                    replace(config.tuning, evaluator=None)
+                )
+                if objective_evaluator is not None:
+                    tuning_settings["evaluator"] = {
+                        "name": objective_evaluator.name,
+                        "class": f"{type(objective_evaluator).__module__}.{type(objective_evaluator).__qualname__}",
+                        "parameters": objective_evaluator.parameters(),
+                    }
+                requested["tuning"] = tuning_settings
+            tracking.log_json(requested, "configuration/requested.json")
             tracking.log_json(
                 {
                     "class": f"{type(splitter).__module__}.{type(splitter).__qualname__}",

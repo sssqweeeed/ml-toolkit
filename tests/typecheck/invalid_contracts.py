@@ -28,6 +28,8 @@ TrainingConfig(validation={'n_splits': 3})  # expected-type-error
 TrainingConfig(verbosity='invalid')  # expected-type-error
 TrainingConfig(verbosity=True)  # expected-type-error
 TuningConfig(metric='mae', direction='invalid')  # expected-type-error
+TuningConfig(metric='mae', direction='minimize', evaluator='business')  # expected-type-error
+TuningConfig(metric='mae', direction='minimize', evaluator=[PredictionEvaluator(name='business')])  # expected-type-error
 ReportingConfig(figure=False)  # expected-type-error
 ReportingConfig(on_tuning='yes')  # expected-type-error
 ReportingConfig(on_final_fit=None)  # expected-type-error

@@ -84,6 +84,9 @@ class ReportingConfig:
     including their additional metrics and report artifacts, not training
     metrics or optimization. PSI baseline packaging follows model logging flags
     independently of stage report switches. All validation folds use the same settings.
+    An evaluator selected by TuningConfig still calculates objective metrics on
+    every trial; these switches gate its reports only when it is also explicitly
+    supplied through prediction_evaluators.
     PSI and observed/fitted use feature levels fitted on training rows.
     ``features=None`` infers model and auxiliary features; ``()`` disables level reports.
     ``period`` and ``epsilon`` apply only to PSI.
