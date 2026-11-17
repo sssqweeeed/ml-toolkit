@@ -32,6 +32,7 @@ class LearnedInflationState(TypedDict):
 
 
 class _LearnedOptions(TypedDict):
+    family: Literal["Gamma", "Poisson"]
     alpha: float
     control_features: list[str] | None
     extrapolation: Extrapolation
@@ -42,6 +43,7 @@ class InflationConfig(TypedDict):
     strategy: str
     annual_rate: NotRequired[float]
     monthly_index: NotRequired[dict[str, float]]
+    family: NotRequired[Literal["Gamma", "Poisson"]]
     alpha: NotRequired[float]
     control_features: NotRequired[list[str] | None]
     extrapolation: NotRequired[Extrapolation]
@@ -54,7 +56,7 @@ logger = Logger("ml_toolkit.inflation")
 
 
 class InflationAdjuster(ABC):
-    """Convert monetary values between price levels.
+    """Convert target values between temporal index levels.
 
     Notes
     -----
@@ -107,20 +109,20 @@ class InflationAdjuster(ABC):
         from_dates: pl.Series,
         to_dates: pl.Series,
     ) -> FloatArray:
-        """Return one multiplicative price-level conversion factor per date pair.
+        """Return one multiplicative index conversion factor per date pair.
 
         Parameters
         ----------
         from_dates : polars.Series
-            Non-null Date/Datetime values representing original price dates.
+            Non-null Date/Datetime values representing original observation dates.
         to_dates : polars.Series
-            Non-null Date/Datetime values representing desired price dates, with
+            Non-null Date/Datetime values representing desired index dates, with
             equal length to from_dates.
 
         Returns
         -------
         numpy.ndarray of shape (n_dates,)
-            Factors converting values at from_dates to equivalent values at
+            Factors converting values at from_dates to values at
             to_dates.
         """
         raise NotImplementedError
@@ -131,7 +133,7 @@ class InflationAdjuster(ABC):
         from_dates: pl.Series,
         to_dates: pl.Series,
     ) -> FloatArray:
-        """Apply price-level factors to monetary value arrays.
+        """Apply temporal index factors to target value arrays.
 
         Parameters
         ----------
@@ -147,7 +149,7 @@ class InflationAdjuster(ABC):
         Returns
         -------
         numpy.ndarray of shape (n_dates,)
-            Values expressed at the corresponding to_dates price levels.
+            Values expressed at the corresponding to_dates index levels.
 
         Raises
         ------
@@ -465,16 +467,19 @@ class ManualInflation(InflationAdjuster):
 
 
 class _LearnedInflation(InflationAdjuster):
-    """Shared Gamma estimation and date-only inference for a separable index."""
+    """Shared log-link estimation and date-only inference for a separable index."""
 
     def __init__(
         self,
         *,
+        family: Literal["Gamma", "Poisson"] = "Gamma",
         alpha: float = 0.001,
         control_features: Sequence[str] | None = None,
         extrapolation: Extrapolation = "linear",
         damping_half_life_years: float = 1.0,
     ) -> None:
+        if family not in ("Gamma", "Poisson"):
+            raise ValueError(f"Unsupported regression family: {family}")
         if not np.isfinite(alpha) or alpha < 0:
             raise ValueError("alpha must be finite and nonnegative")
         if extrapolation not in ("linear", "constant", "error", "damped"):
@@ -486,6 +491,7 @@ class _LearnedInflation(InflationAdjuster):
         names = None if control_features is None else tuple(control_features)
         if names is not None and len(set(names)) != len(names):
             raise ValueError("control_features must not contain duplicates")
+        self.family: Literal["Gamma", "Poisson"] = family
         self.alpha = float(alpha)
         self.control_features = names
         self.extrapolation: Extrapolation = extrapolation
@@ -495,14 +501,16 @@ class _LearnedInflation(InflationAdjuster):
         self._spline: BSpline | None = None
 
     def fit(self, data: Pool) -> Self:
-        """Estimate a common price trend using training targets and controls only.
+        """Estimate a common temporal trend using training targets and controls only.
 
         Parameters
         ----------
         data : ml_toolkit.data.Pool
-            Finite positive targets, finite nonnegative weights with positive
-            total, and non-null dates. Zero-weight rows are excluded before
-            fitting any transformations or determining the training range.
+            Finite targets, strictly positive for Gamma and nonnegative for
+            Poisson. Poisson requires a positive target on at least one
+            positive-weight row. Weights must be finite and nonnegative with
+            positive total; dates must be non-null. Zero-weight rows are excluded
+            before fitting transformations or determining the training range.
 
         Returns
         -------
@@ -511,14 +519,14 @@ class _LearnedInflation(InflationAdjuster):
 
         Notes
         -----
-        The Gamma mean has log-link intercept + linear numeric effects +
+        The selected mean has log-link intercept + linear numeric effects +
         categorical effects + trend(time). There are no feature/time
-        interactions: all objects share the same proportional price changes.
+        interactions: all objects share the same proportional temporal changes.
         Numeric missing values use training medians; all-missing numeric columns
         are dropped. Feature transformations are discarded after estimation.
         """
         from scipy.sparse import csr_matrix, hstack
-        from sklearn.linear_model import GammaRegressor
+        from sklearn.linear_model import GammaRegressor, PoissonRegressor
         from sklearn.preprocessing import (
             OneHotEncoder,
             SplineTransformer,
@@ -528,10 +536,13 @@ class _LearnedInflation(InflationAdjuster):
         super().fit(data)
         target = data.y.to_numpy().astype(float)
         weight = data.weight.to_numpy().astype(float)
-        if not np.isfinite(target).all() or (target <= 0).any():
-            raise ValueError(
-                "Learned inflation targets must be finite and strictly positive"
-            )
+        if self.family == "Gamma":
+            if not np.isfinite(target).all() or (target <= 0).any():
+                raise ValueError(
+                    "Learned inflation targets must be finite and strictly positive"
+                )
+        elif not np.isfinite(target).all() or (target < 0).any():
+            raise ValueError("Poisson targets must be finite and nonnegative")
         if (
             not np.isfinite(weight).all()
             or (weight < 0).any()
@@ -550,6 +561,10 @@ class _LearnedInflation(InflationAdjuster):
         if missing:
             raise ValueError(f"Control features are missing from X: {missing}")
         active = weight > 0
+        if self.family == "Poisson" and not (target[active] > 0).any():
+            raise ValueError(
+                "Poisson requires a positive target on a positive-weight row"
+            )
         timestamps = _timestamps_ns(data.time)[active]
         minimum_dates = 2 if self._n_knots is None else self._n_knots
         if len(np.unique(timestamps)) < minimum_dates:
@@ -604,7 +619,11 @@ class _LearnedInflation(InflationAdjuster):
                 .to_numpy()
             )
             blocks.append(OneHotEncoder(sparse_output=True).fit_transform(categories))
-        regressor = GammaRegressor(alpha=self.alpha, max_iter=1000, tol=1e-8)
+        regressor = (
+            GammaRegressor(alpha=self.alpha, max_iter=1000, tol=1e-8)
+            if self.family == "Gamma"
+            else PoissonRegressor(alpha=self.alpha, max_iter=1000, tol=1e-8)
+        )
         regressor.fit(
             hstack(blocks, format="csr"), target[active], sample_weight=weight[active]
         )
@@ -659,6 +678,7 @@ class _LearnedInflation(InflationAdjuster):
         """Return JSON-compatible constructor settings and optional fitted state."""
         config: InflationConfig = {
             "strategy": type(self).__name__,
+            "family": self.family,
             "alpha": self.alpha,
             "control_features": (
                 None if self.control_features is None else list(self.control_features)
@@ -739,6 +759,11 @@ class LogLinearInflation(_LearnedInflation):
 
     Parameters
     ----------
+    family : {'Gamma', 'Poisson'}, default 'Gamma'
+        Log-link regression family used to estimate the trend. Gamma requires
+        positive targets. Poisson accepts nonnegative counts or fractional
+        frequencies, with a positive target on a positive-weight row. For
+        frequencies, supply count / exposure as Pool.y and exposure as Pool.weight.
     alpha : float, default 0.001
         Nonnegative L2 regularization of both temporal and control effects.
     control_features : sequence of str or None, default None
@@ -753,8 +778,8 @@ class LogLinearInflation(_LearnedInflation):
 
     Notes
     -----
-    Fits a Gamma mean with log-link to positive targets, with linear numeric
-    and one-hot categorical controls. The inferred temporal effect is a common
+    Fits the selected mean to original targets, with linear numeric and one-hot
+    categorical controls. The inferred temporal effect is a common
     index, not an object-specific or causal inflation estimate. Missing controls
     and time-correlated characteristics can limit its interpretation. Dates use
     elapsed time in 365.25-day years; timezone-aware datetimes use UTC instants.
@@ -763,13 +788,18 @@ class LogLinearInflation(_LearnedInflation):
 
 
 class SplineInflation(_LearnedInflation):
-    """Learn a changing common price trend with a regularized cubic B-spline.
+    """Learn a changing common temporal trend with a regularized cubic B-spline.
 
     Parameters
     ----------
     n_knots : int, default 5
         Number of uniformly spaced knots over positive-weight training dates.
         Must be at least two; at least n_knots distinct dates are required.
+    family : {'Gamma', 'Poisson'}, default 'Gamma'
+        Log-link regression family used to estimate the trend. Gamma requires
+        positive targets. Poisson accepts nonnegative counts or fractional
+        frequencies, with a positive target on a positive-weight row. For
+        frequencies, supply count / exposure as Pool.y and exposure as Pool.weight.
     alpha : float, default 0.001
         Nonnegative L2 regularization of temporal basis and control effects.
     control_features : sequence of str or None, default None
@@ -783,7 +813,7 @@ class SplineInflation(_LearnedInflation):
 
     Notes
     -----
-    Uses the same weighted Gamma mean and shared-index assumption as
+    Uses the same weighted log-link mean and shared-index assumption as
     LogLinearInflation. Only time is spline-transformed; feature/time
     interactions, separate group trends and seasonality are not modeled.
     """
@@ -792,12 +822,14 @@ class SplineInflation(_LearnedInflation):
         self,
         *,
         n_knots: int = 5,
+        family: Literal["Gamma", "Poisson"] = "Gamma",
         alpha: float = 0.001,
         control_features: Sequence[str] | None = None,
         extrapolation: Extrapolation = "linear",
         damping_half_life_years: float = 1.0,
     ) -> None:
         super().__init__(
+            family=family,
             alpha=alpha,
             control_features=control_features,
             extrapolation=extrapolation,
@@ -838,6 +870,7 @@ def inflation_from_config(config: InflationConfig) -> InflationAdjuster:
         )
     if strategy in ("LogLinearInflation", "SplineInflation"):
         options: _LearnedOptions = {
+            "family": config.get("family", "Gamma"),
             "alpha": config.get("alpha", 0.001),
             "control_features": config.get("control_features"),
             "extrapolation": config.get("extrapolation", "linear"),

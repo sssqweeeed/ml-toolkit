@@ -1,8 +1,10 @@
 # Inflation
 
-Inflation strategies convert monetary values between price dates. Use a
-constant annual rate for a supplied assumption, a monthly index for historical
+Inflation strategies convert targets between dates using a multiplicative index.
+Use a constant annual rate for a supplied assumption, a monthly index for historical
 or planned levels, or a learned common index estimated from project observations.
+Learned strategies support Gamma for positive amounts and Poisson for counts or
+frequencies.
 
 ## Convert to a later price date
 
@@ -66,15 +68,15 @@ anchor range.
 
 ## Learn a common price index
 
-`LogLinearInflation` and `SplineInflation` estimate a weighted Gamma mean with
-a log link:
+`LogLinearInflation` and `SplineInflation` estimate a weighted mean with a log
+link, selected by `family="Gamma"` (the default) or `family="Poisson"`:
 
-`log(E[amount | features, date]) = intercept + feature effects + trend(date)`
+`log(E[target | features, date]) = intercept + feature effects + trend(date)`
 
 The first strategy has a linear time effect, giving a constant compound growth
 rate inside training. The second uses a regularized cubic B-spline to represent
-a changing growth rate. Both fit original positive amounts, rather than a
-regression on log-transformed targets.
+a changing growth rate. Both fit original targets, rather than a regression on
+log-transformed targets.
 
 **The proportional price change is shared by all objects.** Features help
 distinguish a change in product composition from price growth: an increasing
@@ -132,8 +134,10 @@ np.testing.assert_allclose(
 `fit(data)` takes a `Pool`. `control_features=None` uses every available column,
 an explicit sequence chooses controls, and `control_features=[]` fits dates
 only. Every preprocessing step uses positive-weight training rows only. Targets
-must be finite and strictly positive; weights must be finite and nonnegative
-with positive total. Zero-weight rows do not set the fitted time range or knots.
+must be finite: Gamma requires strictly positive values; Poisson allows zeros
+and fractional frequencies, with at least one positive target on a
+positive-weight row. Weights must be finite and nonnegative with positive total.
+Zero-weight rows do not set the fitted time range or knots.
 The linear method needs at least two distinct positive-weight timestamps; the
 spline needs at least `n_knots` (default five). These target and weight restrictions
 do not apply to the fixed strategies' no-op fit.
@@ -142,6 +146,57 @@ Both methods use elapsed time in 365.25-day years, including fractional days.
 Timezone-aware timestamps refer to UTC instants. Defaults are `alpha=0.001`
 (L2 regularization of time and control coefficients), `extrapolation="linear"`,
 and `damping_half_life_years=1.0`; the spline degree is fixed at three.
+`to_config()` preserves the selected family along with the learned index.
+Configurations without `family` load as Gamma.
+
+### Estimate a frequency trend
+
+For insurance frequency, prepare a `Pool` with `y = claim_count / exposure`,
+`weight = exposure`, recorded observation dates, and the relevant risk features.
+Keep contracts with no claims as zero targets. Select `family="Poisson"` in
+either learned strategy.
+
+The following executable example uses the recorded hourly counts from
+[UCI Bike Sharing](https://archive.ics.uci.edu/dataset/275/bike+sharing+dataset),
+also used in the [training guide](training.md). Each row has one observed hour
+of exposure, so the target is rentals per hour. Prepare its cache explicitly:
+
+```bash
+python -m examples.prepare_data --dataset bike
+```
+
+<!-- example: inflation-frequency -->
+
+```python
+from examples.gallery_data import load_bike_pool
+from ml_toolkit.data import Pool
+
+hourly = load_bike_pool(download_if_missing=False)
+counts, exposure = hourly.y, hourly.weight
+frequency_data = Pool(
+    X=hourly.X,
+    y=(counts / exposure).rename("frequency"),
+    time=hourly.time,
+    weight=exposure,
+    cat_features=hourly.cat_features,
+    numerical_features=hourly.numerical_features,
+)
+frequency_training = frequency_data.take(
+    np.flatnonzero((frequency_data.time.dt.year() == 2011).to_numpy())
+)
+frequency_trend = LogLinearInflation(
+    family="Poisson",
+    control_features=["temperature", "humidity", "hour"],
+).fit(frequency_training)
+frequency_factors = frequency_trend.factor(
+    pl.Series([date(2011, 1, 1)]), pl.Series([date(2012, 1, 1)])
+)
+assert np.isfinite(frequency_factors).all() and (frequency_factors > 0).all()
+```
+
+`frequency_factors` expresses the estimated change in rental frequency for fixed
+control features. The selected controls illustrate the interface; they do not
+account for all calendar effects in this dataset.
 
 ### Choose an extrapolation policy
 
@@ -307,6 +362,12 @@ Validation amounts are normalized using that fitted index. With
 `control_features=None`, feature selection also determines the controls available
 to each strategy fit. Explicit controls must be present in each supplied pool.
 Do not pass strategy settings as native CatBoost parameters.
+
+For both families, normalization multiplies only targets by the date-conversion
+factor; training and validation weights remain unchanged. Predictions are
+converted from the reference date to each requested date. Choose the strategy's
+`family` and the wrapped model's loss independently; the adapter does not check
+their compatibility.
 
 ### Compare strategies at calendar forecast horizons
 

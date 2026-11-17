@@ -115,6 +115,8 @@ def contracts(data: Pool) -> None:
     assert_type(ConstantRateInflation(0.03).fit(data), ConstantRateInflation)
     assert_type(LogLinearInflation(control_features=[]).fit(data), LogLinearInflation)
     assert_type(SplineInflation(n_knots=3).fit(data), SplineInflation)
+    assert_type(LogLinearInflation(family="Poisson").fit(data), LogLinearInflation)
+    assert_type(SplineInflation(family="Poisson").fit(data), SplineInflation)
     TrainingConfig(verbosity="silent")
     TrainingConfig(verbosity="normal")
     TrainingConfig(verbosity="verbose")
