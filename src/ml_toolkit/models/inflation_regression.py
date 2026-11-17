@@ -27,18 +27,18 @@ logger = Logger(__name__)
 
 
 class InflationAdjustedModel(PythonModel):
-    """Train at one price level and predict at each observation date.
+    """Train at one reference level and predict at each observation date.
 
     Parameters
     ----------
     model : CatBoostRegressionModel or None, default None
         Wrapped regression adapter fitted on inflation-normalized targets.
     inflation : InflationAdjuster or None, default None
-        Strategy converting monetary targets and predictions between dates.
+        Strategy converting targets and predictions between dates.
     reference_date : datetime.date or None, default None
-        Common price date used to normalize targets before fitting.
+        Common reference date used to normalize targets before fitting.
     prediction_date_column : str, default 'prediction_date'
-        Serving input column containing requested price dates. Must not
+        Serving input column containing requested prediction dates. Must not
         overwrite a fitted model feature when logging.
 
     Notes
@@ -46,6 +46,9 @@ class InflationAdjustedModel(PythonModel):
     Training data must supply with_target. Pool predictions use data.time;
     frame predictions use prediction_date_column. All three construction values
     may be omitted for artifact loading; partial configuration is rejected.
+    Normalization changes targets only, preserving training and validation
+    weights for every strategy family. The strategy's regression family is
+    independent of the wrapped model's loss; compatibility is caller-owned.
     """
 
     def __init__(
@@ -147,7 +150,7 @@ class InflationAdjustedModel(PythonModel):
         Notes
         -----
         Validation targets are normalized using the inflation strategy fitted on
-        training data.
+        training data. Training and validation weights are passed through unchanged.
         """
         logger.debug(
             "Fitting inflation-adjusted model at reference date %s", self.reference_date
@@ -166,7 +169,7 @@ class InflationAdjustedModel(PythonModel):
         return self
 
     def predict_pool(self, data: Pool) -> FloatArray:
-        """Predict monetary values at each row's observation date.
+        """Predict target values at each row's observation date.
 
         Parameters
         ----------
@@ -198,7 +201,7 @@ class InflationAdjustedModel(PythonModel):
         self,
         model_input: pl.DataFrame | pd.DataFrame,
     ) -> FloatArray:
-        """Predict monetary values at dates supplied in a serving frame.
+        """Predict target values at dates supplied in a serving frame.
 
         Parameters
         ----------

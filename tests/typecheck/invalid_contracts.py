@@ -13,6 +13,7 @@ import polars as pl
 
 from ml_toolkit import Pool, TrainingResult, train_model
 from ml_toolkit.models import CatBoostRegressionModel
+from ml_toolkit.inflation import LogLinearInflation, SplineInflation
 from ml_toolkit.config import (
     ReportingConfig,
     TrainingConfig,
@@ -25,6 +26,10 @@ from ml_toolkit.config import FigureConfig, FeatureLevelConfig
 from ml_toolkit.types import FloatArray, ModelParams
 
 TrainingConfig(validation={'n_splits': 3})  # expected-type-error
+LogLinearInflation(family="normal")  # expected-type-error
+SplineInflation(family="normal")  # expected-type-error
+LogLinearInflation("Poisson")  # expected-type-error
+SplineInflation("Poisson")  # expected-type-error
 TrainingConfig(verbosity='invalid')  # expected-type-error
 TrainingConfig(verbosity=True)  # expected-type-error
 TuningConfig(metric='mae', direction='invalid')  # expected-type-error

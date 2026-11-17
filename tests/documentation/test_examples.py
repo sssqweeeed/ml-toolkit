@@ -23,7 +23,7 @@ def test_captured_documentation_output_matches_examples(page):
     if page in {'README.md', 'docs/getting-started.md', 'docs/api/models.md',
                 'docs/api/training.md', 'docs/api/tracking.md', 'docs/api/custom-model.md',
                 'docs/api/splitting.md', 'docs/api/feature-selection.md',
-                'docs/api/tuning.md', 'docs/api/metrics.md'}:
+                'docs/api/tuning.md', 'docs/api/metrics.md', 'docs/api/inflation.md'}:
         if not bike_cache_available():
             pytest.skip('Prepare the original Bike Sharing cache before running this recipe')
     if page in {'docs/api/models.md', 'docs/api/inflation.md'} and not retail_cache_available():

@@ -114,6 +114,8 @@ def check_bundled_inference(
         "inflation_gamma",
         "inflation_log_linear",
         "inflation_spline",
+        "inflation_poisson_log_linear",
+        "inflation_poisson_spline",
     ],
 )
 def test_models_from_code_roundtrip_outside_repository(
@@ -122,6 +124,9 @@ def test_models_from_code_roundtrip_outside_repository(
     setup_mlflow(tmp_path)
     if kind in ("classification", "classification_auto", "uPU", "nnPU"):
         data = data.with_target(pl.Series("target", [1, 0, 0] * 16))
+    if kind.startswith("inflation_poisson"):
+        counts = pl.Series("target", [0, 1, 2] * 16)
+        data = data.with_target(counts / data.weight)
     if kind == "regression":
         model = CatBoostRegressionModel(PARAMS, prediction_type="RawFormulaVal")
     elif kind == "custom":
@@ -159,15 +164,22 @@ def test_models_from_code_roundtrip_outside_repository(
             if kind == "inflation_native"
             else CatBoostLogLinkRegressionModel
         )
-        regressor = regressor_factory(
-            {**PARAMS, "loss_function": "Gamma"} if kind == "inflation_gamma" else PARAMS
-        )
+        regressor_params = PARAMS
+        if kind.startswith("inflation_poisson"):
+            regressor_params = {**PARAMS, "loss_function": "Poisson"}
+        elif kind == "inflation_gamma":
+            regressor_params = {**PARAMS, "loss_function": "Gamma"}
+        regressor = regressor_factory(regressor_params)
         if kind == "inflation_native":
             inflation = ConstantRateInflation(0.03)
         elif kind == "inflation_log_linear":
             inflation = LogLinearInflation(extrapolation="damped")
         elif kind == "inflation_spline":
             inflation = SplineInflation(n_knots=4)
+        elif kind == "inflation_poisson_log_linear":
+            inflation = LogLinearInflation(family="Poisson", extrapolation="damped")
+        elif kind == "inflation_poisson_spline":
+            inflation = SplineInflation(family="Poisson", n_knots=4)
         else:
             inflation = ManualInflation({date(2024, 1, 1): 1.0, date(2025, 1, 1): 1.1})
         model = InflationAdjustedModel(regressor, inflation, date(2024, 1, 1))
@@ -209,6 +221,11 @@ def test_models_from_code_roundtrip_outside_repository(
         )
     state = model.export_state()
     assert state["version"] == 1 and state["model_type"] == type(model).__name__
+    if kind.startswith("inflation_poisson"):
+        assert state["inflation"]["family"] == "Poisson"
+        loaded = mlflow.pyfunc.load_model(info.model_uri).unwrap_python_model()
+        assert loaded.inflation.to_config()["family"] == "Poisson"
+        assert loaded.inflation.to_config() == model.inflation.to_config()
     nested = (
         type(model.model).__name__ if isinstance(model, InflationAdjustedModel) else ""
     )
