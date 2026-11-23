@@ -14,6 +14,8 @@ from ..types import ModelParams
 
 NativeT = TypeVar("NativeT", bound=catboost.CatBoost)
 
+ITERATION_ALIASES = ("iterations", "n_estimators", "num_trees", "num_boost_round")
+
 
 def normalize_loss(params: ModelParams) -> ModelParams:
     params = params.copy()
@@ -85,8 +87,7 @@ def native_fit(
 def refit_parameters(params: ModelParams, best_iteration: int | None) -> ModelParams:
     result = params.copy()
     if best_iteration is not None:
-        aliases = ("iterations", "n_estimators", "num_trees", "num_boost_round")
-        key = next((name for name in aliases if name in result), "iterations")
+        key = next((name for name in ITERATION_ALIASES if name in result), "iterations")
         result[key] = int(best_iteration) + 1
     for key in ("early_stopping_rounds", "od_type", "od_wait", "od_pval"):
         result.pop(key, None)
