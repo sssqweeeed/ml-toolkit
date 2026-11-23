@@ -15,8 +15,9 @@ from ..feature_selection import FeatureSelector
 from ..metrics import Metric
 from ..model_evaluation import ModelEvaluator
 from ..models.base import Model
+from ..tracking import log_json, nested_run
 from ..types import ModelParams
-from .evaluation import evaluate_model, log_json, nested_run
+from .evaluation import evaluate_model
 from .psi import log_model_with_baseline, prepare_psi_baseline
 from .reporting import report_feature_selection
 from .results import SplitResult

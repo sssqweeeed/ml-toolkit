@@ -1,13 +1,10 @@
 """Predict and score train, validation and test datasets."""
 
-import json
 from dataclasses import dataclass
-from typing import Literal
 
 import mlflow
 import numpy as np
 import polars as pl
-from mlflow.tracking.fluent import ActiveRun
 
 from .._console import Logger, metrics
 from ..config import ReportingConfig
@@ -20,20 +17,9 @@ from ..models.base import Model
 from ..psi import PSIBaseline
 from ..types import FloatArray
 from .reporting import evaluate_report_metrics, report_predictions
-from .results import DatasetSplit
+from .results import DatasetSplit, TrainingStage
 
 logger = Logger(__name__)
-
-TrainingStage = Literal["tuning", "validation", "test", "final_fit"]
-
-
-def nested_run(name: str) -> ActiveRun:
-    """Start an MLflow run, nested when a parent run is active."""
-    return mlflow.start_run(run_name=name, nested=mlflow.active_run() is not None)
-
-
-def log_json(payload: object, artifact_file: str) -> None:
-    mlflow.log_text(json.dumps(payload, default=str, indent=2), artifact_file)
 
 
 @dataclass(frozen=True)

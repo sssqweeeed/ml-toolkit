@@ -1,6 +1,6 @@
 """Model adapters for training and MLflow inference."""
 
-from .artifacts import TrackingConfig
+from .artifacts import TrackingConfig, merge_artifacts
 from .base import Model, ShrinkableModel
 from .catboost_classification import (
     CatBoostClassificationModel,
@@ -12,6 +12,7 @@ from .inflation_regression import InflationAdjustedModel
 __all__ = [
     "Model",
     "TrackingConfig",
+    "merge_artifacts",
     "ShrinkableModel",
     "CatBoostRegressionModel",
     "CatBoostLogLinkRegressionModel",

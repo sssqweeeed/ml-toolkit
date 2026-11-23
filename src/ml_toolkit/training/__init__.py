@@ -5,9 +5,6 @@ from ..config import ReportingConfig as ReportingConfig
 from ..config import ShapConfig as ShapConfig
 from ..config import TrainingConfig as TrainingConfig
 from ..config import TuningConfig as TuningConfig
-from ..data import Pool as Pool
-from ..figures import FigureConfig as FigureConfig
-from ..models import TrackingConfig as TrackingConfig
 from .rankers import ShapRanker, importance_ranker
 from .results import (
     DatasetSplit,
@@ -26,7 +23,6 @@ __all__ = [
     "Holdout",
     "TimeSeriesCV",
     "DatasetSplit",
-    "Pool",
     "SplitResult",
     "TrainingResult",
     "TuningResult",
@@ -37,9 +33,7 @@ __all__ = [
     "tune_optuna",
     "TuningConfig",
     "TrainingConfig",
-    "TrackingConfig",
     "FeatureLevelConfig",
-    "FigureConfig",
     "ShapConfig",
     "ReportingConfig",
 ]

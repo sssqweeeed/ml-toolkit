@@ -15,6 +15,7 @@ loading. Old import paths are removed without compatibility aliases.
 | `ml_toolkit.training.TrackingConfig` | `ml_toolkit.models.TrackingConfig` |
 | `ml_toolkit.training.FigureConfig` | `ml_toolkit.figures.FigureConfig` |
 | `ml_toolkit.training.FeatureRanker` | `ml_toolkit.feature_selection.FeatureRanker` |
+| `ml_toolkit.training.Pool` | `ml_toolkit.Pool` or `ml_toolkit.data.Pool` |
 | `ml_toolkit.training.contracts.DatasetSplit` | `ml_toolkit.training.DatasetSplit` |
 | `ml_toolkit.training.contracts.Pool` | `ml_toolkit.Pool` or `ml_toolkit.data.Pool` |
 | `ml_toolkit.training.evaluation.calculate_metrics` | `ml_toolkit.metrics.calculate_metrics` |
@@ -27,7 +28,10 @@ loading. Old import paths are removed without compatibility aliases.
 | `ml_toolkit.tracking.model_artifacts` | `ml_toolkit.models.artifacts` |
 | `ml_toolkit.tracking.mlflow.log_polars_table` | `ml_toolkit.tracking.log_polars_table` |
 | `ml_toolkit.tracking.psi.load_psi_baseline` | `ml_toolkit.tracking.load_psi_baseline` |
-| `ml_toolkit.tracking.runs` | removed; call `mlflow` directly |
+| `ml_toolkit.tracking.runs.run`, `log_json` | `ml_toolkit.tracking.nested_run`, `log_json` |
+| `ml_toolkit.tracking.runs.log_params`, `log_metrics`, `log_artifact` | removed; call `mlflow` directly |
+| `ml_toolkit.tracking.model_artifacts.merge_artifacts` | `ml_toolkit.models.merge_artifacts` |
+| `ml_toolkit.training.contracts.TrainingStage` | `ml_toolkit.training.results.TrainingStage` |
 | `ml_toolkit.tracking.entrypoints.*` | removed; see below |
 
 ## Packaging entrypoints
@@ -35,6 +39,12 @@ loading. Old import paths are removed without compatibility aliases.
 MLflow models-from-code entrypoints are now generated when a model is logged,
 so `ml_toolkit.tracking.entrypoints` no longer exists. Artifacts written by
 earlier versions contain their own entrypoint file and load unchanged.
+
+`log_model_from_code` (in `ml_toolkit.models.artifacts`) now takes `model_class`
+(and optionally `model_module`, default `ml_toolkit.models`) instead of
+`source`, the path of an entrypoint file. Only toolkit adapters exported from
+that module can be logged this way; other classes raise `ValueError`. Custom
+adapters package themselves, as in `examples/custom_model.py`.
 
 ## Internal checks
 

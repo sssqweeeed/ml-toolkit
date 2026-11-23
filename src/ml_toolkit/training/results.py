@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import Literal
 
 import numpy as np
 
@@ -27,6 +28,9 @@ class DatasetSplit(StrEnum):
     TRAIN = "train"
     VAL = "val"
     TEST = "test"
+
+
+TrainingStage = Literal["tuning", "validation", "test", "final_fit"]
 
 
 @dataclass(frozen=True)

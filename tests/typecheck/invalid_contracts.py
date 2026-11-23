@@ -205,3 +205,13 @@ def invalid_time_gap(data: Pool) -> None:
 class WrongFullPool(WrongSplitter):
     def get_final(self) -> Split[Pool]:  # expected-type-error
         return Split(self.data)
+
+
+from ml_toolkit.models import TrackingConfig
+from ml_toolkit.metrics import calculate_metrics
+
+TrackingConfig(log_test_model='yes')  # expected-type-error
+
+
+def invalid_scoring(data: Pool) -> None:
+    calculate_metrics(data, data, data.y.to_numpy())  # expected-type-error

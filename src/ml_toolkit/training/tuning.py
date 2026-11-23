@@ -8,8 +8,8 @@ import optuna
 
 from .._console import Logger
 from ..config import TuningConfig
+from ..tracking import nested_run
 from ..types import ModelParams
-from .evaluation import nested_run
 from .results import TuningResult
 
 logger = Logger(__name__)

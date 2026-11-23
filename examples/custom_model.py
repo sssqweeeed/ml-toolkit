@@ -20,8 +20,7 @@ from mlflow.models.model import ModelInfo
 
 from ml_toolkit import Pool, train_model
 from ml_toolkit.config import TrainingConfig
-from ml_toolkit.models import CatBoostRegressionModel, TrackingConfig
-from ml_toolkit.models.artifacts import merge_artifacts
+from ml_toolkit.models import CatBoostRegressionModel, TrackingConfig, merge_artifacts
 from ml_toolkit.training import Holdout
 from ml_toolkit.types import FloatArray, ModelParams
 

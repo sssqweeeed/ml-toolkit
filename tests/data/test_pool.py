@@ -11,7 +11,6 @@ from polars.testing import assert_frame_equal, assert_series_equal
 from examples.project_pool import ProjectPool as Pool
 from ml_toolkit import Pool as PublicPool
 from ml_toolkit.data import validate_training_categories, validate_training_data
-from ml_toolkit.training import Pool as TrainingPool
 
 
 @pytest.fixture
@@ -33,7 +32,7 @@ def pool():
 
 
 def test_public_pool_is_one_shared_container(pool):
-    assert PublicPool is TrainingPool is Pool
+    assert PublicPool is Pool
     assert type(pool) is PublicPool
 
 
