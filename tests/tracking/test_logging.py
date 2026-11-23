@@ -424,3 +424,23 @@ def test_exceptions_propagate_without_error_records(tmp_path, caplog):
         record.getMessage().startswith("Completed training")
         for record in toolkit_records(caplog)
     )
+
+
+def test_user_subclass_cannot_be_logged_through_generated_entrypoint(monkeypatch):
+    class UserAdapter(CatBoostRegressionModel):
+        pass
+
+    def unreachable(**kwargs):
+        raise AssertionError("must fail before logging")
+
+    monkeypatch.setattr(mlflow.pyfunc, "log_model", unreachable)
+    with pytest.raises(ValueError, match="only toolkit adapters exported"):
+        log_model_from_code(
+            model_class=UserAdapter,
+            sample_frame=pd.DataFrame({"x": [1.0]}),
+            sample_prediction=np.array([2.0]),
+            artifacts={},
+            metadata={},
+            params={},
+            name="example",
+        )

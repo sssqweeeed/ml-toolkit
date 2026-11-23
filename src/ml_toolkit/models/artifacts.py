@@ -1,5 +1,6 @@
 """MLflow models-from-code packaging and its settings."""
 
+import importlib
 import json
 import shutil
 from collections.abc import Mapping
@@ -100,6 +101,14 @@ def log_model_from_code(
     packages: tuple[str, ...] = (),
     extra_artifacts: Mapping[str, str] | None = None,
 ) -> ModelInfo:
+    if (
+        getattr(importlib.import_module(model_module), model_class.__name__, None)
+        is not model_class
+    ):
+        raise ValueError(
+            f"{model_class.__name__} is not exported by {model_module}; only "
+            "toolkit adapters exported from that module can be logged this way"
+        )
     artifacts = merge_artifacts(artifacts, extra_artifacts)
     if sample_frame.empty:
         raise ValueError("The logging sample must contain at least one row.")
@@ -143,14 +152,6 @@ def log_model_from_code(
             ignore=shutil.ignore_patterns(
                 "__pycache__",
                 "*.py[co]",
-                ".pytest_cache",
-                ".mypy_cache",
-                ".ruff_cache",
-                ".cache",
-                ".codex",
-                ".codegraph",
-                ".agents",
-                "AGENTS.md",
             ),
         )
         model_info = mlflow.pyfunc.log_model(
@@ -173,7 +174,25 @@ def log_model_from_code(
 def merge_artifacts(
     artifacts: Mapping[str, str], extra_artifacts: Mapping[str, str] | None
 ) -> dict[str, str]:
-    """Merge explicitly supplied artifacts without overwriting model state."""
+    """Merge extra artifacts into a model's artifacts without overwriting any.
+
+    Parameters
+    ----------
+    artifacts : Mapping[str, str]
+        Artifact names and local paths written by the model adapter.
+    extra_artifacts : Mapping[str, str] or None
+        Additional named artifacts, for example a PSI baseline.
+
+    Returns
+    -------
+    dict[str, str]
+        New dictionary containing both sets of artifacts.
+
+    Raises
+    ------
+    ValueError
+        If an extra artifact reuses a model artifact name.
+    """
     extra: Mapping[str, str] = {} if extra_artifacts is None else extra_artifacts
     overlap = artifacts.keys() & extra.keys()
     if overlap:
