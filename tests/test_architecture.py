@@ -75,13 +75,6 @@ FUNCTION_LEVEL_IMPORTS: set[tuple[str, str]] = {
     ),
     ("ml_toolkit.model_evaluation.robustness", "ml_toolkit.plots.robustness"),
     ("ml_toolkit.model_evaluation.shrink", "ml_toolkit.plots.model_evaluation"),
-    # Phase 2: training-only code (metrics, numba kernels) is split from serving
-    # code; serving environments must not import it, see check_model_inference.
-    ("ml_toolkit.models.catboost_classification", "ml_toolkit.metrics.classification"),
-    ("ml_toolkit.models.catboost_classification", "ml_toolkit.models.losses.pu.cpu"),
-    ("ml_toolkit.models.losses.gamma.config", "ml_toolkit.models.losses.gamma.cpu"),
-    ("ml_toolkit.models.losses.pu.common", "ml_toolkit.metrics.pu"),
-    ("ml_toolkit.models.losses.pu.common", "ml_toolkit.models.losses.pu.cpu"),
     # Phase 3: report-metric validation moves to reports.
     ("ml_toolkit.feature_selection", "ml_toolkit.evaluation._metrics"),
     # Phases 3 and 5: report figures (explainability, selection) move to reports.
@@ -89,8 +82,17 @@ FUNCTION_LEVEL_IMPORTS: set[tuple[str, str]] = {
     ("ml_toolkit.training.reporting", "ml_toolkit.explainability"),
 }
 
+# Training-only code that serving must not import (check_model_inference):
+# adapters import it inside their training methods. As (importing module,
+# imported module).
+SERVING_BOUNDARY: set[tuple[str, str]] = {
+    ("ml_toolkit.models.catboost_classification", "ml_toolkit.metrics.classification"),
+    ("ml_toolkit.models.catboost_classification", "ml_toolkit.models.losses.pu"),
+    ("ml_toolkit.models.catboost_regression", "ml_toolkit.models.losses.gamma"),
+}
+
 # Optional backends: CUDA kernels and LightGBM may be imported lazily.
-OPTIONAL_MODULES = {"cuda", "lightgbm"}
+OPTIONAL_MODULES = {"lightgbm"}
 
 
 @dataclass(frozen=True)
@@ -228,7 +230,7 @@ def function_level_imports() -> set[tuple[str, str]]:
         if item.importer == ROOT or not item.in_function or item.is_name:
             continue
         parts = item.target.split(".")
-        if OPTIONAL_MODULES & set(parts[1:]):
+        if OPTIONAL_MODULES & set(parts[1:]) or parts[-1].endswith("cuda"):
             continue
         found.add((item.importer, item.target))
     return found
@@ -259,7 +261,7 @@ def test_no_new_package_cycles():
 
 
 def test_function_level_imports_are_limited_to_optional_backends():
-    found = function_level_imports() - FUNCTION_LEVEL_IMPORTS
+    found = function_level_imports() - FUNCTION_LEVEL_IMPORTS - SERVING_BOUNDARY
     assert not found, f"function-level imports of toolkit modules: {sorted(found)}"
 
 
@@ -270,6 +272,11 @@ def test_allowed_violations_are_still_needed(entry):
 
 @pytest.mark.parametrize("entry", sorted(FUNCTION_LEVEL_IMPORTS))
 def test_allowed_function_level_imports_are_still_needed(entry):
+    assert entry in function_level_imports()
+
+
+@pytest.mark.parametrize("entry", sorted(SERVING_BOUNDARY))
+def test_serving_boundary_entries_are_still_needed(entry):
     assert entry in function_level_imports()
 
 

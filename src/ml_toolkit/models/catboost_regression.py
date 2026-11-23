@@ -1,37 +1,25 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
-from copy import deepcopy
-from pathlib import Path
-from typing import Any, Self, cast
+from typing import Any, Self
 
 import catboost
 import mlflow
 import numpy as np
 import pandas as pd
 import polars as pl
-from mlflow.models.model import ModelInfo
-from mlflow.pyfunc.model import PythonModel
 
 from .._console import Logger
 from ..data import Pool, validate_training_categories
 from ..types import FloatArray, ModelParams
-from ._catboost import (
-    feature_importances,
-    native_fit,
-    normalize_loss,
-    prepare_frame,
-    refit_parameters,
-)
-from ._shrink import validate_size
-from .artifacts import TrackingConfig, log_catboost
-from .losses.gamma.config import configure_gamma
-from .state import RegressionState, read_state
+from ._catboost import CatBoostAdapter, native_fit, normalize_loss
+from .state import RegressionState
 
 logger = Logger(__name__)
 
 
-class CatBoostRegressionModel(PythonModel):
+class CatBoostRegressionModel(
+    CatBoostAdapter[catboost.CatBoostRegressor, RegressionState]
+):
     """Train and serve a CatBoost regressor with native initialization.
 
     Parameters
@@ -50,6 +38,7 @@ class CatBoostRegressionModel(PythonModel):
         Manual initial raw score, or None with native initialization.
     """
 
+    _native_type = catboost.CatBoostRegressor
     baseline_mode = "native_initialization"
 
     def __init__(
@@ -57,30 +46,9 @@ class CatBoostRegressionModel(PythonModel):
         params: ModelParams | None = None,
         prediction_type: str | None = None,
     ) -> None:
-        self.params = {} if params is None else params.copy()
+        super().__init__(params)
         self.prediction_type = prediction_type
         self._effective_prediction_type = prediction_type
-        self._model = None
-        self._baseline = None
-        self._retained_iterations: int | None = None
-
-    @property
-    def n_iterations(self) -> int:
-        """Return the number of fitted trees used for prediction."""
-        return int(self.native_model.tree_count_)
-
-    def shrink(self, n_iterations: int) -> Self:
-        """Return an independent fitted prefix, preserving prediction scale.
-
-        n_iterations must be an integer from one through the fitted size.
-        The copy's refit budget equals its retained size.
-        """
-        validate_size(n_iterations, self.n_iterations)
-        native = self.native_model.copy()
-        native.shrink(n_iterations, ntree_start=0)
-        result = deepcopy(self, {id(self.native_model): native})
-        result._retained_iterations = n_iterations
-        return result
 
     @property
     def task(self) -> str:
@@ -90,84 +58,8 @@ class CatBoostRegressionModel(PythonModel):
     @property
     def baseline(self) -> float | None:
         """Return the fitted manual baseline, or None for native initialization."""
-        self.native_model
+        self._require_fitted()
         return self._baseline
-
-    @property
-    def native_model(self) -> catboost.CatBoostRegressor:
-        """Return the fitted native CatBoost model; raise RuntimeError before fitting."""
-        if self._model is None:
-            raise RuntimeError("Model has not been fitted")
-        return self._model
-
-    @property
-    def best_iteration(self) -> int | None:
-        """Return the zero-based best iteration index, or None when unavailable."""
-        value = self.native_model.get_best_iteration()
-        if value is None or value < 0 or value >= self.n_iterations:
-            return None
-        return int(value)
-
-    def feature_importances(self, data: Pool) -> dict[str, float]:
-        """Rank the current fitted feature columns.
-
-        Parameters
-        ----------
-        data : Pool
-            Rows with the fitted feature names in order.
-
-        Returns
-        -------
-        dict[str, float]
-            Native prediction-change importance per feature.
-        """
-        return feature_importances(self.native_model, data.X.columns)
-
-    def get_refit_params(self) -> ModelParams:
-        """Return copied constructor parameters for final fitting.
-
-        Returns
-        -------
-        ModelParams
-            The best iteration selected on validation plus one, when available;
-            otherwise the original iteration budget. Early stopping is removed
-            and use_best_model is disabled. Learned baselines are recalculated.
-
-        Raises
-        ------
-        RuntimeError
-            The adapter has not been fitted.
-        """
-        self.native_model
-        iteration = (
-            self.best_iteration
-            if self._retained_iterations is None
-            else self._retained_iterations - 1
-        )
-        params = refit_parameters(self.params, iteration)
-        return params
-
-    @property
-    def feature_names(self) -> list[str]:
-        """Return fitted feature names in native model order."""
-        names = self.native_model.feature_names_
-        if not names:
-            raise RuntimeError("Fitted model does not contain feature names")
-        return list(names)
-
-    @property
-    def cat_features(self) -> list[str]:
-        """Return categorical feature names in native model order."""
-        return [
-            self.feature_names[index]
-            for index in self.native_model.get_cat_feature_indices()
-        ]
-
-    @property
-    def numerical_features(self) -> list[str]:
-        """Return fitted feature names not marked categorical."""
-        categorical = set(self.cat_features)
-        return [name for name in self.feature_names if name not in categorical]
 
     def fit(self, train: Pool, validation: Pool | None = None) -> Self:
         """Fit the native regressor using this class's initialization policy.
@@ -201,6 +93,9 @@ class CatBoostRegressionModel(PythonModel):
         loss = params.get("loss_function")
         is_gamma = isinstance(loss, str) and loss == "Gamma"
         if is_gamma:
+            # Training-only compiled code stays out of serving environments.
+            from .losses.gamma import configure_gamma
+
             configure_gamma(
                 params, train, validation, log_link=self.baseline_mode == "native_bias"
             )
@@ -208,7 +103,7 @@ class CatBoostRegressionModel(PythonModel):
         if baseline is not None:
             params["boost_from_average"] = False
         model = native_fit(
-            catboost.CatBoostRegressor,
+            self._native_type,
             params,
             train.to_catboost(baseline=baseline),
             None if validation is None else validation.to_catboost(baseline=baseline),
@@ -263,13 +158,13 @@ class CatBoostRegressionModel(PythonModel):
             workflow accepts only a single numeric prediction per row.
         """
         logger.debug("Predicting with CatBoost regressor: %s rows", len(data))
-        frame = prepare_frame(data, self.feature_names, self.cat_features)
+        frame = self._input_frame(data)
         options = (
             {}
             if self._effective_prediction_type is None
             else {"prediction_type": self._effective_prediction_type}
         )
-        return np.asarray(self.native_model.predict(frame, **options), dtype=float)
+        return np.asarray(self._require_fitted().predict(frame, **options), dtype=float)
 
     def predict_pool(self, data: Pool) -> FloatArray:
         """Predict native regression outputs for project data.
@@ -316,86 +211,6 @@ class CatBoostRegressionModel(PythonModel):
         """
         return self.predict_frame(model_input)
 
-    def log(
-        self,
-        sample: Pool,
-        *,
-        config: TrackingConfig | None = None,
-        extra_artifacts: Mapping[str, str] | None = None,
-    ) -> ModelInfo:
-        """Package and log the fitted model with a serving input example.
-
-        Parameters
-        ----------
-        sample : Pool
-            Serving example rows, capped by config.input_example_rows.
-        config : TrackingConfig or None, default None
-            Artifact name, positive example-row limit, registry name, and serving
-            environment. None uses TrackingConfig defaults.
-
-        extra_artifacts : Mapping[str, str] or None, default None
-            Additional files or directories bundled with the model. Names must
-            not conflict with the adapter's own artifacts.
-
-        Returns
-        -------
-        mlflow.models.ModelInfo
-            Logged model information, including its model URI.
-
-        Notes
-        -----
-        Writes native model and configuration artifacts, infers a serving
-        signature, and logs baseline and input-schema metadata to MLflow. Configure
-        tracking and an experiment before calling.
-        """
-        config = TrackingConfig() if config is None else config
-        name = config.model_name
-        registered_model_name = config.registered_model_name
-        conda_env = config.conda_env
-        sample_frame = sample.to_model_input(
-            n_rows=config.input_example_rows, categorical_as_strings=True
-        ).loc[:, self.feature_names]
-        model_info = self.log_artifacts(
-            sample_frame,
-            self.predict_frame(sample_frame),
-            name=name,
-            registered_model_name=registered_model_name,
-            conda_env=conda_env,
-            extra_artifacts=extra_artifacts,
-        )
-        mlflow.log_param("baseline", self.baseline)
-        mlflow.log_dict(
-            {
-                "numerical_features": self.numerical_features,
-                "cat_features": self.cat_features,
-            },
-            "model_metadata/catboost_input_schema.json",
-        )
-        return model_info
-
-    def log_artifacts(
-        self,
-        sample_frame: pd.DataFrame,
-        sample_prediction: FloatArray,
-        *,
-        name: str,
-        registered_model_name: str | None = None,
-        conda_env: Path | None = None,
-        metadata: dict[str, object] | None = None,
-        extra_artifacts: Mapping[str, str] | None = None,
-    ) -> ModelInfo:
-
-        return log_catboost(
-            self,
-            sample_frame,
-            sample_prediction,
-            name=name,
-            registered_model_name=registered_model_name,
-            conda_env=conda_env,
-            extra_artifacts=extra_artifacts,
-            metadata=metadata,
-        )
-
     def export_state(self) -> RegressionState:
         return {
             "version": 1,
@@ -408,24 +223,14 @@ class CatBoostRegressionModel(PythonModel):
             "retained_iterations": self._retained_iterations,
         }
 
-    def restore_state(self, state: RegressionState, model_path: str) -> None:
-        self._model = catboost.CatBoostRegressor()
-        self._model.load_model(model_path)
-        self.params = state["training_params"]
+    def _log_fitted_parameters(self) -> None:
+        mlflow.log_param("baseline", self.baseline)
+
+    def _restore_fitted_fields(self, state: RegressionState) -> None:
         self.prediction_type = state["prediction_type"]
         self._effective_prediction_type = state.get(
             "effective_prediction_type", self.prediction_type
         )
-        self._baseline = state["baseline"]
-        self._retained_iterations = state.get("retained_iterations")
-
-    def load_context(self, context: Any) -> None:
-        state = cast(
-            RegressionState,
-            read_state(context, type(self).__name__, self.baseline_mode),
-        )
-        self.restore_state(state, context.artifacts["model"])
-        logger.debug("Loaded CatBoost regressor: %s", type(self).__name__)
 
 
 class CatBoostLogLinkRegressionModel(CatBoostRegressionModel):

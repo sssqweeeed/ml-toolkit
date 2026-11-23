@@ -3,7 +3,7 @@
 import logging
 import math
 
-from ..cuda import CudaArray, GPUObjective, cuda
+from ._cuda import CudaArray, GPUObjective, cuda
 
 
 def make_gamma_gpu_objective() -> GPUObjective:

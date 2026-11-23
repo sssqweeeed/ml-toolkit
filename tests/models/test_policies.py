@@ -264,7 +264,7 @@ def test_pu_threshold_policy_and_refit(data, loss):
 
 
 def test_nnpu_correction_branch_early_stopping_and_best_tree(monkeypatch, data):
-    import ml_toolkit.models.catboost_classification as module
+    import ml_toolkit.models.losses.pu as module
 
     binary = data.with_target(pl.Series("target", [0, 1] * 24))
     calls, risks = [], iter([3.0, 2.0, 4.0, 5.0])
@@ -336,7 +336,7 @@ def test_pu_constraints_are_local_to_pu(data, extra, message):
 
 
 def test_pu_objective_derivatives_and_risks_are_stable():
-    from ml_toolkit.models.losses.pu.common import (
+    from ml_toolkit.models.losses.pu import (
         PULogisticObjective,
         pu_risks,
     )

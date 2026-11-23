@@ -33,7 +33,7 @@ def split(data):
 
 
 def test_incremental_logits_match_full_prediction(monkeypatch, split):
-    import ml_toolkit.models.catboost_classification as module
+    import ml_toolkit.models.losses.pu as module
 
     _, train, validation = split
     train_calls, validation_calls = [], []
@@ -41,12 +41,26 @@ def test_incremental_logits_match_full_prediction(monkeypatch, split):
 
     # Train (32 rows) and validation (16 rows) differ in size, so the row
     # count identifies which sample a risk call belongs to.
+    in_metric = []
+    original_evaluate = module.PURiskMetric.evaluate
+
+    # CatBoost's metric callback shares pu_risks; keep it out of the record.
+    def evaluate(self, approxes, target, weight):
+        in_metric.append(True)
+        try:
+            return original_evaluate(self, approxes, target, weight)
+        finally:
+            in_metric.pop()
+
     def record(logits, labels, weights, prior):
+        if in_metric:
+            return original_risks(logits, labels, weights, prior)
         calls = train_calls if len(labels) == len(train.y) else validation_calls
         calls.append(np.array(logits))
         return original_risks(logits, labels, weights, prior)
 
     monkeypatch.setattr(module, "pu_risks", record)
+    monkeypatch.setattr(module.PURiskMetric, "evaluate", evaluate)
     model = _model({"use_best_model": False}).fit(train, validation)
     native = model.native_model
 
@@ -55,15 +69,16 @@ def test_incremental_logits_match_full_prediction(monkeypatch, split):
             pool.to_catboost(), prediction_type="RawFormulaVal", ntree_end=trees
         )
 
-    # 8 trees: train risk is computed before each tree (8) plus once in fit
-    # validation; validation risk once before the loop and after each tree.
+    # 8 trees: train risk is computed before each tree (8) plus once in
+    # parameter validation; validation risk once before the loop and after
+    # each tree.
     # Calls before the loop use baseline-only logits. Training risk
     # is then evaluated before each tree, validation risk after it.
-    assert len(train_calls) == 9 and len(validation_calls) == 10
+    assert len(train_calls) == 9 and len(validation_calls) == 9
     for trees, logits in enumerate(train_calls[1:]):
         expected = train_calls[1] + (full(train, trees) if trees else 0.0)
         np.testing.assert_allclose(logits, expected, atol=1e-9)
-    for trees, logits in enumerate(validation_calls[2:], start=1):
+    for trees, logits in enumerate(validation_calls[1:], start=1):
         np.testing.assert_allclose(
             logits, validation_calls[0] + full(validation, trees), atol=1e-9
         )

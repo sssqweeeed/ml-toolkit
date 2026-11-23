@@ -1,1 +1,1 @@
-"""Internal CatBoost loss implementations; training dependencies load lazily."""
+"""Training-only CatBoost losses; serving never imports this package."""
