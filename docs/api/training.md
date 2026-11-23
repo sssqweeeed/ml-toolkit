@@ -135,8 +135,10 @@ reports; primary metrics are always calculated.
 `TrackingConfig.log_test_model` controls test-stage packaging, and
 `log_final_model` controls final_fit packaging, including the no-test case.
 Both default to True. `registered_model_name` applies to the additional model
-when requested, otherwise the main model, only if that model's packaging flag
-is enabled. Disabling its packaging never registers the other model instead.
+when `fit_on_test` is enabled, otherwise to the main model. An unlogged target
+raises `ValueError` instead of skipping registration: `fit_on_test` needs
+`log_final_model`; otherwise a test sample needs `log_test_model` and no test
+sample needs `log_final_model`.
 
 ## Configure the workflow
 

@@ -7,6 +7,7 @@ from optuna import Trial
 
 from .._console import Logger, datasets, message, metrics, output_context
 from ..config import TrainingConfig
+from ..config.training import check_registration_target_logged
 from ..data import validate_training_data
 from ..feature_selection import FeatureSelector
 from ..metrics import Metric
@@ -118,6 +119,18 @@ def train_model(
     show how to extend that workflow with independently prepared examples.
     """
     with output_context(config.verbosity):
+        tracking_config = config.tracking
+        if (
+            tracking_config.registered_model_name is not None
+            and not config.fit_on_test
+            and tracking_config.log_test_model != tracking_config.log_final_model
+        ):
+            # Only now does test-sample presence decide which flag matters.
+            check_registration_target_logged(
+                tracking_config,
+                fit_on_test=False,
+                has_test_sample=splitter.get_test().heldout is not None,
+            )
         splits = splitter.get_validation()
         part = next(splits, None)
         if part is None:

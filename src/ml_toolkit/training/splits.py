@@ -70,6 +70,7 @@ class Splitter(ABC, Generic[DataT]):
     determines execution order and which split supplies final-fit settings.
     get_test owns all non-test rows and the optional test sample. get_final
     supplies the full eligible pool for optional training including test.
+    get_test may be called more than once and must be free of side effects.
     """
 
     def __init__(self, data: DataT):
