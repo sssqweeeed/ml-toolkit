@@ -340,7 +340,8 @@ from optuna import Trial
 
 from examples.gallery_data import load_bike_pool
 from ml_toolkit import train_model
-from ml_toolkit.config import TrackingConfig, TrainingConfig, TuningConfig
+from ml_toolkit.config import TrainingConfig, TuningConfig
+from ml_toolkit.models import TrackingConfig
 from ml_toolkit.models import CatBoostRegressionModel
 from ml_toolkit.training import Holdout
 from ml_toolkit.types import ModelParams
@@ -514,5 +515,9 @@ executable example and the following result attributes for their meanings.
       heading_level: 4
 
 ::: ml_toolkit.metrics.MetricScores
+    options:
+      heading_level: 4
+
+::: ml_toolkit.metrics.calculate_metrics
     options:
       heading_level: 4

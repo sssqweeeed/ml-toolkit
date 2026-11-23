@@ -67,7 +67,8 @@ import mlflow
 
 from examples.gallery_data import load_bike_pool
 from ml_toolkit import train_model
-from ml_toolkit.config import TrackingConfig, TrainingConfig
+from ml_toolkit.config import TrainingConfig
+from ml_toolkit.models import TrackingConfig
 from ml_toolkit.metrics import metrics_frequency
 from ml_toolkit.models import CatBoostLogLinkRegressionModel
 

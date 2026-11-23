@@ -6,9 +6,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
 
-from ..config import FigureConfig
 from ..evaluation.residuals import ResidualLoss, ResidualResult
-from .utils import PlotError, save_figure
+from ..figures import FigureConfig, PlotError, saved_figure
 
 
 def residual_diagnostics(
@@ -59,7 +58,7 @@ def residual_diagnostics(
         raise PlotError("Residual plots require positive-weight observations")
     edges = np.histogram_bin_edges(rows["residual"].to_numpy(), bins=histogram_bins)
     fig, axes = plt.subplots(1, 3, figsize=(16, 5))
-    try:
+    with saved_figure(fig, save_fig, config=figure):
         rng = np.random.default_rng(seed)
         for part, label in (
             ("train", "Train"),
@@ -142,6 +141,3 @@ def residual_diagnostics(
             axis.grid(alpha=0.15)
             axis.legend(fontsize="small")
         fig.tight_layout()
-        save_figure(fig, save_fig, config=figure)
-    finally:
-        plt.close(fig)

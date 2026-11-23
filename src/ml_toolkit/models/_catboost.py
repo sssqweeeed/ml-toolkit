@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 import polars as pl
 
-from .._model_input import categorical_frame
+from ..data import categorical_frame
 from ..types import ModelParams
 
 NativeT = TypeVar("NativeT", bound=catboost.CatBoost)

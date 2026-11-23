@@ -11,9 +11,9 @@ import pytest
 from polars.testing import assert_frame_equal
 from sklearn.metrics import mean_gamma_deviance, mean_poisson_deviance
 
-from ml_toolkit.config import FigureConfig
 from ml_toolkit.data import Pool
 from ml_toolkit.evaluation import ResidualResult, Residuals
+from ml_toolkit.figures import FigureConfig
 from ml_toolkit.plots.residuals import residual_diagnostics
 
 
@@ -348,7 +348,7 @@ def test_plot_closes_after_save_failure(inputs, tmp_path, monkeypatch):
     def fail(*args, **kwargs):
         raise OSError("disk full")
 
-    monkeypatch.setattr("ml_toolkit.plots.residuals.save_figure", fail)
+    monkeypatch.setattr("ml_toolkit.figures.save_figure", fail)
     with pytest.raises(OSError, match="disk full"):
         residual_diagnostics(result, save_fig=tmp_path / "plot.png")
     assert not plt.get_fignums()

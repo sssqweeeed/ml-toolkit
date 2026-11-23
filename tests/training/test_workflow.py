@@ -16,7 +16,7 @@ import pytest
 from polars.testing import assert_frame_equal, assert_series_equal
 
 from examples.project_pool import ProjectPool as Pool
-from ml_toolkit.config import TrackingConfig, TrainingConfig, TuningConfig
+from ml_toolkit.config import TrainingConfig, TuningConfig
 from ml_toolkit.feature_selection import RFESelector
 from ml_toolkit.inflation import ConstantRateInflation
 from ml_toolkit.metrics import metrics_classification
@@ -24,6 +24,7 @@ from ml_toolkit.models import (
     CatBoostClassificationModel,
     CatBoostLogLinkRegressionModel,
     InflationAdjustedModel,
+    TrackingConfig,
 )
 from ml_toolkit.models._catboost import refit_parameters
 from ml_toolkit.training import train_model
@@ -449,8 +450,7 @@ def test_final_relearns_inflation_and_baseline_on_all_rows_before_test(
 
 
 def test_undefined_nonobjective_metric_is_preserved():
-    from ml_toolkit.metrics import metrics_classification
-    from ml_toolkit.training.evaluation import calculate_metrics
+    from ml_toolkit.metrics import calculate_metrics, metrics_classification
 
     data = make_data().with_target(pl.Series("target", [0.0] * 24))
     scores = calculate_metrics(metrics_classification, data, np.full(24, 0.2))

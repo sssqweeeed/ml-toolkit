@@ -6,13 +6,13 @@ import polars as pl
 import pytest
 from sklearn.metrics import f1_score
 
+from ml_toolkit.metrics import calculate_metrics
 from ml_toolkit.models import (
     CatBoostClassificationModel,
     CatBoostLogLinkRegressionModel,
     CatBoostPUClassificationModel,
     CatBoostRegressionModel,
 )
-from ml_toolkit.training.evaluation import calculate_metrics
 from tests.models.support import PARAMS, SquaredObjective
 from tests.support.training import mae
 

@@ -5,9 +5,9 @@ from pathlib import Path
 
 import polars as pl
 
-from ..config import FigureConfig
 from ..data import Pool
 from ..feature_levels import FeatureLevelConfig
+from ..figures import FigureConfig
 from ..plots import classification
 from ..types import FloatArray
 from ._common import write_heldout_plot

@@ -1,12 +1,38 @@
-"""Load a bundled PSI reference without executing model serving code."""
+"""MLflow helpers: table artifacts and PSI baseline loading."""
 
 from pathlib import Path, PurePosixPath
 from tempfile import TemporaryDirectory
 
+import mlflow
 import mlflow.artifacts
+import polars as pl
 from mlflow.models import Model
 
-from ..psi import PSIBaseline
+from ._console import Logger
+from .psi import PSIBaseline
+
+logger = Logger(__name__)
+
+
+def log_polars_table(table: pl.DataFrame, artifact_file: str) -> None:
+    """Log Polars records as a JSON artifact without converting to pandas.
+
+    Parameters
+    ----------
+    table : polars.DataFrame
+        Table whose rows can be serialized by MLflow.
+    artifact_file : str
+        Artifact-relative JSON file path in the MLflow run.
+
+    Notes
+    -----
+    Calls mlflow.log_dict with a {"rows": table.to_dicts()} payload. Uses the
+    active run, or MLflow's implicit run if no run is active.
+    """
+    mlflow.log_dict({"rows": table.to_dicts()}, artifact_file)
+    logger.debug(
+        "Logged table %s: %s rows, %s columns", artifact_file, table.height, table.width
+    )
 
 
 def load_psi_baseline(model_uri: str) -> PSIBaseline:

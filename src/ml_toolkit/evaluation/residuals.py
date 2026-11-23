@@ -7,11 +7,9 @@ from typing import Literal, cast
 import numpy as np
 import polars as pl
 
-from ..config import FigureConfig
-from ..data import Pool
-from ..data_analysis._common import validate_split
+from ..data import Pool, validate_prediction, validate_split_labels
 from ..feature_levels import FeatureLevelConfig
-from ..metrics._evaluation import validate_prediction
+from ..figures import FigureConfig
 from ..types import FloatArray, IntArray
 from .base import PredictionEvaluator
 
@@ -222,7 +220,7 @@ class Residuals(PredictionEvaluator):
             and largest weighted loss contributions per split.
         """
         validate_prediction(data, prediction)
-        validate_split(data, split)
+        validate_split_labels(data, split)
         observed = data.y.to_numpy().astype(float)
         weight = data.weight.to_numpy().astype(float)
         if not np.isfinite(observed).all():

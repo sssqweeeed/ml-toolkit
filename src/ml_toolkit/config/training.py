@@ -5,8 +5,8 @@ from math import isfinite
 from typing import TYPE_CHECKING, Literal
 
 from .._console import Verbosity
+from ..models import TrackingConfig
 from .reporting import ReportingConfig
-from .tracking import TrackingConfig
 
 if TYPE_CHECKING:
     from ..evaluation import PredictionEvaluator

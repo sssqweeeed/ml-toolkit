@@ -2,13 +2,14 @@
 
 from collections.abc import Callable, Mapping
 
+import mlflow
 import numpy as np
 import optuna
 
 from .._console import Logger
 from ..config import TuningConfig
-from ..tracking import runs as tracking
 from ..types import ModelParams
+from .evaluation import nested_run
 from .results import TuningResult
 
 logger = Logger(__name__)
@@ -54,8 +55,8 @@ def tune_optuna(
         overrides = param_space(trial)
         params = {**base_params, **overrides}
         parameters[trial.number] = params.copy()
-        with tracking.run(f"trial_{trial.number + 1}"):
-            tracking.log_params(params)
+        with nested_run(f"trial_{trial.number + 1}"):
+            mlflow.log_params(params)
             try:
                 value = score(params.copy())
                 if not np.isfinite(value):
@@ -64,7 +65,7 @@ def tune_optuna(
                 exc.add_note(f"Optuna trial={trial.number} (zero-based)")
                 raise
             value = float(value)
-            tracking.log_metrics({"objective": value})
+            mlflow.log_metrics({"objective": value})
             logger.debug(
                 "Completed tuning trial %s: objective=%.6g",
                 trial.number + 1,
@@ -79,7 +80,7 @@ def tune_optuna(
         config.metric,
         config.direction,
     )
-    with tracking.run("tuning"):
+    with nested_run("tuning"):
         study.optimize(
             objective, n_trials=config.n_trials, timeout=config.timeout_seconds
         )

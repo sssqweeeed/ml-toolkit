@@ -6,13 +6,10 @@ from pathlib import Path
 import numpy as np
 import polars as pl
 
-from ..config import FigureConfig
-from ..data import Pool
-from ..data_analysis._common import validate_split
-from ..metrics import Metric
-from ..metrics._evaluation import calculate_metrics
+from ..data import Pool, validate_split_labels
+from ..figures import FigureConfig, feature_filename
+from ..metrics import Metric, calculate_metrics
 from ..models.base import Model, ShrinkableModel
-from ..plots.utils import feature_filename
 from .base import ModelEvaluator
 
 
@@ -111,7 +108,7 @@ class ShrinkCurve(ModelEvaluator):
         and test. Model capability and requested sizes are checked before any
         reduced predictions. Retain no fitted models or prediction history.
         """
-        validate_split(data, split)
+        validate_split_labels(data, split)
         if not len(data):
             raise ValueError("ShrinkCurve requires nonempty data")
         if not isinstance(model, ShrinkableModel):

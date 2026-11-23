@@ -6,13 +6,12 @@ from typing import TYPE_CHECKING, Protocol, Self, runtime_checkable
 import catboost
 from mlflow.models.model import ModelInfo
 
+from ..data import Pool
 from ..types import FloatArray, ModelParams
+from .artifacts import TrackingConfig
 
 if TYPE_CHECKING:
     import lightgbm
-
-    from ..config import TrackingConfig
-    from ..training.contracts import Pool
 
 
 @runtime_checkable

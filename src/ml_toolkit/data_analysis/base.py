@@ -6,9 +6,9 @@ from pathlib import Path
 
 import polars as pl
 
-from ..config import FigureConfig
 from ..data import Pool
 from ..feature_levels import FeatureLevelConfig
+from ..figures import FigureConfig
 
 
 @dataclass(frozen=True, kw_only=True)

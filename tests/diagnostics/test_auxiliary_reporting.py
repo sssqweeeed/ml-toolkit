@@ -8,12 +8,13 @@ import polars as pl
 import pytest
 from polars.testing import assert_frame_equal
 
-from ml_toolkit.config import FigureConfig, ReportingConfig
+from ml_toolkit.config import ReportingConfig
 from ml_toolkit.data import Pool
 from ml_toolkit.data_analysis import NumericalFeatureDistributions
 from ml_toolkit.evaluation import ObservedFitted
 from ml_toolkit.feature_levels import FeatureLevelConfig, LevelTransformer
 from ml_toolkit.feature_levels.config import feature_definitions
+from ml_toolkit.figures import FigureConfig
 from ml_toolkit.psi import PSIBaseline
 from ml_toolkit.training.psi import prepare_psi_baseline
 from ml_toolkit.training.reporting import _psi_artifacts
@@ -170,9 +171,10 @@ def test_auxiliary_features_survive_selection_reporting_and_final_refit(tmp_path
     import mlflow
 
     from examples.custom_selector import FixedFeatureSelector
-    from ml_toolkit.config import TrackingConfig, TrainingConfig
+    from ml_toolkit.config import TrainingConfig
     from ml_toolkit.evaluation import GroupedMetrics, TimeObservedFitted
     from ml_toolkit.metrics import metrics_regression
+    from ml_toolkit.models import TrackingConfig
     from ml_toolkit.training import Holdout, train_model
     from tests.support.training import (
         MeanModel,

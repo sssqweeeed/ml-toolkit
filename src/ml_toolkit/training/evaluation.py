@@ -1,26 +1,39 @@
 """Predict and score train, validation and test datasets."""
 
+import json
 from dataclasses import dataclass
+from typing import Literal
 
+import mlflow
 import numpy as np
 import polars as pl
+from mlflow.tracking.fluent import ActiveRun
 
 from .._console import Logger, metrics
 from ..config import ReportingConfig
+from ..data import Pool, concat_pools
 from ..data_analysis import DataAnalyzer
 from ..evaluation import PredictionEvaluator
-from ..evaluation._inputs import combine_evaluation_pools as _combine_pools
-from ..metrics import Metric
-from ..metrics._evaluation import calculate_metrics as calculate_metrics
+from ..metrics import Metric, calculate_metrics
 from ..model_evaluation import ModelEvaluator
 from ..models.base import Model
 from ..psi import PSIBaseline
-from ..tracking import runs as tracking
 from ..types import FloatArray
-from .contracts import DatasetSplit, Pool, TrainingStage
 from .reporting import evaluate_report_metrics, report_predictions
+from .results import DatasetSplit
 
 logger = Logger(__name__)
+
+TrainingStage = Literal["tuning", "validation", "test", "final_fit"]
+
+
+def nested_run(name: str) -> ActiveRun:
+    """Start an MLflow run, nested when a parent run is active."""
+    return mlflow.start_run(run_name=name, nested=mlflow.active_run() is not None)
+
+
+def log_json(payload: object, artifact_file: str) -> None:
+    mlflow.log_text(json.dumps(payload, default=str, indent=2), artifact_file)
 
 
 @dataclass(frozen=True)
@@ -55,14 +68,14 @@ def evaluate_model(
         prediction = model.predict_pool(data)
         predictions[dataset_split] = prediction
         scores[dataset_split] = calculate_metrics(metric, data, prediction)
-        tracking.log_params(
+        mlflow.log_params(
             {
                 f"{dataset_split.value}_n_rows": len(data),
                 f"{dataset_split.value}_date_start": str(data.time.min()),
                 f"{dataset_split.value}_date_end": str(data.time.max()),
             }
         )
-        tracking.log_metrics(
+        mlflow.log_metrics(
             {
                 f"{dataset_split.value}/{key}": value
                 for key, value in scores[dataset_split].items()
@@ -95,7 +108,7 @@ def evaluate_model(
     )
     objective_metrics = None
     if reports_enabled or objective_evaluator is not None:
-        data = _combine_pools(train, heldout)
+        data = concat_pools(train, heldout)
         prediction = (
             predictions[DatasetSplit.TRAIN]
             if heldout is None

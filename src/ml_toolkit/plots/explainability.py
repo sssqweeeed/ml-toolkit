@@ -9,8 +9,8 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from numpy.typing import ArrayLike
 
-from ..config import FigureConfig, ShapConfig
-from .utils import numeric_vector, same_length, save_figure
+from ..config import ShapConfig
+from ..figures import FigureConfig, numeric_vector, same_length, save_figure
 
 if TYPE_CHECKING:
     import shap

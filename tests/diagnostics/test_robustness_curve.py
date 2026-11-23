@@ -8,13 +8,12 @@ import numpy as np
 import polars as pl
 import pytest
 
-from ml_toolkit.config import FigureConfig
 from ml_toolkit.data import Pool
+from ml_toolkit.figures import FigureConfig, PlotError
 from ml_toolkit.metrics import MetricScores
 from ml_toolkit.model_evaluation import RobustnessCurve
 from ml_toolkit.models import CatBoostRegressionModel
 from ml_toolkit.plots.robustness import robustness_curve
-from ml_toolkit.plots.utils import PlotError
 
 
 def data_pool():
@@ -436,7 +435,7 @@ def test_plot_errors_close_figures(tmp_path, monkeypatch):
     def fail(*args, **kwargs):
         raise OSError("save failed")
 
-    monkeypatch.setattr("ml_toolkit.plots.robustness.save_figure", fail)
+    monkeypatch.setattr("ml_toolkit.figures.save_figure", fail)
     with pytest.raises(OSError):
         robustness_curve(table, metric="mae", save_fig=tmp_path / "bad.png")
     assert not plt.get_fignums()

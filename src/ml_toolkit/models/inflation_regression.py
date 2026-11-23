@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from copy import deepcopy
 from datetime import date
-from typing import TYPE_CHECKING, Any, Self, cast
+from typing import Any, Self, cast
 
 import catboost
 import mlflow
@@ -14,14 +14,12 @@ from mlflow.models.model import ModelInfo
 from mlflow.pyfunc.model import PythonModel
 
 from .._console import Logger
+from ..data import Pool
 from ..inflation import InflationAdjuster, inflation_from_config
-from ..tracking.state import InflationState, read_state
 from ..types import FloatArray, ModelParams
+from .artifacts import TrackingConfig, log_catboost
 from .catboost_regression import CatBoostLogLinkRegressionModel, CatBoostRegressionModel
-
-if TYPE_CHECKING:
-    from ..config import TrackingConfig
-    from ..training.contracts import Pool
+from .state import InflationState, read_state
 
 logger = Logger(__name__)
 
@@ -329,9 +327,6 @@ class InflationAdjustedModel(PythonModel):
         inflation metadata to configured MLflow tracking. Timezone-aware sample
         times are converted to UTC instants.
         """
-        from ..config import TrackingConfig
-        from ..tracking.model_artifacts import log_catboost
-
         config = TrackingConfig() if config is None else config
         name = config.model_name
         registered_model_name = config.registered_model_name

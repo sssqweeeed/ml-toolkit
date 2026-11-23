@@ -1,18 +1,16 @@
 """Selection diagnostics share the existing selection namespace in each split."""
 
 from dataclasses import replace
+from pathlib import Path
 
 import mlflow
 import pytest
 
 from examples.custom_selector import FixedFeatureSelector
-from ml_toolkit.config import (
-    FigureConfig,
-    ReportingConfig,
-    TrackingConfig,
-    TrainingConfig,
-)
+from ml_toolkit.config import ReportingConfig, TrainingConfig
 from ml_toolkit.feature_selection import ForwardSelector, RFESelector, TopKSelector
+from ml_toolkit.figures import FigureConfig
+from ml_toolkit.models import TrackingConfig
 from ml_toolkit.training import TimeSeriesCV, importance_ranker, train_model
 from ml_toolkit.training.reporting import report_feature_selection
 from tests.plots.test_feature_selection import forward_history
@@ -150,7 +148,7 @@ def test_report_errors_identify_selector_and_split_and_cleanup(monkeypatch, fail
         raise OSError("upload failed")
 
     monkeypatch.setattr("ml_toolkit.plots.feature_selection.forward_progress", draw)
-    monkeypatch.setattr("ml_toolkit.training.reporting.tracking.log_artifact", upload)
+    monkeypatch.setattr("mlflow.log_artifact", upload)
     with pytest.raises(OSError, match=f"{failure} failed") as caught:
         report_feature_selection(
             forward_history(), ReportingConfig(), stage="validation/split_2"
@@ -174,8 +172,8 @@ def test_custom_selector_skips_without_creating_temporary_files(monkeypatch):
 def test_optional_diagnostics_skip_unavailable_history(monkeypatch):
     paths = []
     monkeypatch.setattr(
-        "ml_toolkit.training.reporting.tracking.log_artifact",
-        lambda path, artifact_path: paths.append(f"{artifact_path}/{path.name}"),
+        "mlflow.log_artifact",
+        lambda path, artifact_path: paths.append(f"{artifact_path}/{Path(path).name}"),
     )
     result = forward_history()
     # Only a first singleton round: no earlier model to compare or iterations.

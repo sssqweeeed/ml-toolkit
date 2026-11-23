@@ -1,12 +1,13 @@
 """Shared level semantics with independent, stateless report fits."""
 
 from dataclasses import replace
+from pathlib import Path
 
 import numpy as np
 import polars as pl
 import pytest
 
-from ml_toolkit.config import FigureConfig, ReportingConfig
+from ml_toolkit.config import ReportingConfig
 from ml_toolkit.evaluation import (
     Calibration,
     F1Threshold,
@@ -20,6 +21,7 @@ from ml_toolkit.evaluation import (
     TimeObservedFitted,
 )
 from ml_toolkit.feature_levels import FeatureLevelConfig, LevelTransformer
+from ml_toolkit.figures import FigureConfig
 from ml_toolkit.training.reporting import report_predictions
 from tests.support.training import MeanModel, make_data
 
@@ -58,8 +60,10 @@ def test_independent_fits_produce_identical_train_levels(monkeypatch, psi, obser
     monkeypatch.setattr(LevelTransformer, "fit", capture)
     monkeypatch.setattr(regression, "observed_fitted_by_level", plot)
     monkeypatch.setattr(
-        "ml_toolkit.training.reporting.tracking.log_artifact",
-        lambda path, artifact_path: artifacts.append(f"{artifact_path}/{path.name}"),
+        "mlflow.log_artifact",
+        lambda path, artifact_path: artifacts.append(
+            f"{artifact_path}/{Path(path).name}"
+        ),
     )
     reporting = ReportingConfig(
         psi=psi,

@@ -9,8 +9,8 @@ import pytest
 
 from examples.custom_evaluator import PredictionAudit
 from examples.render_plots import EXAMPLE, PAGES
-from ml_toolkit.config import FigureConfig
 from ml_toolkit.data import Pool
+from ml_toolkit.figures import FigureConfig
 
 pytestmark = pytest.mark.documentation
 ROOT = Path(__file__).resolve().parents[2]

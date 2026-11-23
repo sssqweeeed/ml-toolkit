@@ -5,8 +5,9 @@ from importlib import import_module
 
 import mlflow
 
-from ml_toolkit.config import TrackingConfig, TrainingConfig, TuningConfig
+from ml_toolkit.config import TrainingConfig, TuningConfig
 from ml_toolkit.feature_selection import RFESelector
+from ml_toolkit.models import TrackingConfig
 from ml_toolkit.training import TimeSeriesCV, importance_ranker, train_model
 from tests.support.training import (
     MeanModel,

@@ -43,7 +43,8 @@ from ml_toolkit.inflation import ConstantRateInflation, LogLinearInflation, Spli
 from ml_toolkit.evaluation import GroupedMetrics, PredictionEvaluator, TimeObservedFitted
 from ml_toolkit.evaluation import MetricTrend
 from ml_toolkit.evaluation import Residuals, ResidualResult
-from ml_toolkit.config import FigureConfig, FeatureLevelConfig
+from ml_toolkit.config import FeatureLevelConfig
+from ml_toolkit.figures import FigureConfig
 from ml_toolkit.training import Pool as TrainingPool
 
 from ml_toolkit.types import FloatArray, ModelParams

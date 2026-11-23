@@ -1,23 +1,25 @@
 """Console levels report existing results without changing training or logging."""
 
 import io
+import json
 import logging
 import sys
 from contextlib import nullcontext, redirect_stderr
 from contextvars import Context
 from dataclasses import asdict, replace
+from pathlib import Path
 
+import mlflow
 import numpy as np
 import optuna
 import pytest
 
 from examples.custom_selector import FixedFeatureSelector
 from ml_toolkit._console import Logger, message, metrics, output_context
-from ml_toolkit.config import TrackingConfig, TrainingConfig, TuningConfig
+from ml_toolkit.config import TrainingConfig, TuningConfig
 from ml_toolkit.feature_selection import ForwardSelector, RFESelector, TopKSelector
 from ml_toolkit.metrics import MetricScores
-from ml_toolkit.models import CatBoostRegressionModel
-from ml_toolkit.tracking import runs as tracking
+from ml_toolkit.models import CatBoostRegressionModel, TrackingConfig
 from ml_toolkit.training import Holdout, TimeSeriesCV, importance_ranker, train_model
 from tests.support.training import MeanModel, mae, make_data
 
@@ -27,21 +29,21 @@ LEVELS = ("silent", "normal", "verbose", "debug")
 @pytest.fixture
 def recorded_tracking(monkeypatch):
     records = []
-    monkeypatch.setattr(tracking, "run", lambda name: nullcontext())
+    monkeypatch.setattr(mlflow, "start_run", lambda **kwargs: nullcontext())
     monkeypatch.setattr(
-        tracking, "log_json", lambda value, path: records.append((path, value))
+        mlflow, "log_text", lambda text, path: records.append((path, json.loads(text)))
     )
     monkeypatch.setattr(
-        tracking, "log_params", lambda value: records.append(("params", value))
+        mlflow, "log_params", lambda value: records.append(("params", value))
     )
     monkeypatch.setattr(
-        tracking, "log_metrics", lambda value: records.append(("metrics", value))
+        mlflow, "log_metrics", lambda value: records.append(("metrics", value))
     )
     monkeypatch.setattr(
-        tracking,
+        mlflow,
         "log_artifact",
         lambda path, artifact_path: records.append(
-            (f"{artifact_path}/{path.name}", path.read_bytes())
+            (f"{artifact_path}/{Path(path).name}", Path(path).read_bytes())
         ),
     )
     return records

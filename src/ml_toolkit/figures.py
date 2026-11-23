@@ -1,19 +1,51 @@
-"""Input checks and figure handling shared by the plot families."""
+"""Figure settings, saving and input checks shared by all figure functions."""
 
 import re
-from collections.abc import Sized
+from collections.abc import Generator, Sized
+from contextlib import contextmanager
+from dataclasses import dataclass
+from math import isfinite
 from pathlib import Path
+from typing import Literal
 
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.figure import Figure
 from numpy.typing import ArrayLike
 
-from .._console import Logger
-from ..config import FigureConfig
-from ..types import FloatArray
+from ._console import Logger
+from .types import FloatArray
 
 logger = Logger(__name__)
+
+
+@dataclass(frozen=True, kw_only=True, slots=True)
+class FigureConfig:
+    """Configure figure dimensions and file output.
+
+    Parameters
+    ----------
+    figsize : tuple[float, float] or None, default None
+        Positive finite width and height in inches. None preserves each plot's
+        native or adaptive dimensions.
+    dpi : int, default 150
+        Positive export resolution in dots per inch.
+    format : {'png', 'svg', 'pdf'}, default 'png'
+        Output format. Explicit figure settings replace the output path suffix
+        to match this format. All figures are closed after saving.
+    """
+
+    figsize: tuple[float, float] | None = None
+    dpi: int = 150
+    format: Literal["png", "svg", "pdf"] = "png"
+
+    def __post_init__(self) -> None:
+        if self.dpi < 1:
+            raise ValueError("dpi must be positive")
+        if self.figsize is not None and any(
+            not isfinite(value) or value <= 0 for value in self.figsize
+        ):
+            raise ValueError("figsize dimensions must be positive")
 
 
 class PlotError(ValueError):
@@ -68,6 +100,18 @@ def save_figure(
         plt.close(fig)
     logger.debug("Saved figure to %s", path)
     return path
+
+
+@contextmanager
+def saved_figure(
+    fig: Figure, path: str | Path, *, config: FigureConfig | None = None
+) -> Generator[Figure, None, None]:
+    """Save the figure when the block succeeds and always close it."""
+    try:
+        yield fig
+        save_figure(fig, path, config=config)
+    finally:
+        plt.close(fig)
 
 
 def feature_filename(index: int, feature: str, format: str) -> str:

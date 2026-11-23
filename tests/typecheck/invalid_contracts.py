@@ -22,7 +22,8 @@ from ml_toolkit.config import (
 from ml_toolkit.metrics import Metric, MetricScores
 from ml_toolkit.training import DatasetSplit
 from ml_toolkit.evaluation import PredictionEvaluator
-from ml_toolkit.config import FigureConfig, FeatureLevelConfig
+from ml_toolkit.config import FeatureLevelConfig
+from ml_toolkit.figures import FigureConfig
 from ml_toolkit.types import FloatArray, ModelParams
 
 TrainingConfig(validation={'n_splits': 3})  # expected-type-error
@@ -90,7 +91,7 @@ split: DatasetSplit = 'val'  # expected-type-error
 
 from ml_toolkit.training import Holdout, Split, Splitter, TimeSeriesCV
 from ml_toolkit.models.base import Model
-from ml_toolkit.training import FeatureRanker
+from ml_toolkit.feature_selection import FeatureRanker
 
 factory: Callable[[ModelParams], Model] = lambda params: {'model': 1.0}  # expected-type-error
 ranker: FeatureRanker = lambda model, data: [1.0]  # expected-type-error

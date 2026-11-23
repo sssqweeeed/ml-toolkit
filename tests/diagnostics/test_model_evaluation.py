@@ -7,11 +7,10 @@ import numpy as np
 import polars as pl
 import pytest
 
-from ml_toolkit.config import FigureConfig
+from ml_toolkit.figures import FigureConfig, PlotError
 from ml_toolkit.metrics import MetricScores
 from ml_toolkit.model_evaluation import ModelEvaluator, ShrinkCurve
 from ml_toolkit.plots.model_evaluation import shrink_curve
-from ml_toolkit.plots.utils import PlotError
 from tests.support.training import MeanModel, PrefixModel, mae, make_data
 
 
@@ -191,7 +190,7 @@ def test_direct_plot_closes_on_save_failure(tmp_path, monkeypatch):
     with pytest.raises(PlotError, match="No shrink curve"):
         shrink_curve(table, metric="other", save_fig=tmp_path / "missing.png")
     monkeypatch.setattr(
-        "ml_toolkit.plots.model_evaluation.save_figure",
+        "ml_toolkit.figures.save_figure",
         lambda *a, **kw: (_ for _ in ()).throw(OSError("failed")),
     )
     with pytest.raises(OSError):

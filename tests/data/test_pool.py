@@ -12,7 +12,6 @@ from examples.project_pool import ProjectPool as Pool
 from ml_toolkit import Pool as PublicPool
 from ml_toolkit.data import validate_training_categories, validate_training_data
 from ml_toolkit.training import Pool as TrainingPool
-from ml_toolkit.training.contracts import Pool as ContractPool
 
 
 @pytest.fixture
@@ -34,7 +33,7 @@ def pool():
 
 
 def test_public_pool_is_one_shared_container(pool):
-    assert PublicPool is TrainingPool is ContractPool is Pool
+    assert PublicPool is TrainingPool is Pool
     assert type(pool) is PublicPool
 
 

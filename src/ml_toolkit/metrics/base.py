@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from typing import Protocol
 
+from ..data import Pool, validate_prediction
 from ..types import FloatArray
 
 
@@ -76,3 +77,35 @@ class MetricScores:
             Scalar scores without sharing the stored dictionary.
         """
         return self.scores.copy()
+
+
+def calculate_metrics(
+    metric: Metric, data: Pool, prediction: FloatArray
+) -> dict[str, float]:
+    """Score one aligned prediction on a pool with a metric.
+
+    Parameters
+    ----------
+    metric : Metric
+        Callable receiving targets, predictions and weights.
+    data : Pool
+        Rows supplying targets and weights.
+    prediction : numpy.ndarray
+        One finite prediction per pool row.
+
+    Returns
+    -------
+    dict[str, float]
+        The metric's named scores.
+
+    Raises
+    ------
+    ValueError
+        If the prediction is misaligned or not finite.
+    """
+    validate_prediction(data, prediction)
+    return metric(
+        data.y.to_numpy().astype(float),
+        prediction,
+        data.weight.to_numpy().astype(float),
+    ).to_dict()

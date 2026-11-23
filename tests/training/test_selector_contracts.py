@@ -7,9 +7,10 @@ import pytest
 from examples.custom_selector import FixedFeatureSelector
 from examples.project_pool import ProjectPool
 from ml_toolkit import train_model
-from ml_toolkit.config import TrackingConfig, TrainingConfig
+from ml_toolkit.config import TrainingConfig
 from ml_toolkit.feature_selection import ForwardSelector, RFESelector, TopKSelector
 from ml_toolkit.metrics import MetricScores
+from ml_toolkit.models import TrackingConfig
 from ml_toolkit.training import Holdout
 from tests.support.training import setup_mlflow
 

@@ -3,29 +3,25 @@
 from collections.abc import Callable
 from dataclasses import asdict, replace
 
+import mlflow
 from optuna import Trial
 
 from .._console import Logger, datasets, message, metrics, output_context
 from ..config import TrainingConfig
 from ..config.training import check_registration_target_logged
-from ..data import validate_training_data
+from ..data import Pool, validate_training_data
 from ..data_analysis import DataAnalyzer
 from ..evaluation import PredictionEvaluator
 from ..feature_selection import FeatureSelector
 from ..metrics import Metric
 from ..model_evaluation import ModelEvaluator
 from ..models.base import Model
-from ..tracking import runs as tracking
 from ..types import ModelParams
-from .contracts import (
-    DatasetSplit,
-    Pool,
-)
-from .evaluation import evaluate_model
+from .evaluation import evaluate_model, log_json, nested_run
 from .fit import fit_split, refit_model
 from .psi import log_model_with_baseline, prepare_psi_baseline
 from .reporting import prepare_analyzers, prepare_evaluators, prepare_model_evaluators
-from .results import SplitResult, TrainingResult, ValidationResult
+from .results import DatasetSplit, SplitResult, TrainingResult, ValidationResult
 from .splits import Splitter
 
 logger = Logger(__name__)
@@ -154,7 +150,7 @@ def train_model(
             len(splitter.data),
             len(splitter.data.X.columns),
         )
-        with tracking.run(run_name):
+        with nested_run(run_name):
             requested: dict[str, object] = asdict(replace(config, tuning=None))
             if config.tuning is not None:
                 tuning_settings: dict[str, object] = asdict(
@@ -167,15 +163,15 @@ def train_model(
                         "parameters": objective_evaluator.parameters(),
                     }
                 requested["tuning"] = tuning_settings
-            tracking.log_json(requested, "configuration/requested.json")
-            tracking.log_json(
+            log_json(requested, "configuration/requested.json")
+            log_json(
                 {
                     "class": f"{type(splitter).__module__}.{type(splitter).__qualname__}",
                     "parameters": splitter.parameters(),
                 },
                 "configuration/splitter.json",
             )
-            tracking.log_json(
+            log_json(
                 [
                     {
                         "name": item.name,
@@ -186,7 +182,7 @@ def train_model(
                 ],
                 "configuration/evaluators.json",
             )
-            tracking.log_json(
+            log_json(
                 [
                     {
                         "name": item.name,
@@ -197,7 +193,7 @@ def train_model(
                 ],
                 "configuration/data_analyzers.json",
             )
-            tracking.log_json(
+            log_json(
                 [
                     {
                         "name": item.name,
@@ -209,7 +205,7 @@ def train_model(
                 "configuration/model_evaluators.json",
             )
             logger.info("Starting validation")
-            with tracking.run("validation"):
+            with nested_run("validation"):
                 split_results: list[SplitResult] = []
                 indices: set[int] = set()
                 while part is not None:
@@ -240,13 +236,13 @@ def train_model(
                     part = next(splits, None)
                 validation = ValidationResult(tuple(split_results))
                 mean_metrics = validation.mean_metrics
-                tracking.log_metrics(
+                mlflow.log_metrics(
                     {f"validation/{key}": value for key, value in mean_metrics.items()}
                 )
             logger.info("Completed validation with %s splits", len(split_results))
             logger.debug("Validation mean metrics: %s", mean_metrics, console=False)
             last = validation.last_split
-            tracking.log_json(
+            log_json(
                 {
                     "features": last.features,
                     "model_params": last.refit_params,
@@ -274,7 +270,7 @@ def train_model(
                     else {"train": test_train}
                 ),
             )
-            with tracking.run(stage):
+            with nested_run(stage):
                 model, final_params = refit_model(
                     data=test_train,
                     last_split=last,
@@ -341,7 +337,7 @@ def train_model(
                     )
                 logger.info("Starting final_fit stage")
                 datasets("final_fit data (including test)", {"train": full})
-                with tracking.run("final_fit"):
+                with nested_run("final_fit"):
                     final_model, _ = refit_model(
                         data=full, last_split=last, model_factory=model_factory
                     )

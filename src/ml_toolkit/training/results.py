@@ -1,12 +1,32 @@
 """Metadata-only validation results and the final fitted model."""
 
 from dataclasses import dataclass
+from enum import StrEnum
 
 import numpy as np
 
 from ..feature_selection import FeatureSelectionResult
 from ..models.base import Model
 from ..types import ModelParams
+
+
+class DatasetSplit(StrEnum):
+    """Identify an evaluated dataset split.
+
+    Attributes
+    ----------
+    TRAIN : DatasetSplit
+        Rows used to fit the model; serialized as "train".
+    VAL : DatasetSplit
+        Validation rows; serialized as "val".
+    TEST : DatasetSplit
+        Independent test rows; serialized as "test". The training workflow
+        evaluates test after the main fit when the splitter supplies held-out data.
+    """
+
+    TRAIN = "train"
+    VAL = "val"
+    TEST = "test"
 
 
 @dataclass(frozen=True)

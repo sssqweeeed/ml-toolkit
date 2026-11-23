@@ -6,8 +6,9 @@ from weakref import ref
 import mlflow
 import pytest
 
-from ml_toolkit.config import TrackingConfig, TrainingConfig
+from ml_toolkit.config import TrainingConfig
 from ml_toolkit.data import Pool
+from ml_toolkit.models import TrackingConfig
 from ml_toolkit.training import Split, Splitter, TimeSeriesCV, train_model
 from tests.support.evaluators import CallbackEvaluator
 from tests.support.training import MeanModel, mae, make_identified_data, setup_mlflow

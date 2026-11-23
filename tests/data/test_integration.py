@@ -165,7 +165,7 @@ def test_inflation_logging_keeps_feature_rows_aligned_with_dates(
     )
     model.fit(pool)
     examples = []
-    import ml_toolkit.tracking.model_artifacts as module
+    import ml_toolkit.models.inflation_regression as module
 
     log_artifacts = module.log_catboost
 

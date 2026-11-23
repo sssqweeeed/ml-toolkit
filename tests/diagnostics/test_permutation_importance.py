@@ -7,7 +7,7 @@ import numpy as np
 import polars as pl
 import pytest
 
-from ml_toolkit.config import FigureConfig
+from ml_toolkit.figures import FigureConfig
 from ml_toolkit.metrics import MetricScores
 from ml_toolkit.model_evaluation import PermutationImportance
 from tests.support.training import MeanModel, mae, make_data

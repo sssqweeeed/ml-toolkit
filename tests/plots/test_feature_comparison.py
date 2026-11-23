@@ -4,9 +4,9 @@ import pytest
 
 from ml_toolkit.config import FeatureLevelConfig
 from ml_toolkit.feature_levels import LevelTransformer
+from ml_toolkit.figures import PlotError
 from ml_toolkit.plots import regression
 from ml_toolkit.plots.regression import observed_fitted_by_level
-from ml_toolkit.plots.utils import PlotError
 
 
 def test_special_levels_and_underscore_sample_labels_remain_visible(

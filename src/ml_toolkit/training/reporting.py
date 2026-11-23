@@ -4,12 +4,13 @@ from collections.abc import Callable
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+import mlflow
 import polars as pl
 
 from .._console import Logger
 from ..config import ReportingConfig
-from ..data import Pool
-from ..data_analysis import DataAnalyzer, data_comparison_pair, validate_split
+from ..data import Pool, validate_split_labels
+from ..data_analysis import DataAnalyzer, data_comparison_pair
 from ..evaluation import (
     PredictionEvaluator,
     comparison_pair,
@@ -19,13 +20,12 @@ from ..evaluation._metrics import validate_report_metrics
 from ..feature_levels import LevelTransformer
 from ..feature_levels.config import feature_definitions
 from ..feature_selection import FeatureSelectionResult
+from ..figures import feature_filename
 from ..metrics import Metric
 from ..model_evaluation import ModelEvaluator
 from ..models.base import Model
 from ..plots import psi as psi_plots
-from ..plots.utils import feature_filename
 from ..psi import PSIBaseline, compare_psi
-from ..tracking import runs as tracking
 from ..types import FloatArray
 
 logger = Logger(__name__)
@@ -133,7 +133,7 @@ def upload_artifacts(root: Path, paths: list[Path], namespace: str) -> None:
         artifact_path = namespace
         if parent != ".":
             artifact_path += f"/{parent}"
-        tracking.log_artifact(image, artifact_path=artifact_path)
+        mlflow.log_artifact(str(image), artifact_path=artifact_path)
         logger.debug("Logged report artifact %s to %s", relative, artifact_path)
 
 
@@ -259,7 +259,7 @@ def evaluate_report_metrics(
     try:
         metrics = validate_report_metrics(evaluate())
         if metrics:
-            tracking.log_metrics(
+            mlflow.log_metrics(
                 {f"{name}/{key}": value for key, value in metrics.items()}
             )
         return metrics
@@ -297,7 +297,7 @@ def report_data(
     psi_baseline: PSIBaseline | None = None,
 ) -> None:
     """Run data analysis and PSI without a model or predictions."""
-    validate_split(data, split)
+    validate_split_labels(data, split)
     for analyzer in analyzers:
         _run_report(
             name=analyzer.name,

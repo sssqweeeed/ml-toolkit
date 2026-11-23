@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from copy import deepcopy
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Self, cast
+from typing import Any, Self, cast
 
 import catboost
 import mlflow
@@ -15,8 +15,7 @@ from mlflow.pyfunc.model import PythonModel
 from mlflow.pyfunc.utils import pyfunc
 
 from .._console import Logger
-from ..data import validate_training_categories
-from ..tracking.state import ClassificationState, read_state
+from ..data import Pool, validate_training_categories
 from ..types import FloatArray, IntArray, ModelParams
 from ._catboost import (
     ITERATION_ALIASES,
@@ -26,6 +25,7 @@ from ._catboost import (
     prepare_frame,
     refit_parameters,
 )
+from .artifacts import TrackingConfig, log_catboost
 from .losses.pu.common import (
     NNPUMetric as NNPUMetric,
 )
@@ -36,10 +36,7 @@ from .losses.pu.common import (
 from .losses.pu.common import (
     UPUMetric as UPUMetric,
 )
-
-if TYPE_CHECKING:
-    from ..config import TrackingConfig
-    from ..training.contracts import Pool
+from .state import ClassificationState, read_state
 
 logger = Logger("ml_toolkit.models.catboost_classification")
 
@@ -458,8 +455,6 @@ class CatBoostClassificationModel(PythonModel):
         tracking and an experiment before calling. Classification artifacts also
         preserve threshold and PU settings.
         """
-        from ..config import TrackingConfig
-
         config = TrackingConfig() if config is None else config
         name = config.model_name
         registered_model_name = config.registered_model_name
@@ -554,7 +549,6 @@ class CatBoostClassificationModel(PythonModel):
         conda_env: Path | None,
         extra_artifacts: Mapping[str, str] | None = None,
     ) -> ModelInfo:
-        from ..tracking.model_artifacts import log_catboost
 
         return log_catboost(
             self,

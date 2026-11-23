@@ -11,8 +11,6 @@ import numpy as np
 import pandas as pd
 import polars as pl
 
-from ._model_input import categorical_frame
-from ._rows import row_indexer
 from .types import FloatArray, IntArray
 
 
@@ -376,3 +374,95 @@ def validate_training_categories(data: Pool) -> None:
             raise ValueError(
                 f"Categorical feature {name!r} contains reserved value 'unknown'"
             )
+
+
+def row_indexer(indices: Sequence[int] | IntArray, n_rows: int) -> slice | IntArray:
+    """Use a view for contiguous in-bounds positions, otherwise preserve gather."""
+    if (
+        isinstance(indices, range)
+        and indices.step == 1
+        and 0 <= indices.start < indices.stop <= n_rows
+    ):
+        return slice(indices.start, indices.stop)
+    index = np.asarray(indices, dtype=np.int64)
+    if (
+        index.ndim == 1
+        and index.size
+        and 0 <= index[0]
+        and index[-1] < n_rows
+        and index[-1] - index[0] == index.size - 1
+        and np.all(index[1:] > index[:-1])
+    ):
+        return slice(int(index[0]), int(index[-1]) + 1)
+    return index
+
+
+def categorical_frame(data: pl.DataFrame, categorical: Sequence[str]) -> pd.DataFrame:
+    expressions: list[pl.Expr] = []
+    for name in categorical:
+        column = pl.col(name)
+        dtype = data.schema[name]
+        if dtype == pl.Enum:
+            column = column.cast(pl.Categorical)
+        elif dtype != pl.Categorical:
+            column = column.cast(pl.String).cast(pl.Categorical)
+        expressions.append(column.fill_null("unknown"))
+    # Separate numeric blocks let Arrow share the original numeric buffers.
+    return data.with_columns(expressions).to_pandas(split_blocks=True)
+
+
+def validate_split_labels(data: Pool, split: pl.Series) -> None:
+    if (
+        len(split) != len(data)
+        or split.dtype != pl.String
+        or split.null_count()
+        or not split.is_in(("train", "val", "test")).all()
+    ):
+        raise ValueError(
+            "split must contain aligned non-null String train/val/test labels"
+        )
+    if {"val", "test"} <= set(split.unique()):
+        raise ValueError(
+            "Reporting accepts only one held-out split: val or test, not both"
+        )
+
+
+def concat_pools(train: Pool, heldout: Pool | None) -> Pool:
+    if heldout is None:
+        return train
+    validate_auxiliary_pair(train, heldout)
+    if (
+        train.X.schema != heldout.X.schema
+        or train.cat_features != heldout.cat_features
+        or train.numerical_features != heldout.numerical_features
+    ):
+        raise ValueError("Reporting pools must have matching features and metadata")
+
+    def optional(left: pl.Series | None, right: pl.Series | None) -> pl.Series | None:
+        if left is None and right is None:
+            return None
+        if left is None or right is None:
+            raise ValueError("Reporting pools must have matching optional fields")
+        return pl.concat([left, right], rechunk=False)
+
+    return Pool(
+        X=pl.concat([train.X, heldout.X], rechunk=False),
+        y=pl.concat([train.y, heldout.y], rechunk=False),
+        time=pl.concat([train.time, heldout.time], rechunk=False),
+        weight=pl.concat([train.weight, heldout.weight], rechunk=False),
+        auxiliary_features=(
+            None
+            if train.auxiliary_features is None or heldout.auxiliary_features is None
+            else pl.concat(
+                [train.auxiliary_features, heldout.auxiliary_features], rechunk=False
+            )
+        ),
+        object_id=optional(train.object_id, heldout.object_id),
+        cat_features=train.cat_features,
+        numerical_features=train.numerical_features,
+    )
+
+
+def validate_prediction(data: Pool, prediction: FloatArray) -> None:
+    if prediction.shape != (len(data),) or not np.isfinite(prediction).all():
+        raise ValueError("Predictions must contain one finite value per row")

@@ -13,9 +13,15 @@ import polars as pl
 from numpy.typing import ArrayLike
 
 from .._time import paired_period_starts
-from ..config import FigureConfig
+from ..figures import (
+    FigureConfig,
+    PlotError,
+    numeric_vector,
+    same_length,
+    save_figure,
+    weights,
+)
 from ..types import TimePeriod
-from .utils import PlotError, numeric_vector, same_length, save_figure, weights
 
 
 def _aggregate(frame: pd.DataFrame, groups: list[str], *, sort: bool) -> pd.DataFrame:
