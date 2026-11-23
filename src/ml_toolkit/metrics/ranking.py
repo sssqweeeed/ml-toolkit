@@ -46,12 +46,14 @@ class RankingMetrics:
     perfect_gini : float
         Gini obtained by ranking rows by their observed target.
     cumulative_exposure : numpy.ndarray
-        Cumulative exposure fractions, including the initial zero.
+        Cumulative exposure fractions at the end of each block of equal
+        scores, preceded by the initial zero.
     cumulative_observed : numpy.ndarray
-        Cumulative shares of exposure-weighted observed outcomes.
+        Cumulative shares of exposure-weighted observed outcomes at the same
+        points as cumulative_exposure.
     cumulative_lift : numpy.ndarray
-        Cumulative observed share divided by exposure share; NaN at zero
-        exposure.
+        Cumulative observed share divided by exposure share, at the same
+        points as cumulative_exposure; NaN at zero exposure.
     selected_points : tuple[SelectedRankingPoint, ...]
         Interpolated gain and lift at each requested percentage, in request
         order. Each point exposes percent, gain, and lift attributes.
@@ -108,6 +110,7 @@ def _cumulative_curve(
     )
 
     y_target = y_target[order]
+    y_score = y_score[order]
     exposure = exposure[order]
 
     observed = y_target * exposure
@@ -121,17 +124,21 @@ def _cumulative_curve(
     if total_observed <= 0:
         raise ValueError("total_observed <= 0")
 
+    # Keep only the end of each block of equal scores so tied rows form one
+    # step and the result does not depend on their input order.
+    ends = np.r_[np.flatnonzero(np.diff(y_score) != 0), len(y_score) - 1]
+
     cumulative_exposure = np.concatenate(
         (
             [0.0],
-            np.cumsum(exposure) / total_exposure,
+            (np.cumsum(exposure) / total_exposure)[ends],
         )
     )
 
     cumulative_observed = np.concatenate(
         (
             [0.0],
-            np.cumsum(observed) / total_observed,
+            (np.cumsum(observed) / total_observed)[ends],
         )
     )
 
@@ -238,10 +245,10 @@ def ranking_metrics(
 
     Notes
     -----
-    Rows with zero exposure are omitted; score ties retain input order.
-    Ranking capacity is measured by exposure, and observed amounts are
-    y_target * exposure. Normalized Gini is NaN when
-    the perfect-ranking Gini is close to zero.
+    Rows with zero exposure are omitted; exactly equal scores form one step,
+    so results do not depend on row order. Ranking capacity is measured by
+    exposure, and observed amounts are y_target * exposure. Normalized Gini
+    is NaN when the perfect-ranking Gini is close to zero.
 
     Examples
     --------
@@ -301,6 +308,3 @@ def ranking_metrics(
         cumulative_lift=cumulative_lift,
         selected_points=selected_points,
     )
-
-
-ranking_metrics = ranking_metrics
