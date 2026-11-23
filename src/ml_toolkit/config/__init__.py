@@ -2,10 +2,7 @@
 
 from ..feature_levels import FeatureLevelConfig
 from ..types import TimePeriod
-from .reporting import (
-    ReportingConfig,
-    ShapConfig,
-)
+from .reporting import ReportingConfig
 from .training import (
     TrainingConfig,
     TuningConfig,
@@ -16,6 +13,5 @@ __all__ = [
     "TuningConfig",
     "TrainingConfig",
     "FeatureLevelConfig",
-    "ShapConfig",
     "ReportingConfig",
 ]

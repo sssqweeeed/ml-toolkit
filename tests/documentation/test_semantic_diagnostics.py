@@ -9,8 +9,8 @@ import pytest
 
 from examples.render_examples import execute, recipes
 from ml_toolkit.feature_levels import FeatureLevelConfig
-from ml_toolkit.plots.classification import binary_curves
 from ml_toolkit.psi import PSIAnalysis, psi
+from ml_toolkit.reports.classification import binary_curves
 
 pytestmark = pytest.mark.documentation
 ROOT = Path(__file__).resolve().parents[2]

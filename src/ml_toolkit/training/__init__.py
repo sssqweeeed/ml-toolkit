@@ -2,7 +2,6 @@
 
 from ..config import FeatureLevelConfig as FeatureLevelConfig
 from ..config import ReportingConfig as ReportingConfig
-from ..config import ShapConfig as ShapConfig
 from ..config import TrainingConfig as TrainingConfig
 from ..config import TuningConfig as TuningConfig
 from .rankers import ShapRanker, importance_ranker
@@ -34,6 +33,5 @@ __all__ = [
     "TuningConfig",
     "TrainingConfig",
     "FeatureLevelConfig",
-    "ShapConfig",
     "ReportingConfig",
 ]

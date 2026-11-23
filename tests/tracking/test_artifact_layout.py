@@ -8,21 +8,21 @@ import numpy as np
 import polars as pl
 import pytest
 
-from ml_toolkit.config import ReportingConfig, ShapConfig
-from ml_toolkit.evaluation import (
+from ml_toolkit.config import ReportingConfig
+from ml_toolkit.explainability import ShapConfig
+from ml_toolkit.figures import FigureConfig
+from ml_toolkit.models import CatBoostRegressionModel
+from ml_toolkit.reports import (
     Calibration,
     F1Threshold,
     Gains,
     Lift,
-    NumericalFeatureDistributions,
     ObservedFitted,
     PrecisionRecall,
     PUPositiveCapture,
     PUScoreDistribution,
     TimeObservedFitted,
 )
-from ml_toolkit.figures import FigureConfig
-from ml_toolkit.models import CatBoostRegressionModel
 from ml_toolkit.training.reporting import report_predictions
 from tests.support.training import make_data
 
@@ -55,7 +55,6 @@ def test_all_reports_export_and_cleanup(tmp_path, monkeypatch, format, heldout):
         PUPositiveCapture(),
         ObservedFitted(),
         TimeObservedFitted(),
-        NumericalFeatureDistributions(),
     )
     model = CatBoostRegressionModel(
         {
@@ -78,7 +77,7 @@ def test_all_reports_export_and_cleanup(tmp_path, monkeypatch, format, heldout):
     for evaluator in evaluators:
         comparative = isinstance(
             evaluator,
-            (ObservedFitted, TimeObservedFitted, NumericalFeatureDistributions),
+            (ObservedFitted, TimeObservedFitted),
         )
         prefix = evaluator.name + "/" + ("" if comparative else heldout + "/")
         assert any(

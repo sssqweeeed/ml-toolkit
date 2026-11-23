@@ -1,23 +1,5 @@
-"""All plotting functions, including PSI charts, live in this namespace."""
+"""Figure functions for PSI and feature selection, pending their move."""
 
-from . import (
-    classification,
-    explainability,
-    feature_selection,
-    monitoring,
-    psi,
-    pu,
-    ranking,
-    regression,
-)
+from . import feature_selection, psi
 
-__all__ = [
-    "classification",
-    "explainability",
-    "feature_selection",
-    "monitoring",
-    "psi",
-    "pu",
-    "ranking",
-    "regression",
-]
+__all__ = ["feature_selection", "psi"]

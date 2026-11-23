@@ -7,7 +7,8 @@ from dataclasses import FrozenInstanceError, fields, is_dataclass, replace
 import pytest
 
 import ml_toolkit.config as settings
-from ml_toolkit.config import ReportingConfig, ShapConfig, TrainingConfig, TuningConfig
+from ml_toolkit.config import ReportingConfig, TrainingConfig, TuningConfig
+from ml_toolkit.explainability import ShapConfig
 from ml_toolkit.figures import FigureConfig
 
 

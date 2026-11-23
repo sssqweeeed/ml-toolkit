@@ -5,9 +5,9 @@ from pathlib import Path
 import polars as pl
 
 from ml_toolkit.data import Pool
-from ml_toolkit.data_analysis import DataAnalyzer
 from ml_toolkit.feature_levels import FeatureLevelConfig
 from ml_toolkit.figures import FigureConfig
+from ml_toolkit.reports import DataAnalyzer
 
 
 class DataAudit(DataAnalyzer):

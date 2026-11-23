@@ -6,7 +6,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field, replace
 from math import isfinite
 from time import perf_counter
-from typing import TYPE_CHECKING, Literal, Protocol, TypeAlias
+from typing import Literal, Protocol, TypeAlias
 
 import numpy as np
 import polars as pl
@@ -21,10 +21,8 @@ from .data import (
 )
 from .metrics import Metric
 from .models.base import Model
+from .reports import PredictionEvaluator, validate_report_metrics
 from .types import ModelParams
-
-if TYPE_CHECKING:
-    from .evaluation import PredictionEvaluator
 
 logger = Logger(__name__)
 
@@ -251,8 +249,6 @@ def _evaluate(
     objective_metrics = None
     try:
         if evaluator is not None:
-            from .evaluation._metrics import validate_report_metrics
-
             train_prediction = model.predict_pool(train)
             validate_prediction(train, train_prediction)
             data = concat_pools(train, validation)

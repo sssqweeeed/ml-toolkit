@@ -8,10 +8,10 @@ import numpy as np
 import polars as pl
 import pytest
 
-from ml_toolkit.config import ReportingConfig, ShapConfig, TrainingConfig, TuningConfig
-from ml_toolkit.evaluation import PredictionEvaluator
-from ml_toolkit.model_evaluation import ModelEvaluator, ShrinkCurve
+from ml_toolkit.config import ReportingConfig, TrainingConfig, TuningConfig
+from ml_toolkit.explainability import ShapConfig
 from ml_toolkit.models import TrackingConfig
+from ml_toolkit.reports import ModelEvaluator, PredictionEvaluator, ShrinkCurve
 from ml_toolkit.training import Holdout, TimeSeriesCV, train_model
 from ml_toolkit.training.reporting import report_predictions
 from tests.support.evaluators import CallbackAnalyzer, CallbackEvaluator

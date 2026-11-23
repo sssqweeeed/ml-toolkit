@@ -4,21 +4,19 @@ import json
 from pathlib import Path
 
 import mlflow
-import numpy as np
 import polars as pl
 import pytest
 
 from examples.custom_data_analyzer import DataAudit
-from ml_toolkit.config import ReportingConfig, ShapConfig, TrainingConfig
-from ml_toolkit.data_analysis import DataAnalyzer, NumericalFeatureDistributions
-from ml_toolkit.evaluation import (
-    NumericalFeatureDistributions as LegacyDistributions,
-)
-from ml_toolkit.evaluation import (
-    PredictionEvaluator,
-)
+from ml_toolkit.config import ReportingConfig, TrainingConfig
+from ml_toolkit.explainability import ShapConfig
 from ml_toolkit.figures import FigureConfig
 from ml_toolkit.models import TrackingConfig
+from ml_toolkit.reports import (
+    DataAnalyzer,
+    NumericalFeatureDistributions,
+    PredictionEvaluator,
+)
 from ml_toolkit.training import Holdout, train_model
 from ml_toolkit.training.reporting import report_data
 from tests.support.evaluators import CallbackAnalyzer
@@ -109,7 +107,7 @@ def test_names_checked_across_both_interfaces_before_fitting(
 
 
 @pytest.mark.parametrize("format", ["png", "svg", "pdf"])
-def test_distribution_interface_matches_legacy_plot(tmp_path, monkeypatch, format):
+def test_distribution_report_draws_each_numeric_feature(tmp_path, monkeypatch, format):
     data = make_data()
     calls = []
 
@@ -117,9 +115,10 @@ def test_distribution_interface_matches_legacy_plot(tmp_path, monkeypatch, forma
         calls.append((args, kwargs))
 
     monkeypatch.setattr(
-        "ml_toolkit.plots.monitoring.time_feature_distribution", capture
+        "ml_toolkit.reports.distributions.time_feature_distribution", capture
     )
-    inputs = dict(
+    report = NumericalFeatureDistributions(features=("x",), period="week")
+    paths = report.write_artifacts(
         data=data,
         split=pl.Series(["train"] * 12 + ["test"] * 12),
         artifact_dir=tmp_path,
@@ -127,17 +126,9 @@ def test_distribution_interface_matches_legacy_plot(tmp_path, monkeypatch, forma
         features=None,
         n_bins=10,
     )
-    report = NumericalFeatureDistributions(features=("x",), period="week")
-    legacy = LegacyDistributions(features=("x",), period="week")
-    assert report.write_artifacts(**inputs) == legacy.write_artifacts(
-        prediction=np.ones(len(data)), **inputs
-    )
-    assert report.parameters() == legacy.parameters()
-    assert calls[0][0][0].equals(calls[1][0][0])
-    assert calls[0][0][1].equals(calls[1][0][1])
-    assert calls[0][0][2:] == calls[1][0][2:]
-    assert calls[0][1] == calls[1][1]
+    assert paths == [tmp_path / f"000_x.{format}"]
     assert calls[0][1]["save_fig"] == tmp_path / f"000_x.{format}"
+    assert calls[0][1]["period"] == "week"
     assert not isinstance(report, PredictionEvaluator)
 
 

@@ -3,47 +3,10 @@
 from dataclasses import dataclass, field
 
 from .._time import PERIOD_INTERVALS
+from ..explainability import ShapConfig
 from ..feature_levels import FeatureLevelConfig
 from ..figures import FigureConfig
 from ..types import TimePeriod
-
-
-@dataclass(frozen=True, kw_only=True, slots=True)
-class ShapConfig:
-    """Configure SHAP sampling and displayed feature contributions.
-
-    Parameters
-    ----------
-    max_samples : int, default 10000
-        Positive maximum row count sampled without replacement from validation or test.
-    seed : int, default 0
-        Nonnegative sampling seed, independent of model and tuning seeds.
-    max_display : int, default 10
-        Positive feature limit for importance and beeswarm plots.
-    dependence_features : tuple[str, ...], default ()
-        Unique feature names for dependence plots. Empty disables them.
-
-    Notes
-    -----
-    Requires the shap extra and a supported single-output native tree model.
-    Explanations use the native raw-output scale.
-    """
-
-    max_samples: int = 10_000
-    seed: int = 0
-    max_display: int = 10
-    dependence_features: tuple[str, ...] = ()
-
-    def __post_init__(self) -> None:
-        if self.max_samples < 1:
-            raise ValueError("max_samples must be positive")
-        if self.max_display < 1:
-            raise ValueError("max_display must be positive")
-        if self.seed < 0:
-            raise ValueError("seed must be nonnegative")
-        names = self.dependence_features
-        if any(not name.strip() for name in names) or len(set(names)) != len(names):
-            raise ValueError("dependence_features must contain unique nonempty names")
 
 
 @dataclass(frozen=True, kw_only=True, slots=True)

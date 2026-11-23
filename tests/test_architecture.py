@@ -20,11 +20,8 @@ LAYERS: dict[str, int] = {
     "feature_levels": 4,
     "psi": 4,
     "inflation": 4,
-    "_grouping": 4,  # private helper of the reports layer; removed in phase 3
     "models": 5,
-    "evaluation": 6,
-    "model_evaluation": 6,
-    "data_analysis": 6,
+    "reports": 6,
     "plots": 6,
     "explainability": 6,
     "feature_selection": 7,
@@ -41,40 +38,20 @@ SHARED_PRIVATE_MODULES = {"_console", "_time"}
 ALLOWED_VIOLATIONS: set[tuple[str, str]] = {
     # Phase 6: the dataset summary printer moves out of the console layer.
     ("ml_toolkit._console", "ml_toolkit.data"),
-    # Phase 3: ShapConfig moves down with explainability.
-    ("ml_toolkit.explainability", "ml_toolkit.config"),
-    ("ml_toolkit.plots.explainability", "ml_toolkit.config"),
     # Phase 5: the selection figures move into feature_selection.
     ("ml_toolkit.plots.feature_selection", "ml_toolkit.feature_selection"),
-    # Phase 3: row grouping and report-metric validation join reports.
-    ("ml_toolkit.evaluation.grouped", "ml_toolkit._grouping"),
-    ("ml_toolkit.evaluation.regression", "ml_toolkit._grouping"),
-    ("ml_toolkit.feature_selection", "ml_toolkit.evaluation._metrics"),
-    ("ml_toolkit.training.reporting", "ml_toolkit.evaluation._metrics"),
     # Phase 4: feature-level serialization merges into feature_levels.
     ("ml_toolkit.psi.baseline", "ml_toolkit.feature_levels._serialization"),
 }
 
 
-# Package cycles that later phases remove (phases 3 and 5: evaluation reports,
-# plots and feature selection are merged or reordered).
-ALLOWED_CYCLES: set[frozenset[str]] = {
-    frozenset({"config", "data_analysis", "evaluation", "feature_selection", "plots"}),
-}
+# Package cycles that later phases remove; none remain after the reports merge.
+ALLOWED_CYCLES: set[frozenset[str]] = set()
 
 # Function-level imports of toolkit modules as (importing module, imported
 # module). Only optional backends may be imported lazily; each entry below
 # works around a cycle that the named phase removes.
 FUNCTION_LEVEL_IMPORTS: set[tuple[str, str]] = {
-    # Phase 3: figures move next to their reports.
-    ("ml_toolkit.evaluation.metric_trend", "ml_toolkit.plots.metric_trend"),
-    ("ml_toolkit.evaluation.residuals", "ml_toolkit.plots.residuals"),
-    (
-        "ml_toolkit.model_evaluation.permutation",
-        "ml_toolkit.plots.permutation_importance",
-    ),
-    ("ml_toolkit.model_evaluation.robustness", "ml_toolkit.plots.robustness"),
-    ("ml_toolkit.model_evaluation.shrink", "ml_toolkit.plots.model_evaluation"),
     # Phase 2: training-only code (metrics, numba kernels) is split from serving
     # code; serving environments must not import it, see check_model_inference.
     ("ml_toolkit.models.catboost_classification", "ml_toolkit.metrics.classification"),
@@ -82,11 +59,6 @@ FUNCTION_LEVEL_IMPORTS: set[tuple[str, str]] = {
     ("ml_toolkit.models.losses.gamma.config", "ml_toolkit.models.losses.gamma.cpu"),
     ("ml_toolkit.models.losses.pu.common", "ml_toolkit.metrics.pu"),
     ("ml_toolkit.models.losses.pu.common", "ml_toolkit.models.losses.pu.cpu"),
-    # Phase 3: report-metric validation moves to reports.
-    ("ml_toolkit.feature_selection", "ml_toolkit.evaluation._metrics"),
-    # Phases 3 and 5: report figures (explainability, selection) move to reports.
-    ("ml_toolkit.training.reporting", "ml_toolkit.plots"),
-    ("ml_toolkit.training.reporting", "ml_toolkit.explainability"),
 }
 
 # Optional backends: CUDA kernels and LightGBM may be imported lazily.

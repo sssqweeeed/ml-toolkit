@@ -39,11 +39,11 @@ from ml_toolkit.metrics import calculate_metrics
 from ml_toolkit.models.base import Model
 from ml_toolkit.models import ShrinkableModel
 from ml_toolkit.models.lightgbm import LightGBMServingModel
-from ml_toolkit.model_evaluation import ModelEvaluator, ShrinkCurve, PermutationImportance, RobustnessCurve
+from ml_toolkit.reports import ModelEvaluator, ShrinkCurve, PermutationImportance, RobustnessCurve
 from ml_toolkit.inflation import ConstantRateInflation, LogLinearInflation, SplineInflation
-from ml_toolkit.evaluation import GroupedMetrics, PredictionEvaluator, TimeObservedFitted
-from ml_toolkit.evaluation import MetricTrend
-from ml_toolkit.evaluation import Residuals, ResidualResult
+from ml_toolkit.reports import GroupedMetrics, PredictionEvaluator, TimeObservedFitted
+from ml_toolkit.reports import MetricTrend
+from ml_toolkit.reports import Residuals, ResidualResult
 from ml_toolkit.config import FeatureLevelConfig
 from ml_toolkit.figures import FigureConfig
 from ml_toolkit.data import Pool as DataPool
@@ -277,7 +277,7 @@ def monitoring_contract(
     )
 
 
-from ml_toolkit.plots.regression import observed_fitted_by_level
+from ml_toolkit.reports.regression import observed_fitted_by_level
 from ml_toolkit.psi import compare_psi
 import pandas as pd
 
@@ -377,7 +377,7 @@ def new_training_contracts(data: Pool, result: TrainingResult, y: FloatArray) ->
     assert_type(metric(y, y, y).to_dict(), dict[str, float])
 
 
-from ml_toolkit.data_analysis import DataAnalyzer, NumericalFeatureDistributions
+from ml_toolkit.reports import DataAnalyzer, NumericalFeatureDistributions
 from examples.custom_data_analyzer import DataAudit
 
 

@@ -9,7 +9,7 @@ from ..models import TrackingConfig
 from .reporting import ReportingConfig
 
 if TYPE_CHECKING:
-    from ..evaluation import PredictionEvaluator
+    from ..reports import PredictionEvaluator
 
 
 @dataclass(frozen=True, kw_only=True, slots=True)

@@ -10,9 +10,10 @@ import numpy as np
 import polars as pl
 import pytest
 
-from ml_toolkit.config import ReportingConfig, ShapConfig, TrainingConfig, TuningConfig
-from ml_toolkit.evaluation import PredictionEvaluator
+from ml_toolkit.config import ReportingConfig, TrainingConfig, TuningConfig
+from ml_toolkit.explainability import ShapConfig
 from ml_toolkit.models import TrackingConfig
+from ml_toolkit.reports import PredictionEvaluator
 from ml_toolkit.training import TimeSeriesCV, train_model
 from tests.support.evaluators import CallbackAnalyzer, CallbackEvaluator
 from tests.support.training import MeanModel, mae, make_identified_data, setup_mlflow
@@ -254,7 +255,7 @@ def test_invalid_objective_has_evaluator_key_split_and_trial_context(
 
 @pytest.mark.parametrize("conflict", ["prediction", "model", "analyzer", "psi", "shap"])
 def test_objective_names_are_checked_before_fit(inputs, conflict):
-    from ml_toolkit.model_evaluation import ModelEvaluator
+    from ml_toolkit.reports import ModelEvaluator
 
     def factory(params):
         pytest.fail("Name conflict was not rejected before fitting")

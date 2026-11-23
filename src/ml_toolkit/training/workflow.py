@@ -10,12 +10,10 @@ from .._console import Logger, datasets, message, metrics, output_context
 from ..config import TrainingConfig
 from ..config.training import check_registration_target_logged
 from ..data import Pool, validate_training_data
-from ..data_analysis import DataAnalyzer
-from ..evaluation import PredictionEvaluator
 from ..feature_selection import FeatureSelector
 from ..metrics import Metric
-from ..model_evaluation import ModelEvaluator
 from ..models.base import Model
+from ..reports import DataAnalyzer, ModelEvaluator, PredictionEvaluator
 from ..tracking import log_json, nested_run
 from ..types import ModelParams
 from .evaluation import evaluate_model
