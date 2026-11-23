@@ -13,6 +13,18 @@ import polars as pl
 
 from .types import FloatArray, IntArray
 
+__all__ = [
+    "Pool",
+    "categorical_frame",
+    "concat_pools",
+    "row_indexer",
+    "validate_auxiliary_pair",
+    "validate_prediction",
+    "validate_split_labels",
+    "validate_training_categories",
+    "validate_training_data",
+]
+
 
 @dataclass(frozen=True)
 class Pool:
@@ -313,7 +325,18 @@ class Pool:
 
 
 def validate_auxiliary_pair(left: Pool, right: Pool) -> None:
-    """Require identical auxiliary schemas before pairing or concatenating pools."""
+    """Require identical auxiliary schemas before pairing or concatenating pools.
+
+    Parameters
+    ----------
+    left, right : Pool
+        Pools to compare.
+
+    Raises
+    ------
+    ValueError
+        If only one pool has auxiliary features or their schemas differ.
+    """
     a, b = left.auxiliary_features, right.auxiliary_features
     if a is None and b is None:
         return
@@ -331,6 +354,20 @@ def validate_object_ids(object_id: pl.Series, n_rows: int) -> None:
 
 
 def validate_training_data(data: Pool) -> None:
+    """Check that a pool can be used for training.
+
+    Parameters
+    ----------
+    data : Pool
+        Pool to validate.
+
+    Raises
+    ------
+    ValueError
+        If lengths differ or are zero, auxiliary columns overlap with X, time is
+        not an ascending non-null Date or Datetime, the target or weights are not
+        finite, weights are negative or sum to zero, or object ids are invalid.
+    """
     size = len(data)
     series = [data.y, data.time, data.weight]
     if data.auxiliary_features is not None:
@@ -364,6 +401,19 @@ def validate_training_data(data: Pool) -> None:
 
 
 def validate_training_categories(data: Pool) -> None:
+    """Check categorical features exist and do not use the reserved value.
+
+    Parameters
+    ----------
+    data : Pool
+        Pool whose ``cat_features`` are checked.
+
+    Raises
+    ------
+    ValueError
+        If a categorical feature is missing from X or contains ``"unknown"``,
+        which models use for missing categories.
+    """
     for name in data.cat_features:
         if name not in data.X.columns:
             raise ValueError(f"Categorical feature is missing: {name}")
@@ -377,7 +427,21 @@ def validate_training_categories(data: Pool) -> None:
 
 
 def row_indexer(indices: Sequence[int] | IntArray, n_rows: int) -> slice | IntArray:
-    """Use a view for contiguous in-bounds positions, otherwise preserve gather."""
+    """Select rows by position, as a slice when the positions are contiguous.
+
+    Parameters
+    ----------
+    indices : Sequence[int] or numpy.ndarray
+        Row positions.
+    n_rows : int
+        Number of rows in the indexed data.
+
+    Returns
+    -------
+    slice or numpy.ndarray
+        A view-friendly slice for contiguous in-bounds ascending positions,
+        otherwise the positions as an int64 array in the given order.
+    """
     if (
         isinstance(indices, range)
         and indices.step == 1
@@ -398,6 +462,22 @@ def row_indexer(indices: Sequence[int] | IntArray, n_rows: int) -> slice | IntAr
 
 
 def categorical_frame(data: pl.DataFrame, categorical: Sequence[str]) -> pd.DataFrame:
+    """Convert Polars features to pandas with categorical columns encoded.
+
+    Training and every prediction path use this single conversion.
+
+    Parameters
+    ----------
+    data : polars.DataFrame
+        Feature columns.
+    categorical : Sequence[str]
+        Names of columns to cast to categorical; nulls become ``"unknown"``.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Features with categorical dtype for the listed columns.
+    """
     expressions: list[pl.Expr] = []
     for name in categorical:
         column = pl.col(name)
@@ -412,6 +492,21 @@ def categorical_frame(data: pl.DataFrame, categorical: Sequence[str]) -> pd.Data
 
 
 def validate_split_labels(data: Pool, split: pl.Series) -> None:
+    """Check split labels are aligned with a pool and name one held-out split.
+
+    Parameters
+    ----------
+    data : Pool
+        Pool the labels describe.
+    split : polars.Series
+        One non-null String label per row: ``"train"``, ``"val"`` or ``"test"``.
+
+    Raises
+    ------
+    ValueError
+        If labels are misaligned, null, not String, unknown, or contain both
+        ``"val"`` and ``"test"``.
+    """
     if (
         len(split) != len(data)
         or split.dtype != pl.String
@@ -428,6 +523,26 @@ def validate_split_labels(data: Pool, split: pl.Series) -> None:
 
 
 def concat_pools(train: Pool, heldout: Pool | None) -> Pool:
+    """Stack a training pool and an optional held-out pool.
+
+    Parameters
+    ----------
+    train : Pool
+        Leading rows.
+    heldout : Pool or None
+        Rows appended after ``train``; None returns ``train`` unchanged.
+
+    Returns
+    -------
+    Pool
+        Pool with the rows of both inputs.
+
+    Raises
+    ------
+    ValueError
+        If feature schemas, feature metadata, auxiliary schemas or optional
+        fields differ.
+    """
     if heldout is None:
         return train
     validate_auxiliary_pair(train, heldout)
@@ -464,5 +579,19 @@ def concat_pools(train: Pool, heldout: Pool | None) -> Pool:
 
 
 def validate_prediction(data: Pool, prediction: FloatArray) -> None:
+    """Check there is one finite prediction per pool row.
+
+    Parameters
+    ----------
+    data : Pool
+        Pool the prediction describes.
+    prediction : numpy.ndarray
+        One-dimensional predictions.
+
+    Raises
+    ------
+    ValueError
+        If the shape is not ``(len(data),)`` or any value is not finite.
+    """
     if prediction.shape != (len(data),) or not np.isfinite(prediction).all():
         raise ValueError("Predictions must contain one finite value per row")
