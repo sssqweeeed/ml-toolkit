@@ -262,7 +262,17 @@ def binary_curves(
 
 @dataclass(frozen=True)
 class PrecisionRecallSummary:
-    """Threshold table with the weighted prevalence and average precision."""
+    """Threshold table with the weighted prevalence and average precision.
+
+    Attributes
+    ----------
+    curve : pandas.DataFrame
+        Columns threshold, precision, recall and f1 at distinct thresholds.
+    prevalence : float
+        Weighted share of positive labels.
+    average_precision : float
+        Weighted average precision; 0 when no positive row has weight.
+    """
 
     curve: pd.DataFrame
     prevalence: float
@@ -272,7 +282,27 @@ class PrecisionRecallSummary:
 def precision_recall_summary(
     observed: ArrayLike, probabilities: ArrayLike, *, weight: ArrayLike | None = None
 ) -> PrecisionRecallSummary:
-    """Compute the threshold table, weighted prevalence and average precision."""
+    """Compute the threshold table, weighted prevalence and average precision.
+
+    Parameters
+    ----------
+    observed : array-like of shape (n_samples,)
+        Nonempty binary labels containing only 0 and 1.
+    probabilities : array-like of shape (n_samples,)
+        Finite probabilities in [0, 1], aligned with labels.
+    weight : array-like of shape (n_samples,) or None, default None
+        Nonnegative finite weights with positive total; None uses ones.
+
+    Returns
+    -------
+    PrecisionRecallSummary
+        Values shown by :func:`precision_recall`; no figure is created.
+
+    Raises
+    ------
+    PlotError
+        Labels, probabilities or weights are invalid or misaligned.
+    """
     curve = binary_curves(observed, probabilities, weight=weight)
     labels = np.asarray(observed, dtype=float)
     exposure = weights(weight, len(labels))
@@ -475,7 +505,33 @@ def calibration_bins(
     *,
     weight: ArrayLike | None = None,
 ) -> CalibrationBins:
-    """Group positive-weight rows into probability quantile bins."""
+    """Group positive-weight rows into probability quantile bins.
+
+    Parameters
+    ----------
+    observed : array-like of shape (n_samples,)
+        Nonempty binary labels containing only 0 and 1.
+    probabilities : array-like of shape (n_samples,)
+        Finite probabilities in [0, 1], aligned with labels.
+    n_bins : int
+        Positive number of probability quantile bins; repeated cutoffs collapse.
+    weight : array-like of shape (n_samples,) or None, default None
+        Nonnegative finite weights with positive total; None uses ones.
+
+    Returns
+    -------
+    CalibrationBins
+        Bin statistics and the positive-weight rows used; no figure is created.
+
+    Raises
+    ------
+    ValueError
+        ``n_bins`` is not positive.
+    PlotError
+        Labels, probabilities or weights are invalid or misaligned.
+    """
+    if n_bins < 1:
+        raise ValueError("n_bins must be positive")
     binary_curves(observed, probabilities, weight=weight)
     y = np.asarray(observed, dtype=float)
     p = np.asarray(probabilities, dtype=float)
@@ -546,8 +602,8 @@ def calibration(
     Creates parent directories for save_fig and closes the figure after saving.
     Includes a prediction histogram and a perfect-calibration reference line.
     """
-    if n_bins < 1 or histogram_bins < 1:
-        raise ValueError("bin counts must be positive")
+    if histogram_bins < 1:
+        raise ValueError("histogram_bins must be positive")
     binned = calibration_bins(observed, probabilities, n_bins, weight=weight)
     grouped, p, w = binned.table, binned.probabilities, binned.weight
     fig, (ax, histogram) = plt.subplots(

@@ -133,7 +133,32 @@ def distribution_summary(
 ) -> pl.DataFrame:
     """Unweighted quantiles and mean of a feature per period and sample.
 
-    Returns the table described by :func:`time_feature_distribution`.
+    Parameters
+    ----------
+    reference, current : polars.DataFrame
+        Frames containing the feature and timestamp columns.
+    feature : str
+        Numerical feature to summarize.
+    timestamp : str
+        Date or Datetime column used for calendar grouping.
+    period : TimePeriod, default 'month'
+        Calendar grouping in the matching input timezones.
+    quantile_bands : tuple of pairs
+        Quantile intervals whose endpoints are summarized.
+
+    Returns
+    -------
+    polars.DataFrame
+        period_start, split, endpoint quantiles, p50 and mean, as returned by
+        :func:`time_feature_distribution`.
+
+    Raises
+    ------
+    ValueError
+        Columns are missing, timezones differ, bands are invalid, or the
+        reference extends past the current sample.
+    TypeError
+        The feature is not numerical or the timestamp is not Date/Datetime.
     """
     validate_distribution(quantile_bands)
     quantiles = sorted({0.5, *(q for band in quantile_bands for q in band)})

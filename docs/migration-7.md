@@ -87,3 +87,16 @@ without matplotlib: `classification.precision_recall_summary`,
 `regression.time_summary` and `distributions.distribution_summary`.
 `metrics.classification.average_precision` is the single average-precision
 implementation; the precision-recall figure reuses it.
+
+## Behaviour changes
+
+- `GroupedMetrics` now reports a metric callback that returns no scores or
+  empty names as `Metric must return nonempty named scores` (previously
+  `Grouped metric must return at least one named score` or `Grouped metric
+  names must be nonempty strings`), the same message `MetricTrend` and
+  `ShrinkCurve` use.
+- `classification.calibration` reports a nonpositive `histogram_bins` as
+  `histogram_bins must be positive`; a nonpositive `n_bins` is rejected by
+  `classification.calibration_bins` as `n_bins must be positive` (previously
+  both gave `bin counts must be positive`).
+

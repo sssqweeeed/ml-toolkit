@@ -215,3 +215,14 @@ TrackingConfig(log_test_model='yes')  # expected-type-error
 
 def invalid_scoring(data: Pool) -> None:
     calculate_metrics(data, data, data.y.to_numpy())  # expected-type-error
+
+
+from ml_toolkit.explainability import ShapConfig
+from ml_toolkit.reports.classification import calibration_bins
+
+ShapConfig(max_samples="many")  # expected-type-error
+
+
+def invalid_computation(probabilities: FloatArray) -> None:
+    calibration_bins([1.0], probabilities, n_bins="ten")  # expected-type-error
+

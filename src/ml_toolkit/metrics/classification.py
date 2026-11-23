@@ -228,7 +228,22 @@ def confusion_matrix(
 def average_precision(
     target: FloatArray, probability: FloatArray, weight: FloatArray | None
 ) -> float:
-    """Return average precision, weighted when weights are given."""
+    """Return average precision, weighted when weights are given.
+
+    Parameters
+    ----------
+    target : numpy.ndarray
+        Binary labels containing at least one positive with positive weight.
+    probability : numpy.ndarray
+        Positive-class scores aligned with labels.
+    weight : numpy.ndarray or None
+        Row weights; None counts every row as one.
+
+    Returns
+    -------
+    float
+        Step-wise area under the precision-recall curve.
+    """
     return float(average_precision_score(target, probability, sample_weight=weight))
 
 

@@ -235,7 +235,30 @@ def level_observed_fitted(
 ) -> pd.DataFrame:
     """Weighted observed/fitted means per sample and level, without drawing.
 
-    Returns the table described by :func:`observed_fitted_by_level`.
+    Parameters
+    ----------
+    reference_levels, current_levels : polars.Series
+        Non-null level labels from the same fitted LevelTransformer.
+    reference_observed, current_observed : array-like
+        Nonempty finite targets for each sample.
+    reference_fitted, current_fitted : array-like
+        Finite predictions aligned with each sample's targets.
+    level_order : tuple of str
+        Unique fitted labels in interval/category order.
+    reference_weight, current_weight : array-like or None, default None
+        Finite nonnegative weights with positive total; None uses unit weights.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Columns sample, level, observed, fitted and volume, as returned by
+        :func:`observed_fitted_by_level`.
+
+    Raises
+    ------
+    PlotError
+        Values or weights are invalid, lengths differ, levels are null or
+        undefined, or ``level_order`` is empty or has duplicates.
     """
     if not level_order or len(set(level_order)) != len(level_order):
         raise PlotError("level_order must contain unique fitted labels")
@@ -402,7 +425,15 @@ def observed_fitted_by_level(
 
 @dataclass(frozen=True)
 class TimeSummary:
-    """Weighted period means and the timestamp where the current sample begins."""
+    """Weighted period means and the timestamp where the current sample begins.
+
+    Attributes
+    ----------
+    table : pandas.DataFrame
+        Columns period_start, group, split, observed, fitted and volume.
+    boundary : pandas.Timestamp
+        Earliest period start of the current sample, in the input timezone.
+    """
 
     table: pd.DataFrame
     boundary: pd.Timestamp
@@ -424,7 +455,33 @@ def time_summary(
 ) -> TimeSummary:
     """Weighted observed/fitted means per period and group, without drawing.
 
-    The table is the one described by :func:`time_observed_fitted`.
+    Parameters
+    ----------
+    reference_timestamp, current_timestamp : Sequence of date or datetime
+        Timestamps aligned with each sample; the earliest current timestamp must
+        not precede the latest reference timestamp.
+    reference_observed, current_observed : array-like
+        Nonempty finite targets.
+    reference_fitted, current_fitted : array-like
+        Finite predictions aligned with targets.
+    period : TimePeriod, default 'month'
+        Calendar grouping in the matching input timezone.
+    reference_weight, current_weight : array-like or None, default None
+        Finite nonnegative weights with positive total; None uses unit weights.
+    reference_group, current_group : polars.Series or None, default None
+        Optional group labels; None groups all rows as ``all``.
+
+    Returns
+    -------
+    TimeSummary
+        The table described by :func:`time_observed_fitted` and its boundary.
+
+    Raises
+    ------
+    ValueError
+        Timezones differ or the reference extends past the current sample.
+    PlotError
+        Vectors are misaligned, timestamps are missing, or values are invalid.
     """
     reference_index = pd.DatetimeIndex(list(reference_timestamp))
     current_index = pd.DatetimeIndex(list(current_timestamp))

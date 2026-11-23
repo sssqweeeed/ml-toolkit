@@ -16,6 +16,7 @@ from ..models.base import Model, ShrinkableModel
 from ..types import FloatArray
 
 __all__ = [
+    "REPORT_NAME_PATTERN",
     "DataAnalyzer",
     "MetricScore",
     "ModelEvaluator",
@@ -32,9 +33,12 @@ __all__ = [
 ]
 
 
+REPORT_NAME_PATTERN = r"[A-Za-z0-9][A-Za-z0-9_.-]*"
+
+
 def validate_report_name(name: str, kind: str) -> None:
     """Require a name usable as an artifact namespace and metric prefix."""
-    if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", name) is None:
+    if re.fullmatch(REPORT_NAME_PATTERN, name) is None:
         raise ValueError(
             f"{kind} name must start with an ASCII letter or digit and contain only ASCII letters, digits, underscores, hyphens or dots"
         )

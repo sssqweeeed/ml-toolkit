@@ -14,6 +14,7 @@ from ..figures import FigureConfig
 from ..metrics import Metric
 from ..types import FloatArray, IntArray
 from .base import (
+    REPORT_NAME_PATTERN,
     PredictionEvaluator,
     expand_skipped_rows,
     long_metric_rows,
@@ -25,6 +26,20 @@ __all__ = ["GroupedMetrics", "RowGroup", "row_groups", "validate_grouping"]
 
 @dataclass(frozen=True)
 class RowGroup:
+    """Rows sharing one exact value combination of the grouping columns.
+
+    Attributes
+    ----------
+    key : polars.DataFrame
+        One row holding the group's typed column values.
+    indices : IntArray
+        Positions of the group's rows in the grouped pool, in original order.
+    identifier : str
+        Ordinal id such as ``group_0000``; never derived from the values.
+    label : str
+        Display text containing the id and the values.
+    """
+
     key: pl.DataFrame
     indices: IntArray
     identifier: str
@@ -32,6 +47,23 @@ class RowGroup:
 
 
 def validate_grouping(by: tuple[str, ...], max_groups: int, *, required: bool) -> None:
+    """Check grouping settings of a report.
+
+    Parameters
+    ----------
+    by : tuple of str
+        Grouping column names.
+    max_groups : int
+        Maximum number of distinct groups.
+    required : bool
+        Whether ``by`` must contain at least one column.
+
+    Raises
+    ------
+    ValueError
+        Column names are invalid, ``by`` is required but empty, or
+        ``max_groups`` is not a positive integer.
+    """
     validate_features(by)
     if required and not by:
         raise ValueError("by must contain at least one grouping column")
@@ -44,6 +76,26 @@ def row_groups(data: Pool, by: tuple[str, ...], max_groups: int) -> list[RowGrou
 
     IDs are ordinal within a report and never derived from user labels. Labels
     include that ID so different typed keys cannot collapse after formatting.
+
+    Parameters
+    ----------
+    data : Pool
+        Rows to partition.
+    by : tuple of str
+        Model or auxiliary grouping columns.
+    max_groups : int
+        Maximum number of distinct groups.
+
+    Returns
+    -------
+    list of RowGroup
+        Groups in order of first appearance.
+
+    Raises
+    ------
+    ValueError
+        A grouping column is not scalar or there are more than ``max_groups``
+        groups.
     """
     frame = data.to_analysis_frame(by)
     if any(dtype.is_nested() or dtype == pl.Object for dtype in frame.schema.values()):
@@ -227,7 +279,7 @@ class GroupedMetrics(PredictionEvaluator):
             # a reserved leading underscore, so unsafe names cannot collide.
             key = (
                 name
-                if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", name)
+                if re.fullmatch(REPORT_NAME_PATTERN, name)
                 else "_hex_" + name.encode().hex()
             )
             scores[f"{row['split']}/{row['group_id']}/{key}"] = float(row["value"])
