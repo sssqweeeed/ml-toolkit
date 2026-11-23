@@ -4,7 +4,6 @@ from ..config import FeatureLevelConfig as FeatureLevelConfig
 from ..config import ReportingConfig as ReportingConfig
 from ..config import TrainingConfig as TrainingConfig
 from ..config import TuningConfig as TuningConfig
-from .rankers import ShapRanker, importance_ranker
 from .results import (
     DatasetSplit,
     SplitResult,
@@ -26,8 +25,6 @@ __all__ = [
     "TrainingResult",
     "TuningResult",
     "ValidationResult",
-    "ShapRanker",
-    "importance_ranker",
     "train_model",
     "tune_optuna",
     "TuningConfig",

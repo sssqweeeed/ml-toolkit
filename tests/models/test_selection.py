@@ -6,7 +6,7 @@ import numpy as np
 import polars as pl
 import pytest
 
-from ml_toolkit.feature_selection import RFESelector
+from ml_toolkit.feature_selection import RFESelector, ShapRanker, importance_ranker
 from ml_toolkit.inflation import ConstantRateInflation
 from ml_toolkit.models import (
     CatBoostClassificationModel,
@@ -15,7 +15,7 @@ from ml_toolkit.models import (
     CatBoostRegressionModel,
     InflationAdjustedModel,
 )
-from ml_toolkit.training import Holdout, ShapRanker, importance_ranker
+from ml_toolkit.training import Holdout
 from tests.models.support import PARAMS
 from tests.support.training import mae
 

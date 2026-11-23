@@ -12,10 +12,10 @@ import pytest
 from ml_toolkit.config import ReportingConfig, TrainingConfig, TuningConfig
 from ml_toolkit.data import Pool
 from ml_toolkit.explainability import ShapConfig
-from ml_toolkit.feature_selection import RFESelector
+from ml_toolkit.feature_selection import RFESelector, importance_ranker
 from ml_toolkit.models import TrackingConfig
 from ml_toolkit.reports import Calibration, PredictionEvaluator, comparison_pair
-from ml_toolkit.training import Holdout, TimeSeriesCV, importance_ranker, train_model
+from ml_toolkit.training import Holdout, TimeSeriesCV, train_model
 from ml_toolkit.training.reporting import report_predictions, upload_artifacts
 from tests.support.evaluators import CallbackAnalyzer, CallbackEvaluator
 from tests.support.training import (

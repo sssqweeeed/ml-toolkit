@@ -1,5 +1,5 @@
-"""Figure functions for PSI and feature selection, pending their move."""
+"""Figure functions for PSI, pending their move."""
 
-from . import feature_selection, psi
+from . import psi
 
-__all__ = ["feature_selection", "psi"]
+__all__ = ["psi"]

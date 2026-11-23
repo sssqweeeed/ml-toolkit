@@ -2,16 +2,23 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from itertools import groupby
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
 
-from ..feature_selection import FeatureSelectionResult
 from ..figures import FigureConfig, PlotError, numeric_vector, saved_figure
 from ..types import FloatArray
+from .history import (
+    FeatureSelectionResult,
+    ForwardRound,
+    ForwardSettings,
+    RFESettings,
+    TopKSettings,
+    forward_rounds,
+    forward_stop,
+)
 
 __all__ = [
     "rfe_progress",
@@ -23,7 +30,7 @@ __all__ = [
 
 
 def _validate_result(result: FeatureSelectionResult, selector: str) -> None:
-    if result.settings.get("selector") != selector:
+    if result.settings is None or result.settings.selector != selector:
         raise PlotError(f"Expected a {selector!r} selection history")
     if (
         not result.steps
@@ -34,44 +41,51 @@ def _validate_result(result: FeatureSelectionResult, selector: str) -> None:
         raise PlotError("selected_step must identify the selected nonempty subset")
 
 
-def _objective(result: FeatureSelectionResult) -> tuple[str, bool, FloatArray]:
-    metric = result.settings.get("metric")
-    direction = result.settings.get("direction")
-    if not isinstance(metric, str) or not metric.strip():
+def _objective(
+    result: FeatureSelectionResult, settings: RFESettings | ForwardSettings
+) -> tuple[str, bool, FloatArray]:
+    metric = settings.metric
+    if not metric.strip():
         raise PlotError("Selection settings must contain a metric name")
-    if direction not in ("minimize", "maximize"):
-        raise PlotError("Selection direction must be minimize or maximize")
     try:
         scores = numeric_vector(
-            [
-                (
-                    step.metrics
-                    if step.objective_metrics is None
-                    else step.objective_metrics
-                )[metric]
-                for step in result.steps
-            ],
-            metric,
+            [step.objective_score(metric) for step in result.steps], metric
         )
     except KeyError as exc:
         raise PlotError(f"Selection metric {metric!r} is missing from history") from exc
-    evaluator = result.settings.get("evaluator")
-    label = f"{evaluator}/{metric}" if evaluator is not None else metric
-    return label, direction == "maximize", scores
+    label = (
+        f"{settings.evaluator}/{metric}" if settings.evaluator is not None else metric
+    )
+    return label, settings.direction == "maximize", scores
 
 
-def _number(result: FeatureSelectionResult, name: str) -> float:
-    value = result.settings.get(name)
-    if not isinstance(value, (int, float)) or not np.isfinite(value) or value < 0:
+def _nonnegative(value: float, name: str) -> float:
+    if not np.isfinite(value) or value < 0:
         raise PlotError(f"Selection setting {name!r} must be finite and nonnegative")
     return float(value)
 
 
-def _protected(result: FeatureSelectionResult) -> tuple[str, ...]:
-    value = result.settings.get("protected_features", ())
-    if not isinstance(value, tuple):
-        raise PlotError("protected_features must be a tuple of feature names")
-    return value
+def _rfe_settings(result: FeatureSelectionResult) -> RFESettings:
+    _validate_result(result, "rfe")
+    if not isinstance(result.settings, RFESettings):
+        raise PlotError("Expected RFESettings for an 'rfe' selection history")
+    return result.settings
+
+
+def _forward_settings(result: FeatureSelectionResult) -> ForwardSettings:
+    _validate_result(result, "forward")
+    if not isinstance(result.settings, ForwardSettings):
+        raise PlotError("Expected ForwardSettings for a 'forward' selection history")
+    return result.settings
+
+
+def _forward_rounds(
+    result: FeatureSelectionResult, settings: ForwardSettings
+) -> list[ForwardRound]:
+    try:
+        return forward_rounds(result, settings)
+    except ValueError as exc:
+        raise PlotError(str(exc)) from exc
 
 
 def _feature_ticks(counts: list[int]) -> list[int]:
@@ -85,39 +99,6 @@ def _feature_ticks(counts: list[int]) -> list[int]:
             for target in np.linspace(values[0], values[-1], 8)
         }
     )
-
-
-@dataclass(frozen=True)
-class _ForwardRound:
-    count: int
-    indices: tuple[int, ...]
-    best: int
-    accepted: bool
-    baseline: bool
-
-
-def _forward_rounds(
-    result: FeatureSelectionResult, scores: FloatArray, maximize: bool
-) -> list[_ForwardRound]:
-    protected = _protected(result)
-    rounds: list[_ForwardRound] = []
-    for size, group in groupby(
-        range(len(result.steps)), key=lambda i: len(result.steps[i].features)
-    ):
-        indices = tuple(group)
-        baseline = bool(protected) and not rounds and size == len(protected)
-        best = (
-            indices[0]
-            if baseline
-            else (max if maximize else min)(indices, key=lambda i: scores[i])
-        )
-        rounds.append(
-            _ForwardRound(size, indices, best, size <= len(result.features), baseline)
-        )
-    accepted = [item.best for item in rounds if item.accepted]
-    if not accepted or accepted[-1] != result.selected_step:
-        raise PlotError("Forward history must identify its accepted round winners")
-    return rounds
 
 
 def rfe_progress(
@@ -143,9 +124,9 @@ def rfe_progress(
     describe the selection search, not independent held-out performance.
     Creates no models and closes the figure even when rendering fails.
     """
-    _validate_result(result, "rfe")
-    metric, maximize, scores = _objective(result)
-    tolerance = _number(result, "score_tolerance")
+    settings = _rfe_settings(result)
+    metric, maximize, scores = _objective(result, settings)
+    tolerance = _nonnegative(settings.score_tolerance, "score_tolerance")
     counts = [len(step.features) for step in result.steps]
     best = int(np.argmax(scores) if maximize else np.argmin(scores))
     chosen = result.selected_step
@@ -242,12 +223,14 @@ def top_k_ranking(
     Uses raw ranking values, creates no models, and always closes the figure.
     """
     _validate_result(result, "top_k")
+    if not isinstance(result.settings, TopKSettings):
+        raise PlotError("Expected TopKSettings for a 'top_k' selection history")
     full = result.steps[0]
     if not full.features or set(full.importances) != set(full.features):
         raise PlotError("Top-K history must contain all full-model importances")
     numeric_vector([full.importances[name] for name in full.features], "importance")
     names = sorted(full.features, key=full.importances.__getitem__, reverse=True)
-    protected = set(_protected(result))
+    protected = set(result.settings.protected_features)
     chosen = set(result.features)
     fig, ax = plt.subplots(figsize=(10, max(4, 0.32 * len(names) + 2)))
     with saved_figure(fig, save_fig, config=figure):
@@ -340,20 +323,19 @@ def forward_progress(
     round is rejected. Equal scores retain the first candidate. A protected-only
     baseline is distinct from additions. No models or predictions are created.
     """
-    _validate_result(result, "forward")
-    metric, maximize, scores = _objective(result)
-    threshold = _number(result, "min_improvement")
-    max_features = _number(result, "max_features")
-    max_fits = _number(result, "max_fits")
-    protected = _protected(result)
+    settings = _forward_settings(result)
+    metric, maximize, scores = _objective(result, settings)
+    threshold = _nonnegative(settings.min_improvement, "min_improvement")
+    max_features = _nonnegative(settings.max_features, "max_features")
+    max_fits = _nonnegative(settings.max_fits, "max_fits")
+    protected = settings.protected_features
     counts = [len(step.features) for step in result.steps]
-    rounds = _forward_rounds(result, scores, maximize)
+    rounds = _forward_rounds(result, settings)
     # Reconstruct accepted winners from the model-free, chronological history.
     accepted: list[int] = []
     labels: list[str] = []
     candidate_x: list[float] = []
     candidate_y: list[float] = []
-    rejected: int | None = None
     previous = set(protected)
     for item in rounds:
         size, indices, best = item.count, item.indices, item.best
@@ -373,14 +355,14 @@ def forward_progress(
             added = [n for n in result.steps[best].features if n not in previous]
             labels.append("+" + ", ".join(added))
             previous = set(result.steps[best].features)
-        else:
-            rejected = best
-    if rejected is not None:
+    reason = forward_stop(result, settings, rounds)
+    rejected = reason.rejected_step
+    if reason.reason == "improvement" and rejected is not None:
         improvement = float(scores[rejected] - scores[result.selected_step])
         if not maximize:
             improvement = -improvement
         stop = f"Stopped: improvement {improvement:.6g} ≤ min_improvement {threshold:g}"
-    elif len(result.features) >= max_features:
+    elif reason.reason == "max_features":
         stop = f"Stopped: max_features = {max_features:g}"
     else:
         stop = f"Stopped: max_fits budget ({len(result.steps)}/{max_fits:g} fits; next full round does not fit)"
@@ -487,10 +469,10 @@ def forward_improvement(
     Writes no file if no round can be compared. Uses one stored run, with no
     extra fits or uncertainty estimates, and always closes created figures.
     """
-    _validate_result(result, "forward")
-    metric, maximize, scores = _objective(result)
-    threshold = _number(result, "min_improvement")
-    rounds = _forward_rounds(result, scores, maximize)
+    settings = _forward_settings(result)
+    metric, maximize, scores = _objective(result, settings)
+    threshold = _nonnegative(settings.min_improvement, "min_improvement")
+    rounds = _forward_rounds(result, settings)
     previous: int | None = None
     counts: list[int] = []
     gains: list[float] = []
@@ -605,9 +587,9 @@ def best_iteration_progress(
     reports None, no file is written. Zero is a valid best iteration. Creates no
     models and always closes created figures.
     """
-    selector = result.settings.get("selector")
-    if not isinstance(selector, str) or selector not in ("rfe", "top_k", "forward"):
+    if not isinstance(result.settings, (RFESettings, TopKSettings, ForwardSettings)):
         raise PlotError("Best-iteration plots require a built-in selector history")
+    selector = result.settings.selector
     _validate_result(result, selector)
     valid = [
         i for i, step in enumerate(result.steps) if step.best_iteration is not None

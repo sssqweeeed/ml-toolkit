@@ -22,7 +22,7 @@ import pytest
 from ml_toolkit.config import TrainingConfig, TuningConfig
 from ml_toolkit.explainability import ShapConfig, calculate_shap_values
 from ml_toolkit.feature_levels import FeatureLevelConfig
-from ml_toolkit.feature_selection import RFESelector
+from ml_toolkit.feature_selection import RFESelector, importance_ranker
 from ml_toolkit.figures import save_figure
 from ml_toolkit.inflation import ConstantRateInflation
 from ml_toolkit.metrics import MetricScores
@@ -30,7 +30,7 @@ from ml_toolkit.models import CatBoostClassificationModel, CatBoostRegressionMod
 from ml_toolkit.models.artifacts import log_model_from_code
 from ml_toolkit.psi import PSIAnalysis, PSIConfig
 from ml_toolkit.tracking import log_polars_table
-from ml_toolkit.training import Holdout, TimeSeriesCV, importance_ranker, train_model
+from ml_toolkit.training import Holdout, TimeSeriesCV, train_model
 from tests.support.training import MeanModel, mae, make_data, setup_mlflow
 
 

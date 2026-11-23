@@ -6,7 +6,14 @@ from ml_toolkit.feature_selection import (
     ForwardSelector,
     FeatureSelector,
     FeatureSelectionResult,
+    ForwardSettings,
+    RFESettings,
+    TopKSettings,
+    CustomSelectionSettings,
+    SelectionSettings,
+    SettingValue,
 )
+from ml_toolkit.feature_selection.figures import rfe_progress
 from examples.custom_selector import FixedFeatureSelector
 from ml_toolkit.types import TimePeriod
 from datetime import date, timedelta
@@ -237,7 +244,7 @@ def custom_adapter_contract(data: Pool, params: ModelParams) -> None:
     assert_type(adapter.get_refit_params(), ModelParams)
 
 
-from ml_toolkit.training import importance_ranker
+from ml_toolkit.feature_selection import importance_ranker
 
 
 def explicit_selection(data: Pool) -> None:
@@ -460,3 +467,18 @@ def report_computations(
     assert_type(distribution_summary(frame, frame, "x", "time"), pl.DataFrame)
     assert_type(ShapConfig(max_samples=5).max_samples, int)
 
+
+
+def selection_settings(result: FeatureSelectionResult) -> None:
+    settings: SelectionSettings | None = result.settings
+    if isinstance(settings, RFESettings):
+        assert_type(settings.score_tolerance, float)
+        assert_type(settings.evaluator, str | None)
+    elif isinstance(settings, TopKSettings):
+        assert_type(settings.k, int)
+    elif isinstance(settings, ForwardSettings):
+        assert_type(settings.min_improvement, float)
+    elif isinstance(settings, CustomSelectionSettings):
+        assert_type(settings.details, dict[str, SettingValue])
+    assert_type(result.to_dict(), dict[str, object])
+    rfe_progress(result, "figure.png")

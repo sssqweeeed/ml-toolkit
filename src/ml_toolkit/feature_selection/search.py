@@ -1,144 +1,40 @@
-"""Feature selectors and their complete, model-free search histories."""
+"""Feature selectors: RFE, Top-K and forward search over fitted subsets."""
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
-from dataclasses import dataclass, field, replace
+from collections.abc import Callable
+from dataclasses import dataclass, replace
 from math import isfinite
 from time import perf_counter
-from typing import Literal, Protocol, TypeAlias
+from typing import Literal, Protocol
 
 import numpy as np
 import polars as pl
 
-from ._console import Logger
-from .data import (
+from .._console import Logger
+from ..data import (
     Pool,
     concat_pools,
     validate_prediction,
     validate_training_categories,
     validate_training_data,
 )
-from .metrics import Metric
-from .models.base import Model
-from .reports import PredictionEvaluator, validate_report_metrics
-from .types import ModelParams
+from ..metrics import Metric
+from ..models.base import Model
+from ..reports import PredictionEvaluator, validate_report_metrics
+from ..types import ModelParams
+from .history import (
+    FeatureSelectionResult,
+    FeatureSelectionStep,
+    ForwardSettings,
+    RFESettings,
+    TopKSettings,
+)
+from .rankers import FeatureRanker
 
 logger = Logger(__name__)
 
-
-class FeatureRanker(Protocol):
-    """Describe a callable ranking a fitted adapter's current input columns.
-
-    Notes
-    -----
-    Higher values indicate greater importance. Implementations may inspect the
-    adapter's native_model, but must preserve its state and all input metadata.
-    Explicit inheritance from this protocol is unnecessary.
-    """
-
-    def __call__(self, model: Model, data: Pool) -> Mapping[str, float]:
-        """Return finite ranking values keyed by every current feature name.
-
-        Parameters
-        ----------
-        model : Model
-            Fitted adapter for the current feature subset.
-        data : Pool
-            Supplied validation rows with aligned features and weights.
-
-        Returns
-        -------
-        Mapping[str, float]
-            Exactly one finite numeric importance per data.X column. Signed
-            values are allowed; larger values rank higher.
-        """
-        ...
-
-
-SelectionSettings: TypeAlias = dict[
-    str, str | int | float | bool | None | tuple[str, ...]
-]
-"""Flat, JSON-compatible selector configuration, without executable objects."""
-
-__all__ = [
-    "FeatureRanker",
-    "FeatureSelector",
-    "RFESelector",
-    "TopKSelector",
-    "ForwardSelector",
-    "FeatureSelectionResult",
-    "FeatureSelectionStep",
-    "SelectionSettings",
-]
-
-
-@dataclass(frozen=True)
-class FeatureSelectionStep:
-    """Store one fitted and evaluated feature subset.
-
-    Attributes
-    ----------
-    features : tuple[str, ...]
-        Evaluated input columns in original order.
-    metrics : dict[str, float]
-        All supplied validation scores returned by the training metric.
-    importances : dict[str, float]
-        Ranking values by feature name; empty when no ranking is performed.
-    eliminated_features : tuple[str, ...]
-        Columns removed by an elimination step; empty for forward candidates.
-    fit_seconds : float
-        Elapsed adapter construction and training time.
-    evaluation_seconds : float
-        Elapsed prediction and metric calculation time.
-    ranking_seconds : float
-        Elapsed ranking and importance validation time, or zero when no ranking is performed.
-    best_iteration : int or None
-        Adapter's zero-based best iteration; not used for final fitting.
-    objective_metrics : dict[str, float] or None, default None
-        Finite evaluator scores with their exact returned keys, separate from
-        ordinary metrics. None means the ordinary metric supplies the objective.
-    """
-
-    features: tuple[str, ...]
-    metrics: dict[str, float]
-    importances: dict[str, float]
-    eliminated_features: tuple[str, ...]
-    fit_seconds: float
-    evaluation_seconds: float
-    ranking_seconds: float
-    best_iteration: int | None
-    objective_metrics: dict[str, float] | None = None
-
-
-@dataclass(frozen=True)
-class FeatureSelectionResult:
-    """Store a selector's selected subset and complete search history.
-
-    Attributes
-    ----------
-    features : tuple[str, ...]
-        Selected columns in original input order; may include the full set.
-    selected_step : int
-        Zero-based index into steps for the selected subset.
-    steps : tuple[FeatureSelectionStep, ...]
-        Chronological history of every fitted subset; contains no fitted models.
-
-    settings : SelectionSettings
-        Flat configuration with string keys and scalar or string-tuple values;
-        excludes models, rankers and evaluator objects. Evaluator-based selectors
-        record the evaluator name under "evaluator".
-
-    Notes
-    -----
-    Validation scores describe selection, not independent performance.
-    Frozen result objects contain mutable metric and importance dictionaries.
-    """
-
-    features: tuple[str, ...]
-    selected_step: int
-    steps: tuple[FeatureSelectionStep, ...]
-    settings: SelectionSettings = field(default_factory=lambda: {})
+__all__ = ["FeatureSelector", "RFESelector", "TopKSelector", "ForwardSelector"]
 
 
 class FeatureSelector(Protocol):
@@ -420,14 +316,7 @@ class RFESelector:
                 )
                 names = tuple(n for n in names if n in keep)
             history.append(step)
-        scores = [
-            (
-                step.metrics
-                if step.objective_metrics is None
-                else step.objective_metrics
-            )[self.metric]
-            for step in history
-        ]
+        scores = [step.objective_score(self.metric) for step in history]
         best = min(scores) if self.direction == "minimize" else max(scores)
         eligible = [
             i
@@ -450,20 +339,15 @@ class RFESelector:
             history[selected].features,
             selected,
             tuple(history),
-            {
-                "selector": "rfe",
-                "min_features": self.min_features,
-                "metric": self.metric,
-                "direction": self.direction,
-                "max_fits": self.max_fits,
-                "score_tolerance": self.score_tolerance,
-                "protected_features": self.protected_features,
-                **(
-                    {"evaluator": self.evaluator.name}
-                    if self.evaluator is not None
-                    else {}
-                ),
-            },
+            RFESettings(
+                min_features=self.min_features,
+                metric=self.metric,
+                direction=self.direction,
+                max_fits=self.max_fits,
+                score_tolerance=self.score_tolerance,
+                protected_features=self.protected_features,
+                evaluator=None if self.evaluator is None else self.evaluator.name,
+            ),
         )
 
 
@@ -546,11 +430,7 @@ class TopKSelector:
             selected,
             len(history) - 1,
             tuple(history),
-            {
-                "selector": "top_k",
-                "k": self.k,
-                "protected_features": self.protected_features,
-            },
+            TopKSettings(k=self.k, protected_features=self.protected_features),
         )
 
 
@@ -675,14 +555,7 @@ class ForwardSelector:
                     )
                 )
             choose = min if self.direction == "minimize" else max
-            scores = [
-                (
-                    step.metrics
-                    if step.objective_metrics is None
-                    else step.objective_metrics
-                )[self.metric]
-                for step in history
-            ]
+            scores = [step.objective_score(self.metric) for step in history]
             best_index = choose(
                 range(first, len(history)),
                 key=scores.__getitem__,
@@ -701,18 +574,13 @@ class ForwardSelector:
             selected,
             selected_index,
             tuple(history),
-            {
-                "selector": "forward",
-                "metric": self.metric,
-                "direction": self.direction,
-                "max_features": self.max_features,
-                "max_fits": self.max_fits,
-                "min_improvement": self.min_improvement,
-                "protected_features": self.protected_features,
-                **(
-                    {"evaluator": self.evaluator.name}
-                    if self.evaluator is not None
-                    else {}
-                ),
-            },
+            ForwardSettings(
+                metric=self.metric,
+                direction=self.direction,
+                max_features=self.max_features,
+                max_fits=self.max_fits,
+                min_improvement=self.min_improvement,
+                protected_features=self.protected_features,
+                evaluator=None if self.evaluator is None else self.evaluator.name,
+            ),
         )

@@ -5,7 +5,7 @@ from ml_toolkit.feature_selection import (
     FeatureSelector,
 )
 from ml_toolkit.types import TimePeriod
-from ml_toolkit.training import importance_ranker
+from ml_toolkit.feature_selection import importance_ranker
 from pathlib import Path
 from typing import Callable
 
@@ -226,3 +226,15 @@ ShapConfig(max_samples="many")  # expected-type-error
 def invalid_computation(probabilities: FloatArray) -> None:
     calibration_bins([1.0], probabilities, n_bins="ten")  # expected-type-error
 
+
+
+from ml_toolkit.feature_selection import (
+    CustomSelectionSettings,
+    FeatureSelectionResult,
+    TopKSettings,
+)
+
+TopKSettings(k="3", protected_features=())  # expected-type-error
+TopKSettings(selector="top_k", k=3, protected_features=())  # expected-type-error
+CustomSelectionSettings("fixed", {"model": object()})  # expected-type-error
+FeatureSelectionResult(("a",), 0, (), {"selector": "rfe"})  # expected-type-error

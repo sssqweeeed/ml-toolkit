@@ -19,10 +19,10 @@ from ..explainability import (
 from ..feature_levels import LevelTransformer
 from ..feature_levels.config import feature_definitions
 from ..feature_selection import FeatureSelectionResult
+from ..feature_selection import figures as selection_figures
 from ..figures import feature_filename
 from ..metrics import Metric
 from ..models.base import Model
-from ..plots import feature_selection as selection_plots
 from ..plots import psi as psi_plots
 from ..psi import PSIBaseline, compare_psi
 from ..reports import (
@@ -149,18 +149,20 @@ def report_feature_selection(
     result: FeatureSelectionResult, config: ReportingConfig, *, stage: str
 ) -> None:
     """Plot a known selector's single search history in its active run."""
-    selector = result.settings.get("selector")
+    if result.settings is None:
+        return
+    selector = result.settings.selector
     plots = {
-        "rfe": ("rfe_progress", selection_plots.rfe_progress),
-        "top_k": ("top_k_ranking", selection_plots.top_k_ranking),
-        "forward": ("forward_progress", selection_plots.forward_progress),
+        "rfe": ("rfe_progress", selection_figures.rfe_progress),
+        "top_k": ("top_k_ranking", selection_figures.top_k_ranking),
+        "forward": ("forward_progress", selection_figures.forward_progress),
     }
-    if not isinstance(selector, str) or selector not in plots:
+    if selector not in plots:
         return
     reports = [plots[selector]]
     if selector == "forward":
-        reports.append(("forward_improvement", selection_plots.forward_improvement))
-    reports.append(("best_iteration", selection_plots.best_iteration_progress))
+        reports.append(("forward_improvement", selection_figures.forward_improvement))
+    reports.append(("best_iteration", selection_figures.best_iteration_progress))
     try:
         with TemporaryDirectory(prefix="ml-toolkit-selection-") as directory:
             root = Path(directory).resolve()

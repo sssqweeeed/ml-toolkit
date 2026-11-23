@@ -87,7 +87,7 @@ def test_topk_keeps_exact_size_even_if_quality_deteriorates():
 def test_topk_retaining_all_features_needs_one_fit():
     all_result, calls = select(TopKSelector(k=3, ranker=ranked), {("a", "b", "c"): 1})
     assert len(calls) == 1
-    assert all_result.settings["k"] == 3
+    assert all_result.settings.k == 3
 
 
 @pytest.mark.parametrize("direction,sign", [("minimize", 1), ("maximize", -1)])
