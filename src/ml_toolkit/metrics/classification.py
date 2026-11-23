@@ -163,7 +163,7 @@ def metrics_classification(
             else float("nan")
         ),
         average_precision=(
-            float(average_precision_score(target, probability, sample_weight=weight))
+            average_precision(target, probability, weight)
             if (target == 1).any()
             else 0.0
         ),
@@ -223,6 +223,28 @@ def confusion_matrix(
         for actual, predicted in ((0, 0), (0, 1), (1, 0), (1, 1))
     )
     return tn, fp, fn, tp
+
+
+def average_precision(
+    target: FloatArray, probability: FloatArray, weight: FloatArray | None
+) -> float:
+    """Return average precision, weighted when weights are given.
+
+    Parameters
+    ----------
+    target : numpy.ndarray
+        Binary labels containing at least one positive with positive weight.
+    probability : numpy.ndarray
+        Positive-class scores aligned with labels.
+    weight : numpy.ndarray or None
+        Row weights; None counts every row as one.
+
+    Returns
+    -------
+    float
+        Step-wise area under the precision-recall curve.
+    """
+    return float(average_precision_score(target, probability, sample_weight=weight))
 
 
 def binary_threshold_scores(

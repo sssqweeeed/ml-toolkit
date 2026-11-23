@@ -47,7 +47,7 @@ files from existing predictions:
 <!-- example: ranking-reports -->
 
 ```python
-from ml_toolkit.evaluation import Gains, Lift
+from ml_toolkit.reports import Gains, Lift
 
 reports = [Gains(), Lift()]
 for report in reports:
@@ -92,7 +92,7 @@ capturing twice the outcome expected from uniform selection at that capacity.
 
 ```python
 from ml_toolkit.metrics import ranking_metrics
-from ml_toolkit.plots import ranking
+from ml_toolkit.reports import ranking
 
 ranked = ranking_metrics(
     test.y.to_numpy(), test_prediction, test.weight.to_numpy()
@@ -135,17 +135,17 @@ The evaluator classes use the default 10% point; direct plotting accepts any
 
 ## API reference
 
-::: ml_toolkit.evaluation.Gains
+::: ml_toolkit.reports.Gains
     options:
       heading_level: 3
       members: []
 
-::: ml_toolkit.evaluation.Lift
+::: ml_toolkit.reports.Lift
     options:
       heading_level: 3
       members: []
 
-::: ml_toolkit.plots.ranking
+::: ml_toolkit.reports.ranking
     options:
       heading_level: 3
       members: [gains_curve, lift_curve]

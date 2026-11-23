@@ -7,10 +7,13 @@ import matplotlib.pyplot as plt
 import polars as pl
 import pytest
 
+from ml_toolkit import figures as figures_module
 from ml_toolkit._time import paired_period_starts
 from ml_toolkit.feature_levels import FeatureLevelConfig
-from ml_toolkit.plots import monitoring, psi, regression
+from ml_toolkit.plots import psi
 from ml_toolkit.psi import PSIAnalysis, PSIConfig, compare_psi
+from ml_toolkit.reports import distributions as monitoring
+from ml_toolkit.reports import regression
 
 
 @pytest.mark.parametrize(
@@ -72,7 +75,7 @@ def test_shared_endpoint_keeps_samples_separate_in_every_report(
         {"x": [7.0, 5.0], "time": [timestamp(2 if single_day else 3), timestamp(2)]}
     )
     figures = []
-    for module in (psi, monitoring, regression):
+    for module in (psi, figures_module):
         monkeypatch.setattr(
             module, "save_figure", lambda fig, *a, **k: figures.append(fig)
         )
@@ -132,7 +135,7 @@ def test_split_within_one_period_is_allowed_by_every_report(
     period, monkeypatch, tmp_path
 ):
     figures = []
-    for module in (psi, monitoring, regression):
+    for module in (psi, figures_module):
         monkeypatch.setattr(
             module, "save_figure", lambda fig, *a, **k: figures.append(fig)
         )

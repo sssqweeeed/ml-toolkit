@@ -5,8 +5,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from ..config import ShapConfig
-from ..explainability import shap_contributions
+from ..explainability import ShapConfig, shap_contributions
 
 if TYPE_CHECKING:
     from ..data import Pool

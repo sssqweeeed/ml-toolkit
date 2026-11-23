@@ -9,12 +9,10 @@ from optuna import Trial
 from .._console import Logger, capture_messages, datasets, message
 from ..config import TrainingConfig
 from ..data import Pool, validate_training_categories
-from ..data_analysis import DataAnalyzer
-from ..evaluation import PredictionEvaluator
 from ..feature_selection import FeatureSelector
 from ..metrics import Metric
-from ..model_evaluation import ModelEvaluator
 from ..models.base import Model
+from ..reports import DataAnalyzer, ModelEvaluator, PredictionEvaluator
 from ..tracking import log_json, nested_run
 from ..types import ModelParams
 from .evaluation import evaluate_model

@@ -19,8 +19,8 @@ import pandas as pd
 import polars as pl
 import pytest
 
-from ml_toolkit.config import ShapConfig, TrainingConfig, TuningConfig
-from ml_toolkit.explainability import calculate_shap_values
+from ml_toolkit.config import TrainingConfig, TuningConfig
+from ml_toolkit.explainability import ShapConfig, calculate_shap_values
 from ml_toolkit.feature_levels import FeatureLevelConfig
 from ml_toolkit.feature_selection import RFESelector
 from ml_toolkit.figures import save_figure

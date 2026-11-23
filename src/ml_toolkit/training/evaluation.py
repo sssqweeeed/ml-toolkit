@@ -9,12 +9,10 @@ import polars as pl
 from .._console import Logger, metrics
 from ..config import ReportingConfig
 from ..data import Pool, concat_pools
-from ..data_analysis import DataAnalyzer
-from ..evaluation import PredictionEvaluator
 from ..metrics import Metric, calculate_metrics
-from ..model_evaluation import ModelEvaluator
 from ..models.base import Model
 from ..psi import PSIBaseline
+from ..reports import DataAnalyzer, ModelEvaluator, PredictionEvaluator
 from ..types import FloatArray
 from .reporting import evaluate_report_metrics, report_predictions
 from .results import DatasetSplit, TrainingStage

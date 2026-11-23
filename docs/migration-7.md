@@ -67,3 +67,54 @@ methods of the CatBoost adapters are no longer public.
 | `ml_toolkit.models.losses.pu.cuda` | `ml_toolkit.models.losses.pu_cuda` |
 | `ml_toolkit.models.losses.cuda` | `ml_toolkit.models.losses._cuda` (private) |
 | `UPUMetric`, `NNPUMetric` from `ml_toolkit.models.catboost_classification` | `ml_toolkit.models.losses.pu` |
+
+## Reports (phase 3)
+
+`ml_toolkit.evaluation`, `ml_toolkit.model_evaluation`, `ml_toolkit.data_analysis`
+and the report-related figure modules of `ml_toolkit.plots` are merged into
+`ml_toolkit.reports`. Each report module holds its computation, result types and
+figure functions. Importing a report class from its package keeps working:
+`from ml_toolkit.reports import PrecisionRecall`.
+
+| Old import | New import |
+| --- | --- |
+| `ml_toolkit.evaluation.*` (report classes, `PredictionEvaluator`, `ResidualResult`) | `ml_toolkit.reports` |
+| `ml_toolkit.evaluation.comparison_pair`, `validate_inputs` | `ml_toolkit.reports.comparison_pair`, `validate_inputs` |
+| `ml_toolkit.evaluation._metrics.validate_report_metrics` | `ml_toolkit.reports.validate_report_metrics` |
+| `ml_toolkit.evaluation.NumericalFeatureDistributions` (prediction-based adapter) | removed; use `ml_toolkit.reports.NumericalFeatureDistributions` with `data_analyzers` |
+| `ml_toolkit.model_evaluation.*` | `ml_toolkit.reports` |
+| `ml_toolkit.data_analysis.*`, `data_comparison_pair` | `ml_toolkit.reports` |
+| `ml_toolkit._grouping` (`row_groups`, `RowGroup`, `validate_grouping`) | `ml_toolkit.reports.grouped` |
+| `ml_toolkit.plots.classification` | `ml_toolkit.reports.classification` |
+| `ml_toolkit.plots.ranking` | `ml_toolkit.reports.ranking` |
+| `ml_toolkit.plots.pu` | `ml_toolkit.reports.pu` |
+| `ml_toolkit.plots.regression` | `ml_toolkit.reports.regression` |
+| `ml_toolkit.plots.residuals` | `ml_toolkit.reports.residuals` |
+| `ml_toolkit.plots.metric_trend` | `ml_toolkit.reports.metric_trend` |
+| `ml_toolkit.plots.permutation_importance` | `ml_toolkit.reports.permutation` |
+| `ml_toolkit.plots.robustness` | `ml_toolkit.reports.robustness` |
+| `ml_toolkit.plots.model_evaluation.shrink_curve` | `ml_toolkit.reports.shrink.shrink_curve` |
+| `ml_toolkit.plots.monitoring.time_feature_distribution`, `validate_distribution` | `ml_toolkit.reports.distributions` |
+| `ml_toolkit.plots.explainability` | `ml_toolkit.explainability` |
+| `ml_toolkit.config.ShapConfig`, `ml_toolkit.training.ShapConfig` | `ml_toolkit.explainability.ShapConfig` |
+
+`ml_toolkit.plots` keeps only `psi` and `feature_selection` until their own
+phases. Computation that used to sit inside figure functions is available
+without matplotlib: `classification.precision_recall_summary`,
+`classification.calibration_bins`, `regression.level_observed_fitted`,
+`regression.time_summary` and `distributions.distribution_summary`.
+`metrics.classification.average_precision` is the single average-precision
+implementation; the precision-recall figure reuses it.
+
+## Behaviour changes
+
+- `GroupedMetrics` now reports a metric callback that returns no scores or
+  empty names as `Metric must return nonempty named scores` (previously
+  `Grouped metric must return at least one named score` or `Grouped metric
+  names must be nonempty strings`), the same message `MetricTrend` and
+  `ShrinkCurve` use.
+- `classification.calibration` reports a nonpositive `histogram_bins` as
+  `histogram_bins must be positive`; a nonpositive `n_bins` is rejected by
+  `classification.calibration_bins` as `n_bins must be positive` (previously
+  both gave `bin counts must be positive`).
+

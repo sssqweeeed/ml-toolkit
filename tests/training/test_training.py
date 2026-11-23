@@ -1,4 +1,4 @@
-from ml_toolkit.evaluation import (
+from ml_toolkit.reports import (
     Calibration,
     PrecisionRecall,
     PUPositiveCapture,
@@ -18,8 +18,15 @@ import numpy as np
 import polars as pl
 import pytest
 
-from ml_toolkit.config import ReportingConfig, ShapConfig, TrainingConfig
-from ml_toolkit.explainability import calculate_shap_values, top_shap_features
+from ml_toolkit.config import ReportingConfig, TrainingConfig
+from ml_toolkit.explainability import (
+    ShapConfig,
+    calculate_shap_values,
+    shap_beeswarm,
+    shap_dependence,
+    shap_importance,
+    top_shap_features,
+)
 from ml_toolkit.feature_selection import RFESelector
 from ml_toolkit.inflation import ConstantRateInflation
 from ml_toolkit.metrics import PUMetric, metrics_classification, metrics_severity
@@ -29,11 +36,6 @@ from ml_toolkit.models import (
     CatBoostPUClassificationModel,
     CatBoostRegressionModel,
     InflationAdjustedModel,
-)
-from ml_toolkit.plots.explainability import (
-    shap_beeswarm,
-    shap_dependence,
-    shap_importance,
 )
 from ml_toolkit.training import importance_ranker, train_model
 from tests.support.training import (

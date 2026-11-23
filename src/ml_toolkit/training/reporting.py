@@ -10,22 +10,30 @@ import polars as pl
 from .._console import Logger
 from ..config import ReportingConfig
 from ..data import Pool, validate_split_labels
-from ..data_analysis import DataAnalyzer, data_comparison_pair
-from ..evaluation import (
-    PredictionEvaluator,
-    comparison_pair,
-    validate_inputs,
+from ..explainability import (
+    calculate_shap_values,
+    shap_beeswarm,
+    shap_dependence,
+    shap_importance,
 )
-from ..evaluation._metrics import validate_report_metrics
 from ..feature_levels import LevelTransformer
 from ..feature_levels.config import feature_definitions
 from ..feature_selection import FeatureSelectionResult
 from ..figures import feature_filename
 from ..metrics import Metric
-from ..model_evaluation import ModelEvaluator
 from ..models.base import Model
+from ..plots import feature_selection as selection_plots
 from ..plots import psi as psi_plots
 from ..psi import PSIBaseline, compare_psi
+from ..reports import (
+    DataAnalyzer,
+    ModelEvaluator,
+    PredictionEvaluator,
+    comparison_pair,
+    data_comparison_pair,
+    validate_inputs,
+    validate_report_metrics,
+)
 from ..types import FloatArray
 
 logger = Logger(__name__)
@@ -141,8 +149,6 @@ def report_feature_selection(
     result: FeatureSelectionResult, config: ReportingConfig, *, stage: str
 ) -> None:
     """Plot a known selector's single search history in its active run."""
-    from ..plots import feature_selection as selection_plots
-
     selector = result.settings.get("selector")
     plots = {
         "rfe": ("rfe_progress", selection_plots.rfe_progress),
@@ -401,17 +407,14 @@ def _shap_artifacts(
     if pair is None:
         return []
     part, _, _, current, _ = pair
-    from ..explainability import calculate_shap_values
-    from ..plots import explainability as shap_plots
-
     shap = config.shap
     assert shap is not None
     if not set(shap.dependence_features) <= set(current.X.columns):
         raise ValueError("SHAP dependence features must exist in the input")
     explanation = calculate_shap_values(model.native_model, current.X, config=shap)
     for name, draw in (
-        ("importance", shap_plots.shap_importance),
-        ("beeswarm", shap_plots.shap_beeswarm),
+        ("importance", shap_importance),
+        ("beeswarm", shap_beeswarm),
     ):
         path = root / part / f"{name}.{config.figure.format}"
         draw(explanation, save_fig=path, config=shap, figure=config.figure)
@@ -423,8 +426,6 @@ def _shap_artifacts(
             / "dependence"
             / feature_filename(index, feature, config.figure.format)
         )
-        shap_plots.shap_dependence(
-            explanation, feature, save_fig=path, figure=config.figure
-        )
+        shap_dependence(explanation, feature, save_fig=path, figure=config.figure)
         paths.append(path)
     return paths

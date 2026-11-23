@@ -127,7 +127,7 @@ formats, scheduling, temporary paths, and error behavior.
 
 ## API reference
 
-::: ml_toolkit.evaluation.PredictionEvaluator
+::: ml_toolkit.reports.PredictionEvaluator
     options:
       heading_level: 3
       members: [evaluate, write_artifacts, parameters]

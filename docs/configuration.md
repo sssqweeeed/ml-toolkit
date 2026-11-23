@@ -90,8 +90,8 @@ both classes in evaluated splits for finite ROC AUC; single-class splits return 
 <!-- example: configuration-classification -->
 
 ```python
-from ml_toolkit.data_analysis import NumericalFeatureDistributions
-from ml_toolkit.evaluation import (
+from ml_toolkit.reports import NumericalFeatureDistributions
+from ml_toolkit.reports import (
     PrecisionRecall,
     F1Threshold,
     Calibration,
@@ -133,8 +133,8 @@ weighted MAE, MSE, RMSE, R² and mean error (prediction minus target).
 <!-- example: configuration-regression -->
 
 ```python
-from ml_toolkit.data_analysis import NumericalFeatureDistributions
-from ml_toolkit.evaluation import (
+from ml_toolkit.reports import NumericalFeatureDistributions
+from ml_toolkit.reports import (
     ObservedFitted,
     TimeObservedFitted,
 )
@@ -179,8 +179,8 @@ predictions, validation requirements and saving models.
 <!-- example: configuration-severity -->
 
 ```python
-from ml_toolkit.data_analysis import NumericalFeatureDistributions
-from ml_toolkit.evaluation import (
+from ml_toolkit.reports import NumericalFeatureDistributions
+from ml_toolkit.reports import (
     Gains,
     Lift,
     ObservedFitted,
@@ -234,7 +234,7 @@ The function uses the same prior in the model and metric.
 
 ```python
 from ml_toolkit import Pool, TrainingResult, train_model
-from ml_toolkit.evaluation import PUScoreDistribution, PUPositiveCapture
+from ml_toolkit.reports import PUScoreDistribution, PUPositiveCapture
 
 
 def train_pu(data: Pool, *, prior: float) -> TrainingResult:
@@ -259,8 +259,8 @@ The log-link adapter fits a training-only baseline and returns positive rates.
 <!-- example: configuration-frequency -->
 
 ```python
-from ml_toolkit.data_analysis import NumericalFeatureDistributions
-from ml_toolkit.evaluation import (
+from ml_toolkit.reports import NumericalFeatureDistributions
+from ml_toolkit.reports import (
     Gains,
     Lift,
     ObservedFitted,
@@ -346,8 +346,8 @@ for your own task. RFE's `min_features` is a lower bound, not a promised result.
 
 ```python
 from ml_toolkit.training import TimeSeriesCV
-from ml_toolkit.data_analysis import NumericalFeatureDistributions
-from ml_toolkit.evaluation import (
+from ml_toolkit.reports import NumericalFeatureDistributions
+from ml_toolkit.reports import (
     Gains,
     Lift,
     ObservedFitted,
@@ -357,7 +357,8 @@ from examples.gallery_data import load_bike_pool
 
 data = load_bike_pool(download_if_missing=False)
 from optuna import Trial
-from ml_toolkit.config import ReportingConfig, ShapConfig, TrainingConfig, TuningConfig
+from ml_toolkit.explainability import ShapConfig
+from ml_toolkit.config import ReportingConfig, TrainingConfig, TuningConfig
 from ml_toolkit.figures import FigureConfig
 from ml_toolkit.models import TrackingConfig
 from ml_toolkit.feature_selection import RFESelector
@@ -460,7 +461,7 @@ from pathlib import Path
 import mlflow
 from ml_toolkit import train_model
 from ml_toolkit.explainability import calculate_shap_values
-from ml_toolkit.plots.explainability import shap_importance
+from ml_toolkit.explainability import shap_importance
 
 mlflow.set_tracking_uri("sqlite:///mlflow.db")
 mlflow.set_experiment("ml-toolkit-task-recipes")

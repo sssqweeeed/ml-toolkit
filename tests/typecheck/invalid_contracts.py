@@ -21,7 +21,7 @@ from ml_toolkit.config import (
 )
 from ml_toolkit.metrics import Metric, MetricScores
 from ml_toolkit.training import DatasetSplit
-from ml_toolkit.evaluation import PredictionEvaluator
+from ml_toolkit.reports import PredictionEvaluator
 from ml_toolkit.config import FeatureLevelConfig
 from ml_toolkit.figures import FigureConfig
 from ml_toolkit.types import FloatArray, ModelParams
@@ -174,10 +174,10 @@ def invalid_splitter(data: Pool) -> None:
 metrics: Metric = lambda y, prediction, weight: MetricScores({"mae": 1.0})
 
 
-from ml_toolkit.data_analysis import DataAnalyzer, NumericalFeatureDistributions
-from ml_toolkit.model_evaluation import ShrinkCurve, PermutationImportance, RobustnessCurve
-from ml_toolkit.evaluation import MetricTrend
-from ml_toolkit.evaluation import Residuals
+from ml_toolkit.reports import DataAnalyzer, NumericalFeatureDistributions
+from ml_toolkit.reports import ShrinkCurve, PermutationImportance, RobustnessCurve
+from ml_toolkit.reports import MetricTrend
+from ml_toolkit.reports import Residuals
 
 PermutationImportance(score="mae", direction="lowest")  # expected-type-error
 RobustnessCurve(features=("age",), mode="invalid")  # expected-type-error
@@ -215,3 +215,14 @@ TrackingConfig(log_test_model='yes')  # expected-type-error
 
 def invalid_scoring(data: Pool) -> None:
     calculate_metrics(data, data, data.y.to_numpy())  # expected-type-error
+
+
+from ml_toolkit.explainability import ShapConfig
+from ml_toolkit.reports.classification import calibration_bins
+
+ShapConfig(max_samples="many")  # expected-type-error
+
+
+def invalid_computation(probabilities: FloatArray) -> None:
+    calibration_bins([1.0], probabilities, n_bins="ten")  # expected-type-error
+

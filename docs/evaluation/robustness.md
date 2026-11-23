@@ -19,7 +19,7 @@ rows and keeps the task's weighted MAE and original target values.
 from examples.custom_metric import weighted_mae
 from examples.training_setup import prepare_training
 from ml_toolkit import train_model
-from ml_toolkit.model_evaluation import RobustnessCurve
+from ml_toolkit.reports import RobustnessCurve
 from ml_toolkit.models import CatBoostRegressionModel
 from ml_toolkit.training import Holdout
 
@@ -60,7 +60,7 @@ real held-out rows, rather than a forecast of how the input source will fail.
 from pathlib import Path
 
 from examples.evaluation_data import fit_bike_evaluation
-from ml_toolkit.plots.robustness import robustness_curve
+from ml_toolkit.reports.robustness import robustness_curve
 
 example = fit_bike_evaluation()
 output = Path("plots")
@@ -197,8 +197,8 @@ the settings, and evaluator instances retain no fitted state.
 
 ## API reference
 
-::: ml_toolkit.model_evaluation.RobustnessCurve
+::: ml_toolkit.reports.RobustnessCurve
     options:
       members: [calculate, parameters]
 
-::: ml_toolkit.plots.robustness.robustness_curve
+::: ml_toolkit.reports.robustness.robustness_curve

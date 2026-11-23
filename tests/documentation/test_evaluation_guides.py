@@ -114,8 +114,7 @@ def test_evaluation_guides_register_independent_executable_recipes(page):
 
 def test_data_analysis_workflow_passes_reports_to_separate_arguments(monkeypatch):
     import ml_toolkit
-    from ml_toolkit.data_analysis import DataAnalyzer
-    from ml_toolkit.evaluation import PredictionEvaluator
+    from ml_toolkit.reports import DataAnalyzer, PredictionEvaluator
 
     captured = {}
     monkeypatch.setattr(

@@ -25,7 +25,7 @@ from tests.models.support import PARAMS
 
 
 def test_curve_uses_early_stopped_fitted_size(data):
-    from ml_toolkit.model_evaluation import ShrinkCurve
+    from ml_toolkit.reports import ShrinkCurve
     from tests.support.training import mae
 
     train = data.take(range(32))

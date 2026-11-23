@@ -15,8 +15,8 @@ report objects are explicit `train_model` arguments.
 from dataclasses import replace
 from ml_toolkit.config import ReportingConfig, TrainingConfig
 from ml_toolkit.models import TrackingConfig
-from ml_toolkit.evaluation import ObservedFitted, TimeObservedFitted
-from ml_toolkit.data_analysis import NumericalFeatureDistributions
+from ml_toolkit.reports import ObservedFitted, TimeObservedFitted
+from ml_toolkit.reports import NumericalFeatureDistributions
 
 config = TrainingConfig(tracking=TrackingConfig(log_test_model=False, log_final_model=False))
 with_reports = replace(config, reporting=ReportingConfig(psi=True))
@@ -131,7 +131,7 @@ behavior; this setting does not enable automatic output outside `train_model`.
 ::: ml_toolkit.config.FeatureLevelConfig
     options:
       members: []
-::: ml_toolkit.config.ShapConfig
+::: ml_toolkit.explainability.ShapConfig
     options:
       members: []
 ::: ml_toolkit.figures.FigureConfig

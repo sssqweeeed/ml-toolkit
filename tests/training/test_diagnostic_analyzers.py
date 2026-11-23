@@ -7,9 +7,13 @@ import numpy as np
 import polars as pl
 
 from ml_toolkit.config import TrainingConfig
-from ml_toolkit.evaluation import MetricTrend, Residuals
-from ml_toolkit.model_evaluation import PermutationImportance, RobustnessCurve
 from ml_toolkit.models import TrackingConfig
+from ml_toolkit.reports import (
+    MetricTrend,
+    PermutationImportance,
+    Residuals,
+    RobustnessCurve,
+)
 from ml_toolkit.training import TimeSeriesCV, train_model
 from tests.support.training import (
     MeanModel,

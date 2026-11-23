@@ -16,7 +16,7 @@ running recipes; examples never download it implicitly.
 from examples.custom_metric import weighted_mae
 from examples.training_setup import prepare_training
 from ml_toolkit import train_model
-from ml_toolkit.evaluation import Residuals
+from ml_toolkit.reports import Residuals
 from ml_toolkit.models import CatBoostRegressionModel
 from ml_toolkit.training import Holdout
 
@@ -50,7 +50,7 @@ Every hour has weight one; outcomes and predictions are rentals per hour.
 from pathlib import Path
 
 from examples.evaluation_data import fit_bike_evaluation
-from ml_toolkit.plots.residuals import residual_diagnostics
+from ml_toolkit.reports.residuals import residual_diagnostics
 
 example = fit_bike_evaluation()
 output = Path("plots")
@@ -143,12 +143,12 @@ preserves inputs, and adds no scalar optimization objectives.
 
 ## API reference
 
-::: ml_toolkit.evaluation.Residuals
+::: ml_toolkit.reports.Residuals
     options:
       members: [calculate, parameters, evaluate, write_artifacts]
 
-::: ml_toolkit.evaluation.ResidualResult
+::: ml_toolkit.reports.ResidualResult
     options:
       members: []
 
-::: ml_toolkit.plots.residuals.residual_diagnostics
+::: ml_toolkit.reports.residuals.residual_diagnostics

@@ -216,7 +216,7 @@ Prepare an auxiliary categorical band for a continuous grouping variable:
 <!-- example: data-grouped-reports -->
 
 ```python
-from ml_toolkit.evaluation import GroupedMetrics, TimeObservedFitted
+from ml_toolkit.reports import GroupedMetrics, TimeObservedFitted
 from ml_toolkit.metrics import metrics_regression
 
 band = (

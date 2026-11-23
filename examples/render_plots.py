@@ -128,7 +128,7 @@ def _validate_results(page: str, namespace: dict[str, object]) -> None:
             "test"
         ] * len(example.test)
     if page.endswith("residuals.md"):
-        from ml_toolkit.evaluation import ResidualResult
+        from ml_toolkit.reports import ResidualResult
 
         diagnostics = cast(ResidualResult, namespace["diagnostics"])
         assert diagnostics.rows.height == len(example.data)

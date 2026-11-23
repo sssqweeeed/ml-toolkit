@@ -8,9 +8,9 @@ import pytest
 from ml_toolkit._time import paired_period_starts, period_starts
 from ml_toolkit.config import ReportingConfig
 from ml_toolkit.feature_levels import FeatureLevelConfig
-from ml_toolkit.plots.monitoring import time_feature_distribution
-from ml_toolkit.plots.regression import time_observed_fitted
 from ml_toolkit.psi import PSIAnalysis, PSIConfig
+from ml_toolkit.reports.distributions import time_feature_distribution
+from ml_toolkit.reports.regression import time_observed_fitted
 
 
 @pytest.mark.parametrize(
@@ -137,11 +137,12 @@ def test_time_plot_points_and_dst_bar_end(monkeypatch, tmp_path):
     import matplotlib.dates as mdates
     import matplotlib.pyplot as plt
 
-    from ml_toolkit.plots import psi, regression
+    from ml_toolkit import figures as figures_module
+    from ml_toolkit.plots import psi
 
     figures = []
     monkeypatch.setattr(
-        regression, "save_figure", lambda fig, *a, **k: figures.append(fig)
+        figures_module, "save_figure", lambda fig, *a, **k: figures.append(fig)
     )
     monkeypatch.setattr(psi, "save_figure", lambda fig, *a, **k: figures.append(fig))
     try:

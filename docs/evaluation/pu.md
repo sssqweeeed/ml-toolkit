@@ -32,7 +32,7 @@ figure = FigureConfig(dpi=150)
 <!-- example: plots-pu-distribution -->
 ```python
 from examples.citation_data import load_citation_gallery
-from ml_toolkit.plots import pu
+from ml_toolkit.reports import pu
 
 citations = load_citation_gallery(download_if_missing=False)
 pu_labels, pu_scores = (citations.labels, citations.scores)
@@ -93,7 +93,7 @@ or population prior and is not used to fabricate a PU training run.
 from ml_toolkit import train_model
 from ml_toolkit.config import TrainingConfig
 from ml_toolkit.data import Pool
-from ml_toolkit.evaluation import PUScoreDistribution, PUPositiveCapture
+from ml_toolkit.reports import PUScoreDistribution, PUPositiveCapture
 from ml_toolkit.metrics import PUMetric
 from ml_toolkit.models import CatBoostPUClassificationModel
 from ml_toolkit.training import Holdout
@@ -120,17 +120,17 @@ model. A prior is a population prevalence assumption, not the labeled fraction.
 
 ## API reference
 
-::: ml_toolkit.evaluation.PUScoreDistribution
+::: ml_toolkit.reports.PUScoreDistribution
     options:
       heading_level: 3
       members: []
 
-::: ml_toolkit.evaluation.PUPositiveCapture
+::: ml_toolkit.reports.PUPositiveCapture
     options:
       heading_level: 3
       members: []
 
-::: ml_toolkit.plots.pu
+::: ml_toolkit.reports.pu
     options:
       heading_level: 3
       members: [score_distribution, positive_capture]
