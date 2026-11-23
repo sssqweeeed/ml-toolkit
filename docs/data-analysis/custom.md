@@ -73,7 +73,7 @@ stage switches, shared settings, metric validation and artifact cleanup.
 
 ## API reference
 
-::: ml_toolkit.data_analysis.DataAnalyzer
+::: ml_toolkit.reports.DataAnalyzer
     options:
       heading_level: 3
       members: [evaluate, write_artifacts, parameters]

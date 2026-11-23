@@ -43,7 +43,7 @@ print(f"2011 train hours: {len(train)}; 2012 test hours: {len(test)}")
 <!-- example: explainability-importance -->
 
 ```python
-from ml_toolkit.plots import explainability
+from ml_toolkit import explainability
 
 importance = example.model.feature_importances(train)
 importance_table = explainability.feature_importance(
@@ -111,7 +111,7 @@ scale differs from the transformed probability or mean prediction.
 <!-- example: explainability-shap -->
 
 ```python
-from ml_toolkit.config import ShapConfig
+from ml_toolkit.explainability import ShapConfig
 from ml_toolkit.explainability import calculate_shap_values, top_shap_features
 
 shap_config = ShapConfig(max_samples=600, max_display=11, seed=42)
@@ -216,7 +216,7 @@ figure settings are described in the [overview](index.md#reporting-inputs-and-ou
     options:
       heading_level: 3
 
-::: ml_toolkit.plots.explainability
+::: ml_toolkit.explainability
     options:
       heading_level: 3
       members: [feature_importance, shap_importance, shap_beeswarm, shap_dependence]
