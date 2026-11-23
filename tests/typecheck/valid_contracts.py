@@ -34,7 +34,8 @@ from ml_toolkit.metrics import (
     metrics_severity,
     ranking_metrics,
 )
-from ml_toolkit.models import CatBoostPUClassificationModel, CatBoostRegressionModel
+from ml_toolkit.models import CatBoostPUClassificationModel, CatBoostRegressionModel, TrackingConfig
+from ml_toolkit.metrics import calculate_metrics
 from ml_toolkit.models.base import Model
 from ml_toolkit.models import ShrinkableModel
 from ml_toolkit.models.lightgbm import LightGBMServingModel
@@ -43,8 +44,9 @@ from ml_toolkit.inflation import ConstantRateInflation, LogLinearInflation, Spli
 from ml_toolkit.evaluation import GroupedMetrics, PredictionEvaluator, TimeObservedFitted
 from ml_toolkit.evaluation import MetricTrend
 from ml_toolkit.evaluation import Residuals, ResidualResult
-from ml_toolkit.config import FigureConfig, FeatureLevelConfig
-from ml_toolkit.training import Pool as TrainingPool
+from ml_toolkit.config import FeatureLevelConfig
+from ml_toolkit.figures import FigureConfig
+from ml_toolkit.data import Pool as DataPool
 
 from ml_toolkit.types import FloatArray, ModelParams
 
@@ -176,7 +178,7 @@ def contracts(data: Pool) -> None:
         ),
         TrainingResult,
     )
-    protocol: TrainingPool = data
+    protocol: DataPool = data
     model: Model = CatBoostRegressionModel({"iterations": 10})
     pu = CatBoostPUClassificationModel(
         {"loss": "uPU", "pu_prior": 0.1, "task_type": "GPU", "devices": "0"}
@@ -213,7 +215,7 @@ def contracts(data: Pool) -> None:
 
 def project_pool_contract(data: ProjectPool) -> None:
     protocol: Pool = data
-    training_protocol: TrainingPool = protocol
+    training_protocol: DataPool = protocol
     contracts(training_protocol)
     assert_type(data.take([0]), ProjectPool)
     assert_type(data.select_features([data.X.columns[0]]), ProjectPool)
@@ -410,3 +412,9 @@ def data_analysis_contracts(data: Pool, split: pl.Series, output: Path) -> None:
             data_analyzers=analyzers,
             prediction_evaluators=BusinessEvaluator(name="prediction"),
         )
+
+
+def packaging_and_scoring(data: Pool, prediction: FloatArray) -> None:
+    tracking = TrackingConfig(log_test_model=False, registered_model_name=None, conda_env=None)
+    assert_type(tracking.model_name, str)
+    assert_type(calculate_metrics(dictionary_metric, data, prediction), dict[str, float])

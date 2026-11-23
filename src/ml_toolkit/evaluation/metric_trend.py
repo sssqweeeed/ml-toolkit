@@ -7,13 +7,10 @@ import numpy as np
 import polars as pl
 
 from .._time import PERIOD_INTERVALS, period_starts
-from ..config import FigureConfig
-from ..data import Pool
-from ..data_analysis._common import validate_split
+from ..data import Pool, validate_prediction, validate_split_labels
 from ..feature_levels import FeatureLevelConfig
+from ..figures import FigureConfig, feature_filename
 from ..metrics import Metric
-from ..metrics._evaluation import validate_prediction
-from ..plots.utils import feature_filename
 from ..types import FloatArray, IntArray, TimePeriod
 from .base import PredictionEvaluator
 
@@ -115,7 +112,7 @@ class MetricTrend(PredictionEvaluator):
             with evaluator, split, and endpoint context.
         """
         validate_prediction(data, prediction)
-        validate_split(data, split)
+        validate_split_labels(data, split)
         target = data.y.to_numpy().astype(float)
         weight = data.weight.to_numpy().astype(float)
         if not np.isfinite(target).all():

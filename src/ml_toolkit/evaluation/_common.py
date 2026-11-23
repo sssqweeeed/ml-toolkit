@@ -6,17 +6,14 @@ from pathlib import Path
 import numpy as np
 import polars as pl
 
-from .._rows import row_indexer
-from ..config import FigureConfig
-from ..data import Pool
-from ..data_analysis._common import validate_split
-from ..metrics._evaluation import validate_prediction
+from ..data import Pool, row_indexer, validate_prediction, validate_split_labels
+from ..figures import FigureConfig
 from ..types import FloatArray
 
 
 def validate_inputs(data: Pool, prediction: FloatArray, split: pl.Series) -> None:
     validate_prediction(data, prediction)
-    validate_split(data, split)
+    validate_split_labels(data, split)
 
 
 def _heldout(

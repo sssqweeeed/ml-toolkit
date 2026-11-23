@@ -20,7 +20,7 @@ import numpy as np
 import polars as pl
 
 from examples.evaluation_data import fit_bike_evaluation
-from ml_toolkit.config import FigureConfig
+from ml_toolkit.figures import FigureConfig
 
 example = fit_bike_evaluation(classification=False)
 data, prediction, split = example.data, example.prediction, example.split

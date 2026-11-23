@@ -2,15 +2,17 @@
 
 from dataclasses import replace
 from datetime import date, timedelta
+from pathlib import Path
 
 import numpy as np
 import polars as pl
 import pytest
 from polars.testing import assert_frame_equal
 
-from ml_toolkit.config import FigureConfig, ReportingConfig
+from ml_toolkit.config import ReportingConfig
 from ml_toolkit.data import Pool
 from ml_toolkit.evaluation import GroupedMetrics, TimeObservedFitted
+from ml_toolkit.figures import FigureConfig
 from ml_toolkit.metrics import MetricScores, metrics_classification, metrics_regression
 from ml_toolkit.training.reporting import report_predictions
 from tests.support.training import MeanModel
@@ -177,12 +179,12 @@ def test_invalid_configuration(kwargs):
 def test_training_runner_logs_only_finite_scores_and_table(inputs, monkeypatch):
     logged, artifacts = {}, []
     monkeypatch.setattr(
-        "ml_toolkit.training.reporting.tracking.log_metrics",
+        "mlflow.log_metrics",
         lambda values: logged.update(values),
     )
     monkeypatch.setattr(
-        "ml_toolkit.training.reporting.tracking.log_artifact",
-        lambda path, **kw: artifacts.append((path.name, kw)),
+        "mlflow.log_artifact",
+        lambda path, **kw: artifacts.append((Path(path).name, kw)),
     )
     report = GroupedMetrics(metric=metrics_regression, by=("segment",))
     report_predictions(

@@ -6,8 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
 
-from ..config import FigureConfig
-from .utils import PlotError, save_figure
+from ..figures import FigureConfig, PlotError, save_figure
 
 
 def permutation_importance(

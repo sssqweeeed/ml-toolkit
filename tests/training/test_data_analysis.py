@@ -9,13 +9,7 @@ import polars as pl
 import pytest
 
 from examples.custom_data_analyzer import DataAudit
-from ml_toolkit.config import (
-    FigureConfig,
-    ReportingConfig,
-    ShapConfig,
-    TrackingConfig,
-    TrainingConfig,
-)
+from ml_toolkit.config import ReportingConfig, ShapConfig, TrainingConfig
 from ml_toolkit.data_analysis import DataAnalyzer, NumericalFeatureDistributions
 from ml_toolkit.evaluation import (
     NumericalFeatureDistributions as LegacyDistributions,
@@ -23,6 +17,8 @@ from ml_toolkit.evaluation import (
 from ml_toolkit.evaluation import (
     PredictionEvaluator,
 )
+from ml_toolkit.figures import FigureConfig
+from ml_toolkit.models import TrackingConfig
 from ml_toolkit.training import Holdout, train_model
 from ml_toolkit.training.reporting import report_data
 from tests.support.evaluators import CallbackAnalyzer
@@ -198,8 +194,8 @@ def test_analysis_artifacts_are_selected_and_cleaned_even_on_failure(monkeypatch
         return [Path("selected.json")]
 
     monkeypatch.setattr(
-        "ml_toolkit.training.reporting.tracking.log_artifact",
-        lambda path, artifact_path: uploads.append((artifact_path, path.name)),
+        "mlflow.log_artifact",
+        lambda path, artifact_path: uploads.append((artifact_path, Path(path).name)),
     )
     inputs = dict(
         data=make_data(),
@@ -239,8 +235,10 @@ def test_analysis_artifacts_are_selected_and_cleaned_even_on_failure(monkeypatch
 def test_psi_runs_without_a_model_or_predictions(monkeypatch):
     uploads = []
     monkeypatch.setattr(
-        "ml_toolkit.training.reporting.tracking.log_artifact",
-        lambda path, artifact_path: uploads.append(f"{artifact_path}/{path.name}"),
+        "mlflow.log_artifact",
+        lambda path, artifact_path: uploads.append(
+            f"{artifact_path}/{Path(path).name}"
+        ),
     )
     report_data(
         data=make_data(),

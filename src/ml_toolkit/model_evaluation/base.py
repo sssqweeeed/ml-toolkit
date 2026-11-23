@@ -6,8 +6,8 @@ from pathlib import Path
 
 import polars as pl
 
-from ..config import FigureConfig
 from ..data import Pool
+from ..figures import FigureConfig
 from ..metrics import Metric
 from ..models.base import Model, ShrinkableModel
 

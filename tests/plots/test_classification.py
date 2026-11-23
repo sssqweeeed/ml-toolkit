@@ -1,12 +1,12 @@
 import pytest
 
+from ml_toolkit.figures import PlotError
 from ml_toolkit.plots.classification import (
     binary_curves,
     calibration,
     f1_threshold,
     precision_recall,
 )
-from ml_toolkit.plots.utils import PlotError
 
 
 def test_binary_curves_and_plots(tmp_path):

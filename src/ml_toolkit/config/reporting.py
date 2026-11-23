@@ -1,41 +1,11 @@
 """Shared reporting settings; individual reports own their parameters."""
 
 from dataclasses import dataclass, field
-from math import isfinite
-from typing import Literal
 
 from .._time import PERIOD_INTERVALS
 from ..feature_levels import FeatureLevelConfig
+from ..figures import FigureConfig
 from ..types import TimePeriod
-
-
-@dataclass(frozen=True, kw_only=True, slots=True)
-class FigureConfig:
-    """Configure figure dimensions and file output.
-
-    Parameters
-    ----------
-    figsize : tuple[float, float] or None, default None
-        Positive finite width and height in inches. None preserves each plot's
-        native or adaptive dimensions.
-    dpi : int, default 150
-        Positive export resolution in dots per inch.
-    format : {'png', 'svg', 'pdf'}, default 'png'
-        Output format. Explicit figure settings replace the output path suffix
-        to match this format. All figures are closed after saving.
-    """
-
-    figsize: tuple[float, float] | None = None
-    dpi: int = 150
-    format: Literal["png", "svg", "pdf"] = "png"
-
-    def __post_init__(self) -> None:
-        if self.dpi < 1:
-            raise ValueError("dpi must be positive")
-        if self.figsize is not None and any(
-            not isfinite(value) or value <= 0 for value in self.figsize
-        ):
-            raise ValueError("figsize dimensions must be positive")
 
 
 @dataclass(frozen=True, kw_only=True, slots=True)

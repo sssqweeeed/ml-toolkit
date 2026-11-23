@@ -6,9 +6,8 @@ import matplotlib.pyplot as plt
 import polars as pl
 
 from .._time import paired_period_starts
-from ..config import FigureConfig
+from ..figures import FigureConfig, save_figure
 from ..types import TimePeriod
-from .utils import save_figure
 
 
 def _quantile_name(quantile: float) -> str:

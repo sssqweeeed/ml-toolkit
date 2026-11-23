@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from copy import deepcopy
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Self, cast
+from typing import Any, Self, cast
 
 import catboost
 import mlflow
@@ -14,8 +14,7 @@ from mlflow.models.model import ModelInfo
 from mlflow.pyfunc.model import PythonModel
 
 from .._console import Logger
-from ..data import validate_training_categories
-from ..tracking.state import RegressionState, read_state
+from ..data import Pool, validate_training_categories
 from ..types import FloatArray, ModelParams
 from ._catboost import (
     feature_importances,
@@ -24,10 +23,10 @@ from ._catboost import (
     prepare_frame,
     refit_parameters,
 )
-
-if TYPE_CHECKING:
-    from ..config import TrackingConfig
-    from ..training.contracts import Pool
+from ._shrink import validate_size
+from .artifacts import TrackingConfig, log_catboost
+from .losses.gamma.config import configure_gamma
+from .state import RegressionState, read_state
 
 logger = Logger(__name__)
 
@@ -76,8 +75,6 @@ class CatBoostRegressionModel(PythonModel):
         n_iterations must be an integer from one through the fitted size.
         The copy's refit budget equals its retained size.
         """
-        from ._shrink import validate_size
-
         validate_size(n_iterations, self.n_iterations)
         native = self.native_model.copy()
         native.shrink(n_iterations, ntree_start=0)
@@ -204,8 +201,6 @@ class CatBoostRegressionModel(PythonModel):
         loss = params.get("loss_function")
         is_gamma = isinstance(loss, str) and loss == "Gamma"
         if is_gamma:
-            from .losses.gamma.config import configure_gamma
-
             configure_gamma(
                 params, train, validation, log_link=self.baseline_mode == "native_bias"
             )
@@ -353,8 +348,6 @@ class CatBoostRegressionModel(PythonModel):
         signature, and logs baseline and input-schema metadata to MLflow. Configure
         tracking and an experiment before calling.
         """
-        from ..config import TrackingConfig
-
         config = TrackingConfig() if config is None else config
         name = config.model_name
         registered_model_name = config.registered_model_name
@@ -391,7 +384,6 @@ class CatBoostRegressionModel(PythonModel):
         metadata: dict[str, object] | None = None,
         extra_artifacts: Mapping[str, str] | None = None,
     ) -> ModelInfo:
-        from ..tracking.model_artifacts import log_catboost
 
         return log_catboost(
             self,

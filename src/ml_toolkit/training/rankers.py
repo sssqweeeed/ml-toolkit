@@ -9,8 +9,8 @@ from ..config import ShapConfig
 from ..explainability import shap_contributions
 
 if TYPE_CHECKING:
+    from ..data import Pool
     from ..models.base import Model
-    from .contracts import Pool
 
 
 def importance_ranker(model: "Model", data: "Pool") -> dict[str, float]:

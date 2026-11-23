@@ -8,10 +8,9 @@ import polars as pl
 import pytest
 from polars.testing import assert_frame_equal
 
-from ml_toolkit.data import Pool, validate_training_data
+from ml_toolkit.data import Pool, concat_pools, validate_training_data
 from ml_toolkit.feature_levels.config import feature_definitions
 from ml_toolkit.training import Split, TimeSeriesCV
-from ml_toolkit.training.evaluation import _combine_pools
 
 
 @pytest.fixture
@@ -91,14 +90,14 @@ def test_split_and_reporting_reject_incompatible_auxiliary_schemas(data, mismatc
         "order": frame.select("amount", "segment", "flag"),
     }[mismatch]
     test = replace(test, auxiliary_features=replacement)
-    for operation in (lambda: Split(train, test), lambda: _combine_pools(train, test)):
+    for operation in (lambda: Split(train, test), lambda: concat_pools(train, test)):
         with pytest.raises(ValueError, match="auxiliary.*schemas"):
             operation()
 
 
 def test_cv_and_reporting_preserve_auxiliary_columns(data):
     for part in TimeSeriesCV(data, n_splits=2).get_validation():
-        combined = _combine_pools(part.train, part.heldout)
+        combined = concat_pools(part.train, part.heldout)
         ids = combined.X["x"].cast(pl.Int64)
         assert_frame_equal(combined.auxiliary_features, data.auxiliary_features[ids])
     inferred = {item.name: item.ftype for item in feature_definitions(data, None)}

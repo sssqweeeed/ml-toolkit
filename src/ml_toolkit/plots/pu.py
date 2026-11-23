@@ -6,9 +6,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from numpy.typing import ArrayLike
 
-from ..config import FigureConfig
+from ..figures import FigureConfig, save_figure
 from ..metrics.pu import positive_capture_curve, pu_arrays
-from .utils import save_figure
 
 
 def score_distribution(

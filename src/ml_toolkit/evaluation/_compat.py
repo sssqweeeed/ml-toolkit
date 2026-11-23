@@ -5,12 +5,12 @@ from pathlib import Path
 
 import polars as pl
 
-from ..config import FigureConfig
 from ..data import Pool
 from ..data_analysis import (
     NumericalFeatureDistributions as _NumericalFeatureDistributions,
 )
 from ..feature_levels import FeatureLevelConfig
+from ..figures import FigureConfig
 from ..types import FloatArray, TimePeriod
 from ._common import validate_inputs
 from .base import PredictionEvaluator

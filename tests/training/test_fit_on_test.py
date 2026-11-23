@@ -7,7 +7,8 @@ import mlflow
 import polars as pl
 import pytest
 
-from ml_toolkit.config import ReportingConfig, TrackingConfig, TrainingConfig
+from ml_toolkit.config import ReportingConfig, TrainingConfig
+from ml_toolkit.models import TrackingConfig
 from ml_toolkit.training import Holdout, Split, train_model
 from tests.support.evaluators import CallbackEvaluator
 from tests.support.training import MeanModel, mae, make_identified_data, setup_mlflow

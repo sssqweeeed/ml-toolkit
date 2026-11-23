@@ -6,10 +6,13 @@ import mlflow
 import polars as pl
 import pytest
 
-from ml_toolkit.config import TrackingConfig
 from ml_toolkit.feature_selection import RFESelector
 from ml_toolkit.inflation import ConstantRateInflation
-from ml_toolkit.models import CatBoostRegressionModel, InflationAdjustedModel
+from ml_toolkit.models import (
+    CatBoostRegressionModel,
+    InflationAdjustedModel,
+    TrackingConfig,
+)
 from ml_toolkit.training import Holdout, importance_ranker
 from tests.support.training import mae, make_data
 

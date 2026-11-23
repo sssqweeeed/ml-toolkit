@@ -3,20 +3,20 @@
 from collections.abc import Callable
 from dataclasses import asdict, replace
 
+import mlflow
 from optuna import Trial
 
 from .._console import Logger, capture_messages, datasets, message
 from ..config import TrainingConfig
-from ..data import validate_training_categories
+from ..data import Pool, validate_training_categories
 from ..data_analysis import DataAnalyzer
 from ..evaluation import PredictionEvaluator
 from ..feature_selection import FeatureSelector
 from ..metrics import Metric
 from ..model_evaluation import ModelEvaluator
 from ..models.base import Model
-from ..tracking import runs as tracking
+from ..tracking import log_json, nested_run
 from ..types import ModelParams
-from .contracts import Pool
 from .evaluation import evaluate_model
 from .psi import log_model_with_baseline, prepare_psi_baseline
 from .reporting import report_feature_selection
@@ -56,7 +56,7 @@ def fit_split(
     datasets(
         f"Validation split {index} data", {"train": train, "validation": validation}
     )
-    with tracking.run(f"validation/split_{index}"):
+    with nested_run(f"validation/split_{index}"):
         selection = None
         if feature_selector is not None:
             logger.info("Starting feature selection")
@@ -95,8 +95,8 @@ def fit_split(
                 message(features, verbosity="debug")
             train = train.select_features(names)
             validation = validation.select_features(names)
-            tracking.log_json(asdict(selection), "selection/history.json")
-            tracking.log_metrics(
+            log_json(asdict(selection), "selection/history.json")
+            mlflow.log_metrics(
                 {
                     "selection/n_fits": float(len(selection.steps)),
                     "selection/n_features": float(len(names)),
@@ -179,7 +179,7 @@ def fit_split(
                 config=tuning_config,
             )
             selected_params = tuning.best_params.copy()
-        tracking.log_params(selected_params)
+        mlflow.log_params(selected_params)
         model = model_factory(selected_params.copy()).fit(train, validation)
         baseline = prepare_psi_baseline(
             train,
@@ -232,7 +232,7 @@ def refit_model(
     validate_training_categories(data)
     params = last_split.refit_params.copy()
     logger.info("Refitting model without validation")
-    tracking.log_params(params)
+    mlflow.log_params(params)
     logger.debug("Refit selected iterations: %s", last_split.best_iteration)
     model = model_factory(params.copy()).fit(data)
     return model, params

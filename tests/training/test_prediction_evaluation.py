@@ -9,16 +9,11 @@ import numpy as np
 import polars as pl
 import pytest
 
-from ml_toolkit.config import (
-    ReportingConfig,
-    ShapConfig,
-    TrackingConfig,
-    TrainingConfig,
-    TuningConfig,
-)
+from ml_toolkit.config import ReportingConfig, ShapConfig, TrainingConfig, TuningConfig
 from ml_toolkit.data import Pool
 from ml_toolkit.evaluation import Calibration, PredictionEvaluator, comparison_pair
 from ml_toolkit.feature_selection import RFESelector
+from ml_toolkit.models import TrackingConfig
 from ml_toolkit.training import Holdout, TimeSeriesCV, importance_ranker, train_model
 from ml_toolkit.training.reporting import report_predictions, upload_artifacts
 from tests.support.evaluators import CallbackAnalyzer, CallbackEvaluator
@@ -33,12 +28,12 @@ from tests.support.training import (
 
 @pytest.mark.parametrize("interleaved", [False, True])
 def test_report_subsets_preserve_alignment_and_share_contiguous_buffers(interleaved):
-    from ml_toolkit.training.evaluation import _combine_pools
+    from ml_toolkit.data import concat_pools
 
     source = make_data()
     source = Pool(source.X, source.y, source.time, source.weight)
     train, heldout = source.take(range(16)), source.take(range(16, 24))
-    combined = _combine_pools(train, heldout)
+    combined = concat_pools(train, heldout)
     predictions = np.arange(24, dtype=float)
     labels = pl.Series(["train"] * 16 + ["val"] * 8)
     if interleaved:
@@ -96,13 +91,13 @@ def test_stage_flags_gate_whole_reporting_without_affecting_metrics(
 
     import ml_toolkit.training.evaluation as module
 
-    combine = module._combine_pools
+    combine = module.concat_pools
 
     def capture(*args):
         prepared.append(1)
         return combine(*args)
 
-    monkeypatch.setattr(module, "_combine_pools", capture)
+    monkeypatch.setattr(module, "concat_pools", capture)
     for name in ("_psi_artifacts", "_shap_artifacts"):
         monkeypatch.setattr(
             "ml_toolkit.training.reporting." + name,
@@ -325,7 +320,7 @@ def test_artifact_boundaries_are_checked_before_any_upload(tmp_path, monkeypatch
         bad = root / "link.json"
         bad.symlink_to(outside)
     monkeypatch.setattr(
-        "ml_toolkit.training.reporting.tracking.log_artifact",
+        "mlflow.log_artifact",
         lambda *a, **k: pytest.fail("uploaded before validation"),
     )
     with pytest.raises(ValueError):

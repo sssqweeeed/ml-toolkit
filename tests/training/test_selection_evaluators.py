@@ -10,10 +10,11 @@ import numpy as np
 import polars as pl
 import pytest
 
-from ml_toolkit.config import ReportingConfig, TrackingConfig, TrainingConfig
+from ml_toolkit.config import ReportingConfig, TrainingConfig
 from ml_toolkit.data import Pool
 from ml_toolkit.feature_selection import ForwardSelector, RFESelector
 from ml_toolkit.metrics import MetricScores
+from ml_toolkit.models import TrackingConfig
 from ml_toolkit.training import Holdout, TimeSeriesCV, train_model
 from tests.support.evaluators import CallbackEvaluator
 from tests.support.training import MeanModel, mae, make_identified_data, setup_mlflow

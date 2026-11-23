@@ -166,7 +166,7 @@ import polars as pl
 
 from examples.gallery_data import load_bike_pool
 from ml_toolkit.training import Holdout
-from ml_toolkit.config import FigureConfig
+from ml_toolkit.figures import FigureConfig
 
 data = load_bike_pool(download_if_missing=False)
 partition = Holdout(data, test_size="2012-01-01").get_test()

@@ -5,9 +5,8 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 
-from ..config import FigureConfig
+from ..figures import FigureConfig, save_figure
 from ..metrics.ranking import RankingMetrics
-from .utils import save_figure
 
 
 def gains_curve(

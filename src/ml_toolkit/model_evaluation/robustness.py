@@ -7,13 +7,10 @@ from typing import Literal
 import numpy as np
 import polars as pl
 
-from ..config import FigureConfig
-from ..data import Pool
-from ..data_analysis._common import validate_split
-from ..metrics import Metric
-from ..metrics._evaluation import calculate_metrics
+from ..data import Pool, validate_split_labels
+from ..figures import FigureConfig, feature_filename
+from ..metrics import Metric, calculate_metrics
 from ..models.base import Model, ShrinkableModel
-from ..plots.utils import feature_filename
 from ..types import FloatArray
 from .base import ModelEvaluator
 
@@ -242,7 +239,7 @@ class RobustnessCurve(ModelEvaluator):
             n_rows counts those rows; zero-weight rows are excluded. Empty for
             train-only. All-zero held-out weights raise ValueError.
         """
-        validate_split(data, split)
+        validate_split_labels(data, split)
         index = np.flatnonzero((split != "train").to_numpy())
         if not len(index):
             return pl.DataFrame(schema=_SCHEMA)

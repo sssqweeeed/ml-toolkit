@@ -5,8 +5,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import polars as pl
 
-from ..config import FigureConfig
-from .utils import PlotError, save_figure
+from ..figures import FigureConfig, PlotError, saved_figure
 
 
 def shrink_curve(
@@ -31,7 +30,7 @@ def shrink_curve(
     if selected.is_empty():
         raise PlotError(f"No shrink curve values for metric {metric!r}")
     fig, ax = plt.subplots(figsize=(9, 5))
-    try:
+    with saved_figure(fig, save_fig, config=figure):
         for part, label in (
             ("train", "Train"),
             ("val", "Validation"),
@@ -54,6 +53,3 @@ def shrink_curve(
         ax.grid(alpha=0.2)
         ax.legend()
         fig.tight_layout()
-        save_figure(fig, save_fig, config=figure)
-    finally:
-        plt.close(fig)

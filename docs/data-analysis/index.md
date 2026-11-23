@@ -31,7 +31,8 @@ responsibilities explicit:
 
 ```python
 from ml_toolkit import Pool, train_model
-from ml_toolkit.config import ReportingConfig, TrackingConfig, TrainingConfig
+from ml_toolkit.config import ReportingConfig, TrainingConfig
+from ml_toolkit.models import TrackingConfig
 from ml_toolkit.data_analysis import NumericalFeatureDistributions
 from ml_toolkit.evaluation import ObservedFitted
 from ml_toolkit.models import CatBoostRegressionModel

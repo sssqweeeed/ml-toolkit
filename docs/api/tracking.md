@@ -134,6 +134,10 @@ own model-packaging methods in the [model reference](models.md).
 
 ::: ml_toolkit.tracking.log_polars_table
 
+::: ml_toolkit.tracking.log_json
+
+::: ml_toolkit.tracking.nested_run
+
 ## Load a model's PSI baseline
 
 With `ReportingConfig(psi=True)`, each saved model includes a `psi_baseline`

@@ -8,13 +8,9 @@ import pytest
 from polars.testing import assert_frame_equal
 
 from examples.custom_selector import FixedFeatureSelector
-from ml_toolkit.config import (
-    ReportingConfig,
-    TrackingConfig,
-    TrainingConfig,
-    TuningConfig,
-)
+from ml_toolkit.config import ReportingConfig, TrainingConfig, TuningConfig
 from ml_toolkit.feature_levels import LevelTransformer
+from ml_toolkit.models import TrackingConfig
 from ml_toolkit.psi import PSIBaseline
 from ml_toolkit.training import Holdout, train_model
 from ml_toolkit.training.psi import log_model_with_baseline, prepare_psi_baseline

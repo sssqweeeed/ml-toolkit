@@ -444,11 +444,11 @@ the ranker. Explicit inheritance from `FeatureRanker` is unnecessary.
 
 ::: ml_toolkit.training.ShapRanker.__call__
 
-::: ml_toolkit.training.FeatureRanker
+::: ml_toolkit.feature_selection.FeatureRanker
     options:
       members: []
 
-::: ml_toolkit.training.FeatureRanker.__call__
+::: ml_toolkit.feature_selection.FeatureRanker.__call__
 
 ### Results
 

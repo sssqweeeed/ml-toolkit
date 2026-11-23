@@ -2,6 +2,7 @@
 
 from dataclasses import replace
 from datetime import date, datetime
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -9,12 +10,12 @@ import polars as pl
 import pytest
 from polars.testing import assert_frame_equal
 
-from ml_toolkit.config import FigureConfig, ReportingConfig
+from ml_toolkit.config import ReportingConfig
 from ml_toolkit.data import Pool
 from ml_toolkit.evaluation import MetricTrend
+from ml_toolkit.figures import FigureConfig, PlotError
 from ml_toolkit.metrics import MetricScores, metrics_classification
 from ml_toolkit.plots.metric_trend import metric_trend
-from ml_toolkit.plots.utils import PlotError
 from ml_toolkit.training.reporting import report_predictions
 from tests.support.training import MeanModel
 
@@ -328,7 +329,7 @@ def test_plot_leaves_gaps_and_closes_on_save_failure(tmp_path, monkeypatch):
         lines.append(fig.axes[0].lines[0].get_ydata())
         raise OSError("failed")
 
-    monkeypatch.setattr("ml_toolkit.plots.metric_trend.save_figure", inspect)
+    monkeypatch.setattr("ml_toolkit.figures.save_figure", inspect)
     with pytest.raises(OSError, match="failed"):
         metric_trend(table, metric="mae", save_fig=tmp_path / "trend.png")
     assert len(lines[0]) == 3 and np.isnan(lines[0][1])
@@ -353,7 +354,7 @@ def test_sparse_multi_year_minute_plot_uses_one_separator_per_gap(
     def inspect(fig, *args, **kwargs):
         shown.extend(axis.lines[0].get_ydata() for axis in fig.axes)
 
-    monkeypatch.setattr("ml_toolkit.plots.metric_trend.save_figure", inspect)
+    monkeypatch.setattr("ml_toolkit.figures.save_figure", inspect)
     metric_trend(table, metric="mae", period="minute", save_fig=tmp_path / "sparse.png")
     assert len(shown) == 2
     assert all(len(values) == 4 for values in shown)
@@ -365,11 +366,11 @@ def test_report_uses_prediction_workflow_without_extra_scalar_metrics(monkeypatc
     inputs = make_inputs([date(2024, 1, 1), date(2024, 2, 1)])
     artifacts, metrics = [], []
     monkeypatch.setattr(
-        "ml_toolkit.training.reporting.tracking.log_artifact",
-        lambda path, **kw: artifacts.append((path.name, kw)),
+        "mlflow.log_artifact",
+        lambda path, **kw: artifacts.append((Path(path).name, kw)),
     )
     monkeypatch.setattr(
-        "ml_toolkit.training.reporting.tracking.log_metrics",
+        "mlflow.log_metrics",
         lambda values: metrics.append(values),
     )
     report_predictions(

@@ -8,15 +8,10 @@ import numpy as np
 import polars as pl
 import pytest
 
-from ml_toolkit.config import (
-    ReportingConfig,
-    ShapConfig,
-    TrackingConfig,
-    TrainingConfig,
-    TuningConfig,
-)
+from ml_toolkit.config import ReportingConfig, ShapConfig, TrainingConfig, TuningConfig
 from ml_toolkit.evaluation import PredictionEvaluator
 from ml_toolkit.model_evaluation import ModelEvaluator, ShrinkCurve
+from ml_toolkit.models import TrackingConfig
 from ml_toolkit.training import Holdout, TimeSeriesCV, train_model
 from ml_toolkit.training.reporting import report_predictions
 from tests.support.evaluators import CallbackAnalyzer, CallbackEvaluator
@@ -255,7 +250,7 @@ def test_model_reports_reuse_scalar_and_artifact_validation(tmp_path, monkeypatc
             return [tmp_path / "outside.json"]
 
     monkeypatch.setattr(
-        "ml_toolkit.training.reporting.tracking.log_artifact",
+        "mlflow.log_artifact",
         lambda *a, **kw: pytest.fail("uploaded"),
     )
     with pytest.raises(ValueError, match="inside artifact_dir"):

@@ -6,12 +6,11 @@ from pathlib import Path
 import polars as pl
 
 from .._time import PERIOD_INTERVALS
-from ..config import FigureConfig
 from ..data import Pool
 from ..feature_levels import FeatureLevelConfig
 from ..feature_levels.config import validate_features
+from ..figures import FigureConfig, feature_filename
 from ..plots import monitoring
-from ..plots.utils import feature_filename
 from ..types import TimePeriod
 from ._common import data_comparison_pair
 from .base import DataAnalyzer

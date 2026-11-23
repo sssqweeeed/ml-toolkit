@@ -10,9 +10,8 @@ import numpy as np
 import polars as pl
 
 from .._time import PERIOD_INTERVALS, period_starts
-from ..config import FigureConfig
+from ..figures import FigureConfig, save_figure
 from ..types import FloatArray, TimePeriod
-from .utils import save_figure
 
 
 def feature_psi_plot(

@@ -6,9 +6,9 @@ from pathlib import Path
 import numpy as np
 import polars as pl
 
-from ..config import FigureConfig
 from ..data import Pool
 from ..feature_levels import FeatureLevelConfig
+from ..figures import FigureConfig
 from ..metrics.ranking import ranking_metrics
 from ..plots import ranking
 from ..types import FloatArray

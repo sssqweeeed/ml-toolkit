@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field, replace
 from math import isfinite
 from time import perf_counter
@@ -12,17 +12,51 @@ import numpy as np
 import polars as pl
 
 from ._console import Logger
-from .data import validate_training_categories, validate_training_data
+from .data import (
+    Pool,
+    concat_pools,
+    validate_prediction,
+    validate_training_categories,
+    validate_training_data,
+)
 from .metrics import Metric
-from .metrics._evaluation import validate_prediction
 from .models.base import Model
 from .types import ModelParams
 
 if TYPE_CHECKING:
     from .evaluation import PredictionEvaluator
-    from .training.contracts import FeatureRanker, Pool
 
 logger = Logger(__name__)
+
+
+class FeatureRanker(Protocol):
+    """Describe a callable ranking a fitted adapter's current input columns.
+
+    Notes
+    -----
+    Higher values indicate greater importance. Implementations may inspect the
+    adapter's native_model, but must preserve its state and all input metadata.
+    Explicit inheritance from this protocol is unnecessary.
+    """
+
+    def __call__(self, model: Model, data: Pool) -> Mapping[str, float]:
+        """Return finite ranking values keyed by every current feature name.
+
+        Parameters
+        ----------
+        model : Model
+            Fitted adapter for the current feature subset.
+        data : Pool
+            Supplied validation rows with aligned features and weights.
+
+        Returns
+        -------
+        Mapping[str, float]
+            Exactly one finite numeric importance per data.X column. Signed
+            values are allowed; larger values rank higher.
+        """
+        ...
+
 
 SelectionSettings: TypeAlias = dict[
     str, str | int | float | bool | None | tuple[str, ...]
@@ -30,6 +64,7 @@ SelectionSettings: TypeAlias = dict[
 """Flat, JSON-compatible selector configuration, without executable objects."""
 
 __all__ = [
+    "FeatureRanker",
     "FeatureSelector",
     "RFESelector",
     "TopKSelector",
@@ -216,12 +251,11 @@ def _evaluate(
     objective_metrics = None
     try:
         if evaluator is not None:
-            from .evaluation._inputs import combine_evaluation_pools
             from .evaluation._metrics import validate_report_metrics
 
             train_prediction = model.predict_pool(train)
             validate_prediction(train, train_prediction)
-            data = combine_evaluation_pools(train, validation)
+            data = concat_pools(train, validation)
             labels = pl.Series(
                 "split", ["train"] * len(train) + ["val"] * len(validation)
             )

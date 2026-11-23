@@ -55,6 +55,7 @@ def configure_gamma(
     params.setdefault("leaf_estimation_method", "Newton")
     params.setdefault("leaf_estimation_iterations", 1)
 
+    # Training-only compiled code stays out of serving environments.
     from .cpu import GammaMetric, GammaObjective
 
     metric = params.get("eval_metric", "Gamma")

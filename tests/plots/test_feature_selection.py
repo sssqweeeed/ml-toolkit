@@ -7,10 +7,10 @@ import numpy as np
 import pytest
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 
-from ml_toolkit.config import FigureConfig
+from ml_toolkit import figures as figures_module
 from ml_toolkit.feature_selection import FeatureSelectionResult, FeatureSelectionStep
+from ml_toolkit.figures import FigureConfig, PlotError
 from ml_toolkit.plots import feature_selection as plots
-from ml_toolkit.plots.utils import PlotError
 
 
 def step(features, score, importances=None):
@@ -31,13 +31,13 @@ def history(kind, steps, selected, **settings):
 @pytest.fixture
 def figures(monkeypatch):
     captured = []
-    save = plots.save_figure
+    save = figures_module.save_figure
 
     def capture(fig, path, **kwargs):
         captured.append(fig)
         return save(fig, path, **kwargs)
 
-    monkeypatch.setattr(plots, "save_figure", capture)
+    monkeypatch.setattr(figures_module, "save_figure", capture)
     return captured
 
 
@@ -329,7 +329,7 @@ def test_render_failure_closes_figure(tmp_path, monkeypatch, draw, kind):
     def fail(*args, **kwargs):
         raise OSError("Cannot save figure")
 
-    monkeypatch.setattr(plots, "save_figure", fail)
+    monkeypatch.setattr(figures_module, "save_figure", fail)
     before = plt.get_fignums()
     with pytest.raises(OSError, match="Cannot save"):
         draw(result, tmp_path / "error.png")

@@ -1,6 +1,6 @@
 """Task-specific metrics and exposure-aware ranking statistics."""
 
-from .base import Metric, MetricResult, MetricScores
+from .base import Metric, MetricResult, MetricScores, calculate_metrics
 from .classification import (
     MetricsClassification,
     confusion_matrix,
@@ -17,6 +17,7 @@ from .severity import MetricsSeverity, metrics_severity
 
 __all__ = [
     "Metric",
+    "calculate_metrics",
     "MetricsRegression",
     "metrics_regression",
     "MetricResult",

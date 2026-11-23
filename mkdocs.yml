@@ -55,6 +55,7 @@ nav:
   - Metrics: api/metrics.md
   - Tracking: api/tracking.md
   - Configuration: api/configuration.md
+  - Migrating to 7.0: migration-7.md
 
 plugins:
   - search

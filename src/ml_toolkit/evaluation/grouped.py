@@ -8,9 +8,9 @@ import numpy as np
 import polars as pl
 
 from .._grouping import row_groups, validate_grouping
-from ..config import FigureConfig
 from ..data import Pool
 from ..feature_levels import FeatureLevelConfig
+from ..figures import FigureConfig
 from ..metrics import Metric
 from ..types import FloatArray
 from ._common import validate_inputs

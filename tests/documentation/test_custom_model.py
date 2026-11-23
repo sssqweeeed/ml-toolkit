@@ -16,8 +16,8 @@ from polars.testing import assert_series_equal
 from examples.custom_model import TargetScaledRegressor, model_factory, weighted_mae
 from examples.project_pool import ProjectPool
 from ml_toolkit import train_model
-from ml_toolkit.config import TrackingConfig, TrainingConfig
-from ml_toolkit.models import CatBoostRegressionModel
+from ml_toolkit.config import TrainingConfig
+from ml_toolkit.models import CatBoostRegressionModel, TrackingConfig
 
 
 @pytest.fixture

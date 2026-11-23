@@ -6,8 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
 
-from ..config import FigureConfig
-from .utils import PlotError, save_figure
+from ..figures import FigureConfig, PlotError, saved_figure
 
 
 def robustness_curve(
@@ -54,7 +53,7 @@ def robustness_curve(
         "rounding": "Retained decimal places (fewer is coarser)",
     }
     fig, ax = plt.subplots(figsize=(9, 5))
-    try:
+    with saved_figure(fig, save_fig, config=figure):
         for index, part in enumerate(
             selected["split"].unique(maintain_order=True).to_list()
         ):
@@ -115,6 +114,3 @@ def robustness_curve(
         ax.grid(alpha=0.2)
         ax.legend()
         fig.tight_layout()
-        save_figure(fig, save_fig, config=figure)
-    finally:
-        plt.close(fig)

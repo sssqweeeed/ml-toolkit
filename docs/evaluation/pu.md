@@ -23,7 +23,7 @@ python -m examples.prepare_data --dataset cora
 
 ```python
 from pathlib import Path
-from ml_toolkit.config import FigureConfig
+from ml_toolkit.figures import FigureConfig
 
 output = Path("figures")
 figure = FigureConfig(dpi=150)

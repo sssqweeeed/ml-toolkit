@@ -159,3 +159,5 @@ prediction equality. The reference below lists the full method signatures.
         - feature_importances
         - get_refit_params
         - log
+
+::: ml_toolkit.models.merge_artifacts

@@ -9,10 +9,9 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 
-from ..config import FigureConfig
 from ..feature_selection import FeatureSelectionResult
+from ..figures import FigureConfig, PlotError, numeric_vector, saved_figure
 from ..types import FloatArray
-from .utils import PlotError, numeric_vector, save_figure
 
 __all__ = [
     "rfe_progress",
@@ -156,7 +155,7 @@ def rfe_progress(
         else (scores[best], scores[best] + tolerance)
     )
     fig, ax = plt.subplots(figsize=(10, 6))
-    try:
+    with saved_figure(fig, save_fig, config=figure):
         ax.fill_between(
             [max(counts) + 0.5, min(counts) - 0.5],
             lower,
@@ -217,9 +216,6 @@ def rfe_progress(
         ax.grid(axis="y", alpha=0.2)
         ax.legend()
         fig.tight_layout()
-        save_figure(fig, save_fig, config=figure)
-    finally:
-        plt.close(fig)
 
 
 def top_k_ranking(
@@ -254,7 +250,7 @@ def top_k_ranking(
     protected = set(_protected(result))
     chosen = set(result.features)
     fig, ax = plt.subplots(figsize=(10, max(4, 0.32 * len(names) + 2)))
-    try:
+    with saved_figure(fig, save_fig, config=figure):
         for label, color, hatch, positions in (
             (
                 "Selected",
@@ -318,9 +314,6 @@ def top_k_ranking(
         ax.grid(axis="x", alpha=0.2)
         ax.legend()
         fig.tight_layout()
-        save_figure(fig, save_fig, config=figure)
-    finally:
-        plt.close(fig)
 
 
 def forward_progress(
@@ -392,7 +385,7 @@ def forward_progress(
     else:
         stop = f"Stopped: max_fits budget ({len(result.steps)}/{max_fits:g} fits; next full round does not fit)"
     fig, ax = plt.subplots(figsize=(11, 6))
-    try:
+    with saved_figure(fig, save_fig, config=figure):
         if candidate_x:
             ax.scatter(
                 candidate_x,
@@ -466,9 +459,6 @@ def forward_progress(
         ax.grid(axis="y", alpha=0.2)
         ax.legend()
         fig.tight_layout()
-        save_figure(fig, save_fig, config=figure)
-    finally:
-        plt.close(fig)
 
 
 def forward_improvement(
@@ -527,7 +517,7 @@ def forward_improvement(
     if not gains:
         return
     fig, ax = plt.subplots(figsize=(11, 6))
-    try:
+    with saved_figure(fig, save_fig, config=figure):
         ax.axhline(0, color="0.8", linewidth=1)
         ax.axhline(
             threshold,
@@ -588,9 +578,6 @@ def forward_improvement(
         ax.grid(axis="y", alpha=0.2)
         ax.legend()
         fig.tight_layout()
-        save_figure(fig, save_fig, config=figure)
-    finally:
-        plt.close(fig)
 
 
 def best_iteration_progress(
@@ -648,7 +635,7 @@ def best_iteration_progress(
             for i, offset in zip(indices, offsets):
                 positions[i] = size + float(offset)
     fig, ax = plt.subplots(figsize=(10, 6))
-    try:
+    with saved_figure(fig, save_fig, config=figure):
         if selector != "forward":
             iterations = [
                 np.nan if step.best_iteration is None else step.best_iteration
@@ -702,6 +689,3 @@ def best_iteration_progress(
         ax.grid(axis="y", alpha=0.2)
         ax.legend()
         fig.tight_layout()
-        save_figure(fig, save_fig, config=figure)
-    finally:
-        plt.close(fig)

@@ -48,12 +48,8 @@ selection and tuning off; PSI, prediction evaluators and data analyzers still wr
 ```python
 from ml_toolkit.training import Holdout, TimeSeriesCV
 from dataclasses import replace
-from ml_toolkit.config import (
-    FeatureLevelConfig,
-    ReportingConfig,
-    TrackingConfig,
-    TrainingConfig,
-)
+from ml_toolkit.config import FeatureLevelConfig, ReportingConfig, TrainingConfig
+from ml_toolkit.models import TrackingConfig
 from ml_toolkit.metrics import (
     MetricsSeverity,
     PUMetric,
@@ -361,14 +357,9 @@ from examples.gallery_data import load_bike_pool
 
 data = load_bike_pool(download_if_missing=False)
 from optuna import Trial
-from ml_toolkit.config import (
-    FigureConfig,
-    ReportingConfig,
-    ShapConfig,
-    TrackingConfig,
-    TrainingConfig,
-    TuningConfig,
-)
+from ml_toolkit.config import ReportingConfig, ShapConfig, TrainingConfig, TuningConfig
+from ml_toolkit.figures import FigureConfig
+from ml_toolkit.models import TrackingConfig
 from ml_toolkit.feature_selection import RFESelector
 from ml_toolkit.metrics import metrics_frequency
 from ml_toolkit.models import CatBoostLogLinkRegressionModel

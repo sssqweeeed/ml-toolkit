@@ -9,9 +9,8 @@ import matplotlib.pyplot as plt
 import polars as pl
 
 from .._time import PERIOD_INTERVALS
-from ..config import FigureConfig
+from ..figures import FigureConfig, PlotError, saved_figure
 from ..types import FloatArray, IntArray, TimePeriod
-from .utils import PlotError, save_figure
 
 
 def metric_trend(
@@ -63,7 +62,7 @@ def metric_trend(
         sharex=True,
         gridspec_kw={"height_ratios": (3, 1)},
     )
-    try:
+    with saved_figure(fig, save_fig, config=figure):
         zone = None
         for index, (part, label) in enumerate(
             (("train", "Train"), ("val", "Validation"), ("test", "Test"))
@@ -121,6 +120,3 @@ def metric_trend(
         score_ax.grid(alpha=0.2)
         volume_ax.grid(alpha=0.2)
         fig.tight_layout()
-        save_figure(fig, save_fig, config=figure)
-    finally:
-        plt.close(fig)
