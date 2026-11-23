@@ -1,9 +1,9 @@
 # Migrating to 7.0
 
-Version 7.0 reorganizes the package so that every concept has one home. Only
-import paths change in this part of the migration; behaviour, model state and
-saved artifacts are unchanged. Models and PSI baselines logged by 6.x keep
-loading. Old import paths are removed without compatibility aliases.
+Version 7.0 reorganizes the package so that every concept has one home. Mostly
+import paths change; the few behaviour changes are listed under "Behaviour
+changes" (and per phase below). Model state and saved artifacts are unchanged.
+Models and PSI baselines logged by 6.x keep loading. Old import paths are removed without compatibility aliases.
 
 ## Moved imports
 
@@ -171,6 +171,7 @@ Each public name now has one import path.
 | --- | --- |
 | `ml_toolkit.training.TuningConfig`, `TrainingConfig`, `ReportingConfig` | `ml_toolkit.config` |
 | `ml_toolkit.training.FeatureLevelConfig`, `ml_toolkit.config.FeatureLevelConfig` | `ml_toolkit.feature_levels.FeatureLevelConfig` |
+| `ml_toolkit.config.TimePeriod` | `ml_toolkit.types.TimePeriod` |
 | `ml_toolkit.data.validate_auxiliary_pair(left, right)` | `ml_toolkit.data.validate_compatible_pools(left, right, context=...)` |
 
 Behaviour changes:
@@ -181,6 +182,7 @@ Behaviour changes:
   selection and the `fit_on_test` final fit all use it, so the messages now read
   `<subject> must have matching features and metadata` (for example `Split
   pools`, `Reporting pools`, `Train and validation pools`, `Final-fit data`)
-  or `... must have matching auxiliary feature schemas`. Feature selection and
+  or `... must have matching auxiliary feature schemas`; the feature check runs
+  first, so a pair that differs in both reports the feature message. Feature selection and
   validation fits previously compared column names only; they now also reject
   differing dtypes or feature declarations between train and validation.

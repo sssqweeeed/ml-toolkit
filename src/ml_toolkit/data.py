@@ -18,6 +18,7 @@ __all__ = [
     "categorical_frame",
     "concat_pools",
     "row_indexer",
+    "PoolSchema",
     "validate_compatible_pools",
     "validate_prediction",
     "validate_split_labels",
@@ -324,32 +325,65 @@ class Pool:
         )
 
 
-def validate_compatible_pools(left: Pool, right: Pool, *, context: str) -> None:
+@dataclass(frozen=True)
+class PoolSchema:
+    """Feature layout of a pool, without any of its rows.
+
+    Attributes
+    ----------
+    features : polars.Schema
+        Feature names, order and dtypes.
+    cat_features, numerical_features : tuple[str, ...]
+        Declared categorical and numerical features.
+    auxiliary : polars.Schema or None
+        Auxiliary feature names and dtypes, None without auxiliary features.
+    """
+
+    features: pl.Schema
+    cat_features: tuple[str, ...]
+    numerical_features: tuple[str, ...]
+    auxiliary: pl.Schema | None
+
+    @classmethod
+    def of(cls, pool: Pool) -> Self:
+        """Capture the feature layout of ``pool`` without referencing its data."""
+        auxiliary = pool.auxiliary_features
+        return cls(
+            features=pool.X.schema,
+            cat_features=pool.cat_features,
+            numerical_features=pool.numerical_features,
+            auxiliary=None if auxiliary is None else auxiliary.schema,
+        )
+
+
+def validate_compatible_pools(
+    left: Pool | PoolSchema, right: Pool | PoolSchema, *, context: str
+) -> None:
     """Require two pools to share features, feature metadata and auxiliary schema.
 
     Parameters
     ----------
-    left, right : Pool
-        Pools to compare.
+    left, right : Pool or PoolSchema
+        Pools, or layouts captured earlier with ``PoolSchema.of``, to compare.
     context : str
         Subject of the error message, for example ``"Split pools"``.
 
     Raises
     ------
     ValueError
-        If feature schemas (names, order and dtypes), categorical or numerical
-        feature declarations, or auxiliary feature schemas differ.
+        If feature schemas (names, order and dtypes) or categorical or
+        numerical feature declarations differ, or, once those match, if
+        auxiliary feature schemas differ.
     """
+    a = left if isinstance(left, PoolSchema) else PoolSchema.of(left)
+    b = right if isinstance(right, PoolSchema) else PoolSchema.of(right)
     if (
-        left.X.schema != right.X.schema
-        or left.cat_features != right.cat_features
-        or left.numerical_features != right.numerical_features
+        a.features != b.features
+        or a.cat_features != b.cat_features
+        or a.numerical_features != b.numerical_features
     ):
         raise ValueError(f"{context} must have matching features and metadata")
-    a, b = left.auxiliary_features, right.auxiliary_features
-    if (a is None) != (b is None) or (
-        a is not None and b is not None and a.schema != b.schema
-    ):
+    if a.auxiliary != b.auxiliary:
         raise ValueError(f"{context} must have matching auxiliary feature schemas")
 
 

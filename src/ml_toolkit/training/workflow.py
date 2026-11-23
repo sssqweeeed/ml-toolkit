@@ -10,7 +10,7 @@ from optuna import Trial
 from .._console import Logger, message, metrics, output_context
 from ..config import TrainingConfig
 from ..config.training import check_registration_target_logged
-from ..data import Pool, validate_compatible_pools, validate_training_data
+from ..data import Pool, PoolSchema, validate_compatible_pools, validate_training_data
 from ..feature_selection import FeatureSelector
 from ..metrics import Metric
 from ..models import TrackingConfig
@@ -19,7 +19,7 @@ from ..reports import DataAnalyzer, ModelEvaluator, PredictionEvaluator
 from ..tracking import log_json, nested_run
 from ..types import ModelParams
 from .evaluation import EvaluationResult, evaluate_model
-from .fit import TuningPlan, fit_split, refit_model
+from .fit import RunSettings, TuningPlan, fit_split, refit_model
 from .reporting import (
     log_model_with_baseline,
     prepare_analyzers,
@@ -128,7 +128,7 @@ def train_model(
         analyzers = prepare_analyzers(data_analyzers)
         model_reports = prepare_model_evaluators(model_evaluators)
         objective_evaluator = None if config.tuning is None else config.tuning.evaluator
-        run = _Run(
+        run = RunSettings(
             model_factory=model_factory,
             metric=metric,
             config=config,
@@ -168,7 +168,7 @@ def train_model(
             )
             main = _run_main_stage(splitter, last, run)
             final_model = (
-                _run_final_fit_stage(splitter, last, run, main.reference)
+                _run_final_fit_stage(splitter, last, run, main.schema)
                 if config.fit_on_test
                 else None
             )
@@ -187,18 +187,6 @@ def train_model(
 
 
 @dataclass(frozen=True)
-class _Run:
-    """Inputs shared by every stage of one training run."""
-
-    model_factory: Callable[[ModelParams], Model]
-    metric: Metric
-    config: TrainingConfig
-    evaluators: tuple[PredictionEvaluator, ...]
-    analyzers: tuple[DataAnalyzer, ...]
-    model_evaluators: tuple[ModelEvaluator, ...]
-
-
-@dataclass(frozen=True)
 class _StageResult:
     model: Model
     params: ModelParams
@@ -206,11 +194,19 @@ class _StageResult:
 
 
 @dataclass(frozen=True)
+class _StageSpec:
+    stage: Literal["test", "final_fit"]
+    title: str
+    log_model: bool
+    tracking: TrackingConfig
+
+
+@dataclass(frozen=True)
 class _MainStage:
     result: _StageResult
-    # One row of the main training data: the schema the optional final-fit data
-    # must match, without keeping the full pool alive.
-    reference: Pool
+    # Only the feature layout is kept, so the main-stage pool can be freed before
+    # the optional final fit.
+    schema: PoolSchema
 
 
 def _check_registration_target(
@@ -269,7 +265,7 @@ def _describe(item: PredictionEvaluator | DataAnalyzer | ModelEvaluator) -> obje
     }
 
 
-def _log_configuration(splitter: Splitter[Pool], run: _Run) -> None:
+def _log_configuration(splitter: Splitter[Pool], run: RunSettings) -> None:
     config = run.config
     requested: dict[str, object] = asdict(replace(config, tuning=None))
     if config.tuning is not None:
@@ -301,7 +297,7 @@ def _log_configuration(splitter: Splitter[Pool], run: _Run) -> None:
 def _run_validation(
     splits: Iterator[Split[Pool]],
     *,
-    run: _Run,
+    run: RunSettings,
     params: ModelParams,
     feature_selector: FeatureSelector | None,
     tuning: TuningPlan | None,
@@ -321,14 +317,9 @@ def _run_validation(
                 fit_split(
                     train=part.train,
                     validation=part.heldout,
+                    run=run,
                     params=params,
-                    model_factory=run.model_factory,
-                    metric=run.metric,
-                    config=run.config,
                     feature_selector=feature_selector,
-                    evaluators=run.evaluators,
-                    analyzers=run.analyzers,
-                    model_evaluators=run.model_evaluators,
                     tuning=tuning,
                     index=part.index,
                 )
@@ -347,7 +338,7 @@ def _run_validation(
 
 
 def _run_main_stage(
-    splitter: Splitter[Pool], last: SplitResult, run: _Run
+    splitter: Splitter[Pool], last: SplitResult, run: RunSettings
 ) -> _MainStage:
     """Refit on the non-test rows; test when a held-out sample exists."""
     config = run.config
@@ -372,53 +363,45 @@ def _run_main_stage(
         else config.tracking
     )
     result = _run_stage(
-        stage,
-        title=f"{stage} data",
+        _StageSpec(stage, f"{stage} data", log_model, tracking),
         train=train,
         heldout=heldout,
         last=last,
         run=run,
-        log_model=log_model,
-        tracking=tracking,
     )
-    return _MainStage(result, reference=train.take([0]))
+    return _MainStage(result, schema=PoolSchema.of(train))
 
 
 def _run_final_fit_stage(
-    splitter: Splitter[Pool], last: SplitResult, run: _Run, reference: Pool
+    splitter: Splitter[Pool], last: SplitResult, run: RunSettings, schema: PoolSchema
 ) -> Model:
     """Fit a fresh model on all eligible rows, including the test sample."""
     full = splitter.get_final()
     validate_training_data(full)
     full = full.select_features(last.features)
-    validate_compatible_pools(reference, full, context="Final-fit data")
-    return _run_stage(
+    validate_compatible_pools(schema, full, context="Final-fit data")
+    spec = _StageSpec(
         "final_fit",
-        title="final_fit data (including test)",
-        train=full,
-        heldout=None,
-        last=last,
-        run=run,
-        log_model=run.config.tracking.log_final_model,
-        tracking=run.config.tracking,
-    ).model
+        "final_fit data (including test)",
+        run.config.tracking.log_final_model,
+        run.config.tracking,
+    )
+    return _run_stage(spec, train=full, heldout=None, last=last, run=run).model
 
 
 def _run_stage(
-    stage: Literal["test", "final_fit"],
+    spec: _StageSpec,
     *,
-    title: str,
     train: Pool,
     heldout: Pool | None,
     last: SplitResult,
-    run: _Run,
-    log_model: bool,
-    tracking: TrackingConfig,
+    run: RunSettings,
 ) -> _StageResult:
     """Refit with the last split's settings, score, report and log the model."""
+    stage, log_model = spec.stage, spec.log_model
     logger.info("Starting %s stage", stage)
     print_datasets(
-        title,
+        spec.title,
         {"train": train} if heldout is None else {"train": train, "test": heldout},
     )
     with nested_run(stage):
@@ -443,7 +426,7 @@ def _run_stage(
             split=DatasetSplit.TEST,
         )
         if log_model:
-            log_model_with_baseline(model, train, tracking, baseline)
+            log_model_with_baseline(model, train, spec.tracking, baseline)
     logger.info("Completed %s stage", stage)
     return _StageResult(model, params, scores)
 
