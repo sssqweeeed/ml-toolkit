@@ -33,7 +33,7 @@ from optuna import Trial
 
 from ml_toolkit.config import TuningConfig
 from ml_toolkit.feature_selection import RFESelector
-from ml_toolkit.training import importance_ranker
+from ml_toolkit.feature_selection import importance_ranker
 from ml_toolkit.types import ModelParams
 
 

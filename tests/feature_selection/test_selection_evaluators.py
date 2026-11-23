@@ -1,7 +1,7 @@
 """Evaluator-driven subset choices, metadata alignment and standalone behavior."""
 
 import json
-from dataclasses import asdict, replace
+from dataclasses import replace
 from pathlib import Path
 from threading import Lock
 
@@ -122,8 +122,8 @@ def test_rfe_evaluator_selects_subset_and_applies_tolerance(
         -1.0,
         -2.0,
     ]
-    assert result.settings["metric"] == "score"
-    assert result.settings["evaluator"] == "business"
+    assert result.settings.metric == "score"
+    assert result.settings.evaluator == "business"
     if tolerance == 0:
         ordinary = select(
             data, selector("rfe", direction=direction), model_factory=Model
@@ -245,7 +245,8 @@ def test_none_preserves_ordinary_selection_and_one_prediction_per_candidate(data
     assert implicit.features == explicit.features
     assert implicit.selected_step == explicit.selected_step
     assert implicit.settings == explicit.settings
-    assert "evaluator" not in implicit.settings
+    assert implicit.settings.evaluator is None
+    assert "evaluator" not in implicit.to_dict()["settings"]
     assert all(step.objective_metrics is None for step in implicit.steps)
     assert [step.metrics for step in implicit.steps] == [
         step.metrics for step in explicit.steps
@@ -379,5 +380,5 @@ def test_workflow_records_objective_history_without_polluting_cv_metrics(
             == chosen["objective_metrics"]["score"]
         )
         assert run.data.metrics["selection/metrics/mae"] == chosen["metrics"]["mae"]
-    snapshot = asdict(result.feature_selection)
+    snapshot = result.feature_selection.to_dict()
     assert snapshot["settings"]["evaluator"] == "business"

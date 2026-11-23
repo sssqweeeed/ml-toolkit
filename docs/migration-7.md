@@ -98,7 +98,7 @@ figure functions. Importing a report class from its package keeps working:
 | `ml_toolkit.plots.explainability` | `ml_toolkit.explainability` |
 | `ml_toolkit.config.ShapConfig`, `ml_toolkit.training.ShapConfig` | `ml_toolkit.explainability.ShapConfig` |
 
-`ml_toolkit.plots` keeps only `feature_selection` until its own phase.
+`ml_toolkit.plots` is removed; every figure function lives next to its concept.
 Computation that used to sit inside figure functions is available
 without matplotlib: `classification.precision_recall_summary`,
 `classification.calibration_bins`, `regression.level_observed_fitted`,
@@ -106,8 +106,33 @@ without matplotlib: `classification.precision_recall_summary`,
 `metrics.classification.average_precision` is the single average-precision
 implementation; the precision-recall figure reuses it.
 
+## Feature selection (phase 5)
+
+`ml_toolkit.feature_selection` is now a package. Its public names are
+exported from `ml_toolkit.feature_selection` itself.
+
+| Old import | New import |
+| --- | --- |
+| `ml_toolkit.training.importance_ranker` | `ml_toolkit.feature_selection.importance_ranker` |
+| `ml_toolkit.training.ShapRanker` | `ml_toolkit.feature_selection.ShapRanker` |
+| `ml_toolkit.training.rankers` | `ml_toolkit.feature_selection` |
+| `ml_toolkit.plots.feature_selection.*` (`rfe_progress`, `top_k_ranking`, `forward_progress`, `forward_improvement`, `best_iteration_progress`) | `ml_toolkit.feature_selection.figures` |
+| `ml_toolkit.feature_selection.SelectionSettings` (a `dict`) | `ml_toolkit.feature_selection.SelectionSettings`, a union of `RFESettings`, `TopKSettings`, `ForwardSettings` and `CustomSelectionSettings` |
+
+Custom selectors return `CustomSelectionSettings("name", {"key": value})`
+instead of `{"selector": "name", "key": value}`. `FeatureSelectionResult.settings`
+defaults to `None` instead of `{}`.
+
 ## Behaviour changes
 
+- `FeatureSelectionResult.settings` is a typed dataclass: use attribute access
+  (`result.settings.k`, `result.settings.evaluator`) instead of dictionary
+  access. `evaluator` is `None` when unset. `selection/history.json` is
+  unchanged; `FeatureSelectionResult.to_dict()` is the only way to build the
+  logged payload (`dataclasses.asdict` nests `details` and keeps
+  `evaluator: null`). Settings reject negative or non-finite numeric fields,
+  and `CustomSelectionSettings` rejects the built-in selector names and a
+  `selector` key in `details`.
 - `GroupedMetrics` now reports a metric callback that returns no scores or
   empty names as `Metric must return nonempty named scores` (previously
   `Grouped metric must return at least one named score` or `Grouped metric

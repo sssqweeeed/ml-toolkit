@@ -364,7 +364,7 @@ from ml_toolkit.models import TrackingConfig
 from ml_toolkit.feature_selection import RFESelector
 from ml_toolkit.metrics import metrics_frequency
 from ml_toolkit.models import CatBoostLogLinkRegressionModel
-from ml_toolkit.training import importance_ranker
+from ml_toolkit.feature_selection import importance_ranker
 from ml_toolkit.types import ModelParams
 
 frequency_config = TrainingConfig(

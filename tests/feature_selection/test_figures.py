@@ -8,9 +8,16 @@ import pytest
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 
 from ml_toolkit import figures as figures_module
-from ml_toolkit.feature_selection import FeatureSelectionResult, FeatureSelectionStep
+from ml_toolkit.feature_selection import (
+    CustomSelectionSettings,
+    FeatureSelectionResult,
+    FeatureSelectionStep,
+    ForwardSettings,
+    RFESettings,
+    TopKSettings,
+)
+from ml_toolkit.feature_selection import figures as plots
 from ml_toolkit.figures import FigureConfig, PlotError
-from ml_toolkit.plots import feature_selection as plots
 
 
 def step(features, score, importances=None):
@@ -19,12 +26,35 @@ def step(features, score, importances=None):
     )
 
 
+DEFAULT_SETTINGS = {
+    "rfe": RFESettings(
+        min_features=1,
+        metric="score",
+        direction="maximize",
+        max_fits=6,
+        score_tolerance=0,
+        protected_features=(),
+    ),
+    "top_k": TopKSettings(k=1, protected_features=()),
+    "forward": ForwardSettings(
+        metric="score",
+        direction="maximize",
+        max_features=3,
+        max_fits=6,
+        min_improvement=0,
+        protected_features=(),
+    ),
+}
+
+
 def history(kind, steps, selected, **settings):
+    base = DEFAULT_SETTINGS[kind]
+    known = {name: value for name, value in settings.items() if hasattr(base, name)}
     return FeatureSelectionResult(
         steps[selected].features,
         selected,
         tuple(steps),
-        {"selector": kind, "metric": "score", "direction": "maximize", **settings},
+        replace(base, **known),
     )
 
 
@@ -75,7 +105,7 @@ def test_forward_plots_use_evaluator_scores_for_path_and_improvements(
             )
             for index, step in enumerate(original.steps)
         ),
-        settings={**original.settings, "evaluator": "business"},
+        settings=replace(original.settings, evaluator="business"),
     )
     plots.forward_progress(result, tmp_path / "evaluator-forward.png")
     plots.forward_improvement(result, tmp_path / "evaluator-improvement.png")
@@ -239,11 +269,7 @@ def test_forward_stopping_at_limits_is_not_rejection(
     result = replace(
         result,
         steps=result.steps[:-1],
-        settings={
-            **result.settings,
-            "max_features": max_features,
-            "max_fits": max_fits,
-        },
+        settings=replace(result.settings, max_features=max_features, max_fits=max_fits),
     )
     plots.forward_progress(result, tmp_path / "limits.png")
     ax = figures[0].axes[0]
@@ -336,13 +362,31 @@ def test_render_failure_closes_figure(tmp_path, monkeypatch, draw, kind):
     assert plt.get_fignums() == before
 
 
+def test_missing_or_mismatched_settings_raise_plot_error(tmp_path):
+    result = history("rfe", [step("a", 1)], 0)
+    for invalid, draw in [
+        (replace(result, settings=None), plots.rfe_progress),
+        (replace(result, settings=None), plots.best_iteration_progress),
+        (
+            replace(result, settings=CustomSelectionSettings("fixed")),
+            plots.rfe_progress,
+        ),
+        (result, plots.forward_progress),
+        (result, plots.top_k_ranking),
+        (history("forward", [step("a", 1)], 0), plots.rfe_progress),
+    ]:
+        with pytest.raises(PlotError):
+            draw(invalid, tmp_path / "invalid.png")
+    assert not plt.get_fignums() and not list(tmp_path.iterdir())
+
+
 def test_invalid_history_and_missing_scores_do_not_open_figures(tmp_path):
     result = history("rfe", [step("a", 1)], 0, score_tolerance=0)
     for invalid in [
         replace(result, steps=()),
         replace(result, selected_step=2),
         replace(result, steps=(step("a", float("nan")),)),
-        replace(result, settings={**result.settings, "metric": "missing"}),
+        replace(result, settings=replace(result.settings, metric="missing")),
     ]:
         with pytest.raises(PlotError):
             plots.rfe_progress(invalid, tmp_path / "invalid.png")

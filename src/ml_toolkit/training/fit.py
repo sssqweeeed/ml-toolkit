@@ -1,7 +1,7 @@
 """The complete train/validation unit and last-split final refitting."""
 
 from collections.abc import Callable
-from dataclasses import asdict, replace
+from dataclasses import replace
 
 import mlflow
 from optuna import Trial
@@ -96,7 +96,7 @@ def fit_split(
                 message(features, verbosity="debug")
             train = train.select_features(names)
             validation = validation.select_features(names)
-            log_json(asdict(selection), "selection/history.json")
+            log_json(selection.to_dict(), "selection/history.json")
             mlflow.log_metrics(
                 {
                     "selection/n_fits": float(len(selection.steps)),

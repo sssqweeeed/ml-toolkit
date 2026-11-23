@@ -8,12 +8,18 @@ import pytest
 
 from examples.custom_selector import FixedFeatureSelector
 from ml_toolkit.config import ReportingConfig, TrainingConfig
-from ml_toolkit.feature_selection import ForwardSelector, RFESelector, TopKSelector
+from ml_toolkit.feature_selection import (
+    CustomSelectionSettings,
+    ForwardSelector,
+    RFESelector,
+    TopKSelector,
+    importance_ranker,
+)
 from ml_toolkit.figures import FigureConfig
 from ml_toolkit.models import TrackingConfig
-from ml_toolkit.training import TimeSeriesCV, importance_ranker, train_model
+from ml_toolkit.training import TimeSeriesCV, train_model
 from ml_toolkit.training.reporting import report_feature_selection
-from tests.plots.test_feature_selection import forward_history
+from tests.feature_selection.test_figures import forward_history
 from tests.support.training import (
     MeanModel,
     list_all_artifacts,
@@ -121,7 +127,7 @@ def test_standalone_selection_does_not_render_or_log(monkeypatch):
         pytest.fail("Standalone selection must not report")
 
     monkeypatch.setattr("ml_toolkit.training.reporting.report_feature_selection", fail)
-    monkeypatch.setattr("ml_toolkit.plots.feature_selection.rfe_progress", fail)
+    monkeypatch.setattr("ml_toolkit.feature_selection.figures.rfe_progress", fail)
     data = make_data()
     result = RFESelector(
         min_features=1,
@@ -147,7 +153,7 @@ def test_report_errors_identify_selector_and_split_and_cleanup(monkeypatch, fail
     def upload(*args, **kwargs):
         raise OSError("upload failed")
 
-    monkeypatch.setattr("ml_toolkit.plots.feature_selection.forward_progress", draw)
+    monkeypatch.setattr("ml_toolkit.feature_selection.figures.forward_progress", draw)
     monkeypatch.setattr("mlflow.log_artifact", upload)
     with pytest.raises(OSError, match=f"{failure} failed") as caught:
         report_feature_selection(
@@ -163,7 +169,7 @@ def test_custom_selector_skips_without_creating_temporary_files(monkeypatch):
 
     monkeypatch.setattr("ml_toolkit.training.reporting.TemporaryDirectory", fail)
     report_feature_selection(
-        replace(forward_history(), settings={}),
+        replace(forward_history(), settings=CustomSelectionSettings("custom")),
         ReportingConfig(),
         stage="validation/split_1",
     )

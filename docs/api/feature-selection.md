@@ -27,7 +27,7 @@ from ml_toolkit.feature_selection import (
     RFESelector,
     TopKSelector,
 )
-from ml_toolkit.training import importance_ranker
+from ml_toolkit.feature_selection import importance_ranker
 ```
 
 ## Choose a selector
@@ -93,13 +93,14 @@ error. With no protected columns it starts by comparing every singleton.
 `protected_features` are mandatory and count toward every size limit. Ties
 prefer the original feature order. `steps` contains all evaluated candidates,
 including rejected ones, with metrics and timings; `selected_step` identifies
-the returned subset. No fitted models are retained. `settings` records concrete
-JSON-compatible configuration; executable rankers and evaluators are excluded.
-An evaluator-based selector records its evaluator's name under `evaluator`.
-Its public type, `ml_toolkit.feature_selection.SelectionSettings`, is a flat
-dictionary with string keys and values of type `str`, `int`, `float`, `bool`,
-`None`, or `tuple[str, ...]`. Use it for a custom selector's configuration;
-the tuple form records feature names.
+the returned subset. No fitted models are retained. `settings` records the
+concrete configuration as a typed dataclass (`RFESettings`, `TopKSettings`,
+`ForwardSettings`, or `CustomSelectionSettings`; the union is
+`ml_toolkit.feature_selection.SelectionSettings`); executable rankers and
+evaluators are excluded. An evaluator-based selector records its evaluator's
+name in `settings.evaluator`. A custom selector returns
+`CustomSelectionSettings("name", {...})`, whose values are `str`, `int`,
+`float`, `bool`, `None`, or `tuple[str, ...]` (feature names).
 
 Each validation run stores concrete settings and every evaluated subset in
 `selection/history.json`, including scores, timings, available importances and
@@ -230,7 +231,7 @@ Selection scores describe the search, not independent performance.
 
 Calling `selector.select()` directly only returns the result; it does not plot
 or log artifacts. To draw an existing built-in result manually, use
-`ml_toolkit.plots.feature_selection.rfe_progress(result, save_fig)`,
+`ml_toolkit.feature_selection.figures.rfe_progress(result, save_fig)`,
 `top_k_ranking(result, save_fig)`, or `forward_progress(result, save_fig)`.
 The same module provides `forward_improvement(result, save_fig)` and
 `best_iteration_progress(result, save_fig)` for the additional diagnostics.
@@ -270,7 +271,7 @@ custom_selection = train_model(
 )
 print(custom_selection.features)
 assert custom_selection.feature_selection is not None
-print(custom_selection.feature_selection.settings)
+print(custom_selection.feature_selection.to_dict()["settings"])
 ```
 
 <!-- output: selection-custom -->
@@ -335,7 +336,7 @@ raw outputs may have different units from adapter predictions.
 <!-- example: selection-shap-ranker -->
 
 ```python
-from ml_toolkit.training import ShapRanker
+from ml_toolkit.feature_selection import ShapRanker
 
 shap_selection = TopKSelector(
     k=3, ranker=ShapRanker(max_samples=500, seed=42)
@@ -436,13 +437,13 @@ the ranker. Explicit inheritance from `FeatureRanker` is unnecessary.
 
 ### Rankers
 
-::: ml_toolkit.training.importance_ranker
+::: ml_toolkit.feature_selection.importance_ranker
 
-::: ml_toolkit.training.ShapRanker
+::: ml_toolkit.feature_selection.ShapRanker
     options:
       members: []
 
-::: ml_toolkit.training.ShapRanker.__call__
+::: ml_toolkit.feature_selection.ShapRanker.__call__
 
 ::: ml_toolkit.feature_selection.FeatureRanker
     options:
@@ -454,12 +455,34 @@ the ranker. Explicit inheritance from `FeatureRanker` is unnecessary.
 
 ::: ml_toolkit.feature_selection.FeatureSelectionResult
     options:
-      members: []
+      members: [to_dict]
 
 ::: ml_toolkit.feature_selection.FeatureSelectionStep
     options:
+      members: [objective_score]
+
+::: ml_toolkit.feature_selection.RFESettings
+    options:
       members: []
+
+::: ml_toolkit.feature_selection.TopKSettings
+    options:
+      members: []
+
+::: ml_toolkit.feature_selection.ForwardSettings
+    options:
+      members: []
+
+::: ml_toolkit.feature_selection.CustomSelectionSettings
+    options:
+      members: []
+
+`ml_toolkit.feature_selection.SelectionSettings` is the union
+`RFESettings | TopKSettings | ForwardSettings | CustomSelectionSettings`.
+`ml_toolkit.feature_selection.SettingValue` is
+`str | int | float | bool | None | tuple[str, ...]`, the value type of
+`CustomSelectionSettings.details`.
 
 ### Plots
 
-::: ml_toolkit.plots.feature_selection
+::: ml_toolkit.feature_selection.figures

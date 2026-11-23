@@ -17,10 +17,15 @@ import pytest
 from examples.custom_selector import FixedFeatureSelector
 from ml_toolkit._console import Logger, message, metrics, output_context
 from ml_toolkit.config import TrainingConfig, TuningConfig
-from ml_toolkit.feature_selection import ForwardSelector, RFESelector, TopKSelector
+from ml_toolkit.feature_selection import (
+    ForwardSelector,
+    RFESelector,
+    TopKSelector,
+    importance_ranker,
+)
 from ml_toolkit.metrics import MetricScores
 from ml_toolkit.models import CatBoostRegressionModel, TrackingConfig
-from ml_toolkit.training import Holdout, TimeSeriesCV, importance_ranker, train_model
+from ml_toolkit.training import Holdout, TimeSeriesCV, train_model
 from tests.support.training import MeanModel, mae, make_data
 
 LEVELS = ("silent", "normal", "verbose", "debug")

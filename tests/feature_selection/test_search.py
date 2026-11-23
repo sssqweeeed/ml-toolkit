@@ -11,10 +11,10 @@ import pytest
 from polars.testing import assert_frame_equal, assert_series_equal
 
 from examples.project_pool import ProjectPool as Pool
-from ml_toolkit.feature_selection import RFESelector
+from ml_toolkit.feature_selection import RFESelector, ShapRanker, importance_ranker
 from ml_toolkit.metrics import MetricScores
 from ml_toolkit.models import CatBoostRegressionModel
-from ml_toolkit.training import Holdout, ShapRanker, importance_ranker
+from ml_toolkit.training import Holdout
 from tests.support.training import ProjectData
 
 
@@ -339,7 +339,7 @@ def test_nonfinite_catboost_importance_is_zero_only_for_constant_trees(
 
 
 def test_shap_ranker_uses_aligned_weights_and_fixed_positive_sample(data, monkeypatch):
-    import ml_toolkit.training.rankers as rankers
+    import ml_toolkit.feature_selection.rankers as rankers
 
     data = replace(data, weight=pl.Series("weight", [0.0] * 4 + list(range(1, 21))))
     sampled = []

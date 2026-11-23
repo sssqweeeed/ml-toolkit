@@ -22,7 +22,6 @@ LAYERS: dict[str, int] = {
     "inflation": 4,
     "models": 5,
     "reports": 6,
-    "plots": 6,
     "explainability": 6,
     "feature_selection": 7,
     "tracking": 7,
@@ -38,8 +37,6 @@ SHARED_PRIVATE_MODULES = {"_console", "_time"}
 ALLOWED_VIOLATIONS: set[tuple[str, str]] = {
     # Phase 6: the dataset summary printer moves out of the console layer.
     ("ml_toolkit._console", "ml_toolkit.data"),
-    # Phase 5: the selection figures move into feature_selection.
-    ("ml_toolkit.plots.feature_selection", "ml_toolkit.feature_selection"),
 }
 
 

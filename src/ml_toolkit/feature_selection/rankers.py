@@ -1,18 +1,48 @@
-"""Reusable rankers for adapter-driven feature selection."""
+"""Feature rankers for adapter-driven feature selection."""
 
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import Protocol
 
 import numpy as np
 
+from ..data import Pool
 from ..explainability import ShapConfig, shap_contributions
+from ..models.base import Model
 
-if TYPE_CHECKING:
-    from ..data import Pool
-    from ..models.base import Model
+__all__ = ["FeatureRanker", "ShapRanker", "importance_ranker"]
 
 
-def importance_ranker(model: "Model", data: "Pool") -> dict[str, float]:
+class FeatureRanker(Protocol):
+    """Describe a callable ranking a fitted adapter's current input columns.
+
+    Notes
+    -----
+    Higher values indicate greater importance. Implementations may inspect the
+    adapter's native_model, but must preserve its state and all input metadata.
+    Explicit inheritance from this protocol is unnecessary.
+    """
+
+    def __call__(self, model: Model, data: Pool) -> Mapping[str, float]:
+        """Return finite ranking values keyed by every current feature name.
+
+        Parameters
+        ----------
+        model : Model
+            Fitted adapter for the current feature subset.
+        data : Pool
+            Supplied validation rows with aligned features and weights.
+
+        Returns
+        -------
+        Mapping[str, float]
+            Exactly one finite numeric importance per data.X column. Signed
+            values are allowed; larger values rank higher.
+        """
+        ...
+
+
+def importance_ranker(model: Model, data: Pool) -> dict[str, float]:
     """Obtain importance values from the adapter's explicit ranking method.
 
     Parameters
@@ -60,7 +90,7 @@ class ShapRanker:
     def __post_init__(self) -> None:
         ShapConfig(max_samples=self.max_samples, seed=self.seed)
 
-    def __call__(self, model: "Model", data: "Pool") -> dict[str, float]:
+    def __call__(self, model: Model, data: Pool) -> dict[str, float]:
         """Return weighted SHAP importances for the current feature subset.
 
         Parameters
