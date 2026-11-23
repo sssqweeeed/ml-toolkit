@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import polars as pl
 import pytest
 
-from ml_toolkit.plots import psi
+from ml_toolkit.psi import figures as psi
 
 
 @pytest.mark.parametrize(

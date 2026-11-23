@@ -8,8 +8,7 @@ import polars as pl
 
 from .._time import PERIOD_INTERVALS, paired_period_starts
 from ..data import Pool
-from ..feature_levels import FeatureLevelConfig
-from ..feature_levels.config import validate_features
+from ..feature_levels import FeatureLevelConfig, validate_features
 from ..figures import FigureConfig, feature_filename, saved_figure
 from ..types import TimePeriod
 from .base import DataAnalyzer, data_comparison_pair

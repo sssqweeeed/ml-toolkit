@@ -1,23 +1,308 @@
+"""Shared reference-fitted feature levels, their rules and persisted state."""
+
 from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass, field
+from datetime import date, datetime
 from itertools import pairwise
-from typing import cast
+from typing import TYPE_CHECKING, Any, Literal, cast
+from zoneinfo import ZoneInfo
 
 import numpy as np
 import polars as pl
 
-from ._serialization import decode_scalar, encode_scalar, mapping
-from .config import (
-    ERROR_LEVEL,
-    NULL_LEVEL,
-    UNSEEN_LEVEL,
-    FeatureLevelConfig,
-    FeatureLevels,
-    FeatureScalar,
-    FeatureType,
-)
+if TYPE_CHECKING:
+    from .data import Pool
+
+__all__ = [
+    "ERROR_LEVEL",
+    "NULL_LEVEL",
+    "UNSEEN_LEVEL",
+    "FeatureLevelConfig",
+    "FeatureLevels",
+    "FeatureScalar",
+    "FeatureType",
+    "LevelTransformer",
+    "decode_feature_scalar",
+    "encode_feature_scalar",
+    "feature_definitions",
+    "json_object",
+    "validate_features",
+]
+
+FeatureScalar = str | int | float | bool | date | datetime
+
+
+FeatureType = Literal["categorical", "numerical"]
+
+NULL_LEVEL = "__NULL__"
+ERROR_LEVEL = "__ERROR__"
+UNSEEN_LEVEL = "__UNSEEN__"
+
+
+@dataclass(frozen=True)
+class FeatureLevelConfig:
+    """Configure how one feature is assigned to diagnostic levels.
+
+    Parameters
+    ----------
+    name : str
+        Nonempty feature column name.
+    ftype : {'categorical', 'numerical'}
+        Choose category levels or reference quantile intervals.
+    error_level : FeatureScalar or None, default None
+        Optional sentinel mapped to __ERROR__; must differ from null_level and
+        must not be NaN.
+    null_level : FeatureScalar or None, default None
+        Optional sentinel treated as missing alongside actual nulls and
+        floating NaNs.
+    lower_bound : float or None, default None
+        Inclusive numerical lower bound; values below it map to __ERROR__. None
+        leaves the lower tail unbounded.
+    upper_bound : float or None, default None
+        Inclusive numerical upper bound; values above it map to __ERROR__. None
+        leaves the upper tail unbounded.
+
+    Notes
+    -----
+    Bounds apply only to numerical features. Regular categories must not use
+    reserved diagnostic level strings.
+
+    Examples
+    --------
+    Fit age intervals once, then keep invalid and missing values separate.
+
+    >>> import polars as pl
+    >>> from ml_toolkit.feature_levels import FeatureLevelConfig, LevelTransformer
+    >>> feature = FeatureLevelConfig("age", "numerical", lower_bound=0)
+    >>> levels = LevelTransformer((feature,), n_bins=2).fit(
+    ...     pl.DataFrame({"age": [20, 30, 40, 50]})
+    ... )
+    >>> current = pl.DataFrame({"age": [-1, None, 25, 45]})
+    >>> levels.transform(current)["age"].cast(pl.String).to_list()
+    ['__ERROR__', '__NULL__', '[0, 35)', '[35, inf)']
+    """
+
+    name: str
+    ftype: FeatureType
+    error_level: FeatureScalar | None = None
+    null_level: FeatureScalar | None = None
+    lower_bound: float | None = None
+    upper_bound: float | None = None
+
+    def __post_init__(self) -> None:
+        if not self.name.strip():
+            raise ValueError("Feature name must not be empty")
+        if self.ftype not in ("categorical", "numerical"):
+            raise ValueError(f"Unknown feature type: {self.ftype!r}")
+        if isinstance(self.error_level, float) and np.isnan(self.error_level):
+            raise ValueError("error_level must not be NaN")
+        if self.error_level is not None and self.null_level is not None:
+            if self.error_level == self.null_level:
+                raise ValueError("error_level and null_level must be different")
+        if self.ftype == "categorical" and (
+            self.lower_bound is not None or self.upper_bound is not None
+        ):
+            raise ValueError("Bounds are supported only for numerical features")
+        if self.lower_bound is not None and (
+            np.isnan(self.lower_bound) or self.lower_bound == np.inf
+        ):
+            raise ValueError("lower_bound must be a number or -inf")
+        if self.upper_bound is not None and (
+            np.isnan(self.upper_bound) or self.upper_bound == -np.inf
+        ):
+            raise ValueError("upper_bound must be a number or +inf")
+        if (
+            self.lower_bound is not None
+            and self.upper_bound is not None
+            and self.lower_bound > self.upper_bound
+        ):
+            raise ValueError("lower_bound must not exceed upper_bound")
+
+
+@dataclass(frozen=True)
+class FeatureLevels:
+    """Store categories and intervals determined from reference data.
+
+    Attributes
+    ----------
+    config : FeatureLevelConfig
+        Immutable rules used to determine and apply these levels.
+    levels : tuple[str, ...]
+        Ordered interval or category labels followed by applicable special
+        levels.
+    boundaries : tuple[float, ...]
+        Internal numerical cut points; empty for categorical or single-interval
+        features.
+    categories : tuple[FeatureScalar, ...]
+        Reference categories in first-occurrence order; empty for numerical
+        features.
+    """
+
+    config: FeatureLevelConfig
+    levels: tuple[str, ...]
+    boundaries: tuple[float, ...] = ()
+    categories: tuple[FeatureScalar, ...] = ()
+
+
+def feature_definitions(
+    data: Pool, features: tuple[FeatureLevelConfig, ...] | None
+) -> tuple[FeatureLevelConfig, ...]:
+    """Return explicit feature rules, or infer them from a pool.
+
+    Parameters
+    ----------
+    data : Pool
+        Pool whose analysis frame and categorical features drive inference.
+    features : tuple[FeatureLevelConfig, ...] or None
+        Explicit rules returned unchanged; None infers one rule per analysis
+        column, categorical for declared or non-numeric columns.
+
+    Returns
+    -------
+    tuple[FeatureLevelConfig, ...]
+        Feature rules in column order.
+    """
+    if features is not None:
+        return features
+    return tuple(
+        FeatureLevelConfig(
+            name,
+            (
+                "categorical"
+                if name in data.cat_features or not dtype.is_numeric()
+                else "numerical"
+            ),
+        )
+        for name, dtype in data.to_analysis_frame().schema.items()
+    )
+
+
+def validate_features(features: tuple[str, ...] | None) -> None:
+    """Check that selected feature names are unique and nonempty.
+
+    Parameters
+    ----------
+    features : tuple[str, ...] or None
+        Selected names; None means every feature and is accepted.
+
+    Raises
+    ------
+    ValueError
+        A name is blank or repeated.
+    """
+    if features is not None and (
+        any(not name.strip() for name in features)
+        or len(set(features)) != len(features)
+    ):
+        raise ValueError("features must contain unique nonempty names")
+
+
+def encode_feature_scalar(value: FeatureScalar | None) -> dict[str, object]:
+    """Encode a feature scalar as a typed, JSON-safe object.
+
+    Parameters
+    ----------
+    value : FeatureScalar or None
+        Scalar to encode. Floats are stored exactly as hexadecimal text and
+        datetimes keep their timezone key and fold.
+
+    Returns
+    -------
+    dict[str, object]
+        Object with a ``type`` tag and, except for None, a ``value`` entry.
+    """
+    if value is None:
+        return {"type": "none"}
+    if isinstance(value, datetime):
+        return {
+            "type": "datetime",
+            "value": value.isoformat(),
+            "timezone": getattr(value.tzinfo, "key", None),
+            "fold": value.fold,
+        }
+    if isinstance(value, date):
+        return {"type": "date", "value": value.isoformat()}
+    if isinstance(value, bool):
+        return {"type": "bool", "value": value}
+    if isinstance(value, int):
+        return {"type": "int", "value": value}
+    if isinstance(value, float):
+        return {"type": "float", "value": value.hex()}
+    return {"type": "str", "value": value}
+
+
+def json_object(value: object) -> dict[str, Any]:
+    """Return a decoded JSON value that must be an object.
+
+    Parameters
+    ----------
+    value : object
+        Decoded JSON value.
+
+    Returns
+    -------
+    dict[str, Any]
+        The same object, typed as a JSON mapping (a boundary with untyped
+        persisted state).
+
+    Raises
+    ------
+    ValueError
+        The value is not a mapping.
+    """
+    if not isinstance(value, dict):
+        raise ValueError("Expected a JSON object")
+    return cast(dict[str, Any], value)
+
+
+def decode_feature_scalar(payload: object) -> FeatureScalar | None:
+    """Decode an object written by `encode_feature_scalar`.
+
+    Parameters
+    ----------
+    payload : object
+        Decoded JSON object with a ``type`` tag.
+
+    Returns
+    -------
+    FeatureScalar or None
+        The original scalar.
+
+    Raises
+    ------
+    ValueError
+        The payload is not a valid typed scalar.
+    """
+    data = json_object(payload)
+    kind = data["type"]
+    value = data.get("value")
+    if kind == "none":
+        return None
+    if kind == "bool" and type(value) is bool:
+        return value
+    if kind == "int" and type(value) is int:
+        return value
+    if kind == "str" and isinstance(value, str):
+        return value
+    if isinstance(value, str):
+        if kind == "float":
+            return float.fromhex(value)
+        if kind == "date":
+            return date.fromisoformat(value)
+        if kind == "datetime":
+            result = datetime.fromisoformat(value)
+            zone = data.get("timezone")
+            if zone is not None:
+                if not isinstance(zone, str) or result.tzinfo is None:
+                    raise ValueError("Invalid datetime timezone")
+                result = result.astimezone(ZoneInfo(zone))
+            fold = data.get("fold", 0)
+            if type(fold) is not int or fold not in (0, 1):
+                raise ValueError("Invalid datetime fold")
+            return result.replace(fold=fold)
+    raise ValueError(f"Invalid typed scalar: {kind!r}")
 
 
 def _interval_labels(
@@ -306,13 +591,17 @@ class LevelTransformer:
                 {
                     "name": feature.config.name,
                     "ftype": feature.config.ftype,
-                    "null_level": encode_scalar(feature.config.null_level),
-                    "error_level": encode_scalar(feature.config.error_level),
-                    "lower_bound": encode_scalar(feature.config.lower_bound),
-                    "upper_bound": encode_scalar(feature.config.upper_bound),
+                    "null_level": encode_feature_scalar(feature.config.null_level),
+                    "error_level": encode_feature_scalar(feature.config.error_level),
+                    "lower_bound": encode_feature_scalar(feature.config.lower_bound),
+                    "upper_bound": encode_feature_scalar(feature.config.upper_bound),
                     "levels": list(feature.levels),
-                    "boundaries": [encode_scalar(x) for x in feature.boundaries],
-                    "categories": [encode_scalar(x) for x in feature.categories],
+                    "boundaries": [
+                        encode_feature_scalar(x) for x in feature.boundaries
+                    ],
+                    "categories": [
+                        encode_feature_scalar(x) for x in feature.categories
+                    ],
                 }
                 for feature in self.feature_levels
             ],
@@ -322,7 +611,7 @@ class LevelTransformer:
     def from_dict(cls, payload: object) -> LevelTransformer:
         """Restore validated fitted state; never refit on new observations."""
         try:
-            data = mapping(payload)
+            data = json_object(payload)
             if type(data["version"]) is not int or data["version"] != 1:
                 raise ValueError("Unsupported LevelTransformer format version")
             if type(data["n_bins"]) is not int or data["n_bins"] < 1:
@@ -331,19 +620,19 @@ class LevelTransformer:
                 raise ValueError("Invalid feature definitions")
             fitted: list[FeatureLevels] = []
             for raw in cast(list[object], data["features"]):
-                item = mapping(raw)
+                item = json_object(raw)
                 if not isinstance(item["name"], str):
                     raise ValueError("Invalid feature name")
-                lower = decode_scalar(item["lower_bound"])
-                upper = decode_scalar(item["upper_bound"])
+                lower = decode_feature_scalar(item["lower_bound"])
+                upper = decode_feature_scalar(item["upper_bound"])
                 for bound in (lower, upper):
                     if bound is not None and type(bound) not in (float, int):
                         raise ValueError("Invalid numerical bound")
                 config = FeatureLevelConfig(
                     name=item["name"],
                     ftype=cast(FeatureType, item["ftype"]),
-                    null_level=decode_scalar(item["null_level"]),
-                    error_level=decode_scalar(item["error_level"]),
+                    null_level=decode_feature_scalar(item["null_level"]),
+                    error_level=decode_feature_scalar(item["error_level"]),
                     lower_bound=cast(float | None, lower),
                     upper_bound=cast(float | None, upper),
                 )
@@ -353,11 +642,11 @@ class LevelTransformer:
                 labels = tuple(item["levels"])
                 if not labels or any(not isinstance(x, str) for x in labels):
                     raise ValueError("Invalid level labels")
-                cuts = tuple(decode_scalar(x) for x in item["boundaries"])
+                cuts = tuple(decode_feature_scalar(x) for x in item["boundaries"])
                 if any(type(x) is not float or not np.isfinite(x) for x in cuts):
                     raise ValueError("Invalid numerical boundaries")
                 boundaries = cast(tuple[float, ...], cuts)
-                categories = tuple(decode_scalar(x) for x in item["categories"])
+                categories = tuple(decode_feature_scalar(x) for x in item["categories"])
                 if any(x is None for x in categories):
                     raise ValueError("Null is not a regular category")
                 if config.ftype == "numerical":

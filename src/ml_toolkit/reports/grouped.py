@@ -8,8 +8,7 @@ import numpy as np
 import polars as pl
 
 from ..data import Pool
-from ..feature_levels import FeatureLevelConfig
-from ..feature_levels.config import validate_features
+from ..feature_levels import FeatureLevelConfig, validate_features
 from ..figures import FigureConfig
 from ..metrics import Metric
 from ..types import FloatArray, IntArray

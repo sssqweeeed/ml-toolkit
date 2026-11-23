@@ -9,7 +9,7 @@ import pytest
 from polars.testing import assert_frame_equal
 
 from ml_toolkit.data import Pool, concat_pools, validate_training_data
-from ml_toolkit.feature_levels.config import feature_definitions
+from ml_toolkit.feature_levels import feature_definitions
 from ml_toolkit.training import Split, TimeSeriesCV
 
 

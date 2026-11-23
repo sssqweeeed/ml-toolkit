@@ -13,6 +13,8 @@ from .._time import PERIOD_INTERVALS, period_starts
 from ..figures import FigureConfig, save_figure
 from ..types import FloatArray, TimePeriod
 
+__all__ = ["feature_psi_plot", "time_psi_level_distribution"]
+
 
 def feature_psi_plot(
     scores: pl.DataFrame, save_fig: Path, *, figure: FigureConfig | None = None
