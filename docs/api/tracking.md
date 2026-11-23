@@ -155,7 +155,7 @@ above outside the workflow, attach it explicitly when logging:
 
 ```python
 from tempfile import TemporaryDirectory
-from ml_toolkit.config import FeatureLevelConfig
+from ml_toolkit.feature_levels import FeatureLevelConfig
 from ml_toolkit.psi import PSIBaseline, PSIConfig
 
 reference = PSIBaseline.from_reference(

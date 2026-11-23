@@ -334,7 +334,7 @@ def test_invalid_full_pool_fails_before_additional_fit(tmp_path, invalid):
             fits.append(len(train))
             return super().fit(train, validation)
 
-    with pytest.raises(ValueError, match="schema|ascending"):
+    with pytest.raises(ValueError, match="matching features|ascending"):
         train_model(
             splitter=Custom(make_identified_data(), test_size=4),
             params={},

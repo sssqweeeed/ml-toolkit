@@ -1,14 +1,14 @@
 """The complete train/validation unit and last-split final refitting."""
 
 from collections.abc import Callable
-from dataclasses import replace
+from dataclasses import dataclass, replace
 
 import mlflow
 from optuna import Trial
 
-from .._console import Logger, capture_messages, datasets, message
-from ..config import TrainingConfig
-from ..data import Pool, validate_training_categories
+from .._console import Logger, capture_messages, message
+from ..config import TrainingConfig, TuningConfig
+from ..data import Pool, validate_compatible_pools, validate_training_categories
 from ..feature_selection import FeatureSelector
 from ..metrics import Metric
 from ..models.base import Model
@@ -19,12 +19,21 @@ from .evaluation import evaluate_model
 from .reporting import (
     log_model_with_baseline,
     prepare_psi_baseline,
+    print_datasets,
     report_feature_selection,
 )
 from .results import SplitResult
 from .tuning import tune_optuna
 
 logger = Logger(__name__)
+
+
+@dataclass(frozen=True)
+class TuningPlan:
+    """Enabled tuning: its settings together with the trial search space."""
+
+    config: TuningConfig
+    param_space: Callable[[Trial], ModelParams]
 
 
 def fit_split(
@@ -38,14 +47,13 @@ def fit_split(
     feature_selector: FeatureSelector | None,
     evaluators: tuple[PredictionEvaluator, ...],
     analyzers: tuple[DataAnalyzer, ...],
-    param_space: Callable[[Trial], ModelParams] | None,
+    tuning: TuningPlan | None,
     index: int,
     model_evaluators: tuple[ModelEvaluator, ...] = (),
 ) -> SplitResult:
     validate_training_categories(train)
     validate_training_categories(validation)
-    if train.X.columns != validation.X.columns:
-        raise ValueError("Train and validation features must match")
+    validate_compatible_pools(train, validation, context="Train and validation pools")
     logger.info("Starting validation split %s", index)
     logger.debug(
         "Split %s: %s training rows, %s validation rows",
@@ -54,7 +62,7 @@ def fit_split(
         len(validation),
         console=False,
     )
-    datasets(
+    print_datasets(
         f"Validation split {index} data", {"train": train, "validation": validation}
     )
     with nested_run(f"validation/split_{index}"):
@@ -120,13 +128,11 @@ def fit_split(
             report_feature_selection(
                 selection, config.reporting, stage=f"validation/split_{index}"
             )
-        tuning = None
+        tuning_result = None
         selected_params = params.copy()
         model_tracking = replace(config.tracking, registered_model_name=None)
-        if config.tuning is not None:
-            if param_space is None:
-                raise ValueError("param_space is required when tuning is enabled")
-            tuning_config = config.tuning
+        if tuning is not None:
+            tuning_config = tuning.config
 
             def score(candidate: ModelParams) -> float:
                 trial_model = model_factory(candidate.copy()).fit(train, validation)
@@ -173,13 +179,13 @@ def fit_split(
                     )
                 return objective_metrics[tuning_config.metric]
 
-            tuning = tune_optuna(
+            tuning_result = tune_optuna(
                 base_params=params,
-                param_space=param_space,
+                param_space=tuning.param_space,
                 score=score,
                 config=tuning_config,
             )
-            selected_params = tuning.best_params.copy()
+            selected_params = tuning_result.best_params.copy()
         mlflow.log_params(selected_params)
         model = model_factory(selected_params.copy()).fit(train, validation)
         baseline = prepare_psi_baseline(
@@ -211,7 +217,7 @@ def fit_split(
             refit_params=model.get_refit_params(),
             best_iteration=model.best_iteration,
             feature_selection=selection,
-            tuning=tuning,
+            tuning=tuning_result,
         )
     message(
         "Split %s: %s selected features; best iteration (zero-based): %s",

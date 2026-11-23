@@ -447,7 +447,9 @@ def test_selection_requires_matching_columns_and_nonempty_supplied_windows(
         else:
             validation = empty
     message = (
-        "nonzero lengths" if invalid.startswith("empty") else "features must match"
+        "nonzero lengths"
+        if invalid.startswith("empty")
+        else "must have matching features"
     )
     with pytest.raises(ValueError, match=message):
         replace(settings(), ranker=ordered_ranker).select(

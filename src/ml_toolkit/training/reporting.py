@@ -1,6 +1,6 @@
 """Execute additional reporting and upload its explicitly selected artifacts."""
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Protocol
@@ -8,7 +8,7 @@ from typing import Protocol
 import mlflow
 import polars as pl
 
-from .._console import Logger
+from .._console import DatasetRow, Logger, datasets
 from ..config import ReportingConfig
 from ..data import Pool, validate_split_labels
 from ..explainability import (
@@ -54,6 +54,19 @@ class _SelectionFigure(Protocol):
         *,
         figure: FigureConfig | None = None,
     ) -> None: ...
+
+
+def print_datasets(title: str, samples: Mapping[str, Pool]) -> None:
+    """Print the row, feature and date-range summary of named samples."""
+    datasets(
+        title,
+        [
+            DatasetRow(
+                name, len(pool), len(pool.X.columns), pool.time[0], pool.time[-1]
+            )
+            for name, pool in samples.items()
+        ],
+    )
 
 
 def prepare_evaluators(
@@ -217,42 +230,25 @@ def report_predictions(
     if model_evaluators and metric is None:
         raise ValueError("metric is required for model evaluators")
     for evaluator in evaluators:
-        _run_report(
-            name=evaluator.name,
-            evaluate=(
-                None
-                if evaluator is scored_evaluator
-                else lambda: evaluator.evaluate(
-                    data=data, prediction=prediction, split=split
-                )
-            ),
-            write=lambda root: evaluator.write_artifacts(
-                data=data,
-                prediction=prediction,
-                split=split,
-                artifact_dir=root,
-                figure=config.figure,
-                features=config.features,
-                n_bins=config.n_bins,
-            ),
-            context=f"Prediction evaluation evaluator={evaluator.name}, stage={stage}",
+        _report_prediction(
+            evaluator,
+            data=data,
+            prediction=prediction,
+            split=split,
+            config=config,
+            stage=stage,
+            scored=evaluator is scored_evaluator,
         )
     if metric is not None:
         for model_evaluator in model_evaluators:
-            _run_report(
-                name=model_evaluator.name,
-                evaluate=lambda: model_evaluator.evaluate(
-                    model=model, metric=metric, data=data, split=split
-                ),
-                write=lambda root: model_evaluator.write_artifacts(
-                    model=model,
-                    metric=metric,
-                    data=data,
-                    split=split,
-                    artifact_dir=root,
-                    figure=config.figure,
-                ),
-                context=f"Model evaluation evaluator={model_evaluator.name}, stage={stage}",
+            _report_model(
+                model_evaluator,
+                model=model,
+                metric=metric,
+                data=data,
+                split=split,
+                config=config,
+                stage=stage,
             )
     report_data(
         data=data,
@@ -274,6 +270,89 @@ def report_predictions(
         except Exception as exc:
             exc.add_note(f"Prediction evaluation evaluator=shap, stage={stage}")
             raise
+
+
+def _report_prediction(
+    evaluator: PredictionEvaluator,
+    *,
+    data: Pool,
+    prediction: FloatArray,
+    split: pl.Series,
+    config: ReportingConfig,
+    stage: str,
+    scored: bool,
+) -> None:
+    """Run one prediction evaluator; a scored one only writes artifacts."""
+    _run_report(
+        name=evaluator.name,
+        evaluate=(
+            None
+            if scored
+            else lambda: evaluator.evaluate(
+                data=data, prediction=prediction, split=split
+            )
+        ),
+        write=lambda root: evaluator.write_artifacts(
+            data=data,
+            prediction=prediction,
+            split=split,
+            artifact_dir=root,
+            figure=config.figure,
+            features=config.features,
+            n_bins=config.n_bins,
+        ),
+        context=f"Prediction evaluation evaluator={evaluator.name}, stage={stage}",
+    )
+
+
+def _report_model(
+    evaluator: ModelEvaluator,
+    *,
+    model: Model,
+    metric: Metric,
+    data: Pool,
+    split: pl.Series,
+    config: ReportingConfig,
+    stage: str,
+) -> None:
+    _run_report(
+        name=evaluator.name,
+        evaluate=lambda: evaluator.evaluate(
+            model=model, metric=metric, data=data, split=split
+        ),
+        write=lambda root: evaluator.write_artifacts(
+            model=model,
+            metric=metric,
+            data=data,
+            split=split,
+            artifact_dir=root,
+            figure=config.figure,
+        ),
+        context=f"Model evaluation evaluator={evaluator.name}, stage={stage}",
+    )
+
+
+def _report_analyzer(
+    analyzer: DataAnalyzer,
+    *,
+    data: Pool,
+    split: pl.Series,
+    config: ReportingConfig,
+    stage: str,
+) -> None:
+    _run_report(
+        name=analyzer.name,
+        evaluate=lambda: analyzer.evaluate(data=data, split=split),
+        write=lambda root: analyzer.write_artifacts(
+            data=data,
+            split=split,
+            artifact_dir=root,
+            figure=config.figure,
+            features=config.features,
+            n_bins=config.n_bins,
+        ),
+        context=f"Data analysis analyzer={analyzer.name}, stage={stage}",
+    )
 
 
 def evaluate_report_metrics(
@@ -325,19 +404,7 @@ def report_data(
     """Run data analysis and PSI without a model or predictions."""
     validate_split_labels(data, split)
     for analyzer in analyzers:
-        _run_report(
-            name=analyzer.name,
-            evaluate=lambda: analyzer.evaluate(data=data, split=split),
-            write=lambda root: analyzer.write_artifacts(
-                data=data,
-                split=split,
-                artifact_dir=root,
-                figure=config.figure,
-                features=config.features,
-                n_bins=config.n_bins,
-            ),
-            context=f"Data analysis analyzer={analyzer.name}, stage={stage}",
-        )
+        _report_analyzer(analyzer, data=data, split=split, config=config, stage=stage)
     if config.psi:
         try:
             with TemporaryDirectory(prefix="ml-toolkit-psi-") as directory:

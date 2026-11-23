@@ -34,10 +34,7 @@ SHARED_PRIVATE_MODULES = {"_console", "_time"}
 
 # Known violations as (importing module, imported name). Each entry names the
 # refactoring phase that removes it; the set must shrink, never grow.
-ALLOWED_VIOLATIONS: set[tuple[str, str]] = {
-    # Phase 6: the dataset summary printer moves out of the console layer.
-    ("ml_toolkit._console", "ml_toolkit.data"),
-}
+ALLOWED_VIOLATIONS: set[tuple[str, str]] = set()
 
 
 # Package cycles that later phases remove; none remain after the reports merge.

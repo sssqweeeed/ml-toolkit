@@ -51,7 +51,7 @@ from ml_toolkit.inflation import ConstantRateInflation, LogLinearInflation, Spli
 from ml_toolkit.reports import GroupedMetrics, PredictionEvaluator, TimeObservedFitted
 from ml_toolkit.reports import MetricTrend
 from ml_toolkit.reports import Residuals, ResidualResult
-from ml_toolkit.config import FeatureLevelConfig
+from ml_toolkit.feature_levels import FeatureLevelConfig
 from ml_toolkit.figures import FigureConfig
 from ml_toolkit.data import Pool as DataPool
 
@@ -263,7 +263,7 @@ def explicit_selection(data: Pool) -> None:
     )
 
 
-from ml_toolkit.config import FeatureLevelConfig
+from ml_toolkit.feature_levels import FeatureLevelConfig
 from ml_toolkit.feature_levels import FeatureLevels, LevelTransformer
 from ml_toolkit.psi import PSIBaseline, PSIConfig, PSIResult, load_psi_baseline
 

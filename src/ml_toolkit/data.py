@@ -18,7 +18,7 @@ __all__ = [
     "categorical_frame",
     "concat_pools",
     "row_indexer",
-    "validate_auxiliary_pair",
+    "validate_compatible_pools",
     "validate_prediction",
     "validate_split_labels",
     "validate_training_categories",
@@ -324,24 +324,33 @@ class Pool:
         )
 
 
-def validate_auxiliary_pair(left: Pool, right: Pool) -> None:
-    """Require identical auxiliary schemas before pairing or concatenating pools.
+def validate_compatible_pools(left: Pool, right: Pool, *, context: str) -> None:
+    """Require two pools to share features, feature metadata and auxiliary schema.
 
     Parameters
     ----------
     left, right : Pool
         Pools to compare.
+    context : str
+        Subject of the error message, for example ``"Split pools"``.
 
     Raises
     ------
     ValueError
-        If only one pool has auxiliary features or their schemas differ.
+        If feature schemas (names, order and dtypes), categorical or numerical
+        feature declarations, or auxiliary feature schemas differ.
     """
+    if (
+        left.X.schema != right.X.schema
+        or left.cat_features != right.cat_features
+        or left.numerical_features != right.numerical_features
+    ):
+        raise ValueError(f"{context} must have matching features and metadata")
     a, b = left.auxiliary_features, right.auxiliary_features
-    if a is None and b is None:
-        return
-    if a is None or b is None or a.schema != b.schema:
-        raise ValueError("Pools must have matching auxiliary feature schemas")
+    if (a is None) != (b is None) or (
+        a is not None and b is not None and a.schema != b.schema
+    ):
+        raise ValueError(f"{context} must have matching auxiliary feature schemas")
 
 
 def validate_object_ids(object_id: pl.Series, n_rows: int) -> None:
@@ -545,13 +554,7 @@ def concat_pools(train: Pool, heldout: Pool | None) -> Pool:
     """
     if heldout is None:
         return train
-    validate_auxiliary_pair(train, heldout)
-    if (
-        train.X.schema != heldout.X.schema
-        or train.cat_features != heldout.cat_features
-        or train.numerical_features != heldout.numerical_features
-    ):
-        raise ValueError("Reporting pools must have matching features and metadata")
+    validate_compatible_pools(train, heldout, context="Reporting pools")
 
     def optional(left: pl.Series | None, right: pl.Series | None) -> pl.Series | None:
         if left is None and right is None:

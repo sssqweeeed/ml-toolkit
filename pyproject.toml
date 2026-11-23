@@ -73,6 +73,3 @@ convention = "numpy"
 "tests/**" = ["D", "E402", "E731", "B018", "B023"]
 "tests/typecheck/*" = ["ALL"]
 "examples/**" = ["D", "E402", "B023"]
-# Temporary until the 7.0.0 refactor phases rewrite this module:
-# report callbacks (training).
-"src/ml_toolkit/training/reporting.py" = ["B023"]

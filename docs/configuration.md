@@ -48,7 +48,8 @@ selection and tuning off; PSI, prediction evaluators and data analyzers still wr
 ```python
 from ml_toolkit.training import Holdout, TimeSeriesCV
 from dataclasses import replace
-from ml_toolkit.config import FeatureLevelConfig, ReportingConfig, TrainingConfig
+from ml_toolkit.config import ReportingConfig, TrainingConfig
+from ml_toolkit.feature_levels import FeatureLevelConfig
 from ml_toolkit.models import TrackingConfig
 from ml_toolkit.metrics import (
     MetricsSeverity,
