@@ -49,6 +49,18 @@ def _interval_labels(
     ]
 
 
+def _legacy_interval_labels(
+    lower_edge: float, boundaries: tuple[float, ...], upper_edge: float
+) -> list[str]:
+    # Pre-uniqueness format, accepted when loading old states.
+    return [
+        f"[{'-inf' if a == -np.inf else f'{a:g}'}, "
+        f"{'inf' if b == np.inf else f'{b:g}'}"
+        f"{']' if b == upper_edge and b != np.inf else ')'}"
+        for a, b in pairwise((lower_edge, *boundaries, upper_edge))
+    ]
+
+
 @dataclass
 class LevelTransformer:
     """Learn reference categories and quantile boundaries for diagnostics.
@@ -359,12 +371,7 @@ class LevelTransformer:
                     ):
                         raise ValueError("Inconsistent numerical levels")
                     unique_labels = _interval_labels(left, boundaries, right)
-                    legacy_labels = [
-                        f"[{'-inf' if a == -np.inf else f'{a:g}'}, "
-                        f"{'inf' if b == np.inf else f'{b:g}'}"
-                        f"{']' if b == right and b != np.inf else ')'}"
-                        for a, b in pairwise((left, *boundaries, right))
-                    ]
+                    legacy_labels = _legacy_interval_labels(left, boundaries, right)
                     suffix = [NULL_LEVEL]
                     if (
                         config.error_level is not None
@@ -400,8 +407,6 @@ class LevelTransformer:
                         expected.append(ERROR_LEVEL)
                 if list(labels) != expected:
                     raise ValueError("Level labels do not match fitted definitions")
-                if len(set(labels)) != len(labels):
-                    raise ValueError("Level labels must be unique")
                 fitted.append(
                     FeatureLevels(
                         config,

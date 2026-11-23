@@ -131,11 +131,7 @@ class PSIBaseline:
         counts = self.reference_counts
         if counts.schema != pl.Schema(COUNT_SCHEMA) or any(counts.null_count().row(0)):
             raise ValueError("Invalid reference counts schema or null values")
-        expected = list(
-            dict.fromkeys(
-                (f.config.name, level) for f in features for level in f.levels
-            )
-        )
+        expected = [(f.config.name, level) for f in features for level in f.levels]
         actual = list(counts.select("feature", "level").iter_rows())
         if actual != expected or len(set(actual)) != len(actual):
             raise ValueError("Reference counts do not match fitted features and levels")
@@ -168,9 +164,18 @@ class PSIBaseline:
             metadata = mapping(
                 json.loads((root / "manifest.json").read_text(encoding="utf-8"))
             )
-            transformer = LevelTransformer.from_dict(
+            levels_payload = mapping(
                 json.loads((root / "levels.json").read_text(encoding="utf-8"))
             )
+            for stored in cast(list[object], levels_payload["features"]):
+                stored_levels = cast(list[object], mapping(stored)["levels"])
+                if len(set(stored_levels)) != len(stored_levels):
+                    raise ValueError(
+                        "PSI baseline was saved with ambiguous interval labels "
+                        "(merged bins) and cannot be loaded; re-create it with "
+                        "PSIBaseline.from_reference"
+                    )
+            transformer = LevelTransformer.from_dict(levels_payload)
             result = cls(
                 transformer,
                 pl.read_parquet(root / "reference_counts.parquet"),
