@@ -19,6 +19,7 @@ from ..data import validate_training_categories
 from ..tracking.state import ClassificationState, read_state
 from ..types import FloatArray, IntArray, ModelParams
 from ._catboost import (
+    ITERATION_ALIASES,
     feature_importances,
     native_fit,
     normalize_loss,
@@ -37,6 +38,21 @@ if TYPE_CHECKING:
     from ..training.contracts import Pool
 
 logger = Logger("ml_toolkit.models.catboost_classification")
+
+
+def _tree_logits(
+    model: catboost.CatBoostClassifier, pool: catboost.Pool, tree: int
+) -> FloatArray:
+    # Raw contribution of one tree; the pool must not carry a baseline.
+    return np.asarray(
+        model.predict(
+            pool,
+            prediction_type="RawFormulaVal",
+            ntree_start=tree,
+            ntree_end=tree + 1,
+        ),
+        dtype=float,
+    ).reshape(-1)
 
 
 class CatBoostClassificationModel(PythonModel):
@@ -739,9 +755,7 @@ class CatBoostPUClassificationModel(CatBoostClassificationModel):
     ) -> tuple[catboost.CatBoostClassifier, int | None]:
         """Update full-training-set nnPU before each tree (beta=0, gamma=1)."""
         params = params.copy()
-        iteration_names = [
-            key for key in ("iterations", "n_estimators", "num_trees") if key in params
-        ]
+        iteration_names = [key for key in ITERATION_ALIASES if key in params]
         if len(iteration_names) > 1:
             raise ValueError("Specify only one CatBoost iteration parameter")
         iterations = (
@@ -761,6 +775,13 @@ class CatBoostPUClassificationModel(CatBoostClassificationModel):
         validation_data = (
             None if validation is None else validation.to_catboost(baseline=baseline)
         )
+        # Each tree's contribution is predicted on baseline-free pools, because
+        # CatBoost adds a pool baseline to every prediction call.
+        tree_train_data = train.to_catboost()
+        tree_validation_data = (
+            None if validation is None else validation.to_catboost()
+        )
+        train_logits = np.full(len(train.y), baseline, dtype=float)
         if validation is not None:
             pu_risks(
                 np.full(len(validation.y), baseline),
@@ -770,6 +791,13 @@ class CatBoostPUClassificationModel(CatBoostClassificationModel):
             )
         train_labels = train.y.to_numpy()
         train_weights = train.weight.to_numpy()
+        validation_labels = None if validation is None else validation.y.to_numpy()
+        validation_weights = (
+            None if validation is None else validation.weight.to_numpy()
+        )
+        validation_logits = (
+            None if validation is None else np.full(len(validation.y), baseline)
+        )
         model = None
         best_model = None
         best_iteration = None
@@ -778,20 +806,15 @@ class CatBoostPUClassificationModel(CatBoostClassificationModel):
         for iteration in range(iterations):
             # CatBoost's derivative callback sees only a subset, so compute
             # this decision from the complete training pool between trees.
-            logits = (
-                np.full(len(train_labels), baseline)
-                if model is None
-                else np.asarray(
-                    model.predict(train_data, prediction_type="RawFormulaVal"),
-                    dtype=float,
-                ).reshape(-1)
+            _, negative_risk = pu_risks(
+                train_logits, train_labels, train_weights, prior
             )
-            _, negative_risk = pu_risks(logits, train_labels, train_weights, prior)
             objective.reverse_negative_risk = negative_risk < 0.0
             tree_params = {**params, "loss_function": objective}
             next_model = catboost.CatBoostClassifier(**tree_params)
             next_model.fit(train_data, eval_set=validation_data, init_model=model)
             model = next_model
+            train_logits += _tree_logits(model, tree_train_data, iteration)
             if iteration == 0 or (iteration + 1) % 50 == 0:
                 logger.debug(
                     "nnPU tree %d/%d; training negative risk %.6g; correction=%s",
@@ -801,17 +824,17 @@ class CatBoostPUClassificationModel(CatBoostClassificationModel):
                     objective.reverse_negative_risk,
                 )
 
-            if validation_data is not None:
-                assert validation is not None
-                validation_logits = np.asarray(
-                    model.predict(validation_data, prediction_type="RawFormulaVal"),
-                    dtype=float,
-                ).reshape(-1)
+            if (
+                tree_validation_data is not None
+                and validation_logits is not None
+                and validation_labels is not None
+                and validation_weights is not None
+            ):
+                validation_logits += _tree_logits(
+                    model, tree_validation_data, iteration
+                )
                 positive_risk, negative_risk = pu_risks(
-                    validation_logits,
-                    validation.y.to_numpy(),
-                    validation.weight.to_numpy(),
-                    prior,
+                    validation_logits, validation_labels, validation_weights, prior
                 )
                 risk = positive_risk + max(0.0, negative_risk)
                 if risk < best_risk:

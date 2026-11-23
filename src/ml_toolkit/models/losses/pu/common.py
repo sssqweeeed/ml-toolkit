@@ -41,6 +41,9 @@ def pu_risks(
 
 
 class PURiskMetric:
+    # Python callbacks: skip CatBoost's numba compile attempt on every fit.
+    no_jit = True
+
     def __init__(self, prior: float, *, non_negative: bool) -> None:
         self.prior = prior
         self.non_negative = non_negative
@@ -70,8 +73,6 @@ class PURiskMetric:
 
 
 class UPUMetric(PURiskMetric):
-    no_jit = True
-
     def __init__(self, prior: float) -> None:
         super().__init__(prior, non_negative=False)
 
@@ -100,6 +101,9 @@ class NNPUMetric(PURiskMetric):
 
 
 class PULogisticObjective:
+    # Python callbacks: skip CatBoost's numba compile attempt on every fit.
+    no_jit = True
+
     def __init__(
         self,
         prior: float,
