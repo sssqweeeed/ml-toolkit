@@ -117,8 +117,15 @@ when a date has no observations, the next observation starts test. Datetimes are
 not accepted. Fractions round upward, and both resulting samples must be nonempty.
 Validation fractions use only the retained non-test rows.
 
-`TimeSeriesCV.val_size=None` divides the retained rows into equal validation
-blocks. `max_train_size` limits each CV training window, but not final training;
+Boundaries never split a timestamp. When several rows share one (panel data),
+each validation or test sample starts at the first row of its timestamp, so it
+can be larger than requested and training smaller; unique timestamps are
+unaffected. CV windows move back the same way, so they can be smaller or larger
+than `val_size`, and `ValueError` is raised when one timestamp spans a whole
+window. Boolean sizes are rejected.
+
+`TimeSeriesCV.val_size=None` uses equal validation blocks of retained rows
+`// (n_splits + 1)`. `max_train_size` limits each CV training window, but not final training;
 `skip_splits` omits initial folds and preserves their original one-based indices.
 Without test, built-in final training uses the entire pool.
 
@@ -138,8 +145,8 @@ for part in duration_cv.get_validation():
 ```
 
 `gap=timedelta(seconds=1)` is also supported. Preceding rows are retained when
-`time <= validation_start - gap`, including equality. Zero duration matches
-zero row gap. The duration measures elapsed time across timezone/DST changes;
+`time <= validation_start - gap`, including equality, and always
+`time < validation_start`. Zero duration matches zero row gap. The duration measures elapsed time across timezone/DST changes;
 `Date` values represent midnight and sub-day gaps are not rounded. A duration
 of 30 days is exactly 30 days, not a calendar month.
 

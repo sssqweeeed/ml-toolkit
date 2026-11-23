@@ -163,7 +163,14 @@ def test_calendar_test_preserves_rows_and_logs_date(tmp_path, dtype, cutoff, tes
         ],
     )
     if dtype == pl.Date:
-        timestamps = timestamps.cast(dtype)
+        # Casting the datetimes to Date would put three training rows on one day,
+        # and a timestamp is never split between train and validation. Use
+        # distinct training dates; the tied 2025-01-02 rows both stay in test.
+        timestamps = pl.Series(
+            "time",
+            [date(2024, 12, 30), date(2024, 12, 31), date(2025, 1, 1)]
+            + [date(2025, 1, 2), date(2025, 1, 2), date(2025, 1, 4)],
+        )
     else:
         timestamps = timestamps.dt.replace_time_zone(dtype.time_zone).cast(dtype)
     data = replace(
