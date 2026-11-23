@@ -446,7 +446,10 @@ class InflationAdjustedModel(PythonModel):
         self.model = types[regressor["model_type"]]()
         if regressor.get("baseline_mode") != self.model.baseline_mode:
             raise ValueError("Invalid nested regression baseline mode")
-        self.model.restore_state(regressor, context.artifacts["model"])
+        # Package-internal restore of the nested adapter from the shared artifact.
+        self.model._restore_state(  # pyright: ignore[reportPrivateUsage]
+            regressor, context.artifacts["model"]
+        )
         self.inflation = inflation_from_config(state["inflation"])
         self.reference_date = date.fromisoformat(state["reference_date"])
         self.prediction_date_column = state["prediction_date_column"]

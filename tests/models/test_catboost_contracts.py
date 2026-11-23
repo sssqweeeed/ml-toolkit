@@ -9,7 +9,7 @@ from sklearn.metrics import f1_score, precision_score, recall_score
 
 from examples.project_pool import ProjectPool
 from ml_toolkit.models import CatBoostClassificationModel, CatBoostRegressionModel
-from ml_toolkit.models.catboost import prepare_frame
+from ml_toolkit.models._catboost import prepare_frame
 from ml_toolkit.plots.classification import binary_curves
 
 

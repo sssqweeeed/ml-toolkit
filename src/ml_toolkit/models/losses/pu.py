@@ -19,7 +19,7 @@ from ..._console import Logger
 from ...data import Pool
 from ...metrics.pu import risk_components
 from ...types import FloatArray, ModelParams
-from ..catboost import ITERATION_ALIASES
+from .._catboost import ITERATION_ALIASES
 
 logger = Logger(__name__)
 

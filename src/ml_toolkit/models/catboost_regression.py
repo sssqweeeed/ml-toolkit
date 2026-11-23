@@ -11,7 +11,7 @@ import polars as pl
 from .._console import Logger
 from ..data import Pool, validate_training_categories
 from ..types import FloatArray, ModelParams
-from .catboost import CatBoostAdapter, native_fit, normalize_loss
+from ._catboost import CatBoostAdapter, native_fit, normalize_loss
 from .state import RegressionState
 
 logger = Logger(__name__)

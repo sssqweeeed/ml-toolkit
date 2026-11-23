@@ -12,7 +12,7 @@ from mlflow.pyfunc.utils import pyfunc
 from .._console import Logger
 from ..data import Pool, validate_training_categories
 from ..types import FloatArray, IntArray, ModelParams
-from .catboost import CatBoostAdapter, native_fit, normalize_loss
+from ._catboost import CatBoostAdapter, native_fit, normalize_loss
 from .state import ClassificationState
 
 logger = Logger("ml_toolkit.models.catboost_classification")
@@ -516,13 +516,6 @@ class CatBoostPUClassificationModel(CatBoostClassificationModel):
         if isinstance(metric, str) and metric in ("uPU", "nnPU"):
             metric_class = UPUMetric if metric == "uPU" else NNPUMetric
             params["eval_metric"] = metric_class(self._pu_prior)
-        if validation is not None:
-            pu_risks(
-                np.full(len(validation), baseline),
-                validation.y.to_numpy(),
-                validation.weight.to_numpy(),
-                self._pu_prior,
-            )
         if self._pu_loss == "nnPU":
             objective = PULogisticObjective(
                 self._pu_prior, positive_scale, unlabeled_scale
@@ -536,6 +529,13 @@ class CatBoostPUClassificationModel(CatBoostClassificationModel):
                 params=params,
             )
             return model
+        if validation is not None:
+            pu_risks(
+                np.full(len(validation), baseline),
+                validation.y.to_numpy(),
+                validation.weight.to_numpy(),
+                self._pu_prior,
+            )
         if params["task_type"] == "GPU":
             from .losses.pu_cuda import make_upu_gpu_objective
 

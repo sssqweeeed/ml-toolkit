@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from abc import abstractmethod
+from abc import ABCMeta, abstractmethod
 from collections.abc import Mapping
 from copy import deepcopy
 from pathlib import Path
@@ -136,7 +136,7 @@ def feature_importances(
     return dict(zip(names, values.tolist(), strict=True))
 
 
-class CatBoostAdapter(PythonModel, Generic[NativeT, StateT]):
+class CatBoostAdapter(PythonModel, Generic[NativeT, StateT], metaclass=ABCMeta):
     """State and behaviour shared by the CatBoost regression and classification adapters."""
 
     _native_type: type[NativeT]
@@ -287,7 +287,7 @@ class CatBoostAdapter(PythonModel, Generic[NativeT, StateT]):
         sample_frame = sample.to_model_input(
             n_rows=config.input_example_rows, categorical_as_strings=True
         ).loc[:, self.feature_names]
-        model_info = self.log_artifacts(
+        model_info = self._log_artifacts(
             sample_frame,
             self.predict_frame(sample_frame),
             name=config.model_name,
@@ -305,7 +305,7 @@ class CatBoostAdapter(PythonModel, Generic[NativeT, StateT]):
         )
         return model_info
 
-    def log_artifacts(
+    def _log_artifacts(
         self,
         sample_frame: pd.DataFrame,
         sample_prediction: FloatArray,
@@ -328,7 +328,7 @@ class CatBoostAdapter(PythonModel, Generic[NativeT, StateT]):
             metadata=metadata,
         )
 
-    def restore_state(self, state: StateT, model_path: str) -> None:
+    def _restore_state(self, state: StateT, model_path: str) -> None:
         """Load the native model and the persisted adapter state."""
         native = self._native_type()
         native.load_model(model_path)
@@ -342,7 +342,7 @@ class CatBoostAdapter(PythonModel, Generic[NativeT, StateT]):
         state = cast(
             StateT, read_state(context, type(self).__name__, self.baseline_mode)
         )
-        self.restore_state(state, context.artifacts["model"])
+        self._restore_state(state, context.artifacts["model"])
         logger.debug("Loaded CatBoost model: %s", type(self).__name__)
 
     @abstractmethod

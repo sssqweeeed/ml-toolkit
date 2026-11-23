@@ -326,7 +326,7 @@ def test_nonfinite_catboost_importance_is_zero_only_for_constant_trees(
         def get_leaf_values(self):
             return np.asarray(leaves)
 
-    from ml_toolkit.models.catboost import feature_importances
+    from ml_toolkit.models._catboost import feature_importances
 
     model = SimpleNamespace(
         feature_importances=lambda rows: feature_importances(Native(), rows.X.columns)

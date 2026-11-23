@@ -52,12 +52,14 @@ adapters package themselves, as in `examples/custom_model.py`.
 
 ## Models (phase 2)
 
-These are internal modules. The classes exported from `ml_toolkit.models` and
-the model-state schema are unchanged.
+Most of these are internal modules. The classes exported from
+`ml_toolkit.models` and the model-state schema are unchanged, except that two
+methods of the CatBoost adapters are no longer public.
 
 | Old import | New import |
 | --- | --- |
-| `ml_toolkit.models._catboost` | `ml_toolkit.models.catboost` |
+| `CatBoostRegressionModel.log_artifacts` | removed from the public API (now private); use `log` |
+| `CatBoostRegressionModel.restore_state` | removed from the public API (now private); load models through MLflow |
 | `ml_toolkit.models._shrink.validate_size` | `ml_toolkit.models.base.validate_size` |
 | `ml_toolkit.models.losses.gamma.config`, `.gamma.cpu` | `ml_toolkit.models.losses.gamma` |
 | `ml_toolkit.models.losses.gamma.cuda` | `ml_toolkit.models.losses.gamma_cuda` |

@@ -69,7 +69,7 @@ def test_standalone_model_logging_uses_example_size(monkeypatch):
     examples = []
     monkeypatch.setattr(
         model,
-        "log_artifacts",
+        "_log_artifacts",
         lambda frame, predictions, **kwargs: examples.append((frame, kwargs)),
     )
     monkeypatch.setattr(mlflow, "log_param", lambda *a, **k: None)

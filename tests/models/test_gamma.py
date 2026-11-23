@@ -184,7 +184,7 @@ def test_gamma_native_and_state_roundtrip(data, tmp_path, factory, output):
     assert state["effective_prediction_type"] == (output or "Exponent")
     assert state["training_params"]["loss"] == "Gamma"
     restored = factory()
-    restored.restore_state(state, str(path))
+    restored._restore_state(state, str(path))
     np.testing.assert_allclose(restored.predict_pool(data), expected)
     restored.fit(data)
     np.testing.assert_allclose(restored.predict_pool(data), expected)
@@ -197,7 +197,7 @@ def test_old_regression_state_still_loads(data, tmp_path):
     state = model.export_state()
     del state["effective_prediction_type"]
     restored = CatBoostLogLinkRegressionModel()
-    restored.restore_state(state, str(path))
+    restored._restore_state(state, str(path))
     np.testing.assert_allclose(restored.predict_pool(data), model.predict_pool(data))
 
 
@@ -386,5 +386,5 @@ def test_gamma_training_on_cuda_hardware(data, tmp_path):
     path = tmp_path / "gpu.cbm"
     model.native_model.save_model(str(path))
     restored = CatBoostLogLinkRegressionModel()
-    restored.restore_state(model.export_state(), str(path))
+    restored._restore_state(model.export_state(), str(path))
     np.testing.assert_allclose(restored.predict_pool(val), predictions)
