@@ -2,17 +2,18 @@
 
 from dataclasses import dataclass
 from pathlib import Path
+
 import numpy as np
 import polars as pl
-from .base import PredictionEvaluator
+
 from ..config import FigureConfig
 from ..data import Pool
 from ..feature_levels import FeatureLevelConfig
 from ..metrics.ranking import ranking_metrics
 from ..plots import ranking
 from ..types import FloatArray
-
 from ._common import write_heldout_plot
+from .base import PredictionEvaluator
 
 
 def _gains(

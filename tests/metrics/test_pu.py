@@ -35,15 +35,17 @@ def test_weighted_risk_is_invariant_to_weight_scale_and_clips_only_nnpu(loss):
     scores = np.array([0.95, 0.8, 0.1, 0.2])
     weights = np.array([1.0, 3.0, 2.0, 1.0])
     positive = 0.5 * np.average(-np.log(scores[:2]), weights=weights[:2])
-    negative = np.average(-np.log1p(-scores[2:]), weights=weights[2:]) - 0.5 * np.average(
-        -np.log1p(-scores[:2]), weights=weights[:2]
-    )
+    negative = np.average(
+        -np.log1p(-scores[2:]), weights=weights[2:]
+    ) - 0.5 * np.average(-np.log1p(-scores[:2]), weights=weights[:2])
     assert negative < 0
     metric = PUMetric(0.5, loss=loss)
     result = metric(labels, scores, weights).to_dict()
     assert result["positive_risk"] == pytest.approx(positive)
     assert result["estimated_negative_risk"] == pytest.approx(negative)
-    assert result["pu_risk"] == pytest.approx(positive + (negative if loss == "uPU" else 0))
+    assert result["pu_risk"] == pytest.approx(
+        positive + (negative if loss == "uPU" else 0)
+    )
     assert metric(labels, scores, weights * 17).to_dict() == pytest.approx(result)
 
 

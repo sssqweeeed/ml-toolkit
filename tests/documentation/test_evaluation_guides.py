@@ -137,6 +137,7 @@ def test_data_analysis_workflow_passes_reports_to_separate_arguments(monkeypatch
 
 def test_custom_data_analyzer_example_reports_actual_null_counts(tmp_path):
     from dataclasses import replace
+
     from examples.custom_data_analyzer import DataAudit
 
     data = replace(sample_pool(), X=pl.DataFrame({"feature": [1.0, None, None, 4.0]}))

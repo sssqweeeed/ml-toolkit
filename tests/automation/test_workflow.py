@@ -1,7 +1,7 @@
 import importlib.util
 import json
-from pathlib import Path
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -24,7 +24,9 @@ docs = load("publish_docs")
 @pytest.mark.parametrize("branch", ["dev", "main"])
 @pytest.mark.parametrize("event_name", ["pull_request", "workflow_dispatch"])
 @pytest.mark.parametrize("tags", ["v0.1.0", "v0.2.0"])
-def test_full_validation_is_reserved_for_main(tmp_path, monkeypatch, branch, event_name, tags):
+def test_full_validation_is_reserved_for_main(
+    tmp_path, monkeypatch, branch, event_name, tags
+):
     event = tmp_path / "event.json"
     payload = {}
     if event_name == "pull_request":
@@ -129,14 +131,15 @@ def test_retired_dev_links_redirect_without_changing_released_docs(tmp_path):
     (tmp_path / "0.2.0/index.html").write_text("release home")
     (tmp_path / "index.html").write_text("stable landing")
     docs.add_legacy_redirects(tmp_path, "0.2.0")
-    assert '../stable/' in (tmp_path / "dev/index.html").read_text()
+    assert "../stable/" in (tmp_path / "dev/index.html").read_text()
     assert (
         "../../../stable/api/training/index.html"
         in (tmp_path / "dev/api/training/index.html").read_text()
     )
-    assert "../../stable/api/custom-model/" in (
-        tmp_path / "dev/custom-model/index.html"
-    ).read_text()
+    assert (
+        "../../stable/api/custom-model/"
+        in (tmp_path / "dev/custom-model/index.html").read_text()
+    )
     assert page.read_text() == "released page"
     assert (tmp_path / "0.2.0/index.html").read_text() == "release home"
     assert (tmp_path / "index.html").read_text() == "stable landing"

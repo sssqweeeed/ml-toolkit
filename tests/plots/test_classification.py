@@ -1,4 +1,5 @@
 import pytest
+
 from ml_toolkit.plots.classification import (
     binary_curves,
     calibration,
@@ -19,10 +20,7 @@ def test_binary_curves_and_plots(tmp_path):
     bins = calibration(y, p, tmp_path / "calibration.png", n_bins=2)
     assert bins["count"].sum() == 4
     assert all(
-        (
-            (tmp_path / name).is_file()
-            for name in ["pr.png", "f1.png", "calibration.png"]
-        )
+        (tmp_path / name).is_file() for name in ["pr.png", "f1.png", "calibration.png"]
     )
 
 

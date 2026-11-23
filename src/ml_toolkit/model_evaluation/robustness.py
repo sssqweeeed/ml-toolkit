@@ -7,7 +7,6 @@ from typing import Literal
 import numpy as np
 import polars as pl
 
-from .base import ModelEvaluator
 from ..config import FigureConfig
 from ..data import Pool
 from ..data_analysis._common import validate_split
@@ -16,6 +15,7 @@ from ..metrics._evaluation import calculate_metrics
 from ..models.base import Model, ShrinkableModel
 from ..plots.utils import feature_filename
 from ..types import FloatArray
+from .base import ModelEvaluator
 
 _SCHEMA = {
     "split": pl.String,

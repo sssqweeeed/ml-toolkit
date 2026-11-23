@@ -105,7 +105,6 @@ def test_documented_task_recipes_train_and_evaluate(
 
 def test_complete_frequency_example_output_and_figure():
     from examples.gallery_data import bike_cache_available
-
     from examples.retail_data import retail_cache_available
 
     if not bike_cache_available() or not retail_cache_available():

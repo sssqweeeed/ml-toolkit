@@ -1,19 +1,20 @@
 """Task metrics calculated for exact-value groups and data splits."""
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
-import re
+
 import numpy as np
 import polars as pl
-from .base import PredictionEvaluator
+
 from .._grouping import row_groups, validate_grouping
 from ..config import FigureConfig
 from ..data import Pool
 from ..feature_levels import FeatureLevelConfig
 from ..metrics import Metric
 from ..types import FloatArray
-
 from ._common import validate_inputs
+from .base import PredictionEvaluator
 
 
 @dataclass(frozen=True, kw_only=True)

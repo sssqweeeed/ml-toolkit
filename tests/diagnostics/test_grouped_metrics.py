@@ -190,7 +190,7 @@ def test_training_runner_logs_only_finite_scores_and_table(inputs, monkeypatch):
         model=MeanModel({}),
         evaluators=(report,),
         config=ReportingConfig(),
-        stage="test"
+        stage="test",
     )
     assert logged and all(np.isfinite(value) for value in logged.values())
     assert artifacts == [("metrics.parquet", {"artifact_path": "grouped_metrics"})]

@@ -2,9 +2,10 @@
 
 from dataclasses import dataclass
 from pathlib import Path
+
 import numpy as np
 import polars as pl
-from .base import ModelEvaluator
+
 from ..config import FigureConfig
 from ..data import Pool
 from ..data_analysis._common import validate_split
@@ -12,6 +13,7 @@ from ..metrics import Metric
 from ..metrics._evaluation import calculate_metrics
 from ..models.base import Model, ShrinkableModel
 from ..plots.utils import feature_filename
+from .base import ModelEvaluator
 
 
 @dataclass(frozen=True, kw_only=True)

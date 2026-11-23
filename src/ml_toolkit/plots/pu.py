@@ -39,6 +39,7 @@ def score_distribution(
         dimensions and the requested path format.
     histogram_bins : int, default 30
         Positive count of equal-width score bins.
+
     Returns
     -------
     None

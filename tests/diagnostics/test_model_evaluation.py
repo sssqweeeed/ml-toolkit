@@ -12,7 +12,7 @@ from ml_toolkit.metrics import MetricScores
 from ml_toolkit.model_evaluation import ModelEvaluator, ShrinkCurve
 from ml_toolkit.plots.model_evaluation import shrink_curve
 from ml_toolkit.plots.utils import PlotError
-from tests.support.training import MeanModel, PrefixModel, make_data, mae
+from tests.support.training import MeanModel, PrefixModel, mae, make_data
 
 
 @pytest.mark.parametrize(

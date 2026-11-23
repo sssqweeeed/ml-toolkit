@@ -1,21 +1,23 @@
 from functools import partial
+
 from ml_toolkit.training import Holdout, TimeSeriesCV
 
 """Shared training behavior across holdout, temporal validation and tuning."""
 
-from ml_toolkit.feature_selection import RFESelector
 import json
 from dataclasses import replace
 from datetime import date, datetime
 from pathlib import Path
+
 import mlflow
 import numpy as np
 import polars as pl
 import pytest
 from polars.testing import assert_frame_equal, assert_series_equal
-from tests.support.training import MeanModel, mae, make_data, setup_mlflow
+
 from examples.project_pool import ProjectPool as Pool
 from ml_toolkit.config import TrackingConfig, TrainingConfig, TuningConfig
+from ml_toolkit.feature_selection import RFESelector
 from ml_toolkit.inflation import ConstantRateInflation
 from ml_toolkit.metrics import metrics_classification
 from ml_toolkit.models import (
@@ -25,6 +27,7 @@ from ml_toolkit.models import (
 )
 from ml_toolkit.models._catboost import refit_parameters
 from ml_toolkit.training import train_model
+from tests.support.training import MeanModel, mae, make_data, setup_mlflow
 from tests.support.training import make_identified_data as identified_data
 
 
@@ -370,8 +373,11 @@ def test_final_relearns_inflation_and_baseline_on_all_rows_before_test(
     class Inflation(ConstantRateInflation):
         def fit(self, data):
             inflation_fits.append(
-                (data.time.to_list(), data.y.to_numpy().copy(),
-                 data.weight.to_numpy().copy())
+                (
+                    data.time.to_list(),
+                    data.y.to_numpy().copy(),
+                    data.weight.to_numpy().copy(),
+                )
             )
             return super().fit(data)
 
@@ -508,7 +514,9 @@ def test_split_searches_are_independent_and_final_uses_last_post_tuning_fit(tmp_
             self.threshold = (
                 0.99
                 if self.params["level"] == 0
-                else 0.01 if trial else len(train) / 100
+                else 0.01
+                if trial
+                else len(train) / 100
             )
             return self
 

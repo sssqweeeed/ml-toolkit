@@ -8,10 +8,10 @@ import numpy as np
 import polars as pl
 import pytest
 
-from ml_toolkit.model_evaluation import RobustnessCurve
 from ml_toolkit.config import FigureConfig
 from ml_toolkit.data import Pool
 from ml_toolkit.metrics import MetricScores
+from ml_toolkit.model_evaluation import RobustnessCurve
 from ml_toolkit.models import CatBoostRegressionModel
 from ml_toolkit.plots.robustness import robustness_curve
 from ml_toolkit.plots.utils import PlotError

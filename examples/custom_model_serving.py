@@ -52,8 +52,13 @@ class TargetScaledServingModel(PythonModel):
         """
         frame = model_input.loc[:, self.settings["feature_names"]].copy()
         for feature in self.settings["cat_features"]:
-            frame[feature] = frame[feature].astype("string").fillna("unknown").astype(str)
-        return np.asarray(self.model.predict(frame), dtype=np.float64) * self.settings["target_scale"]
+            frame[feature] = (
+                frame[feature].astype("string").fillna("unknown").astype(str)
+            )
+        return (
+            np.asarray(self.model.predict(frame), dtype=np.float64)
+            * self.settings["target_scale"]
+        )
 
 
 mlflow.models.set_model(TargetScaledServingModel())

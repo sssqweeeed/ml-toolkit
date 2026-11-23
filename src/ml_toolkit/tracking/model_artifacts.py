@@ -1,8 +1,8 @@
 """Common MLflow models-from-code packaging for native model artifacts."""
 
-from collections.abc import Mapping
 import json
 import shutil
+from collections.abc import Mapping
 from importlib.metadata import version
 from pathlib import Path
 from tempfile import TemporaryDirectory

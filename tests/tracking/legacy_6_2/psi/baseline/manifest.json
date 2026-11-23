@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "toolkit_version": "6.2.0",
+  "epsilon": 1e-06,
+  "n_rows": 48,
+  "stage": null,
+  "time_start": {
+    "type": "date",
+    "value": "2024-01-01"
+  },
+  "time_end": {
+    "type": "date",
+    "value": "2025-12-06"
+  }
+}

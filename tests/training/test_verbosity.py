@@ -1,25 +1,25 @@
 """Console levels report existing results without changing training or logging."""
 
-from contextlib import nullcontext, redirect_stderr
-from contextvars import Context
-from dataclasses import asdict, replace
 import io
 import logging
 import sys
+from contextlib import nullcontext, redirect_stderr
+from contextvars import Context
+from dataclasses import asdict, replace
 
 import numpy as np
 import optuna
 import pytest
 
+from examples.custom_selector import FixedFeatureSelector
 from ml_toolkit._console import Logger, message, metrics, output_context
-from ml_toolkit.config import TrainingConfig, TrackingConfig, TuningConfig
-from ml_toolkit.feature_selection import RFESelector, TopKSelector, ForwardSelector
+from ml_toolkit.config import TrackingConfig, TrainingConfig, TuningConfig
+from ml_toolkit.feature_selection import ForwardSelector, RFESelector, TopKSelector
 from ml_toolkit.metrics import MetricScores
 from ml_toolkit.models import CatBoostRegressionModel
 from ml_toolkit.tracking import runs as tracking
 from ml_toolkit.training import Holdout, TimeSeriesCV, importance_ranker, train_model
 from tests.support.training import MeanModel, mae, make_data
-from examples.custom_selector import FixedFeatureSelector
 
 LEVELS = ("silent", "normal", "verbose", "debug")
 
@@ -219,7 +219,9 @@ def test_selection_and_tuning_levels(recorded_tracking, capsys, level):
 
 @pytest.mark.parametrize("destination", ["stdout", "stderr"])
 @pytest.mark.parametrize("namespace", ["", "ml_toolkit"])
-@pytest.mark.parametrize("handler_level", [logging.DEBUG, logging.INFO, logging.WARNING])
+@pytest.mark.parametrize(
+    "handler_level", [logging.DEBUG, logging.INFO, logging.WARNING]
+)
 def test_application_console_does_not_duplicate_workflow_output(
     recorded_tracking, capsys, caplog, destination, namespace, handler_level
 ):
@@ -234,10 +236,15 @@ def test_application_console_does_not_duplicate_workflow_output(
             "debug",
             splitter=TimeSeriesCV(make_data(), n_splits=2),
             feature_selector=RFESelector(
-                ranker=importance_ranker, min_features=1, metric="mae", direction="minimize"
+                ranker=importance_ranker,
+                min_features=1,
+                metric="mae",
+                direction="minimize",
             ),
             config=TrainingConfig(
-                tuning=TuningConfig(metric="mae", direction="minimize", n_trials=1, seed=1)
+                tuning=TuningConfig(
+                    metric="mae", direction="minimize", n_trials=1, seed=1
+                )
             ),
             param_space=lambda trial: {"choice": trial.suggest_int("choice", 1, 2)},
         )
@@ -255,7 +262,9 @@ def test_application_console_does_not_duplicate_workflow_output(
     assert output.count("Starting Optuna tuning:") == 2
     assert output.count("Completed tuning trial 1:") == 2
     assert output.count("Evaluation summary") == 1
-    assert ("APP ml_toolkit.training.workflow" in output) == (handler_level <= logging.INFO)
+    assert ("APP ml_toolkit.training.workflow" in output) == (
+        handler_level <= logging.INFO
+    )
 
 
 def test_custom_selector_still_has_console_summaries(recorded_tracking, capsys, caplog):
@@ -269,7 +278,9 @@ def test_custom_selector_still_has_console_summaries(recorded_tracking, capsys, 
         application.removeHandler(handler)
         handler.close()
     output = capsys.readouterr().err
-    assert output.count("Completed feature selection: 1 features selected at step 1") == 1
+    assert (
+        output.count("Completed feature selection: 1 features selected at step 1") == 1
+    )
     assert output.count("Selected features: ('x',)") == 1
 
 

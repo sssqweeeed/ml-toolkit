@@ -6,8 +6,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
 
-from ..evaluation.residuals import ResidualLoss, ResidualResult
 from ..config import FigureConfig
+from ..evaluation.residuals import ResidualLoss, ResidualResult
 from .utils import PlotError, save_figure
 
 

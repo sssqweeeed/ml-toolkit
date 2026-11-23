@@ -132,8 +132,9 @@ def test_special_levels_and_constant_features_are_shared_with_psi(tmp_path):
         ),
         n_bins=10,
     ).fit(reference)
-    ref_levels, cur_levels = transformer.transform(reference), transformer.transform(
-        current
+    ref_levels, cur_levels = (
+        transformer.transform(reference),
+        transformer.transform(current),
     )
     assert transformer.feature_levels is not None
     assert len(transformer.feature_levels[0].boundaries) < 9

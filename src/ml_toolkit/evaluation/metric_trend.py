@@ -6,7 +6,6 @@ from pathlib import Path
 import numpy as np
 import polars as pl
 
-from .base import PredictionEvaluator
 from .._time import PERIOD_INTERVALS, period_starts
 from ..config import FigureConfig
 from ..data import Pool
@@ -16,6 +15,7 @@ from ..metrics import Metric
 from ..metrics._evaluation import validate_prediction
 from ..plots.utils import feature_filename
 from ..types import FloatArray, IntArray, TimePeriod
+from .base import PredictionEvaluator
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -158,7 +158,9 @@ class MetricTrend(PredictionEvaluator):
                     status = (
                         "zero_weight"
                         if positive == 0
-                        else "insufficient_rows" if positive < self.min_rows else "ok"
+                        else "insufficient_rows"
+                        if positive < self.min_rows
+                        else "ok"
                     )
                     base: dict[str, object] = {
                         "period_start": endpoint,

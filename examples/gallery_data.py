@@ -26,10 +26,8 @@ import polars as pl
 from sklearn.datasets import load_digits
 from sklearn.model_selection import train_test_split
 
-from ml_toolkit.types import FloatArray, IntArray
-
 from ml_toolkit.data import Pool
-
+from ml_toolkit.types import FloatArray, IntArray
 
 BIKE_URL = "https://archive.ics.uci.edu/static/public/275/bike+sharing+dataset.zip"
 DEFAULT_DATA_HOME = Path(__file__).resolve().parents[1] / ".cache/uci-bike-sharing"

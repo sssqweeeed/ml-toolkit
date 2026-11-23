@@ -1,7 +1,7 @@
 """High-level training and reusable selection, split and optimization APIs."""
 
-from ..config import FigureConfig as FigureConfig
 from ..config import FeatureLevelConfig as FeatureLevelConfig
+from ..config import FigureConfig as FigureConfig
 from ..config import ReportingConfig as ReportingConfig
 from ..config import ShapConfig as ShapConfig
 from ..config import TrackingConfig as TrackingConfig
@@ -19,7 +19,7 @@ from .results import (
     TuningResult,
     ValidationResult,
 )
-from .splits import Split, Splitter, Holdout, TimeSeriesCV
+from .splits import Holdout, Split, Splitter, TimeSeriesCV
 from .tuning import tune_optuna
 from .workflow import train_model
 

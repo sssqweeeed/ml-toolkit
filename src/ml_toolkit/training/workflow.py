@@ -9,8 +9,11 @@ from .._console import Logger, datasets, message, metrics, output_context
 from ..config import TrainingConfig
 from ..config.training import check_registration_target_logged
 from ..data import validate_training_data
+from ..data_analysis import DataAnalyzer
+from ..evaluation import PredictionEvaluator
 from ..feature_selection import FeatureSelector
 from ..metrics import Metric
+from ..model_evaluation import ModelEvaluator
 from ..models.base import Model
 from ..tracking import runs as tracking
 from ..types import ModelParams
@@ -19,12 +22,9 @@ from .contracts import (
     Pool,
 )
 from .evaluation import evaluate_model
-from .psi import prepare_psi_baseline, log_model_with_baseline
-from .reporting import prepare_evaluators, prepare_analyzers, prepare_model_evaluators
-from ..evaluation import PredictionEvaluator
-from ..model_evaluation import ModelEvaluator
-from ..data_analysis import DataAnalyzer
-from .fit import refit_model, fit_split
+from .fit import fit_split, refit_model
+from .psi import log_model_with_baseline, prepare_psi_baseline
+from .reporting import prepare_analyzers, prepare_evaluators, prepare_model_evaluators
 from .results import SplitResult, TrainingResult, ValidationResult
 from .splits import Splitter
 
@@ -141,7 +141,10 @@ def train_model(
         model_reports = prepare_model_evaluators(model_evaluators)
         objective_evaluator = None if config.tuning is None else config.tuning.evaluator
         evaluators = prepare_evaluators(
-            prediction_evaluators, config.reporting, analyzers, model_reports,
+            prediction_evaluators,
+            config.reporting,
+            analyzers,
+            model_reports,
             objective_evaluator,
         )
 

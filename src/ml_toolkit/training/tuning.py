@@ -66,7 +66,9 @@ def tune_optuna(
             value = float(value)
             tracking.log_metrics({"objective": value})
             logger.debug(
-                "Completed tuning trial %s: objective=%.6g", trial.number + 1, value,
+                "Completed tuning trial %s: objective=%.6g",
+                trial.number + 1,
+                value,
                 verbosity="verbose",
             )
             return value

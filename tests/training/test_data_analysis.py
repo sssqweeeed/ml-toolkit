@@ -18,18 +18,20 @@ from ml_toolkit.config import (
 )
 from ml_toolkit.data_analysis import DataAnalyzer, NumericalFeatureDistributions
 from ml_toolkit.evaluation import (
-    PredictionEvaluator,
     NumericalFeatureDistributions as LegacyDistributions,
+)
+from ml_toolkit.evaluation import (
+    PredictionEvaluator,
 )
 from ml_toolkit.training import Holdout, train_model
 from ml_toolkit.training.reporting import report_data
 from tests.support.evaluators import CallbackAnalyzer
 from tests.support.training import (
     MeanModel,
-    make_data,
-    mae,
-    setup_mlflow,
     list_all_artifacts,
+    mae,
+    make_data,
+    setup_mlflow,
 )
 
 

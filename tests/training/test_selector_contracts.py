@@ -1,17 +1,16 @@
-from ml_toolkit.training import Holdout
 from datetime import date, timedelta
 
 import numpy as np
 import polars as pl
 import pytest
 
-from examples.project_pool import ProjectPool
 from examples.custom_selector import FixedFeatureSelector
+from examples.project_pool import ProjectPool
 from ml_toolkit import train_model
-from ml_toolkit.config import TrainingConfig, TrackingConfig
-from ml_toolkit.feature_selection import RFESelector, TopKSelector, ForwardSelector
+from ml_toolkit.config import TrackingConfig, TrainingConfig
+from ml_toolkit.feature_selection import ForwardSelector, RFESelector, TopKSelector
 from ml_toolkit.metrics import MetricScores
-
+from ml_toolkit.training import Holdout
 from tests.support.training import setup_mlflow
 
 

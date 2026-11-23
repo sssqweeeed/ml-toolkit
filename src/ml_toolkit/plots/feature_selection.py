@@ -45,7 +45,11 @@ def _objective(result: FeatureSelectionResult) -> tuple[str, bool, FloatArray]:
     try:
         scores = numeric_vector(
             [
-                (step.metrics if step.objective_metrics is None else step.objective_metrics)[metric]
+                (
+                    step.metrics
+                    if step.objective_metrics is None
+                    else step.objective_metrics
+                )[metric]
                 for step in result.steps
             ],
             metric,

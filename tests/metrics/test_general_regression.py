@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from ml_toolkit.metrics import metrics_regression, metrics_frequency, metrics_severity
+from ml_toolkit.metrics import metrics_frequency, metrics_regression, metrics_severity
 
 
 def test_weighted_signed_errors_and_r2():

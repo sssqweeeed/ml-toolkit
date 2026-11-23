@@ -1,16 +1,18 @@
 """Plot rendering configuration and reproducible explanation sampling."""
 
 from dataclasses import replace
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pytest
-from tests.support.training import make_data
+
 from ml_toolkit.config import FigureConfig, ShapConfig
 from ml_toolkit.explainability import calculate_shap_values
 from ml_toolkit.models import CatBoostRegressionModel
 from ml_toolkit.plots.classification import calibration, precision_recall
 from ml_toolkit.plots.monitoring import time_feature_distribution
 from ml_toolkit.plots.utils import save_figure
+from tests.support.training import make_data
 
 
 def test_custom_quantile_bands_and_hidden_curves(tmp_path):

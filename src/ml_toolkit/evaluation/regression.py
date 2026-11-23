@@ -2,10 +2,11 @@
 
 from dataclasses import dataclass
 from pathlib import Path
+
 import polars as pl
-from .base import PredictionEvaluator
-from .._time import PERIOD_INTERVALS
+
 from .._grouping import row_groups, validate_grouping
+from .._time import PERIOD_INTERVALS
 from ..config import FigureConfig
 from ..data import Pool
 from ..feature_levels import FeatureLevelConfig, LevelTransformer
@@ -13,8 +14,8 @@ from ..feature_levels.config import feature_definitions, validate_features
 from ..plots import regression
 from ..plots.utils import feature_filename
 from ..types import FloatArray, TimePeriod
-
 from ._common import comparison_pair
+from .base import PredictionEvaluator
 
 
 @dataclass(frozen=True, kw_only=True)

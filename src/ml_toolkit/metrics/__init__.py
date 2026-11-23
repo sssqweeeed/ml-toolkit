@@ -1,6 +1,5 @@
 """Task-specific metrics and exposure-aware ranking statistics."""
 
-from .regression import MetricsRegression, metrics_regression
 from .base import Metric, MetricResult, MetricScores
 from .classification import (
     MetricsClassification,
@@ -13,6 +12,7 @@ from .frequency import (
 )
 from .pu import PUMetric, positive_capture_curve
 from .ranking import RankingMetrics, ranking_metrics
+from .regression import MetricsRegression, metrics_regression
 from .severity import MetricsSeverity, metrics_severity
 
 __all__ = [

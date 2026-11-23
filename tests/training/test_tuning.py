@@ -1,12 +1,11 @@
 """Scalar optimization, parameter isolation and objective direction."""
 
-
 import pytest
-from tests.support.evaluators import CallbackEvaluator
-from tests.support.training import setup_mlflow
 
 from ml_toolkit.config import TuningConfig
 from ml_toolkit.training import tune_optuna
+from tests.support.evaluators import CallbackEvaluator
+from tests.support.training import setup_mlflow
 
 
 @pytest.mark.parametrize("use_evaluator", [False, True])
@@ -25,10 +24,17 @@ def test_optimizer_only_requires_a_scalar_callback(tmp_path, use_evaluator):
         param_space=lambda trial: {"fixed": 42},
         score=score,
         config=TuningConfig(
-            metric="callback-owned-name", direction="minimize", n_trials=2,
+            metric="callback-owned-name",
+            direction="minimize",
+            n_trials=2,
             evaluator=CallbackEvaluator(
-                name="unused", evaluate=lambda **kwargs: pytest.fail("The scalar callback owns scoring")
-            ) if use_evaluator else None,
+                name="unused",
+                evaluate=lambda **kwargs: pytest.fail(
+                    "The scalar callback owns scoring"
+                ),
+            )
+            if use_evaluator
+            else None,
         ),
     )
     assert seen == [{"base": 7, "fixed": 42}] * 2

@@ -2,7 +2,7 @@
 
 import json
 from dataclasses import replace
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import polars as pl
@@ -13,7 +13,7 @@ from tests.support.training import make_identified_data
 
 
 def timed_data(offsets, *, date=False, unit="us", zone=None):
-    origin = datetime(2024, 1, 1, tzinfo=timezone.utc if zone else None)
+    origin = datetime(2024, 1, 1, tzinfo=UTC if zone else None)
     times = [origin + timedelta(hours=n) for n in offsets]
     series = pl.Series(
         "time", times, dtype=pl.Datetime(unit, time_zone="UTC" if zone else None)
@@ -80,7 +80,7 @@ def test_date_preserves_subday_gap():
 @pytest.mark.parametrize("month,day", [(3, 10), (11, 3)])
 def test_dst_gap_is_elapsed_time(month, day):
     zone = ZoneInfo("America/New_York")
-    start = datetime(2024, month, day, 0, tzinfo=zone).astimezone(timezone.utc)
+    start = datetime(2024, month, day, 0, tzinfo=zone).astimezone(UTC)
     times = [start + timedelta(hours=n) for n in range(8)]
     data = replace(
         make_identified_data().take(range(8)),

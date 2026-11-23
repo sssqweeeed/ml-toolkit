@@ -8,7 +8,7 @@ import pytest
 from sklearn.metrics import f1_score, precision_score, recall_score
 
 from examples.project_pool import ProjectPool
-from ml_toolkit.models import CatBoostRegressionModel, CatBoostClassificationModel
+from ml_toolkit.models import CatBoostClassificationModel, CatBoostRegressionModel
 from ml_toolkit.models._catboost import prepare_frame
 from ml_toolkit.plots.classification import binary_curves
 
@@ -271,8 +271,12 @@ def test_pandas_and_polars_categories_and_predictions_agree():
         )
     assert from_pandas["flag"].astype(str).to_list()[:3] == ["true", "false", "unknown"]
     model = CatBoostRegressionModel(
-        {"iterations": 5, "thread_count": 1, "verbose": False,
-         "allow_writing_files": False}
+        {
+            "iterations": 5,
+            "thread_count": 1,
+            "verbose": False,
+            "allow_writing_files": False,
+        }
     )
     model.fit(
         ProjectPool(

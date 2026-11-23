@@ -1,8 +1,8 @@
 """Input checks and figure handling shared by the plot families."""
 
+import re
 from collections.abc import Sized
 from pathlib import Path
-import re
 
 import matplotlib.pyplot as plt
 import numpy as np

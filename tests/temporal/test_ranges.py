@@ -35,9 +35,9 @@ def test_temporal_reports_reject_overlapping_or_reversed_ranges(
     output = tmp_path / "invalid.png"
     with pytest.raises(ValueError, match=r"max\(reference\) <= min\(current\)"):
         if report == "psi":
-            PSIAnalysis(PSIConfig(features=(FeatureLevelConfig("x", "numerical"),))).fit(
-                before, time="time"
-            ).compare(after, time="time")
+            PSIAnalysis(
+                PSIConfig(features=(FeatureLevelConfig("x", "numerical"),))
+            ).fit(before, time="time").compare(after, time="time")
         elif report == "observed_fitted":
             regression.time_observed_fitted(
                 before["time"].to_list(),
@@ -79,7 +79,9 @@ def test_shared_endpoint_keeps_samples_separate_in_every_report(
     try:
         result = (
             PSIAnalysis(
-                PSIConfig(features=(FeatureLevelConfig("x", "numerical"),), period="day")
+                PSIConfig(
+                    features=(FeatureLevelConfig("x", "numerical"),), period="day"
+                )
             )
             .fit(before, time="time")
             .compare(after, time="time")
@@ -149,7 +151,9 @@ def test_split_within_one_period_is_allowed_by_every_report(
     try:
         comparison = (
             PSIAnalysis(
-                PSIConfig(features=(FeatureLevelConfig("x", "numerical"),), period=period)
+                PSIConfig(
+                    features=(FeatureLevelConfig("x", "numerical"),), period=period
+                )
             )
             .fit(before, time="time")
             .compare(after, time="time")

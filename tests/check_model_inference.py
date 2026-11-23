@@ -9,7 +9,6 @@ from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from types import ModuleType
 
-
 for package in ("optuna", "numba", "ml_toolkit"):
     assert importlib.util.find_spec(package) is None, package
     try:

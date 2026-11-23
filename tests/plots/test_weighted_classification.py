@@ -1,11 +1,12 @@
 import numpy as np
 import pandas as pd
 import pytest
+
 from ml_toolkit.plots.classification import (
     binary_curves,
     calibration,
-    precision_recall,
     f1_threshold,
+    precision_recall,
 )
 
 
@@ -27,6 +28,7 @@ def test_weighted_calibration_and_plots(tmp_path):
 def test_weighted_plot_geometry_and_summary_labels(monkeypatch, tmp_path):
     import matplotlib.pyplot as plt
     from sklearn.metrics import average_precision_score
+
     from ml_toolkit.plots import classification
 
     y, p, w = (

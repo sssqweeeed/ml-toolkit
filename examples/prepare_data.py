@@ -16,7 +16,9 @@ from examples.retail_data import load_retail_pool
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--dataset", action="append", choices=("bike", "retail", "cora"),
+        "--dataset",
+        action="append",
+        choices=("bike", "retail", "cora"),
         help="Prepare only this source; repeat to select several. Default: all.",
     )
     datasets = parser.parse_args().dataset or ("bike", "retail", "cora")

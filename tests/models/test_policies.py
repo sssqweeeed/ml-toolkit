@@ -306,7 +306,10 @@ def test_nnpu_correction_branch_early_stopping_and_best_tree(monkeypatch, data):
 @pytest.mark.parametrize("threshold", [-0.1, 1.1, float("nan"), "invalid"])
 @pytest.mark.parametrize(
     "factory, extra",
-    [(CatBoostClassificationModel, {}), (CatBoostPUClassificationModel, {"pu_prior": 0.2})],
+    [
+        (CatBoostClassificationModel, {}),
+        (CatBoostPUClassificationModel, {"pu_prior": 0.2}),
+    ],
 )
 def test_both_classifiers_validate_explicit_threshold(data, threshold, factory, extra):
     binary = data.with_target(pl.Series("target", [1, 0, 0] * 16))
@@ -334,8 +337,8 @@ def test_pu_constraints_are_local_to_pu(data, extra, message):
 
 def test_pu_objective_derivatives_and_risks_are_stable():
     from ml_toolkit.models.losses.pu.common import (
-        pu_risks,
         PULogisticObjective,
+        pu_risks,
     )
 
     logits = np.array([-1000.0, 1000.0, -1000.0, 1000.0])

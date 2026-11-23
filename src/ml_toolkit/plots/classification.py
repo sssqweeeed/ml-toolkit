@@ -7,8 +7,8 @@ import numpy as np
 import pandas as pd
 from numpy.typing import ArrayLike
 
-from ..metrics.classification import binary_threshold_scores
 from ..config import FigureConfig
+from ..metrics.classification import binary_threshold_scores
 from .utils import PlotError, numeric_vector, same_length, save_figure, weights
 
 

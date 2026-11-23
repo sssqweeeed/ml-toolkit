@@ -7,13 +7,13 @@ from decimal import Decimal, localcontext
 import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
-from polars.testing import assert_frame_equal
 import pytest
+from polars.testing import assert_frame_equal
 from sklearn.metrics import mean_gamma_deviance, mean_poisson_deviance
 
-from ml_toolkit.evaluation import ResidualResult, Residuals
 from ml_toolkit.config import FigureConfig
 from ml_toolkit.data import Pool
+from ml_toolkit.evaluation import ResidualResult, Residuals
 from ml_toolkit.plots.residuals import residual_diagnostics
 
 
@@ -298,7 +298,7 @@ def test_artifacts_calculate_once_and_match_complete_tables(
         artifact_dir=tmp_path,
         figure=FigureConfig(format="svg"),
         features=None,
-        n_bins=2
+        n_bins=2,
     )
     assert len(calls) == 1
     assert [path.name for path in paths] == [

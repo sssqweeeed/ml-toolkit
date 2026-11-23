@@ -16,7 +16,10 @@ import polars as pl
 import pytest
 
 from ml_toolkit.inflation import (
-    ConstantRateInflation, LogLinearInflation, ManualInflation, SplineInflation,
+    ConstantRateInflation,
+    LogLinearInflation,
+    ManualInflation,
+    SplineInflation,
 )
 from ml_toolkit.models import (
     CatBoostClassificationModel,

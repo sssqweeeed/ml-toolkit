@@ -1,17 +1,14 @@
 """The reporting contract across fits, stages and artifact boundaries."""
 
-from ml_toolkit.training import Holdout, TimeSeriesCV
-
+import json
 from dataclasses import replace
 from pathlib import Path
-import json
 
 import mlflow
 import numpy as np
 import polars as pl
 import pytest
 
-from ml_toolkit.data import Pool
 from ml_toolkit.config import (
     ReportingConfig,
     ShapConfig,
@@ -19,18 +16,19 @@ from ml_toolkit.config import (
     TrainingConfig,
     TuningConfig,
 )
-from ml_toolkit.evaluation import PredictionEvaluator, Calibration, comparison_pair
+from ml_toolkit.data import Pool
+from ml_toolkit.evaluation import Calibration, PredictionEvaluator, comparison_pair
 from ml_toolkit.feature_selection import RFESelector
-from ml_toolkit.training import train_model, importance_ranker
+from ml_toolkit.training import Holdout, TimeSeriesCV, importance_ranker, train_model
 from ml_toolkit.training.reporting import report_predictions, upload_artifacts
+from tests.support.evaluators import CallbackAnalyzer, CallbackEvaluator
 from tests.support.training import (
     MeanModel,
-    make_data,
-    mae,
-    setup_mlflow,
     list_all_artifacts,
+    mae,
+    make_data,
+    setup_mlflow,
 )
-from tests.support.evaluators import CallbackEvaluator, CallbackAnalyzer
 
 
 @pytest.mark.parametrize("interleaved", [False, True])
@@ -118,8 +116,9 @@ def test_stage_flags_gate_whole_reporting_without_affecting_metrics(
         run_name="stages",
         data_analyzers=CallbackAnalyzer(
             name="data_audit",
-            evaluate=lambda **inputs: analyzed.append(inputs)
-            or {"rows": float(len(inputs["data"]))},
+            evaluate=lambda **inputs: (
+                analyzed.append(inputs) or {"rows": float(len(inputs["data"]))}
+            ),
             write_artifacts=lambda **inputs: analysis_written.append(inputs) or [],
         ),
         prediction_evaluators=CallbackEvaluator(

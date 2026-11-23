@@ -7,20 +7,20 @@ from optuna import Trial
 
 from .._console import Logger, capture_messages, datasets, message
 from ..config import TrainingConfig
+from ..data import validate_training_categories
+from ..data_analysis import DataAnalyzer
+from ..evaluation import PredictionEvaluator
+from ..feature_selection import FeatureSelector
 from ..metrics import Metric
+from ..model_evaluation import ModelEvaluator
 from ..models.base import Model
 from ..tracking import runs as tracking
 from ..types import ModelParams
 from .contracts import Pool
-from ..feature_selection import FeatureSelector
-from ..data import validate_training_categories
 from .evaluation import evaluate_model
-from .psi import prepare_psi_baseline, log_model_with_baseline
-from ..evaluation import PredictionEvaluator
-from ..model_evaluation import ModelEvaluator
-from ..data_analysis import DataAnalyzer
-from .results import SplitResult
+from .psi import log_model_with_baseline, prepare_psi_baseline
 from .reporting import report_feature_selection
+from .results import SplitResult
 from .tuning import tune_optuna
 
 logger = Logger(__name__)
@@ -53,7 +53,9 @@ def fit_split(
         len(validation),
         console=False,
     )
-    datasets(f"Validation split {index} data", {"train": train, "validation": validation})
+    datasets(
+        f"Validation split {index} data", {"train": train, "validation": validation}
+    )
     with tracking.run(f"validation/split_{index}"):
         selection = None
         if feature_selector is not None:
@@ -108,7 +110,8 @@ def fit_split(
                     **{
                         f"selection/objective_metrics/{key}": value
                         for key, value in (
-                            selection.steps[selection.selected_step].objective_metrics or {}
+                            selection.steps[selection.selected_step].objective_metrics
+                            or {}
                         ).items()
                     },
                 }
@@ -211,7 +214,8 @@ def fit_split(
         )
     message(
         "Split %s: %s selected features; best iteration (zero-based): %s",
-        index, len(result.features),
+        index,
+        len(result.features),
         "—" if result.best_iteration is None else result.best_iteration,
         verbosity="verbose",
     )

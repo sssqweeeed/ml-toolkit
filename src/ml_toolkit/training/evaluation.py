@@ -3,18 +3,18 @@
 from dataclasses import dataclass
 
 import numpy as np
+import polars as pl
 
 from .._console import Logger, metrics
-from ..psi import PSIBaseline
 from ..config import ReportingConfig
-from ..evaluation import PredictionEvaluator
 from ..data_analysis import DataAnalyzer
+from ..evaluation import PredictionEvaluator
 from ..evaluation._inputs import combine_evaluation_pools as _combine_pools
-import polars as pl
 from ..metrics import Metric
 from ..metrics._evaluation import calculate_metrics as calculate_metrics
 from ..model_evaluation import ModelEvaluator
 from ..models.base import Model
+from ..psi import PSIBaseline
 from ..tracking import runs as tracking
 from ..types import FloatArray
 from .contracts import DatasetSplit, Pool, TrainingStage
@@ -87,7 +87,11 @@ def evaluate_model(
         "final_fit": reporting.on_final_fit,
     }[stage]
     reports_enabled = enabled and bool(
-        evaluators or model_evaluators or analyzers or reporting.psi or reporting.shap is not None
+        evaluators
+        or model_evaluators
+        or analyzers
+        or reporting.psi
+        or reporting.shap is not None
     )
     objective_metrics = None
     if reports_enabled or objective_evaluator is not None:
@@ -126,4 +130,6 @@ def evaluate_model(
                 psi_baseline=psi_baseline,
                 scored_evaluator=objective_evaluator,
             )
-    return EvaluationResult(scores[DatasetSplit.TRAIN], scores.get(split), objective_metrics)
+    return EvaluationResult(
+        scores[DatasetSplit.TRAIN], scores.get(split), objective_metrics
+    )

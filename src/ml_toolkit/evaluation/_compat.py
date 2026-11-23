@@ -2,8 +2,9 @@
 
 from dataclasses import dataclass
 from pathlib import Path
+
 import polars as pl
-from .base import PredictionEvaluator
+
 from ..config import FigureConfig
 from ..data import Pool
 from ..data_analysis import (
@@ -11,8 +12,8 @@ from ..data_analysis import (
 )
 from ..feature_levels import FeatureLevelConfig
 from ..types import FloatArray, TimePeriod
-
 from ._common import validate_inputs
+from .base import PredictionEvaluator
 
 
 @dataclass(frozen=True, kw_only=True)

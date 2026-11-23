@@ -3,7 +3,9 @@
 import inspect
 import re
 from dataclasses import FrozenInstanceError, fields, is_dataclass, replace
+
 import pytest
+
 import ml_toolkit.config as settings
 from ml_toolkit.config import (
     FigureConfig,

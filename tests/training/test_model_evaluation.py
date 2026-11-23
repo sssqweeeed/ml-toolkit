@@ -24,8 +24,8 @@ from tests.support.training import (
     MeanModel,
     PrefixModel,
     list_all_artifacts,
-    make_data,
     mae,
+    make_data,
     setup_mlflow,
 )
 

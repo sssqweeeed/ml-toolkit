@@ -288,7 +288,7 @@ def test_gamma_early_stopping_uses_validation_deviance(data):
 
 
 def test_pu_metric_imports_remain_compatible():
-    from ml_toolkit.models.catboost_classification import UPUMetric, NNPUMetric
+    from ml_toolkit.models.catboost_classification import NNPUMetric, UPUMetric
     from ml_toolkit.models.losses.pu import common
 
     assert UPUMetric is common.UPUMetric
@@ -329,6 +329,7 @@ def test_gamma_cuda_type_inference(monkeypatch):
     from numba.core.target_extension import target_override
     from numba.core.typed_passes import type_inference_stage
     from numba.cuda.descriptor import cuda_target
+
     from ml_toolkit.models.losses.gamma.cuda import make_gamma_gpu_objective
 
     monkeypatch.setattr(

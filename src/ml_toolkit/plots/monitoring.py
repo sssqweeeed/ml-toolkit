@@ -5,9 +5,9 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import polars as pl
 
-from ..types import TimePeriod
 from .._time import paired_period_starts
 from ..config import FigureConfig
+from ..types import TimePeriod
 from .utils import save_figure
 
 
