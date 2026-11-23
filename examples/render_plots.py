@@ -207,7 +207,8 @@ def _validate_results(page: str, namespace: dict[str, object]) -> None:
         assert temporal["volume"].sum() == len(example.data)
     elif page.endswith("ranking.md"):
         ranked = cast(RankingMetrics, namespace["ranked"])
-        assert len(ranked.cumulative_exposure) == len(example.test) + 1
+        # One curve point per distinct score (tied scores form one step).
+        assert 1 < len(ranked.cumulative_exposure) <= len(example.test) + 1
         assert ranked.selected_points[0].percent == 10
         assert ranked.selected_points[0].lift > 1
         np.testing.assert_allclose(ranked.cumulative_observed[[0, -1]], [0, 1])

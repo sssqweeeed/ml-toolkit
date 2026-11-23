@@ -326,8 +326,8 @@ print({name: round(value, 4) for name, value in result.test_metrics.items()})
 
 <!-- output: configuration-run -->
 ```text
-{'mean_absolute_error': 111.9625, 'mean_squared_error': 26246.4224, 'root_mean_squared_error': 155.9688, 'r2_score': 0.1234, 'mean_error': -56.8402, 'mean_poisson_deviance': 120.7394, 'd2_poisson_score': 0.1843, 'prediction_over_observed': 0.7438, 'lift_at_10': 1.6123, 'gain_at_10': 0.1612, 'normalized_gini': 0.6381}
-{'mean_absolute_error': 144.2219, 'mean_squared_error': 42249.5587, 'root_mean_squared_error': 205.547, 'r2_score': 0.1309, 'mean_error': -75.6556, 'mean_poisson_deviance': 159.3838, 'd2_poisson_score': 0.1984, 'prediction_over_observed': 0.6959, 'lift_at_10': 1.7831, 'gain_at_10': 0.1783, 'normalized_gini': 0.7351}
+{'mean_absolute_error': 111.9625, 'mean_squared_error': 26246.4224, 'root_mean_squared_error': 155.9688, 'r2_score': 0.1234, 'mean_error': -56.8402, 'mean_poisson_deviance': 120.7394, 'd2_poisson_score': 0.1843, 'prediction_over_observed': 0.7438, 'lift_at_10': 1.5723, 'gain_at_10': 0.1572, 'normalized_gini': 0.6409}
+{'mean_absolute_error': 144.2219, 'mean_squared_error': 42249.5587, 'root_mean_squared_error': 205.547, 'r2_score': 0.1309, 'mean_error': -75.6556, 'mean_poisson_deviance': 159.3838, 'd2_poisson_score': 0.1984, 'prediction_over_observed': 0.6959, 'lift_at_10': 1.8886, 'gain_at_10': 0.1889, 'normalized_gini': 0.7326}
 ```
 <!-- /output -->
 
