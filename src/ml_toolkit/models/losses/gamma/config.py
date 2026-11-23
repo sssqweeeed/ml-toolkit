@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from ....types import ModelParams
-from .cpu import GammaMetric, GammaObjective
 
 if TYPE_CHECKING:
     from ....data import Pool
@@ -55,6 +54,9 @@ def configure_gamma(
     params.setdefault("boosting_type", "Plain")
     params.setdefault("leaf_estimation_method", "Newton")
     params.setdefault("leaf_estimation_iterations", 1)
+
+    # Training-only compiled code stays out of serving environments.
+    from .cpu import GammaMetric, GammaObjective
 
     metric = params.get("eval_metric", "Gamma")
     if isinstance(metric, str) and metric == "Gamma":

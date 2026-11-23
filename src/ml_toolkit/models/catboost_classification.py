@@ -16,7 +16,6 @@ from mlflow.pyfunc.utils import pyfunc
 
 from .._console import Logger
 from ..data import Pool, validate_training_categories
-from ..metrics.classification import binary_threshold_scores
 from ..types import FloatArray, IntArray, ModelParams
 from ._catboost import (
     ITERATION_ALIASES,
@@ -38,7 +37,6 @@ from .losses.pu.common import (
 from .losses.pu.common import (
     UPUMetric as UPUMetric,
 )
-from .losses.pu.cpu import UPUObjective
 from .state import ClassificationState, read_state
 
 logger = Logger("ml_toolkit.models.catboost_classification")
@@ -490,6 +488,9 @@ class CatBoostClassificationModel(PythonModel):
         y_true: FloatArray, probabilities: FloatArray, weight: FloatArray | None = None
     ) -> tuple[float, float]:
 
+        # Serving must not import ml_toolkit.metrics (checked by the inference test).
+        from ..metrics.classification import binary_threshold_scores
+
         y = np.asarray(y_true, dtype=float)
         p = np.asarray(probabilities, dtype=float)
         w = np.ones(len(y)) if weight is None else np.asarray(weight, dtype=float)
@@ -733,6 +734,9 @@ class CatBoostPUClassificationModel(CatBoostClassificationModel):
                 positive_scale, unlabeled_scale
             )
         else:
+            # Training-only compiled code stays out of serving environments.
+            from .losses.pu.cpu import UPUObjective
+
             params["loss_function"] = UPUObjective(positive_scale, unlabeled_scale)
         if validation is not None:
             params.setdefault("use_best_model", True)

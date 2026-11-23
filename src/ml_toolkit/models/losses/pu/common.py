@@ -5,9 +5,7 @@ from collections.abc import Sequence
 
 import numpy as np
 
-from ....metrics.pu import risk_components
 from ....types import FloatArray
-from .cpu import upu_risk
 
 
 def pu_risks(
@@ -17,6 +15,9 @@ def pu_risks(
     prior: float,
 ) -> tuple[float, float]:
     """Return the positive and estimated negative logistic PU risks."""
+    # Serving must not import ml_toolkit.metrics (checked by the inference test).
+    from ....metrics.pu import risk_components
+
     logits = np.asarray(logits, dtype=float).reshape(-1)
     labels = np.asarray(labels).reshape(-1)
     weights = np.asarray(weights, dtype=float).reshape(-1)
@@ -60,6 +61,8 @@ class PURiskMetric:
         target: Sequence[float],
         weight: Sequence[float] | None,
     ) -> tuple[float, float]:
+        # Training-only compiled code stays out of serving environments.
+
         if len(approxes) != 1:
             raise ValueError("PU risk requires one-dimensional raw predictions")
         weights = np.ones(len(target)) if weight is None else weight
@@ -82,6 +85,9 @@ class UPUMetric(PURiskMetric):
         target: Sequence[float],
         weight: Sequence[float] | None,
     ) -> tuple[float, float]:
+        # Training-only compiled code stays out of serving environments.
+        from .cpu import upu_risk
+
         if len(approxes) != 1:
             raise ValueError("PU risk requires one-dimensional raw predictions")
         risk = upu_risk(
