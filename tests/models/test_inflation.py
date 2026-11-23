@@ -1,8 +1,10 @@
 """Inflation adapter prediction dates and timestamp precision."""
 
 import warnings
+from dataclasses import replace
 from datetime import date, timedelta
 
+import mlflow
 import numpy as np
 import pandas as pd
 import polars as pl
@@ -11,6 +13,7 @@ import pytest
 from ml_toolkit.inflation import ConstantRateInflation, ManualInflation
 from ml_toolkit.models import CatBoostRegressionModel, InflationAdjustedModel
 from tests.models.support import PARAMS
+from tests.support.training import setup_mlflow
 
 
 def test_inflation_predicts_fragmented_frame_without_warning(data, monkeypatch):
@@ -76,3 +79,25 @@ def test_inflation_preserves_datetime_precision_and_validates_dates(data, manual
     invalid.loc[0, model.prediction_date_column] = pd.NaT
     with pytest.raises(ValueError, match="must not contain null"):
         model.predict_frame(invalid)
+
+
+def test_inflation_supports_timezone_aware_time_for_prediction_and_logging(
+    data, tmp_path
+):
+    setup_mlflow(tmp_path)
+    naive = data.time.cast(pl.Datetime("us")) + timedelta(hours=5)
+    zoned = naive.dt.replace_time_zone("UTC").dt.convert_time_zone("Europe/Moscow")
+    assert zoned.dtype == pl.Datetime("us", "Europe/Moscow")
+    start = date(2024, 1, 1)
+    zoned_data = replace(data, time=zoned)
+    naive_data = replace(data, time=naive)
+    model = InflationAdjustedModel(
+        CatBoostRegressionModel(PARAMS), ConstantRateInflation(0.03), start
+    ).fit(naive_data)
+
+    np.testing.assert_allclose(
+        model.predict_pool(zoned_data), model.predict_pool(naive_data)
+    )
+    with mlflow.start_run():
+        infos = model.log(zoned_data)
+    assert len(infos) == 2
