@@ -38,10 +38,8 @@ def _counts(transformer: LevelTransformer, levels: pl.DataFrame) -> pl.DataFrame
             .agg(pl.len().cast(pl.Int64).alias("rows"))
         )
         tables.append(
-            # Existing interval display labels can coincide after rounding.
-            # Counts describe transformed labels, so store each label once.
             pl.DataFrame(
-                {"level": list(dict.fromkeys(feature.levels))},
+                {"level": list(feature.levels)},
                 schema={"level": pl.String},
             )
             .with_row_index("level_order")
@@ -216,8 +214,6 @@ class PSIBaseline:
                     epsilon=cast(float, self.metadata["epsilon"]),
                 )
             )
-            # Preserve the established report layout, even for coincident
-            # display labels, while scoring each distinct label only once.
             grid = pl.DataFrame({"level": feature.levels}).with_row_index("level_order")
             distributions.extend(
                 grid.join(table, on="level", how="left")

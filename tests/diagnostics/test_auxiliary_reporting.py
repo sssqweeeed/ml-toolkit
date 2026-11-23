@@ -144,13 +144,17 @@ def test_constant_missing_and_tied_references(reference, boundaries):
 
 
 @pytest.mark.parametrize("infinity", [float("inf"), float("-inf")])
-def test_infinite_regular_values_rejected_on_fit_and_transform(infinity):
+def test_infinite_regular_values_are_valid_on_fit_and_transform(infinity):
     definitions = (FeatureLevelConfig("value", "numerical", lower_bound=0),)
-    with pytest.raises(ValueError, match="finite"):
-        LevelTransformer(definitions).fit(pl.DataFrame({"value": [infinity]}))
+    LevelTransformer(definitions).fit(pl.DataFrame({"value": [infinity]}))
     transformer = LevelTransformer(definitions).fit(pl.DataFrame({"value": [1.0, 2.0]}))
-    with pytest.raises(ValueError, match="finite"):
-        transformer.transform(pl.DataFrame({"value": [infinity]}))
+    expected = "__ERROR__" if infinity < 0 else "[1.9, inf)"
+    assert (
+        transformer.transform(pl.DataFrame({"value": [infinity]}))["value"]
+        .cast(pl.String)
+        .item()
+        == expected
+    )
     sentinel = LevelTransformer(
         (FeatureLevelConfig("value", "numerical", error_level=infinity),)
     ).fit(pl.DataFrame({"value": [1.0, infinity]}))
