@@ -15,13 +15,15 @@ import pytest
 
 from examples.project_pool import ProjectPool as Pool
 from ml_toolkit.models import CatBoostPUClassificationModel
-from ml_toolkit.models.losses.pu.common import (
+from ml_toolkit.models.losses.pu import (
     PULogisticObjective,
     PURiskMetric,
     UPUMetric,
+    UPUObjective,
     pu_risks,
+    upu_derivatives,
+    upu_risk,
 )
-from ml_toolkit.models.losses.pu.cpu import UPUObjective, upu_derivatives, upu_risk
 
 
 @pytest.fixture
@@ -223,7 +225,7 @@ def test_cuda_kernel_type_inference_without_device(monkeypatch):
     from numba.core.typed_passes import type_inference_stage
     from numba.cuda.descriptor import cuda_target
 
-    from ml_toolkit.models.losses.pu.cuda import make_upu_gpu_objective
+    from ml_toolkit.models.losses.pu_cuda import make_upu_gpu_objective
 
     # Exercise the actual CUDA type checker; the simulator runs Python and
     # cannot detect unsupported overloads such as the variadic max(a, b).

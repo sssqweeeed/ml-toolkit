@@ -26,7 +26,7 @@ from ml_toolkit.models import (
     InflationAdjustedModel,
     TrackingConfig,
 )
-from ml_toolkit.models._catboost import refit_parameters
+from ml_toolkit.models.catboost import refit_parameters
 from ml_toolkit.training import train_model
 from tests.support.training import MeanModel, mae, make_data, setup_mlflow
 from tests.support.training import make_identified_data as identified_data

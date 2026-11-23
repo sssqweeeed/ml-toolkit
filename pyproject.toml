@@ -73,8 +73,6 @@ convention = "numpy"
 "tests/**" = ["D", "E402", "E731", "B018", "B023"]
 "tests/typecheck/*" = ["ALL"]
 "examples/**" = ["D", "E402", "B023"]
-# Temporary until the 7.0.0 refactor phases rewrite these modules:
-# fitted-state checks via bare property access (models), report callbacks (training).
-"src/ml_toolkit/models/catboost_classification.py" = ["B018"]
-"src/ml_toolkit/models/catboost_regression.py" = ["B018"]
+# Temporary until the 7.0.0 refactor phases rewrite this module:
+# report callbacks (training).
 "src/ml_toolkit/training/reporting.py" = ["B023"]

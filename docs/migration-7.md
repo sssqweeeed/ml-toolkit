@@ -49,3 +49,19 @@ adapters package themselves, as in `examples/custom_model.py`.
 ## Internal checks
 
 `tests/test_architecture.py` enforces the layer order between modules.
+
+## Models (phase 2)
+
+These are internal modules. The classes exported from `ml_toolkit.models` and
+the model-state schema are unchanged.
+
+| Old import | New import |
+| --- | --- |
+| `ml_toolkit.models._catboost` | `ml_toolkit.models.catboost` |
+| `ml_toolkit.models._shrink.validate_size` | `ml_toolkit.models.base.validate_size` |
+| `ml_toolkit.models.losses.gamma.config`, `.gamma.cpu` | `ml_toolkit.models.losses.gamma` |
+| `ml_toolkit.models.losses.gamma.cuda` | `ml_toolkit.models.losses.gamma_cuda` |
+| `ml_toolkit.models.losses.pu.common`, `.pu.cpu` | `ml_toolkit.models.losses.pu` |
+| `ml_toolkit.models.losses.pu.cuda` | `ml_toolkit.models.losses.pu_cuda` |
+| `ml_toolkit.models.losses.cuda` | `ml_toolkit.models.losses._cuda` (private) |
+| `UPUMetric`, `NNPUMetric` from `ml_toolkit.models.catboost_classification` | `ml_toolkit.models.losses.pu` |

@@ -18,8 +18,8 @@ from mlflow.pyfunc.model import PythonModel
 from .._console import Logger
 from ..data import Pool
 from ..types import FloatArray, ModelParams
-from ._shrink import validate_size
 from .artifacts import TrackingConfig, log_model_from_code
+from .base import validate_size
 
 logger = Logger("ml_toolkit.models.lightgbm")
 

@@ -17,7 +17,7 @@ import pytest
 from sklearn.metrics import mean_gamma_deviance
 
 from ml_toolkit.models import CatBoostLogLinkRegressionModel, CatBoostRegressionModel
-from ml_toolkit.models.losses.gamma.cpu import (
+from ml_toolkit.models.losses.gamma import (
     GammaMetric,
     GammaObjective,
     gamma_derivatives,
@@ -287,14 +287,6 @@ def test_gamma_early_stopping_uses_validation_deviance(data):
     )
 
 
-def test_pu_metric_imports_remain_compatible():
-    from ml_toolkit.models.catboost_classification import NNPUMetric, UPUMetric
-    from ml_toolkit.models.losses.pu import common
-
-    assert UPUMetric is common.UPUMetric
-    assert NNPUMetric is common.NNPUMetric
-
-
 def test_gamma_gpu_routing(data, monkeypatch):
     import ml_toolkit.models.catboost_regression as module
 
@@ -330,7 +322,7 @@ def test_gamma_cuda_type_inference(monkeypatch):
     from numba.core.typed_passes import type_inference_stage
     from numba.cuda.descriptor import cuda_target
 
-    from ml_toolkit.models.losses.gamma.cuda import make_gamma_gpu_objective
+    from ml_toolkit.models.losses.gamma_cuda import make_gamma_gpu_objective
 
     monkeypatch.setattr(
         "numba.cuda.dispatcher.get_current_device",

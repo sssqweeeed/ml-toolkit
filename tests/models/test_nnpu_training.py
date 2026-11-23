@@ -1,5 +1,6 @@
 """nnPU boosting loop: incremental logits, equivalence, warnings, aliases."""
 
+import sys
 import warnings
 
 import numpy as np
@@ -33,7 +34,7 @@ def split(data):
 
 
 def test_incremental_logits_match_full_prediction(monkeypatch, split):
-    import ml_toolkit.models.catboost_classification as module
+    import ml_toolkit.models.losses.pu as module
 
     _, train, validation = split
     train_calls, validation_calls = [], []
@@ -41,7 +42,14 @@ def test_incremental_logits_match_full_prediction(monkeypatch, split):
 
     # Train (32 rows) and validation (16 rows) differ in size, so the row
     # count identifies which sample a risk call belongs to.
+    # The metric callback shares pu_risks; only adapter and loop calls are recorded.
     def record(logits, labels, weights, prior):
+        if sys._getframe(1).f_code.co_name not in (
+            "fit_nnpu",
+            "_validate_params",
+            "_fit_backend",
+        ):
+            return original_risks(logits, labels, weights, prior)
         calls = train_calls if len(labels) == len(train.y) else validation_calls
         calls.append(np.array(logits))
         return original_risks(logits, labels, weights, prior)
