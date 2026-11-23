@@ -67,7 +67,7 @@ def test_pandas_preparation_reuses_numeric_buffers_without_mutating_categories()
 @pytest.mark.parametrize(
     "values", [["b", "a", "b"], [1, 2, 1], [1, "1", None], [None] * 3]
 )
-def test_pandas_encoded_categories_match_previous_string_values(values):
+def test_pandas_encoded_categories_match_training_encoding(values):
     data = pd.DataFrame(
         {"cat": pd.Categorical(values), "a": [1.0, 2.0, 3.0]}, index=[7, 8, 9]
     )
@@ -77,8 +77,6 @@ def test_pandas_encoded_categories_match_previous_string_values(values):
     assert isinstance(result["cat"].dtype, pd.CategoricalDtype)
     pd.testing.assert_series_equal(result["cat"].astype(str), expected)
     pd.testing.assert_frame_equal(data, original)
-    if values == ["b", "a", "b"]:
-        assert np.shares_memory(data["cat"].array.codes, result["cat"].array.codes)
 
 
 @pytest.mark.parametrize("kind", [CatBoostRegressionModel, CatBoostClassificationModel])
@@ -241,3 +239,51 @@ def test_weighted_threshold_prefers_larger_threshold_on_exact_ties():
     tied = binary_curves(y, np.full(3, 0.6), weight=w)
     assert tied.threshold.to_list() == [0.6]
     assert tied.f1.to_list() == pytest.approx([2 / 3])
+
+
+def test_pandas_and_polars_categories_and_predictions_agree():
+    n = 24
+    polars_data = pl.DataFrame(
+        {
+            "flag": [True, False, None] * 8,
+            "num": pl.Series([1, 2, None] * 8, dtype=pl.Int64),
+            "text": ["x", "y", None] * 8,
+            "cat": pl.Series(["u", None, "v"] * 8, dtype=pl.Categorical),
+            "a": [float(i) for i in range(n)],
+        }
+    )
+    pandas_data = pd.DataFrame(
+        {
+            "flag": pd.array([True, False, None] * 8, dtype="boolean"),
+            "num": pd.array([1, 2, None] * 8, dtype="Int64"),
+            "text": pd.Series(["x", "y", None] * 8, dtype="string"),
+            "cat": pd.Categorical(["u", np.nan, "v"] * 8),
+            "a": [float(i) for i in range(n)],
+        }
+    )
+    names = ["flag", "num", "text", "cat", "a"]
+    cats = ["flag", "num", "text", "cat"]
+    from_polars = prepare_frame(polars_data, names, cats)
+    from_pandas = prepare_frame(pandas_data, names, cats)
+    for name in cats:
+        assert from_pandas[name].astype(str).to_list() == (
+            from_polars[name].astype(str).to_list()
+        )
+    assert from_pandas["flag"].astype(str).to_list()[:3] == ["true", "false", "unknown"]
+    model = CatBoostRegressionModel(
+        {"iterations": 5, "thread_count": 1, "verbose": False,
+         "allow_writing_files": False}
+    )
+    model.fit(
+        ProjectPool(
+            X=polars_data,
+            y=pl.Series([float(i % 5) for i in range(n)]),
+            time=pl.Series([date(2025, 1, 1) + timedelta(days=i) for i in range(n)]),
+            weight=pl.Series([1.0] * n),
+            numerical_features=("a",),
+            cat_features=tuple(cats),
+        )
+    )
+    np.testing.assert_array_equal(
+        model.predict_frame(pandas_data), model.predict_frame(polars_data)
+    )

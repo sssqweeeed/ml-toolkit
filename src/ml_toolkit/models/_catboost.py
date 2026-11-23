@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TypeVar, cast
+from typing import TypeVar
 
 import catboost
 import numpy as np
@@ -44,28 +44,26 @@ def prepare_frame(
     frame = pd.DataFrame(
         {name: data[name] for name in names}, index=data.index, copy=False
     )
-    for name in categorical:
-        column = frame[name]
-        if isinstance(column.dtype, pd.CategoricalDtype):
-            labels = column.cat.categories.astype("string")
-            if not column.cat.categories.equals(labels):
-                # Convert dictionary entries, never a string for every row.
-                codes, categories = pd.factorize(labels, sort=False)
-                row_codes = cast(pd.Categorical, column.array).codes
-                mapping = np.append(codes, -1).astype(row_codes.dtype, copy=False)
-                mapped = mapping[row_codes]
-                column = pd.Series(
-                    pd.Categorical.from_codes(mapped, categories=categories),
-                    index=column.index,
-                    name=name,
-                )
-            if column.isna().any():
-                if "unknown" not in column.cat.categories:
-                    column = column.cat.add_categories(["unknown"])
-                column = column.fillna("unknown")
-            frame[name] = column
-        else:
-            frame[name] = column.astype("string").fillna("unknown").astype("category")
+    if categorical:
+        # Reuse the training conversion so category strings match exactly.
+        columns = frame[list(categorical)]
+        # Mixed-type object values (also as pandas Categorical dictionaries) cannot
+        # convert to Arrow; format them as pandas strings first. They cannot
+        # originate from the Polars training path.
+        mixed = [
+            name
+            for name in categorical
+            if columns[name].dtype == object
+            or (
+                isinstance(columns[name].dtype, pd.CategoricalDtype)
+                and columns[name].cat.categories.dtype == object
+            )
+        ]
+        columns = columns.astype({name: "string" for name in mixed})
+        converted = categorical_frame(pl.from_pandas(columns), categorical)
+        converted.index = frame.index
+        for name in categorical:
+            frame[name] = converted[name]
     return frame
 
 
