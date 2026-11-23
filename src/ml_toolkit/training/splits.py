@@ -374,9 +374,7 @@ class TimeSeriesCV(Splitter[DataT]):
             start, stop = self._starts[index - 1], self._starts[index]
             end = _training_end(self.data, start, self.gap)
             first = (
-                0
-                if self.max_train_size is None
-                else max(0, end - self.max_train_size)
+                0 if self.max_train_size is None else max(0, end - self.max_train_size)
             )
             yield Split(
                 self.data.take(range(first, end)),

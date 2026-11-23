@@ -2,8 +2,10 @@
 
 from collections.abc import Callable
 from pathlib import Path
+
 import numpy as np
 import polars as pl
+
 from .._rows import row_indexer
 from ..config import FigureConfig
 from ..data import Pool

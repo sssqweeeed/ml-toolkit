@@ -19,7 +19,7 @@ shap = ["shap>=0.46"]
 lightgbm = ["lightgbm>=4.0"]
 cuda = ["numba-cuda[cu12]>=0.19"]
 all = ["shap>=0.46", "lightgbm>=4.0"]
-test = ["pytest>=8", "pytest-xdist>=3.6", "pytest-cov>=6", "pyright>=1.1", "pandas-stubs>=2.2"]
+test = ["pytest>=8", "pytest-xdist>=3.6", "pytest-cov>=6", "pyright>=1.1", "pandas-stubs>=2.2", "ruff>=0.15"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -50,3 +50,31 @@ typeCheckingMode = "strict"
 pythonVersion = "3.12"
 venvPath = "."
 venv = ".venv"
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+extend-exclude = ["typings"]
+
+[tool.ruff.format]
+# Static contract checks pair each error with a marker on the same line.
+exclude = ["tests/typecheck/*"]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "UP", "B", "D"]
+# D1: docstring presence is decided by the public-API rules, not per symbol.
+# B905: zip(strict=...) is chosen case by case.
+ignore = ["D1", "B905"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["D", "E402", "E731", "B018", "B023"]
+"tests/typecheck/*" = ["ALL"]
+"examples/**" = ["D", "E402", "B023"]
+# Temporary until the 7.0.0 refactor phases rewrite these modules:
+# fitted-state checks via bare property access (models), report callbacks (training).
+"src/ml_toolkit/models/catboost_classification.py" = ["B018"]
+"src/ml_toolkit/models/catboost_regression.py" = ["B018"]
+"src/ml_toolkit/training/reporting.py" = ["B023"]

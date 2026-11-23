@@ -19,9 +19,9 @@ from ..evaluation._metrics import validate_report_metrics
 from ..feature_levels import LevelTransformer
 from ..feature_levels.config import feature_definitions
 from ..feature_selection import FeatureSelectionResult
-from ..models.base import Model
-from ..model_evaluation import ModelEvaluator
 from ..metrics import Metric
+from ..model_evaluation import ModelEvaluator
+from ..models.base import Model
 from ..plots import psi as psi_plots
 from ..plots.utils import feature_filename
 from ..psi import PSIBaseline, compare_psi
@@ -42,7 +42,9 @@ def prepare_evaluators(
     items = (
         ()
         if evaluators is None
-        else tuple(evaluators) if isinstance(evaluators, list) else (evaluators,)
+        else tuple(evaluators)
+        if isinstance(evaluators, list)
+        else (evaluators,)
     )
     names: set[str] = set()
     reserved: set[str] = set()
@@ -70,8 +72,11 @@ def prepare_model_evaluators(
 ) -> tuple[ModelEvaluator, ...]:
     """Normalize fitted-model reports independently of prediction reports."""
     return (
-        () if evaluators is None
-        else tuple(evaluators) if isinstance(evaluators, list) else (evaluators,)
+        ()
+        if evaluators is None
+        else tuple(evaluators)
+        if isinstance(evaluators, list)
+        else (evaluators,)
     )
 
 
@@ -82,7 +87,9 @@ def prepare_analyzers(
     return (
         ()
         if analyzers is None
-        else tuple(analyzers) if isinstance(analyzers, list) else (analyzers,)
+        else tuple(analyzers)
+        if isinstance(analyzers, list)
+        else (analyzers,)
     )
 
 
@@ -133,7 +140,7 @@ def upload_artifacts(root: Path, paths: list[Path], namespace: str) -> None:
 def report_feature_selection(
     result: FeatureSelectionResult, config: ReportingConfig, *, stage: str
 ) -> None:
-    """Always plot a known selector's single search history in its active run."""
+    """Plot a known selector's single search history in its active run."""
     from ..plots import feature_selection as selection_plots
 
     selector = result.settings.get("selector")
@@ -187,7 +194,8 @@ def report_predictions(
         _run_report(
             name=evaluator.name,
             evaluate=(
-                None if evaluator is scored_evaluator
+                None
+                if evaluator is scored_evaluator
                 else lambda: evaluator.evaluate(
                     data=data, prediction=prediction, split=split
                 )
@@ -211,8 +219,12 @@ def report_predictions(
                     model=model, metric=metric, data=data, split=split
                 ),
                 write=lambda root: model_evaluator.write_artifacts(
-                    model=model, metric=metric, data=data, split=split,
-                    artifact_dir=root, figure=config.figure,
+                    model=model,
+                    metric=metric,
+                    data=data,
+                    split=split,
+                    artifact_dir=root,
+                    figure=config.figure,
                 ),
                 context=f"Model evaluation evaluator={model_evaluator.name}, stage={stage}",
             )
@@ -247,7 +259,9 @@ def evaluate_report_metrics(
     try:
         metrics = validate_report_metrics(evaluate())
         if metrics:
-            tracking.log_metrics({f"{name}/{key}": value for key, value in metrics.items()})
+            tracking.log_metrics(
+                {f"{name}/{key}": value for key, value in metrics.items()}
+            )
         return metrics
     except Exception as exc:
         exc.add_note(context)

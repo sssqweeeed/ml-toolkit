@@ -1,13 +1,10 @@
 """Feature selection across native, PU, and inflation-adjusted adapters."""
 
-from ml_toolkit.training import Holdout
-
 from datetime import date
 
 import numpy as np
 import polars as pl
 import pytest
-
 
 from ml_toolkit.feature_selection import RFESelector
 from ml_toolkit.inflation import ConstantRateInflation
@@ -18,7 +15,7 @@ from ml_toolkit.models import (
     CatBoostRegressionModel,
     InflationAdjustedModel,
 )
-from ml_toolkit.training import ShapRanker, importance_ranker
+from ml_toolkit.training import Holdout, ShapRanker, importance_ranker
 from tests.models.support import PARAMS
 from tests.support.training import mae
 
@@ -85,8 +82,12 @@ def test_inflation_selection_fits_strategy_on_supplied_training_only(data):
     class RecordingInflation(ConstantRateInflation):
         def fit(self, data):
             seen.append(
-                (data.time.clone(), data.y.to_numpy().copy(),
-                 data.weight.to_numpy().copy(), tuple(data.X.columns))
+                (
+                    data.time.clone(),
+                    data.y.to_numpy().copy(),
+                    data.weight.to_numpy().copy(),
+                    tuple(data.X.columns),
+                )
             )
             return super().fit(data)
 

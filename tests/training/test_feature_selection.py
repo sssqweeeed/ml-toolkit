@@ -1,7 +1,5 @@
 """Batch RFE selection, objective handling and adapter/ranker boundaries."""
 
-from ml_toolkit.training import Holdout
-
 from dataclasses import dataclass, replace
 from datetime import date, timedelta
 from types import SimpleNamespace
@@ -14,11 +12,10 @@ from polars.testing import assert_frame_equal, assert_series_equal
 
 from examples.project_pool import ProjectPool as Pool
 from ml_toolkit.feature_selection import RFESelector
-
 from ml_toolkit.metrics import MetricScores
-from tests.support.training import ProjectData
 from ml_toolkit.models import CatBoostRegressionModel
-from ml_toolkit.training import ShapRanker, importance_ranker
+from ml_toolkit.training import Holdout, ShapRanker, importance_ranker
+from tests.support.training import ProjectData
 
 
 @pytest.fixture
@@ -155,10 +152,12 @@ def test_supplied_split_preserves_gap_metadata_and_weighted_metric(data):
         assert validation.object_id.to_list() == list(range(18, 24))
         assert train.numerical_features == tuple(train.X.columns)
         for field in ("y", "time", "weight", "object_id", "auxiliary_features"):
-            compare = assert_frame_equal if field == "auxiliary_features" else assert_series_equal
-            compare(
-                getattr(train, field), getattr(data.take(range(16)), field)
+            compare = (
+                assert_frame_equal
+                if field == "auxiliary_features"
+                else assert_series_equal
             )
+            compare(getattr(train, field), getattr(data.take(range(16)), field))
             compare(
                 getattr(validation, field), getattr(data.take(range(18, 24)), field)
             )

@@ -10,7 +10,7 @@ import pytest
 from ml_toolkit.config import FigureConfig
 from ml_toolkit.metrics import MetricScores
 from ml_toolkit.model_evaluation import PermutationImportance
-from tests.support.training import MeanModel, make_data, mae
+from tests.support.training import MeanModel, mae, make_data
 
 
 class SignalModel(MeanModel):
@@ -49,7 +49,7 @@ def test_selected_score_deterioration_weights_and_original_rows():
     assert (
         table.filter(pl.col("group_id") == "g001")["importance"].to_list() == [0.0] * 3
     )
-    for target, prediction, weight in seen:
+    for target, _prediction, weight in seen:
         np.testing.assert_array_equal(target, data.y.to_numpy()[1::2])
         np.testing.assert_array_equal(weight, data.weight.to_numpy()[1::2])
     np.testing.assert_array_equal(

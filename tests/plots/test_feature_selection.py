@@ -3,9 +3,9 @@
 from dataclasses import replace
 
 import matplotlib.pyplot as plt
-from matplotlib.backends.backend_agg import FigureCanvasAgg
 import numpy as np
 import pytest
+from matplotlib.backends.backend_agg import FigureCanvasAgg
 
 from ml_toolkit.config import FigureConfig
 from ml_toolkit.feature_selection import FeatureSelectionResult, FeatureSelectionStep
@@ -46,9 +46,13 @@ def test_rfe_plot_uses_evaluator_scores_with_colliding_ordinary_keys(tmp_path, f
         "rfe",
         [
             replace(step(names, 1000 + index), objective_metrics={"score": score})
-            for index, (names, score) in enumerate([("abc", 1.0), ("ab", 3.0), ("a", 2.0)])
+            for index, (names, score) in enumerate(
+                [("abc", 1.0), ("ab", 3.0), ("a", 2.0)]
+            )
         ],
-        1, score_tolerance=0, evaluator="business",
+        1,
+        score_tolerance=0,
+        evaluator="business",
     )
     plots.rfe_progress(result, tmp_path / "evaluator-rfe.png")
     ax = figures[0].axes[0]
@@ -57,12 +61,18 @@ def test_rfe_plot_uses_evaluator_scores_with_colliding_ordinary_keys(tmp_path, f
     assert "business/score" in ax.get_ylabel()
 
 
-def test_forward_plots_use_evaluator_scores_for_path_and_improvements(tmp_path, figures):
+def test_forward_plots_use_evaluator_scores_for_path_and_improvements(
+    tmp_path, figures
+):
     original = forward_history()
     result = replace(
         original,
         steps=tuple(
-            replace(step, metrics={"score": 1000 + index}, objective_metrics=step.metrics.copy())
+            replace(
+                step,
+                metrics={"score": 1000 + index},
+                objective_metrics=step.metrics.copy(),
+            )
             for index, step in enumerate(original.steps)
         ),
         settings={**original.settings, "evaluator": "business"},

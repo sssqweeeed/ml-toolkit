@@ -20,15 +20,19 @@ def test_weighted_gain_curve_interpolation_and_requested_point_order():
     assert result.gains_area == pytest.approx(43 / 72)
     assert result.normalized_gini == pytest.approx(1)
     assert [point.percent for point in result.selected_points] == [75, 25, 100]
-    np.testing.assert_allclose([p.gain for p in result.selected_points], [8 / 9, 1 / 3, 1])
-    np.testing.assert_allclose([p.lift for p in result.selected_points], [32 / 27, 4 / 3, 1])
+    np.testing.assert_allclose(
+        [p.gain for p in result.selected_points], [8 / 9, 1 / 3, 1]
+    )
+    np.testing.assert_allclose(
+        [p.lift for p in result.selected_points], [32 / 27, 4 / 3, 1]
+    )
 
 
 def test_ties_form_one_step_and_constant_targets_have_undefined_normalized_gini():
-    tied = ranking_metrics(np.array([1., 3.]), np.ones(2), np.ones(2))
+    tied = ranking_metrics(np.array([1.0, 3.0]), np.ones(2), np.ones(2))
     np.testing.assert_allclose(tied.cumulative_exposure, [0, 1])
     np.testing.assert_allclose(tied.cumulative_observed, [0, 1])
-    constant = ranking_metrics(np.ones(2), np.array([0.2, 0.8]), np.array([1., 3.]))
+    constant = ranking_metrics(np.ones(2), np.array([0.2, 0.8]), np.array([1.0, 3.0]))
     assert constant.gini == pytest.approx(0)
     assert constant.gains_area == pytest.approx(0.5)
     assert np.isnan(constant.normalized_gini)
@@ -71,7 +75,9 @@ def test_heavy_ties_are_invariant_to_row_permutation():
     w = rng.uniform(0.5, 2.0, n)
     base = ranking_metrics(y, score, w, selected_percents=(5, 33, 50))
     perm = rng.permutation(n)
-    other = ranking_metrics(y[perm], score[perm], w[perm], selected_percents=(5, 33, 50))
+    other = ranking_metrics(
+        y[perm], score[perm], w[perm], selected_percents=(5, 33, 50)
+    )
     assert other.gini == pytest.approx(base.gini)
     assert other.normalized_gini == pytest.approx(base.normalized_gini)
     assert other.gains_area == pytest.approx(base.gains_area)
@@ -94,7 +100,9 @@ def test_untied_data_matches_previous_implementation():
     assert result.normalized_gini == pytest.approx(0.7619047619047625, abs=1e-12)
     assert result.gains_area == pytest.approx(0.6441441441441442, abs=1e-12)
     assert result.perfect_gini == pytest.approx(0.3783783783783783, abs=1e-12)
-    assert result.selected_points[0].gain == pytest.approx(0.5648648648648649, abs=1e-12)
+    assert result.selected_points[0].gain == pytest.approx(
+        0.5648648648648649, abs=1e-12
+    )
     assert len(result.cumulative_observed) == 6
 
 
@@ -108,7 +116,9 @@ def test_selected_gain_inside_tie_block_interpolates_linearly():
     )
     np.testing.assert_allclose(result.cumulative_exposure, [0, 0.25, 1])
     np.testing.assert_allclose(result.cumulative_observed, [0, 1 / 3, 1])
-    assert result.selected_points[0].gain == pytest.approx(1 / 3 + (0.5 - 0.25) / 0.75 * 2 / 3)
+    assert result.selected_points[0].gain == pytest.approx(
+        1 / 3 + (0.5 - 0.25) / 0.75 * 2 / 3
+    )
 
 
 def test_tied_curve_hand_computed_values():
@@ -134,8 +144,12 @@ def test_zero_exposure_row_inside_tie_block_is_ignored():
         np.array([1.0, 3.0, 0.0]), np.array([0.5, 0.9, 0.5]), np.array([1.0, 1.0, 2.0])
     )
     assert w.sum() == 5.0
-    np.testing.assert_allclose(with_zero.cumulative_exposure, without.cumulative_exposure)
-    np.testing.assert_allclose(with_zero.cumulative_observed, without.cumulative_observed)
+    np.testing.assert_allclose(
+        with_zero.cumulative_exposure, without.cumulative_exposure
+    )
+    np.testing.assert_allclose(
+        with_zero.cumulative_observed, without.cumulative_observed
+    )
     assert with_zero.gini == pytest.approx(without.gini)
     assert with_zero.perfect_gini == pytest.approx(without.perfect_gini)
 

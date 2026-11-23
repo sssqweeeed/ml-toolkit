@@ -8,16 +8,16 @@ from typing import cast
 import numpy as np
 import polars as pl
 
+from ._serialization import decode_scalar, encode_scalar, mapping
 from .config import (
     ERROR_LEVEL,
     NULL_LEVEL,
     UNSEEN_LEVEL,
-    FeatureLevels,
     FeatureLevelConfig,
-    FeatureType,
+    FeatureLevels,
     FeatureScalar,
+    FeatureType,
 )
-from ._serialization import decode_scalar, encode_scalar, mapping
 
 
 def _interval_labels(

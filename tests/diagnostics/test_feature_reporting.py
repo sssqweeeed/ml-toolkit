@@ -1,22 +1,23 @@
 """Shared level semantics with independent, stateless report fits."""
 
 from dataclasses import replace
+
 import numpy as np
 import polars as pl
 import pytest
 
-from ml_toolkit.config import ReportingConfig, FigureConfig
+from ml_toolkit.config import FigureConfig, ReportingConfig
 from ml_toolkit.evaluation import (
-    ObservedFitted,
-    TimeObservedFitted,
-    NumericalFeatureDistributions,
     Calibration,
-    PrecisionRecall,
     F1Threshold,
     Gains,
     Lift,
-    PUScoreDistribution,
+    NumericalFeatureDistributions,
+    ObservedFitted,
+    PrecisionRecall,
     PUPositiveCapture,
+    PUScoreDistribution,
+    TimeObservedFitted,
 )
 from ml_toolkit.feature_levels import FeatureLevelConfig, LevelTransformer
 from ml_toolkit.training.reporting import report_predictions

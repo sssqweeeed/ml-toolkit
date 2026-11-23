@@ -9,9 +9,9 @@ import polars as pl
 import pytest
 from polars.testing import assert_frame_equal
 
-from ml_toolkit.evaluation import MetricTrend
 from ml_toolkit.config import FigureConfig, ReportingConfig
 from ml_toolkit.data import Pool
+from ml_toolkit.evaluation import MetricTrend
 from ml_toolkit.metrics import MetricScores, metrics_classification
 from ml_toolkit.plots.metric_trend import metric_trend
 from ml_toolkit.plots.utils import PlotError

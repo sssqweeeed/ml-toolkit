@@ -5,8 +5,8 @@ from __future__ import annotations
 import polars as pl
 
 from .._time import paired_period_starts
-from ..types import TimePeriod
 from ..feature_levels import FeatureLevels
+from ..types import TimePeriod
 
 LEVEL_SCHEMA = {
     "feature": pl.String,

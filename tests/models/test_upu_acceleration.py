@@ -15,13 +15,13 @@ import pytest
 
 from examples.project_pool import ProjectPool as Pool
 from ml_toolkit.models import CatBoostPUClassificationModel
-from ml_toolkit.models.losses.pu.cpu import UPUObjective, upu_derivatives, upu_risk
 from ml_toolkit.models.losses.pu.common import (
-    UPUMetric,
     PULogisticObjective,
     PURiskMetric,
+    UPUMetric,
     pu_risks,
 )
+from ml_toolkit.models.losses.pu.cpu import UPUObjective, upu_derivatives, upu_risk
 
 
 @pytest.fixture
@@ -108,13 +108,9 @@ def test_compiled_risk_uses_each_pool_group_normalization(weighted, size, prior)
     labels = (np.arange(size) % 3 == 0).astype(np.float32)
     weights = rng.uniform(0.1, 2, size).astype(np.float32) if weighted else None
     expected = sum(
-        pu_risks(
-            logits, labels, np.ones(size) if weights is None else weights, prior
-        )
+        pu_risks(logits, labels, np.ones(size) if weights is None else weights, prior)
     )
-    assert upu_risk(logits, labels, weights, prior) == pytest.approx(
-        expected, rel=1e-6
-    )
+    assert upu_risk(logits, labels, weights, prior) == pytest.approx(expected, rel=1e-6)
     metric = UPUMetric(prior)
     assert metric.evaluate([logits], labels, weights) == pytest.approx(
         (expected, 1), rel=1e-6

@@ -1,7 +1,8 @@
 from datetime import date
 
-from ml_toolkit.plots.regression import time_observed_fitted, observed_fitted_by_level
 import polars as pl
+
+from ml_toolkit.plots.regression import observed_fitted_by_level, time_observed_fitted
 
 
 def test_regression_weighted_aggregations(tmp_path):

@@ -27,10 +27,14 @@ from ._catboost import (
     refit_parameters,
 )
 from .losses.pu.common import (
-    UPUMetric as UPUMetric,
     NNPUMetric as NNPUMetric,
+)
+from .losses.pu.common import (
     PULogisticObjective,
     pu_risks,
+)
+from .losses.pu.common import (
+    UPUMetric as UPUMetric,
 )
 
 if TYPE_CHECKING:
@@ -783,9 +787,7 @@ class CatBoostPUClassificationModel(CatBoostClassificationModel):
         # Each tree's contribution is predicted on baseline-free pools, because
         # CatBoost adds a pool baseline to every prediction call.
         tree_train_data = train.to_catboost()
-        tree_validation_data = (
-            None if validation is None else validation.to_catboost()
-        )
+        tree_validation_data = None if validation is None else validation.to_catboost()
         train_logits = np.full(len(train.y), baseline, dtype=float)
         if validation is not None:
             pu_risks(

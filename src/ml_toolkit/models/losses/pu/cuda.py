@@ -2,6 +2,7 @@
 
 import logging
 import math
+
 from ..cuda import CudaArray, GPUObjective, cuda
 
 

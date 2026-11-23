@@ -2,6 +2,7 @@
 
 import numpy as np
 import polars as pl
+
 from ..data import Pool
 
 

@@ -22,7 +22,7 @@ class FeatureRanker(Protocol):
     Explicit inheritance from this protocol is unnecessary.
     """
 
-    def __call__(self, model: "Model", data: "Pool") -> Mapping[str, float]:
+    def __call__(self, model: Model, data: Pool) -> Mapping[str, float]:
         """Return finite ranking values keyed by every current feature name.
 
         Parameters

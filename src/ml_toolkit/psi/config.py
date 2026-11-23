@@ -2,9 +2,9 @@
 
 from dataclasses import dataclass
 
-from ..types import TimePeriod
 from .._time import PERIOD_INTERVALS
 from ..feature_levels import FeatureLevelConfig
+from ..types import TimePeriod
 
 
 @dataclass(frozen=True)

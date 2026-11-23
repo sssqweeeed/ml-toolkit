@@ -12,9 +12,9 @@ import pandas as pd
 import polars as pl
 from numpy.typing import ArrayLike
 
-from ..types import TimePeriod
 from .._time import paired_period_starts
 from ..config import FigureConfig
+from ..types import TimePeriod
 from .utils import PlotError, numeric_vector, same_length, save_figure, weights
 
 
@@ -289,8 +289,9 @@ def time_observed_fitted(
             current_group,
         ),
     ):
-        y, prediction = numeric_vector(observed, f"{name}_observed"), numeric_vector(
-            fitted, f"{name}_fitted"
+        y, prediction = (
+            numeric_vector(observed, f"{name}_observed"),
+            numeric_vector(fitted, f"{name}_fitted"),
         )
         time = pd.DatetimeIndex(timestamps.to_list())
         if fixed_offset:

@@ -8,12 +8,12 @@ and figures without modifying the documented files.
 from __future__ import annotations
 
 import argparse
-from contextlib import chdir, redirect_stdout
-from io import StringIO
 import os
-from pathlib import Path
 import re
 import shutil
+from contextlib import chdir, redirect_stdout
+from io import StringIO
+from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import cast
 
@@ -109,8 +109,8 @@ def _validate_results(page: str, namespace: dict[str, object]) -> None:
     import polars as pl
     import shap
 
-    from examples.evaluation_data import BikeEvaluation
     from examples.citation_data import CitationGallery
+    from examples.evaluation_data import BikeEvaluation
     from ml_toolkit.metrics import RankingMetrics
     from ml_toolkit.psi import PSIResult
 
@@ -133,7 +133,9 @@ def _validate_results(page: str, namespace: dict[str, object]) -> None:
         diagnostics = cast(ResidualResult, namespace["diagnostics"])
         assert diagnostics.rows.height == len(example.data)
         assert diagnostics.worst.height == 30
-        np.testing.assert_allclose(diagnostics.bins["sum_weight"].sum(), len(example.data))
+        np.testing.assert_allclose(
+            diagnostics.bins["sum_weight"].sum(), len(example.data)
+        )
     elif page.endswith("metric-trend.md"):
         trend = cast(pl.DataFrame, namespace["table"])
         assert trend["period_start"].n_unique() == 24

@@ -24,7 +24,14 @@ from ml_toolkit.data import Pool
 RETAIL_URL = "https://archive.ics.uci.edu/static/public/352/online+retail.zip"
 DEFAULT_RETAIL_CACHE = Path(__file__).resolve().parents[1] / ".cache/uci-online-retail"
 WORKBOOK = "Online Retail.xlsx"
-SOURCE_COLUMNS = ("InvoiceNo", "StockCode", "Quantity", "InvoiceDate", "UnitPrice", "Country")
+SOURCE_COLUMNS = (
+    "InvoiceNo",
+    "StockCode",
+    "Quantity",
+    "InvoiceDate",
+    "UnitPrice",
+    "Country",
+)
 
 
 @dataclass(frozen=True)
@@ -105,17 +112,23 @@ def load_retail_records(
                     "run python -m examples.prepare_data first"
                 )
             directory.mkdir(parents=True, exist_ok=True)
-            with TemporaryDirectory(prefix="retail-download-", dir=directory) as temporary:
+            with TemporaryDirectory(
+                prefix="retail-download-", dir=directory
+            ) as temporary:
                 archive_path = Path(temporary) / "retail.zip"
                 urlretrieve(RETAIL_URL, archive_path)
                 with ZipFile(archive_path) as archive:
                     extracted = Path(temporary) / WORKBOOK
                     extracted.write_bytes(archive.read(WORKBOOK))
                     extracted.replace(workbook)
-        records = pl.from_pandas(pd.read_excel(
-            workbook, engine="openpyxl", usecols=list(SOURCE_COLUMNS),
-            dtype={"InvoiceNo": str, "StockCode": str, "Country": str},
-        )).with_row_index("source_row")
+        records = pl.from_pandas(
+            pd.read_excel(
+                workbook,
+                engine="openpyxl",
+                usecols=list(SOURCE_COLUMNS),
+                dtype={"InvoiceNo": str, "StockCode": str, "Country": str},
+            )
+        ).with_row_index("source_row")
         if download_if_missing:
             records.write_parquet(normalized)
 
@@ -132,7 +145,8 @@ def load_retail_records(
         pl.col("InvoiceDate") < datetime(2011, 12, 1),
     )
     selected = [
-        invoice for invoice in eligible["InvoiceNo"].unique().to_list()
+        invoice
+        for invoice in eligible["InvoiceNo"].unique().to_list()
         if int.from_bytes(sha256(invoice.encode("utf-8")).digest()[:8], "big") % 10 == 0
     ]
     sampled = eligible.filter(pl.col("InvoiceNo").is_in(selected)).sort(
@@ -143,7 +157,9 @@ def load_retail_records(
             pl.col("InvoiceDate").min().alias("first"),
             pl.col("InvoiceDate").max().alias("last"),
         )
-        if spans.filter((pl.col("first") < boundary) & (pl.col("last") >= boundary)).height:
+        if spans.filter(
+            (pl.col("first") < boundary) & (pl.col("last") >= boundary)
+        ).height:
             raise ValueError("An invoice crosses a documented temporal boundary")
     return sampled
 
@@ -169,11 +185,17 @@ def load_retail_pool(
         Invoice IDs, customer IDs, dates, and target-derived amounts are excluded
         from model features. Sampling and filtering follow load_retail_records.
     """
-    records = load_retail_records(data_home=data_home, download_if_missing=download_if_missing)
+    records = load_retail_records(
+        data_home=data_home, download_if_missing=download_if_missing
+    )
     return Pool(
-        X=records.select("StockCode", "Country", "Quantity").rename({
-            "StockCode": "stock_code", "Country": "country", "Quantity": "quantity",
-        }),
+        X=records.select("StockCode", "Country", "Quantity").rename(
+            {
+                "StockCode": "stock_code",
+                "Country": "country",
+                "Quantity": "quantity",
+            }
+        ),
         y=records["UnitPrice"].cast(pl.Float64),
         time=records["InvoiceDate"],
         weight=pl.Series("weight", np.ones(len(records), dtype=np.float64)),
@@ -201,11 +223,18 @@ def load_retail_splits(
         Training ends before September 2011; validation is September; testing
         is October–November. Eligible lines of an invoice stay in one partition.
     """
-    data = load_retail_pool(data_home=data_home, download_if_missing=download_if_missing)
+    data = load_retail_pool(
+        data_home=data_home, download_if_missing=download_if_missing
+    )
     return RetailSplits(
         train=data.take(np.flatnonzero((data.time < datetime(2011, 9, 1)).to_numpy())),
-        validation=data.take(np.flatnonzero((
-            (data.time >= datetime(2011, 9, 1)) & (data.time < datetime(2011, 10, 1))
-        ).to_numpy())),
+        validation=data.take(
+            np.flatnonzero(
+                (
+                    (data.time >= datetime(2011, 9, 1))
+                    & (data.time < datetime(2011, 10, 1))
+                ).to_numpy()
+            )
+        ),
         test=data.take(np.flatnonzero((data.time >= datetime(2011, 10, 1)).to_numpy())),
     )

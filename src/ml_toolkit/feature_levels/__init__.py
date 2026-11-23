@@ -4,8 +4,8 @@ from .config import (
     ERROR_LEVEL,
     NULL_LEVEL,
     UNSEEN_LEVEL,
-    FeatureLevels,
     FeatureLevelConfig,
+    FeatureLevels,
     FeatureScalar,
     FeatureType,
 )

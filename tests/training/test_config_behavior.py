@@ -1,10 +1,13 @@
 """Observable training and reporting configuration policies."""
 
-from ml_toolkit.training import TimeSeriesCV
-
 from dataclasses import replace
 from importlib import import_module
+
 import mlflow
+
+from ml_toolkit.config import TrackingConfig, TrainingConfig, TuningConfig
+from ml_toolkit.feature_selection import RFESelector
+from ml_toolkit.training import TimeSeriesCV, importance_ranker, train_model
 from tests.support.training import (
     MeanModel,
     list_all_artifacts,
@@ -12,10 +15,6 @@ from tests.support.training import (
     make_data,
     setup_mlflow,
 )
-import ml_toolkit.config as settings
-from ml_toolkit.feature_selection import RFESelector
-from ml_toolkit.config import TrackingConfig, TrainingConfig, TuningConfig
-from ml_toolkit.training import importance_ranker, train_model
 
 
 def test_cv_honors_gap_and_row_window_sizes():

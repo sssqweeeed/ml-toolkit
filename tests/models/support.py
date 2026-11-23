@@ -1,8 +1,12 @@
 """Small native-model training settings and a serializable custom objective."""
 
 PARAMS = dict(
-    iterations=5, depth=2, learning_rate=0.1, thread_count=1,
-    verbose=False, allow_writing_files=False,
+    iterations=5,
+    depth=2,
+    learning_rate=0.1,
+    thread_count=1,
+    verbose=False,
+    allow_writing_files=False,
 )
 
 

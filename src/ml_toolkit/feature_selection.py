@@ -12,7 +12,7 @@ import numpy as np
 import polars as pl
 
 from ._console import Logger
-from .data import validate_training_data, validate_training_categories
+from .data import validate_training_categories, validate_training_data
 from .metrics import Metric
 from .metrics._evaluation import validate_prediction
 from .models.base import Model
@@ -222,7 +222,9 @@ def _evaluate(
             train_prediction = model.predict_pool(train)
             validate_prediction(train, train_prediction)
             data = combine_evaluation_pools(train, validation)
-            labels = pl.Series("split", ["train"] * len(train) + ["val"] * len(validation))
+            labels = pl.Series(
+                "split", ["train"] * len(train) + ["val"] * len(validation)
+            )
             objective_metrics = validate_report_metrics(
                 evaluator.evaluate(
                     data=data,
@@ -258,7 +260,9 @@ def _evaluate(
             raise ValueError("Feature importance must be finite")
         importances = {name: float(importances[name]) for name in names}
         ranking_seconds = perf_counter() - started
-    logger.debug("Selection candidate: %s features=%s; metrics=%s", len(names), names, scores)
+    logger.debug(
+        "Selection candidate: %s features=%s; metrics=%s", len(names), names, scores
+    )
     return FeatureSelectionStep(
         names,
         scores,
@@ -387,7 +391,11 @@ class RFESelector:
                 names = tuple(n for n in names if n in keep)
             history.append(step)
         scores = [
-            (step.metrics if step.objective_metrics is None else step.objective_metrics)[self.metric]
+            (
+                step.metrics
+                if step.objective_metrics is None
+                else step.objective_metrics
+            )[self.metric]
             for step in history
         ]
         best = min(scores) if self.direction == "minimize" else max(scores)
@@ -420,7 +428,11 @@ class RFESelector:
                 "max_fits": self.max_fits,
                 "score_tolerance": self.score_tolerance,
                 "protected_features": self.protected_features,
-                **({"evaluator": self.evaluator.name} if self.evaluator is not None else {}),
+                **(
+                    {"evaluator": self.evaluator.name}
+                    if self.evaluator is not None
+                    else {}
+                ),
             },
         )
 
@@ -634,7 +646,11 @@ class ForwardSelector:
                 )
             choose = min if self.direction == "minimize" else max
             scores = [
-                (step.metrics if step.objective_metrics is None else step.objective_metrics)[self.metric]
+                (
+                    step.metrics
+                    if step.objective_metrics is None
+                    else step.objective_metrics
+                )[self.metric]
                 for step in history
             ]
             best_index = choose(
@@ -663,6 +679,10 @@ class ForwardSelector:
                 "max_fits": self.max_fits,
                 "min_improvement": self.min_improvement,
                 "protected_features": self.protected_features,
-                **({"evaluator": self.evaluator.name} if self.evaluator is not None else {}),
+                **(
+                    {"evaluator": self.evaluator.name}
+                    if self.evaluator is not None
+                    else {}
+                ),
             },
         )

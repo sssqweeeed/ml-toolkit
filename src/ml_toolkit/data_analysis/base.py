@@ -1,9 +1,11 @@
 """Common contract for reports that require data without predictions."""
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
-import re
+
 import polars as pl
+
 from ..config import FigureConfig
 from ..data import Pool
 from ..feature_levels import FeatureLevelConfig

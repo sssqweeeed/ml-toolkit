@@ -1,7 +1,7 @@
 """Validated, immutable workflow configurations."""
 
-from ..types import TimePeriod
 from ..feature_levels import FeatureLevelConfig
+from ..types import TimePeriod
 from .reporting import (
     FigureConfig,
     ReportingConfig,

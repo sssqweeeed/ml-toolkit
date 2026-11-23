@@ -7,14 +7,14 @@ from dataclasses import dataclass, field
 import polars as pl
 
 from .._console import Logger
+from ..feature_levels import FeatureLevels, LevelTransformer
+from ..types import TimePeriod
 from .config import PSIConfig
 from .distributions import (
     TIME_SCHEMA,
     level_distributions,
     time_level_distributions,
 )
-from ..types import TimePeriod
-from ..feature_levels import FeatureLevels, LevelTransformer
 from .results import PSIResult
 from .score import psi
 

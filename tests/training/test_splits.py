@@ -295,7 +295,9 @@ def test_cv_unique_timestamps_match_sklearn(kwargs):
 
 def test_cv_panel_skip_splits_keeps_indices():
     windows = list(
-        TimeSeriesCV(panel_data(), n_splits=3, val_size=4, skip_splits=1).get_validation()
+        TimeSeriesCV(
+            panel_data(), n_splits=3, val_size=4, skip_splits=1
+        ).get_validation()
     )
     assert [split.index for split in windows] == [2, 3]
     held = [row for split in windows for row in split.heldout.object_id.to_list()]

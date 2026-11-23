@@ -1,8 +1,8 @@
 """Common contract for reports consuming aligned predictions."""
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
-import re
 
 import polars as pl
 

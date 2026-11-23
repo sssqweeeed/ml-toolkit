@@ -48,9 +48,7 @@ def test_close_boundaries_get_unique_labels_and_unit_shares():
         PSIAnalysis(config).fit(reference).compare(current),
         baseline.compare(current),
     ):
-        shares = result.level_distribution.group_by("sample").agg(
-            pl.col("share").sum()
-        )
+        shares = result.level_distribution.group_by("sample").agg(pl.col("share").sum())
         assert shares.get_column("share").to_list() == pytest.approx([1.0, 1.0])
         assert result.level_distribution.get_column("level").n_unique() == 11
 

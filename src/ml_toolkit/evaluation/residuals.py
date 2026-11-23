@@ -7,13 +7,13 @@ from typing import Literal, cast
 import numpy as np
 import polars as pl
 
-from .base import PredictionEvaluator
 from ..config import FigureConfig
 from ..data import Pool
 from ..data_analysis._common import validate_split
 from ..feature_levels import FeatureLevelConfig
 from ..metrics._evaluation import validate_prediction
 from ..types import FloatArray, IntArray
+from .base import PredictionEvaluator
 
 ResidualLoss = Literal["squared", "absolute", "poisson", "gamma"]
 

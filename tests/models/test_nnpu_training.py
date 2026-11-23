@@ -11,7 +11,13 @@ from tests.models.support import PARAMS
 
 
 def _model(extra=None, **overrides):
-    params = {**PARAMS, "iterations": 8, "loss": "nnPU", "pu_prior": 0.4, **(extra or {})}
+    params = {
+        **PARAMS,
+        "iterations": 8,
+        "loss": "nnPU",
+        "pu_prior": 0.4,
+        **(extra or {}),
+    }
     for key, value in overrides.items():
         if value is None:
             params.pop(key)

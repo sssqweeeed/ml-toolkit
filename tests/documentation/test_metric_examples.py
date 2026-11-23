@@ -27,7 +27,9 @@ def metric_examples():
 def test_threshold_example_exposes_weighted_precision_recall_tradeoff(metric_examples):
     ns = metric_examples
     metric = ns["metrics_classification"]
-    low = metric(ns["observed"], ns["probabilities"], threshold=0.3, sample_weight=ns["weight"])
+    low = metric(
+        ns["observed"], ns["probabilities"], threshold=0.3, sample_weight=ns["weight"]
+    )
     high = ns["scores"]
     assert low.precision == pytest.approx(3 / 5)
     assert low.recall == 1
@@ -63,13 +65,17 @@ def test_ranking_example_exposes_imperfect_order_and_exposure_capacity(metric_ex
     np.testing.assert_allclose(ranking.cumulative_exposure, [0, 1 / 6, 3 / 6, 5 / 6, 1])
 
 
-def test_pu_example_reports_actual_capacity_and_custom_metric_uses_weights(metric_examples):
+def test_pu_example_reports_actual_capacity_and_custom_metric_uses_weights(
+    metric_examples,
+):
     ns = metric_examples
     values = ns["pu_values"]
     assert values["known_positive_capture_at_10pct"] == 0.5
     assert values["unlabeled_flagged_at_10pct"] == 0.5
     assert values["unlabeled_flagged_at_10pct"] > 0.1
-    assert ns["metric"](ns["observed"], ns["probabilities"], ns["weight"]).to_dict()["mae"] == pytest.approx(2.1 / 6)
+    assert ns["metric"](ns["observed"], ns["probabilities"], ns["weight"]).to_dict()[
+        "mae"
+    ] == pytest.approx(2.1 / 6)
 
 
 def test_data_examples_keep_alignment_and_source_values():
@@ -78,7 +84,8 @@ def test_data_examples_keep_alignment_and_source_values():
         actual = execute(Recipe(match["name"], match["code"]), namespace)
         expected = (
             match["output"].split("```text\n", 1)[1].split("\n```", 1)[0]
-            if match["output"] else ""
+            if match["output"]
+            else ""
         )
         assert actual == expected, f"Stale data output: {match['name']}"
     data = namespace["data"]
@@ -90,4 +97,6 @@ def test_data_examples_keep_alignment_and_source_values():
     assert not namespace["transformed"].y.equals(data.y)
     assert namespace["model_input"]["region"].tolist() == ["north", "unknown", "south"]
     assert namespace["with_missing"].X["region"].to_list() == ["north", None, "south"]
-    np.testing.assert_allclose(namespace["native"].get_baseline().reshape(-1), [0.25] * 3)
+    np.testing.assert_allclose(
+        namespace["native"].get_baseline().reshape(-1), [0.25] * 3
+    )

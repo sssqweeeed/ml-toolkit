@@ -17,7 +17,9 @@ def example_modules():
         docstrings = [
             ast.get_docstring(node) or ""
             for node in ast.walk(tree)
-            if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef))
+            if isinstance(
+                node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
+            )
         ]
         if any(">>>" in docstring for docstring in docstrings):
             parts = path.relative_to(PACKAGE.parent).with_suffix("").parts

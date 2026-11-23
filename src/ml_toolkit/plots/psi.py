@@ -4,14 +4,14 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import cast
 
-import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
 
-from ..types import FloatArray, TimePeriod
 from .._time import PERIOD_INTERVALS, period_starts
 from ..config import FigureConfig
+from ..types import FloatArray, TimePeriod
 from .utils import save_figure
 
 
@@ -130,7 +130,8 @@ def time_psi_level_distribution(
         raise ValueError("Unsupported time period")
     levels = feature_data.get_column("level").unique(maintain_order=True).to_list()
     periods = (
-        feature_data.select("period_start", "sample").unique()
+        feature_data.select("period_start", "sample")
+        .unique()
         # Reference first, then current; chronological within each sample.
         .sort(["sample", "period_start"], descending=[True, False])
     )

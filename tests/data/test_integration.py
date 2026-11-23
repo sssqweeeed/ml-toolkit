@@ -1,4 +1,3 @@
-from ml_toolkit.training import TimeSeriesCV
 from datetime import date
 
 import mlflow
@@ -6,11 +5,10 @@ import numpy as np
 import polars as pl
 import pytest
 from polars.testing import assert_frame_equal
-from tests.support.training import MeanModel, ProjectData, mae, make_data, setup_mlflow
 
-from ml_toolkit.feature_selection import RFESelector
-from ml_toolkit.config import TrainingConfig
 from examples.project_pool import ProjectPool as Pool
+from ml_toolkit.config import TrainingConfig
+from ml_toolkit.feature_selection import RFESelector
 from ml_toolkit.inflation import ConstantRateInflation
 from ml_toolkit.metrics import metrics_classification
 from ml_toolkit.models import (
@@ -18,7 +16,8 @@ from ml_toolkit.models import (
     CatBoostRegressionModel,
     InflationAdjustedModel,
 )
-from ml_toolkit.training import importance_ranker, train_model
+from ml_toolkit.training import TimeSeriesCV, importance_ranker, train_model
+from tests.support.training import MeanModel, ProjectData, mae, make_data, setup_mlflow
 
 
 @pytest.fixture

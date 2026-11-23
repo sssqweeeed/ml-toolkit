@@ -329,7 +329,6 @@ class ManualInflation(InflationAdjuster):
         normalized: dict[int, float] = {}
 
         for month, value in monthly_index.items():
-
             value = float(value)
 
             if not np.isfinite(value) or value <= 0:

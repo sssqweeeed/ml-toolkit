@@ -9,12 +9,13 @@ vectors, not calibrated citation probabilities or a fitted PU classifier.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from hashlib import sha256
 from io import BytesIO
-import logging
 from pathlib import Path
-from tarfile import TarInfo, open as open_tar
+from tarfile import TarInfo
+from tarfile import open as open_tar
 from tempfile import TemporaryDirectory
 from urllib.error import URLError
 from urllib.request import urlopen
@@ -92,7 +93,9 @@ def _download_source(path: Path) -> None:
                 with urlopen(f"{CORA_MIRROR}/{name}", timeout=30) as response:
                     content = response.read()
                 if sha256(content).hexdigest() != expected:
-                    raise ValueError(f"Cora mirror checksum mismatch for {name}")
+                    raise ValueError(
+                        f"Cora mirror checksum mismatch for {name}"
+                    ) from error
                 member = TarInfo(f"cora/{name}")
                 member.size = len(content)
                 archive.addfile(member, BytesIO(content))
@@ -116,9 +119,13 @@ def _source_records(
         content = archive.extractfile("cora/cora.content")
         citations = archive.extractfile("cora/cora.cites")
         if content is None or citations is None:
-            raise ValueError("The Cora archive must contain its content and citation files")
+            raise ValueError(
+                "The Cora archive must contain its content and citation files"
+            )
         rows = [line.split() for line in content.read().decode("utf-8").splitlines()]
-        raw_links = [line.split() for line in citations.read().decode("utf-8").splitlines()]
+        raw_links = [
+            line.split() for line in citations.read().decode("utf-8").splitlines()
+        ]
     paper_ids = tuple(row[0] for row in rows)
     if len(set(paper_ids)) != len(paper_ids):
         raise ValueError("Cora paper IDs must be unique")
@@ -130,15 +137,17 @@ def _source_records(
     positions = {paper_id: index for index, paper_id in enumerate(paper_ids)}
     # The source README stores each citation as (cited ID, citing ID).
     # Retain source order and remove exact duplicate directed records only.
-    links = tuple(dict.fromkeys((positions[citing], positions[cited]) for cited, citing in raw_links))
+    links = tuple(
+        dict.fromkeys(
+            (positions[citing], positions[cited]) for cited, citing in raw_links
+        )
+    )
     if any(citing == cited for citing, cited in links):
         raise ValueError("Cora recorded citations must not contain self-links")
     return paper_ids, features, np.asarray(links, dtype=np.int64)
 
 
-def _candidate_pairs(
-    observed: IntArray, paper_count: int, count: int
-) -> IntArray:
+def _candidate_pairs(observed: IntArray, paper_count: int, count: int) -> IntArray:
     recorded = {tuple(pair) for pair in observed.tolist()}
     available = paper_count * (paper_count - 1) - len(recorded)
     if not 1 <= count <= available:
@@ -147,7 +156,9 @@ def _candidate_pairs(
     candidates: list[tuple[int, int]] = []
     selected: set[tuple[int, int]] = set()
     while len(candidates) < count:
-        draws = generator.integers(0, paper_count, size=(2 * (count - len(candidates)), 2))
+        draws = generator.integers(
+            0, paper_count, size=(2 * (count - len(candidates)), 2)
+        )
         for citing, cited in draws.tolist():
             pair = (citing, cited)
             if citing != cited and pair not in recorded and pair not in selected:
@@ -200,15 +211,17 @@ def load_citation_gallery(
     scores = np.empty(len(pairs), dtype=np.float64)
     # Batches keep the two indexed word-vector matrices bounded in memory.
     for start in range(0, len(pairs), 1024):
-        batch = pairs[start:start + 1024]
+        batch = pairs[start : start + 1024]
         left, right = batch[:, 0], batch[:, 1]
         numerator = np.einsum("ij,ij->i", features[left], features[right])
-        scores[start:start + len(batch)] = numerator / (norms[left] * norms[right])
+        scores[start : start + len(batch)] = numerator / (norms[left] * norms[right])
     scores = np.clip(scores, 0.0, 1.0)
     return CitationGallery(
         labels=np.concatenate((np.ones(len(observed)), np.zeros(len(candidates)))),
         scores=scores,
-        pairs=tuple((paper_ids[int(citing)], paper_ids[int(cited)]) for citing, cited in pairs),
+        pairs=tuple(
+            (paper_ids[int(citing)], paper_ids[int(cited)]) for citing, cited in pairs
+        ),
         known_citation_count=len(observed),
         unlabeled_pair_count=len(candidates),
         paper_count=len(paper_ids),

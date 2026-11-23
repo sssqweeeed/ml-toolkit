@@ -1,5 +1,5 @@
-from ml_toolkit.evaluation import PredictionEvaluator
 from ml_toolkit.data_analysis import DataAnalyzer
+from ml_toolkit.evaluation import PredictionEvaluator
 
 
 class CallbackEvaluator(PredictionEvaluator):

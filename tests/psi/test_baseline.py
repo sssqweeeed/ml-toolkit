@@ -10,7 +10,7 @@ import pytest
 from polars.testing import assert_frame_equal
 
 from ml_toolkit.feature_levels import FeatureLevelConfig, LevelTransformer
-from ml_toolkit.psi import PSIBaseline, PSIAnalysis, PSIConfig
+from ml_toolkit.psi import PSIAnalysis, PSIBaseline, PSIConfig
 
 
 @pytest.fixture

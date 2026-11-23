@@ -1,7 +1,5 @@
 """Application-controlled logging and independent experiment tracking."""
 
-from ml_toolkit.training import Holdout, TimeSeriesCV
-
 import io
 import json
 import logging
@@ -20,20 +18,20 @@ import optuna
 import pandas as pd
 import polars as pl
 import pytest
-from tests.support.training import MeanModel, mae, make_data, setup_mlflow
 
-from ml_toolkit.feature_selection import RFESelector
 from ml_toolkit.config import ShapConfig, TrainingConfig, TuningConfig
 from ml_toolkit.explainability import calculate_shap_values
+from ml_toolkit.feature_levels import FeatureLevelConfig
+from ml_toolkit.feature_selection import RFESelector
 from ml_toolkit.inflation import ConstantRateInflation
 from ml_toolkit.metrics import MetricScores
 from ml_toolkit.models import CatBoostClassificationModel, CatBoostRegressionModel
 from ml_toolkit.plots.utils import save_figure
-from ml_toolkit.feature_levels import FeatureLevelConfig
 from ml_toolkit.psi import PSIAnalysis, PSIConfig
 from ml_toolkit.tracking.mlflow import log_polars_table
 from ml_toolkit.tracking.model_artifacts import log_model_from_code
-from ml_toolkit.training import importance_ranker, train_model
+from ml_toolkit.training import Holdout, TimeSeriesCV, importance_ranker, train_model
+from tests.support.training import MeanModel, mae, make_data, setup_mlflow
 
 
 def toolkit_records(caplog):

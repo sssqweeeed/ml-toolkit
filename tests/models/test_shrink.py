@@ -1,7 +1,7 @@
 """Adapter prefixes preserve transformations, independence and portable state."""
 
-from datetime import date
 import json
+from datetime import date
 from types import SimpleNamespace
 
 import numpy as np
