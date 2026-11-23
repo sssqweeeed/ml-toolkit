@@ -1,7 +1,7 @@
 __pycache__/
 *.py[cod]
 .pytest_cache/
-.venv/
+.venv
 .test-deps/
 .cache/
 .mplconfig/
@@ -10,12 +10,13 @@ build/
 dist/
 site/
 .DS_Store
-AGENTS.md
-.codex/
 .codegraph/
 .vscode/
-.agents/
 .coverage
 .coverage.*
 htmlcov/
 coverage.xml
+CLAUDE.md
+CLAUDE.local.md
+.claude/
+.mcp.json
