@@ -20,6 +20,47 @@ from .config import (
 from ._serialization import decode_scalar, encode_scalar, mapping
 
 
+def _interval_labels(
+    lower_edge: float, boundaries: tuple[float, ...], upper_edge: float
+) -> list[str]:
+    edges = (lower_edge, *boundaries, upper_edge)
+    finite = [edge for edge in edges if np.isfinite(edge)]
+    # Use the shortest precision that keeps every finite edge distinguishable.
+    precision = next(
+        (
+            p
+            for p in range(6, 17)
+            if len({f"{edge:.{p}g}" for edge in finite}) == len(finite)
+        ),
+        17,
+    )
+
+    def text(edge: float) -> str:
+        if edge == -np.inf:
+            return "-inf"
+        if edge == np.inf:
+            return "inf"
+        return f"{edge:.{precision}g}"
+
+    return [
+        f"[{text(left)}, {text(right)}"
+        f"{']' if right == upper_edge and right != np.inf else ')'}"
+        for left, right in pairwise(edges)
+    ]
+
+
+def _legacy_interval_labels(
+    lower_edge: float, boundaries: tuple[float, ...], upper_edge: float
+) -> list[str]:
+    # Pre-uniqueness format, accepted when loading old states.
+    return [
+        f"[{'-inf' if a == -np.inf else f'{a:g}'}, "
+        f"{'inf' if b == np.inf else f'{b:g}'}"
+        f"{']' if b == upper_edge and b != np.inf else ')'}"
+        for a, b in pairwise((lower_edge, *boundaries, upper_edge))
+    ]
+
+
 @dataclass
 class LevelTransformer:
     """Learn reference categories and quantile boundaries for diagnostics.
@@ -64,7 +105,7 @@ class LevelTransformer:
         ----------
         reference : polars.DataFrame
             Frame containing every configured feature. Regular numerical
-            values must be finite and castable to Float64.
+            values must be castable to Float64; infinities are valid.
 
         Returns
         -------
@@ -75,13 +116,13 @@ class LevelTransformer:
         Raises
         ------
         ValueError
-            Features are missing, regular numerical values
-            are non-finite, or categories use reserved level names.
+            Features are missing or categories use reserved level names.
 
         Notes
         -----
         An empty frame must still supply typed feature columns. Features with
         no regular reference values learn no categories or numerical cut points.
+        Infinities are valid values: cut points use finite values only.
         """
         names = [feature.name for feature in self.features]
         missing = sorted(set(names) - set(reference.columns))
@@ -120,14 +161,12 @@ class LevelTransformer:
                 )
             else:
                 numbers = regular.cast(pl.Float64, strict=True)
-                if not numbers.is_finite().all():
-                    raise ValueError(
-                        f"Feature {feature.name!r} must contain finite values"
-                    )
                 if feature.lower_bound is not None:
                     numbers = numbers.filter(numbers >= feature.lower_bound)
                 if feature.upper_bound is not None:
                     numbers = numbers.filter(numbers <= feature.upper_bound)
+                # Infinities are valid values but cannot define cut points.
+                numbers = numbers.filter(numbers.is_finite())
                 minimum = numbers.min()
                 maximum = numbers.max()
                 if len(numbers) < 2 or minimum == maximum:
@@ -148,17 +187,7 @@ class LevelTransformer:
                 upper_edge = (
                     np.inf if feature.upper_bound is None else feature.upper_bound
                 )
-                interval_edges = (lower_edge, *boundaries, upper_edge)
-                interval_levels: list[str] = []
-                for left, right in pairwise(interval_edges):
-                    left_label = "-inf" if left == -np.inf else f"{left:g}"
-                    right_label = "inf" if right == np.inf else f"{right:g}"
-                    right_bracket = (
-                        "]" if right == upper_edge and right != np.inf else ")"
-                    )
-                    interval_levels.append(
-                        f"[{left_label}, {right_label}{right_bracket}"
-                    )
+                interval_levels = _interval_labels(lower_edge, boundaries, upper_edge)
 
                 levels = (*interval_levels, NULL_LEVEL)
                 if (
@@ -196,13 +225,14 @@ class LevelTransformer:
         RuntimeError
             The transformer has not been fitted.
         ValueError
-            Configured features are missing or regular numerical values are
-            non-finite.
+            Configured features are missing.
 
         Notes
         -----
         Numerical intervals are left-inclusive. A value equal to an internal
-        boundary enters the interval on its right.
+        boundary enters the interval on its right. Negative infinity enters
+        the first interval and positive infinity the last, unless configured
+        bounds exclude them, in which case they map to __ERROR__.
         """
         if self.feature_levels is None:
             raise RuntimeError("LevelTransformer must be fitted before transform")
@@ -232,24 +262,6 @@ class LevelTransformer:
                     .otherwise(pl.lit(UNSEEN_LEVEL))
                 )
             else:
-                # Apply the same finite-value contract to reference and current
-                # samples, excluding configured missing/error sentinels.
-                regular_values = data.get_column(feature.config.name)
-                valid = regular_values.is_not_null()
-                if regular_values.dtype.is_float():
-                    valid &= regular_values.is_not_nan()
-                for sentinel in (feature.config.null_level, feature.config.error_level):
-                    if sentinel is not None:
-                        valid &= regular_values != sentinel
-                if (
-                    not regular_values.filter(valid)
-                    .cast(pl.Float64, strict=True)
-                    .is_finite()
-                    .all()
-                ):
-                    raise ValueError(
-                        f"Feature {feature.config.name!r} must contain finite values"
-                    )
                 special_errors = errors
                 numbers = (
                     pl.when(nulls | special_errors)
@@ -358,18 +370,22 @@ class LevelTransformer:
                         or any(a >= b for a, b in pairwise(boundaries))
                     ):
                         raise ValueError("Inconsistent numerical levels")
-                    expected = [
-                        f"[{'-inf' if a == -np.inf else f'{a:g}'}, "
-                        f"{'inf' if b == np.inf else f'{b:g}'}"
-                        f"{']' if b == right and b != np.inf else ')'}"
-                        for a, b in pairwise((left, *boundaries, right))
-                    ] + [NULL_LEVEL]
+                    unique_labels = _interval_labels(left, boundaries, right)
+                    legacy_labels = _legacy_interval_labels(left, boundaries, right)
+                    suffix = [NULL_LEVEL]
                     if (
                         config.error_level is not None
                         or left != -np.inf
                         or right != np.inf
                     ):
-                        expected.append(ERROR_LEVEL)
+                        suffix.append(ERROR_LEVEL)
+                    expected = unique_labels + suffix
+                    if list(labels) not in (
+                        expected,
+                        legacy_labels + suffix,
+                    ):
+                        raise ValueError("Level labels do not match fitted definitions")
+                    labels = tuple(expected)
                 else:
                     if boundaries:
                         raise ValueError("Categorical features cannot have boundaries")

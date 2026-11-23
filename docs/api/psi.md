@@ -92,7 +92,8 @@ determines categories or numerical intervals from the reference sample;
 it does not train a prediction model. The resulting `feature_levels` tuple
 contains one `FeatureLevels` per configured column, in the same order.
 Each result holds its original rules in `config`, its labels in `levels`,
-and its numerical `boundaries` or categorical `categories`.
+and its numerical `boundaries` or categorical `categories`. Interval labels use
+at least 6 significant digits, and more when needed to keep edges distinct.
 
 <!-- example: psi-levels -->
 
