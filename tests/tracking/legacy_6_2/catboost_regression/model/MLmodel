@@ -1,0 +1,53 @@
+artifact_path: file:///var/folders/y5/t3tv5h1137x8xh77spmj6ssm0000gn/T/tmp4icyd6wt/art/models/m-6bfb44eb2a22451c8eafd0aa44031cf3/artifacts
+flavors:
+  python_function:
+    artifacts:
+      config:
+        path: artifacts/config.json
+        uri: /var/folders/y5/t3tv5h1137x8xh77spmj6ssm0000gn/T/ml-toolkit-model-dpj4zdix/config.json
+      model:
+        path: artifacts/model.cbm
+        uri: /var/folders/y5/t3tv5h1137x8xh77spmj6ssm0000gn/T/ml-toolkit-model-dpj4zdix/model.cbm
+    cloudpickle_version: 3.1.3
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.pyfunc.loaders.code_model
+    model_code_path: src/ml_toolkit/tracking/entrypoints/CatBoostRegressionModel.py
+    python_version: 3.12.16
+    streamable: false
+is_signature_from_type_hint: false
+metadata:
+  baseline: null
+  baseline_mode: native_initialization
+  effective_prediction_type: null
+  model_type: CatBoostRegressionModel
+  prediction_type: null
+  retained_iterations: null
+  training_params:
+    allow_writing_files: false
+    depth: 3
+    iterations: 8
+    random_seed: 0
+    thread_count: 1
+    verbose: false
+  version: 1
+mlflow_version: 3.18.0
+model_id: m-6bfb44eb2a22451c8eafd0aa44031cf3
+model_size_bytes: 9669
+model_uuid: m-6bfb44eb2a22451c8eafd0aa44031cf3
+prompts: null
+run_id: 6811af9d3e124f12a16d4180b6c5c456
+saved_input_example_info:
+  artifact_path: input_example.json
+  pandas_orient: split
+  serving_input_path: serving_input_example.json
+  type: dataframe
+signature:
+  inputs: '[{"type": "double", "name": "x", "required": true}, {"type": "double",
+    "name": "z", "required": true}, {"type": "string", "name": "cat", "required":
+    true}]'
+  outputs: '[{"type": "tensor", "tensor-spec": {"dtype": "float64", "shape": [-1]}}]'
+  params: null
+type_hint_from_example: false
+utc_time_created: '2026-11-23 09:14:16.848817'

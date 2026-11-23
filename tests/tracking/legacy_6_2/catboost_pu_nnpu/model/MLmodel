@@ -1,0 +1,60 @@
+artifact_path: file:///var/folders/y5/t3tv5h1137x8xh77spmj6ssm0000gn/T/tmp4icyd6wt/art/models/m-a2c51030d3d346d28fc8c4ea5b0813ba/artifacts
+flavors:
+  python_function:
+    artifacts:
+      config:
+        path: artifacts/config.json
+        uri: /var/folders/y5/t3tv5h1137x8xh77spmj6ssm0000gn/T/ml-toolkit-model-ztqbt5a1/config.json
+      model:
+        path: artifacts/model.cbm
+        uri: /var/folders/y5/t3tv5h1137x8xh77spmj6ssm0000gn/T/ml-toolkit-model-ztqbt5a1/model.cbm
+    cloudpickle_version: 3.1.3
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.pyfunc.loaders.code_model
+    model_code_path: src/ml_toolkit/tracking/entrypoints/CatBoostPUClassificationModel.py
+    python_version: 3.12.16
+    streamable: false
+is_signature_from_type_hint: false
+metadata:
+  baseline: -0.8472978603872036
+  baseline_mode: raw_prediction
+  best_iteration: null
+  model_type: CatBoostPUClassificationModel
+  prediction_type: Probability
+  pu_loss: nnPU
+  pu_prior: 0.3
+  retained_iterations: null
+  threshold: 0.5
+  training_params:
+    allow_writing_files: false
+    decision_threshold: 0.5
+    depth: 3
+    iterations: 8
+    loss: nnPU
+    pu_prior: 0.3
+    random_seed: 0
+    thread_count: 1
+    verbose: false
+  validation_f1: null
+  version: 1
+mlflow_version: 3.18.0
+model_id: m-a2c51030d3d346d28fc8c4ea5b0813ba
+model_size_bytes: 9754
+model_uuid: m-a2c51030d3d346d28fc8c4ea5b0813ba
+prompts: null
+run_id: ab680376d5184a37b71baaad4009c237
+saved_input_example_info:
+  artifact_path: input_example.json
+  pandas_orient: split
+  serving_input_path: serving_input_example.json
+  type: dataframe
+signature:
+  inputs: '[{"type": "double", "name": "x", "required": true}, {"type": "double",
+    "name": "z", "required": true}, {"type": "string", "name": "cat", "required":
+    true}]'
+  outputs: '[{"type": "tensor", "tensor-spec": {"dtype": "float64", "shape": [-1]}}]'
+  params: null
+type_hint_from_example: false
+utc_time_created: '2026-11-23 09:14:18.552765'

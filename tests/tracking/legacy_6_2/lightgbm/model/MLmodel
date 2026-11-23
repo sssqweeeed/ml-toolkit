@@ -1,0 +1,44 @@
+artifact_path: file:///var/folders/y5/t3tv5h1137x8xh77spmj6ssm0000gn/T/tmp4icyd6wt/art/models/m-4cdb624f4d0b4fed9db04a98c4ba31e3/artifacts
+flavors:
+  python_function:
+    artifacts:
+      booster:
+        path: artifacts/model.lgb
+        uri: /var/folders/y5/t3tv5h1137x8xh77spmj6ssm0000gn/T/lightgbm-mlflow-0k158hin/model.lgb
+      features:
+        path: artifacts/features.json
+        uri: /var/folders/y5/t3tv5h1137x8xh77spmj6ssm0000gn/T/lightgbm-mlflow-0k158hin/features.json
+    cloudpickle_version: 3.1.3
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.pyfunc.loaders.code_model
+    model_code_path: src/ml_toolkit/tracking/entrypoints/LightGBMServingModel.py
+    python_version: 3.12.16
+    streamable: false
+is_signature_from_type_hint: false
+metadata:
+  cat_features:
+  - cat
+  numerical_features:
+  - x
+  - z
+mlflow_version: 3.18.0
+model_id: m-4cdb624f4d0b4fed9db04a98c4ba31e3
+model_size_bytes: 20892
+model_uuid: m-4cdb624f4d0b4fed9db04a98c4ba31e3
+prompts: null
+run_id: 2cc53825617e4f7584b9a322339a22d6
+saved_input_example_info:
+  artifact_path: input_example.json
+  pandas_orient: split
+  serving_input_path: serving_input_example.json
+  type: dataframe
+signature:
+  inputs: '[{"type": "double", "name": "x", "required": true}, {"type": "double",
+    "name": "z", "required": true}, {"type": "string", "name": "cat", "required":
+    true}]'
+  outputs: '[{"type": "tensor", "tensor-spec": {"dtype": "float64", "shape": [-1]}}]'
+  params: null
+type_hint_from_example: false
+utc_time_created: '2026-11-23 09:14:19.038551'
