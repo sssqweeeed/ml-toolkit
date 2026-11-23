@@ -18,8 +18,7 @@ from ml_toolkit.models import (
     TrackingConfig,
 )
 from ml_toolkit.models.artifacts import merge_artifacts
-from ml_toolkit.psi import PSIBaseline, PSIConfig
-from ml_toolkit.tracking import load_psi_baseline
+from ml_toolkit.psi import PSIBaseline, PSIConfig, load_psi_baseline
 from tests.support.training import make_data
 
 

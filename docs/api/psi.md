@@ -186,7 +186,7 @@ print(f"2011 train hours: {len(train)}; 2012 test hours: {len(test)}")
 <!-- example: psi-gallery-scores -->
 
 ```python
-from ml_toolkit.plots import psi
+from ml_toolkit.psi import figures as psi
 
 categorical_features = {
     "hour",
@@ -371,7 +371,7 @@ and `UNSEEN_LEVEL` are the default missing, invalid, and unseen-category labels.
 
 ### PSI plots
 
-::: ml_toolkit.plots.psi
+::: ml_toolkit.psi.figures
     options:
       heading_level: 3
       members: [feature_psi_plot, time_psi_level_distribution]

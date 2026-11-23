@@ -6,19 +6,24 @@ import json
 from dataclasses import dataclass
 from datetime import date, datetime
 from importlib.metadata import version
-from pathlib import Path
+from pathlib import Path, PurePosixPath
+from tempfile import TemporaryDirectory
 from typing import cast
 
+import mlflow
+import mlflow.artifacts
 import polars as pl
+from mlflow.models import Model
 
-from ..feature_levels import LevelTransformer
-from ..feature_levels._serialization import decode_scalar, encode_scalar, mapping
+from ..feature_levels import (
+    LevelTransformer,
+    decode_feature_scalar,
+    encode_feature_scalar,
+    json_object,
+)
 from ..types import FloatArray
-from .analysis import resolve_time
-from .config import PSIConfig
-from .distributions import LEVEL_SCHEMA, TIME_SCHEMA
-from .results import PSIResult
-from .score import psi_from_shares
+from .analysis import LEVEL_SCHEMA, TIME_SCHEMA, resolve_time
+from .score import PSIConfig, PSIResult, psi_from_shares
 
 COUNT_SCHEMA = {"feature": pl.String, "level": pl.String, "rows": pl.Int64}
 
@@ -89,10 +94,10 @@ class PSIBaseline:
             "epsilon": config.epsilon,
             "n_rows": len(reference),
             "stage": stage,
-            "time_start": encode_scalar(
+            "time_start": encode_feature_scalar(
                 None if time is None else cast(date | datetime, time.min())
             ),
-            "time_end": encode_scalar(
+            "time_end": encode_feature_scalar(
                 None if time is None else cast(date | datetime, time.max())
             ),
         }
@@ -116,8 +121,8 @@ class PSIBaseline:
             raise ValueError("Missing toolkit version")
         if metadata.get("stage") is not None and not isinstance(metadata["stage"], str):
             raise ValueError("Invalid training stage")
-        start = decode_scalar(metadata["time_start"])
-        end = decode_scalar(metadata["time_end"])
+        start = decode_feature_scalar(metadata["time_start"])
+        end = decode_feature_scalar(metadata["time_end"])
         if (start is None) != (end is None) or (
             start is not None
             and (
@@ -161,14 +166,14 @@ class PSIBaseline:
         """Restore and validate an aggregate baseline without fitting or source data."""
         root = Path(directory)
         try:
-            metadata = mapping(
+            metadata = json_object(
                 json.loads((root / "manifest.json").read_text(encoding="utf-8"))
             )
-            levels_payload = mapping(
+            levels_payload = json_object(
                 json.loads((root / "levels.json").read_text(encoding="utf-8"))
             )
             for stored in cast(list[object], levels_payload["features"]):
-                stored_levels = cast(list[object], mapping(stored)["levels"])
+                stored_levels = cast(list[object], json_object(stored)["levels"])
                 if len(set(stored_levels)) != len(stored_levels):
                     raise ValueError(
                         "PSI baseline was saved with ambiguous interval labels "
@@ -234,3 +239,46 @@ class PSIBaseline:
             time_distribution=pl.DataFrame(schema=TIME_SCHEMA),
             feature_levels=features,
         )
+
+
+def load_psi_baseline(model_uri: str) -> PSIBaseline:
+    """Load the named PSI artifact from a model URI or local model directory.
+
+    Accepts MLflow model IDs, registered versions and run model URIs. Prefer
+    immutable versions when loading predictions and monitoring separately.
+    Does not import or instantiate the predictive model. Missing baselines
+    raise FileNotFoundError; malformed or unsupported state raises ValueError.
+    """
+    source = model_uri.rstrip("/")
+    if source.startswith("models:/"):
+        identifier = source.removeprefix("models:/")
+        if "/" not in identifier and "@" not in identifier:
+            # A model ID URI has no version segment; appending /MLmodel would
+            # make MLflow interpret the ID as a registered model name instead.
+            source = mlflow.get_logged_model(identifier).artifact_location.rstrip("/")
+    with TemporaryDirectory(prefix="ml-toolkit-psi-load-") as directory:
+        # Reading MLmodel only avoids downloading weights or executing entrypoints.
+        descriptor = mlflow.artifacts.download_artifacts(
+            artifact_uri=f"{source}/MLmodel", dst_path=directory
+        )
+        model = Model.load(descriptor)
+        flavors = model.flavors
+        artifact = (
+            flavors.get("python_function", {}).get("artifacts", {}).get("psi_baseline")
+        )
+        if artifact is None:
+            raise FileNotFoundError(
+                f"Model {model_uri!r} has no PSI baseline: it may predate this feature, "
+                "have reporting.psi=False, or have levels disabled with features=()."
+            )
+        relative = artifact.get("path")
+        if not isinstance(relative, str) or not relative or "\\" in relative:
+            raise ValueError("Invalid PSI artifact path in MLmodel")
+        path = PurePosixPath(relative)
+        if path.is_absolute() or ".." in path.parts or ":" in relative:
+            raise ValueError("PSI artifact path must be relative to the model package")
+        baseline_path = mlflow.artifacts.download_artifacts(
+            artifact_uri=f"{source}/{path.as_posix()}",
+            dst_path=str(Path(directory) / "baseline"),
+        )
+        return PSIBaseline.load(baseline_path)

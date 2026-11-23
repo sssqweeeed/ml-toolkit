@@ -16,15 +16,15 @@ from ..explainability import (
     shap_dependence,
     shap_importance,
 )
-from ..feature_levels import LevelTransformer
-from ..feature_levels.config import feature_definitions
+from ..feature_levels import LevelTransformer, feature_definitions
 from ..feature_selection import FeatureSelectionResult
 from ..figures import feature_filename
 from ..metrics import Metric
+from ..models import TrackingConfig
 from ..models.base import Model
 from ..plots import feature_selection as selection_plots
-from ..plots import psi as psi_plots
-from ..psi import PSIBaseline, compare_psi
+from ..psi import PSIBaseline, PSIConfig, compare_psi
+from ..psi import figures as psi_plots
 from ..reports import (
     DataAnalyzer,
     ModelEvaluator,
@@ -429,3 +429,31 @@ def _shap_artifacts(
         shap_dependence(explanation, feature, save_fig=path, figure=config.figure)
         paths.append(path)
     return paths
+
+
+def prepare_psi_baseline(
+    train: Pool, reporting: ReportingConfig, *, log_model: bool, stage: str
+) -> PSIBaseline | None:
+    if not log_model or not reporting.psi:
+        return None
+    features = feature_definitions(train, reporting.features)
+    if not features:
+        return None
+    return PSIBaseline.from_reference(
+        train.to_analysis_frame(),
+        config=PSIConfig(features, n_bins=reporting.n_bins, epsilon=reporting.epsilon),
+        time=train.time,
+        stage=stage,
+    )
+
+
+def log_model_with_baseline(
+    model: Model, sample: Pool, config: TrackingConfig, baseline: PSIBaseline | None
+) -> None:
+    if baseline is None:
+        model.log(sample, config=config)
+        return
+    with TemporaryDirectory(prefix="ml-toolkit-psi-package-") as directory:
+        root = Path(directory) / "psi_baseline"
+        baseline.save(root)
+        model.log(sample, config=config, extra_artifacts={"psi_baseline": str(root)})

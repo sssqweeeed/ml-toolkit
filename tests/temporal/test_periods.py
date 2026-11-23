@@ -138,7 +138,7 @@ def test_time_plot_points_and_dst_bar_end(monkeypatch, tmp_path):
     import matplotlib.pyplot as plt
 
     from ml_toolkit import figures as figures_module
-    from ml_toolkit.plots import psi
+    from ml_toolkit.psi import figures as psi
 
     figures = []
     monkeypatch.setattr(

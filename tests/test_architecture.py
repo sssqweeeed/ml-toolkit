@@ -40,8 +40,6 @@ ALLOWED_VIOLATIONS: set[tuple[str, str]] = {
     ("ml_toolkit._console", "ml_toolkit.data"),
     # Phase 5: the selection figures move into feature_selection.
     ("ml_toolkit.plots.feature_selection", "ml_toolkit.feature_selection"),
-    # Phase 4: feature-level serialization merges into feature_levels.
-    ("ml_toolkit.psi.baseline", "ml_toolkit.feature_levels._serialization"),
 }
 
 

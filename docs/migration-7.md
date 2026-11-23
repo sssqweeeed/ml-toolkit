@@ -27,7 +27,7 @@ loading. Old import paths are removed without compatibility aliases.
 | `ml_toolkit.tracking.state` | `ml_toolkit.models.state` |
 | `ml_toolkit.tracking.model_artifacts` | `ml_toolkit.models.artifacts` |
 | `ml_toolkit.tracking.mlflow.log_polars_table` | `ml_toolkit.tracking.log_polars_table` |
-| `ml_toolkit.tracking.psi.load_psi_baseline` | `ml_toolkit.tracking.load_psi_baseline` |
+| `ml_toolkit.tracking.psi.load_psi_baseline` | `ml_toolkit.psi.load_psi_baseline` |
 | `ml_toolkit.tracking.runs.run`, `log_json` | `ml_toolkit.tracking.nested_run`, `log_json` |
 | `ml_toolkit.tracking.runs.log_params`, `log_metrics`, `log_artifact` | removed; call `mlflow` directly |
 | `ml_toolkit.tracking.model_artifacts.merge_artifacts` | `ml_toolkit.models.merge_artifacts` |
@@ -98,8 +98,8 @@ figure functions. Importing a report class from its package keeps working:
 | `ml_toolkit.plots.explainability` | `ml_toolkit.explainability` |
 | `ml_toolkit.config.ShapConfig`, `ml_toolkit.training.ShapConfig` | `ml_toolkit.explainability.ShapConfig` |
 
-`ml_toolkit.plots` keeps only `psi` and `feature_selection` until their own
-phases. Computation that used to sit inside figure functions is available
+`ml_toolkit.plots` keeps only `feature_selection` until its own phase.
+Computation that used to sit inside figure functions is available
 without matplotlib: `classification.precision_recall_summary`,
 `classification.calibration_bins`, `regression.level_observed_fitted`,
 `regression.time_summary` and `distributions.distribution_summary`.
@@ -118,3 +118,20 @@ implementation; the precision-recall figure reuses it.
   `classification.calibration_bins` as `n_bins must be positive` (previously
   both gave `bin counts must be positive`).
 
+## PSI and feature levels (phase 4)
+
+`ml_toolkit.feature_levels` is a single module and the `ml_toolkit.psi`
+submodules are merged. Names exported from `ml_toolkit.psi` and
+`ml_toolkit.feature_levels` keep their import paths. PSI numbers, saved
+baselines and `LevelTransformer` state are unchanged.
+
+| Old import | New import |
+| --- | --- |
+| `ml_toolkit.feature_levels.config.*` (`FeatureLevelConfig`, `FeatureLevels`, `NULL_LEVEL`, ..., `feature_definitions`, `validate_features`) | `ml_toolkit.feature_levels` |
+| `ml_toolkit.feature_levels.levels.LevelTransformer` | `ml_toolkit.feature_levels.LevelTransformer` |
+| `ml_toolkit.feature_levels._serialization.encode_scalar`, `decode_scalar`, `mapping` | `ml_toolkit.feature_levels.encode_feature_scalar`, `decode_feature_scalar`, `json_object` |
+| `ml_toolkit.psi.config.PSIConfig`, `ml_toolkit.psi.results.PSIResult` | `ml_toolkit.psi.PSIConfig`, `ml_toolkit.psi.PSIResult` |
+| `ml_toolkit.psi.distributions.*` | `ml_toolkit.psi.analysis` |
+| `ml_toolkit.tracking.load_psi_baseline` | `ml_toolkit.psi.load_psi_baseline` |
+| `ml_toolkit.plots.psi` | `ml_toolkit.psi.figures` |
+| `ml_toolkit.training.psi.prepare_psi_baseline`, `log_model_with_baseline` | `ml_toolkit.training.reporting` |

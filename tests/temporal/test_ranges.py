@@ -10,8 +10,8 @@ import pytest
 from ml_toolkit import figures as figures_module
 from ml_toolkit._time import paired_period_starts
 from ml_toolkit.feature_levels import FeatureLevelConfig
-from ml_toolkit.plots import psi
 from ml_toolkit.psi import PSIAnalysis, PSIConfig, compare_psi
+from ml_toolkit.psi import figures as psi
 from ml_toolkit.reports import distributions as monitoring
 from ml_toolkit.reports import regression
 

@@ -13,8 +13,12 @@ from numpy.typing import ArrayLike
 
 from .._time import PERIOD_INTERVALS, paired_period_starts
 from ..data import Pool
-from ..feature_levels import FeatureLevelConfig, LevelTransformer
-from ..feature_levels.config import feature_definitions, validate_features
+from ..feature_levels import (
+    FeatureLevelConfig,
+    LevelTransformer,
+    feature_definitions,
+    validate_features,
+)
 from ..figures import (
     FigureConfig,
     PlotError,

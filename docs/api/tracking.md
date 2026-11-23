@@ -130,7 +130,7 @@ own model-packaging methods in the [model reference](models.md).
 
 ## API reference
 
-::: ml_toolkit.tracking.load_psi_baseline
+::: ml_toolkit.psi.load_psi_baseline
 
 ::: ml_toolkit.tracking.log_polars_table
 
@@ -186,7 +186,7 @@ remains available after the temporary source directory has been removed:
 
 ```python
 from polars.testing import assert_frame_equal
-from ml_toolkit.tracking import load_psi_baseline
+from ml_toolkit.psi import load_psi_baseline
 
 model_uri = info.model_uri
 served = mlflow.pyfunc.load_model(model_uri)

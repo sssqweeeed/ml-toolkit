@@ -258,8 +258,7 @@ def explicit_selection(data: Pool) -> None:
 
 from ml_toolkit.config import FeatureLevelConfig
 from ml_toolkit.feature_levels import FeatureLevels, LevelTransformer
-from ml_toolkit.psi import PSIBaseline, PSIConfig, PSIResult
-from ml_toolkit.tracking import load_psi_baseline
+from ml_toolkit.psi import PSIBaseline, PSIConfig, PSIResult, load_psi_baseline
 
 
 def monitoring_contract(
