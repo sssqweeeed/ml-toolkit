@@ -24,7 +24,10 @@ class TrackingConfig:
         Nonempty MLflow model artifact name shared across nested runs.
     registered_model_name : str or None, default None
         Registry name for the additional model when fit_on_test is enabled,
-        otherwise for the main model. Requires that model's logging flag.
+        otherwise for the main model. Requires that model's logging flag:
+        log_final_model with fit_on_test; otherwise log_test_model when a test
+        sample exists, or log_final_model when it does not. TrainingConfig and
+        train_model raise ValueError instead of silently skipping registration.
     conda_env : pathlib.Path or None, default None
         Existing serving environment file; None pins installed dependencies.
 

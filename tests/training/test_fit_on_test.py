@@ -126,9 +126,32 @@ def test_fit_matrix_rows_models_scores_and_runs(tmp_path, has_test, fit_on_test)
 
 
 @pytest.mark.parametrize(
-    "fit_on_test,log_test,log_final", list(product((False, True), repeat=3))
+    "fit_on_test,log_test,log_final",
+    [(True, True, False), (True, False, False), (False, False, False)],
 )
-def test_model_logging_and_registration_no_fallback(
+def test_unlogged_registration_target_rejected_by_config(
+    fit_on_test, log_test, log_final
+):
+    with pytest.raises(ValueError, match="registered_model_name"):
+        TrainingConfig(
+            fit_on_test=fit_on_test,
+            tracking=TrackingConfig(
+                log_test_model=log_test,
+                log_final_model=log_final,
+                registered_model_name="chosen",
+            ),
+        )
+
+
+@pytest.mark.parametrize(
+    "fit_on_test,log_test,log_final",
+    [
+        (fit_on_test, log_test, log_final)
+        for fit_on_test, log_test, log_final in product((False, True), repeat=3)
+        if (fit_on_test and log_final) or (not fit_on_test and log_test)
+    ],
+)
+def test_logged_registration_target_is_registered_without_fallback(
     tmp_path, fit_on_test, log_test, log_final
 ):
     setup_mlflow(tmp_path)
@@ -171,6 +194,31 @@ def test_model_logging_and_registration_no_fallback(
 def test_no_test_uses_final_logging_flag(tmp_path, log_test, log_final):
     setup_mlflow(tmp_path)
     saved = []
+    if not log_final:
+        # Registration target is the final fit, which is not logged: fail fast.
+        trained = []
+
+        def factory(params):
+            trained.append(params)
+            return MeanModel(params)
+
+        with pytest.raises(ValueError, match="log_final_model"):
+            train_model(
+                splitter=Holdout(make_identified_data()),
+                params={},
+                model_factory=factory,
+                metric=mae,
+                run_name="no-test",
+                config=TrainingConfig(
+                    tracking=TrackingConfig(
+                        log_test_model=log_test,
+                        log_final_model=log_final,
+                        registered_model_name="main",
+                    )
+                ),
+            )
+        assert trained == []
+        return
 
     class Model(MeanModel):
         def log(self, sample, *, config=None, extra_artifacts=None):
@@ -298,3 +346,44 @@ def test_invalid_full_pool_fails_before_additional_fit(tmp_path, invalid):
             ),
         )
     assert len(fits) == 2
+
+
+def test_registration_with_test_sample_requires_log_test_model(tmp_path):
+    setup_mlflow(tmp_path)
+
+    def factory(params):
+        raise AssertionError("no model may be created")
+
+    with pytest.raises(ValueError, match="log_test_model"):
+        train_model(
+            splitter=Holdout(make_identified_data(), test_size=4),
+            params={},
+            model_factory=factory,
+            metric=mae,
+            run_name="registration",
+            config=TrainingConfig(
+                tracking=TrackingConfig(
+                    log_test_model=False,
+                    log_final_model=True,
+                    registered_model_name="main",
+                )
+            ),
+        )
+
+
+def test_registration_without_logged_target_is_rejected_by_config():
+    with pytest.raises(ValueError, match="log_test_model or log_final_model"):
+        TrainingConfig(
+            tracking=TrackingConfig(
+                log_test_model=False,
+                log_final_model=False,
+                registered_model_name="main",
+            )
+        )
+    with pytest.raises(ValueError, match="log_final_model"):
+        TrainingConfig(
+            fit_on_test=True,
+            tracking=TrackingConfig(
+                log_final_model=False, registered_model_name="main"
+            ),
+        )

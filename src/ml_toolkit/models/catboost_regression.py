@@ -255,6 +255,11 @@ class CatBoostRegressionModel(PythonModel):
         ----------
         data : polars.DataFrame or pandas.DataFrame
             Fitted feature columns; extras are ignored and columns reordered.
+            Categorical columns are formatted exactly as in training. Pandas
+            integer categoricals with missing values must use the nullable
+            ``Int64`` dtype; a ``float64`` column formats as ``"1.0"``.
+            Object-dtype categorical columns are converted with pandas string
+            formatting.
 
         Returns
         -------

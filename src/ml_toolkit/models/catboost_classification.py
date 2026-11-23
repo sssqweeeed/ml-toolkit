@@ -518,6 +518,11 @@ class CatBoostClassificationModel(PythonModel):
         ----------
         data : polars.DataFrame or pandas.DataFrame
             Features selected and reordered to the fitted native schema.
+            Categorical columns are formatted exactly as in training. Pandas
+            integer categoricals with missing values must use the nullable
+            ``Int64`` dtype; a ``float64`` column formats as ``"1.0"``.
+            Object-dtype categorical columns are converted with pandas string
+            formatting.
 
         Returns
         -------
