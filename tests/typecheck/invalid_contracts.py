@@ -22,7 +22,7 @@ from ml_toolkit.config import (
 from ml_toolkit.metrics import Metric, MetricScores
 from ml_toolkit.training import DatasetSplit
 from ml_toolkit.reports import PredictionEvaluator
-from ml_toolkit.config import FeatureLevelConfig
+from ml_toolkit.feature_levels import FeatureLevelConfig
 from ml_toolkit.figures import FigureConfig
 from ml_toolkit.types import FloatArray, ModelParams
 
@@ -108,7 +108,7 @@ RFESelector(ranker=importance_ranker, min_features=1, metric='mae', direction='m
 ForwardSelector(max_features=1, max_fits=2, metric='mae', direction='minimize', evaluator=['business'])  # expected-type-error
 TopKSelector(k=1, ranker=importance_ranker, evaluator=PredictionEvaluator(name='business'))  # expected-type-error
 
-from ml_toolkit.config import FeatureLevelConfig
+from ml_toolkit.feature_levels import FeatureLevelConfig
 
 ReportingConfig(features=('age',))  # expected-type-error
 ReportingConfig(psi='on')  # expected-type-error

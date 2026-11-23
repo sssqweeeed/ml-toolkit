@@ -52,7 +52,7 @@ same reports directly from aligned predictions:
 <!-- example: observed-fitted-reports -->
 
 ```python
-from ml_toolkit.config import FeatureLevelConfig
+from ml_toolkit.feature_levels import FeatureLevelConfig
 from ml_toolkit.reports import ObservedFitted, TimeObservedFitted
 
 features = (FeatureLevelConfig("temperature", "numerical"),)
@@ -280,7 +280,7 @@ reference_prediction, current_prediction = (
 <!-- example: observed-fitted-heldout-levels -->
 ```python
 from ml_toolkit.reports import regression
-from ml_toolkit.config import FeatureLevelConfig
+from ml_toolkit.feature_levels import FeatureLevelConfig
 from ml_toolkit.feature_levels import LevelTransformer
 
 heldout_levels = LevelTransformer(

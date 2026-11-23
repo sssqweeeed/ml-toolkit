@@ -16,7 +16,7 @@ observations, see the [recorded-hour comparison](#compare-recorded-weather-and-c
 ```python
 import polars as pl
 
-from ml_toolkit.config import FeatureLevelConfig
+from ml_toolkit.feature_levels import FeatureLevelConfig
 from ml_toolkit.psi import PSIAnalysis, PSIConfig
 
 reference = pl.DataFrame(

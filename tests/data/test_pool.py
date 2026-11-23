@@ -10,7 +10,11 @@ from polars.testing import assert_frame_equal, assert_series_equal
 
 from examples.project_pool import ProjectPool as Pool
 from ml_toolkit import Pool as PublicPool
-from ml_toolkit.data import validate_training_categories, validate_training_data
+from ml_toolkit.data import (
+    validate_compatible_pools,
+    validate_training_categories,
+    validate_training_data,
+)
 
 
 @pytest.fixture
@@ -400,3 +404,33 @@ def test_optional_fields_are_keyword_only(pool):
     assert data.auxiliary_features is None
     with pytest.raises(TypeError):
         Pool(pool.X, pool.y, pool.time, pool.weight, pool.auxiliary_features)
+
+
+def test_compatible_pools_accept_identical_schemas(pool):
+    validate_compatible_pools(pool, pool.take([0, 1]), context="Pools")
+
+
+@pytest.mark.parametrize(
+    ("change", "message"),
+    [
+        ("columns", "Test pools must have matching features and metadata"),
+        ("order", "Test pools must have matching features and metadata"),
+        ("dtype", "Test pools must have matching features and metadata"),
+        ("cat_features", "Test pools must have matching features and metadata"),
+        ("auxiliary", "Test pools must have matching auxiliary feature schemas"),
+    ],
+)
+def test_compatible_pools_reject_differences(pool, change, message):
+    other = pool
+    if change == "columns":
+        other = pool.select_features(["x"])
+    elif change == "order":
+        other = pool.select_features(["extra", "category", "x"])
+    elif change == "dtype":
+        other = replace(pool, X=pool.X.with_columns(pl.col("x").cast(pl.Float32)))
+    elif change == "cat_features":
+        other = replace(pool, cat_features=())
+    else:
+        other = replace(pool, auxiliary_features=None)
+    with pytest.raises(ValueError, match=message):
+        validate_compatible_pools(pool, other, context="Test pools")

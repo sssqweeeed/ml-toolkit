@@ -18,7 +18,8 @@ __all__ = [
     "categorical_frame",
     "concat_pools",
     "row_indexer",
-    "validate_auxiliary_pair",
+    "PoolSchema",
+    "validate_compatible_pools",
     "validate_prediction",
     "validate_split_labels",
     "validate_training_categories",
@@ -324,24 +325,66 @@ class Pool:
         )
 
 
-def validate_auxiliary_pair(left: Pool, right: Pool) -> None:
-    """Require identical auxiliary schemas before pairing or concatenating pools.
+@dataclass(frozen=True)
+class PoolSchema:
+    """Feature layout of a pool, without any of its rows.
+
+    Attributes
+    ----------
+    features : polars.Schema
+        Feature names, order and dtypes.
+    cat_features, numerical_features : tuple[str, ...]
+        Declared categorical and numerical features.
+    auxiliary : polars.Schema or None
+        Auxiliary feature names and dtypes, None without auxiliary features.
+    """
+
+    features: pl.Schema
+    cat_features: tuple[str, ...]
+    numerical_features: tuple[str, ...]
+    auxiliary: pl.Schema | None
+
+    @classmethod
+    def of(cls, pool: Pool) -> Self:
+        """Capture the feature layout of ``pool`` without referencing its data."""
+        auxiliary = pool.auxiliary_features
+        return cls(
+            features=pool.X.schema,
+            cat_features=pool.cat_features,
+            numerical_features=pool.numerical_features,
+            auxiliary=None if auxiliary is None else auxiliary.schema,
+        )
+
+
+def validate_compatible_pools(
+    left: Pool | PoolSchema, right: Pool | PoolSchema, *, context: str
+) -> None:
+    """Require two pools to share features, feature metadata and auxiliary schema.
 
     Parameters
     ----------
-    left, right : Pool
-        Pools to compare.
+    left, right : Pool or PoolSchema
+        Pools, or layouts captured earlier with ``PoolSchema.of``, to compare.
+    context : str
+        Subject of the error message, for example ``"Split pools"``.
 
     Raises
     ------
     ValueError
-        If only one pool has auxiliary features or their schemas differ.
+        If feature schemas (names, order and dtypes) or categorical or
+        numerical feature declarations differ, or, once those match, if
+        auxiliary feature schemas differ.
     """
-    a, b = left.auxiliary_features, right.auxiliary_features
-    if a is None and b is None:
-        return
-    if a is None or b is None or a.schema != b.schema:
-        raise ValueError("Pools must have matching auxiliary feature schemas")
+    a = left if isinstance(left, PoolSchema) else PoolSchema.of(left)
+    b = right if isinstance(right, PoolSchema) else PoolSchema.of(right)
+    if (
+        a.features != b.features
+        or a.cat_features != b.cat_features
+        or a.numerical_features != b.numerical_features
+    ):
+        raise ValueError(f"{context} must have matching features and metadata")
+    if a.auxiliary != b.auxiliary:
+        raise ValueError(f"{context} must have matching auxiliary feature schemas")
 
 
 def validate_object_ids(object_id: pl.Series, n_rows: int) -> None:
@@ -545,13 +588,7 @@ def concat_pools(train: Pool, heldout: Pool | None) -> Pool:
     """
     if heldout is None:
         return train
-    validate_auxiliary_pair(train, heldout)
-    if (
-        train.X.schema != heldout.X.schema
-        or train.cat_features != heldout.cat_features
-        or train.numerical_features != heldout.numerical_features
-    ):
-        raise ValueError("Reporting pools must have matching features and metadata")
+    validate_compatible_pools(train, heldout, context="Reporting pools")
 
     def optional(left: pl.Series | None, right: pl.Series | None) -> pl.Series | None:
         if left is None and right is None:

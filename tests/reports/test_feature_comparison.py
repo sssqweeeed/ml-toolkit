@@ -3,8 +3,7 @@ import polars as pl
 import pytest
 
 from ml_toolkit import figures as figures_module
-from ml_toolkit.config import FeatureLevelConfig
-from ml_toolkit.feature_levels import LevelTransformer
+from ml_toolkit.feature_levels import FeatureLevelConfig, LevelTransformer
 from ml_toolkit.figures import PlotError
 from ml_toolkit.reports.regression import observed_fitted_by_level
 

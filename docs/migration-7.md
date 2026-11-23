@@ -1,9 +1,9 @@
 # Migrating to 7.0
 
-Version 7.0 reorganizes the package so that every concept has one home. Only
-import paths change in this part of the migration; behaviour, model state and
-saved artifacts are unchanged. Models and PSI baselines logged by 6.x keep
-loading. Old import paths are removed without compatibility aliases.
+Version 7.0 reorganizes the package so that every concept has one home. Mostly
+import paths change; the few behaviour changes are listed under "Behaviour
+changes" (and per phase below). Model state and saved artifacts are unchanged.
+Models and PSI baselines logged by 6.x keep loading. Old import paths are removed without compatibility aliases.
 
 ## Moved imports
 
@@ -160,3 +160,29 @@ baselines and `LevelTransformer` state are unchanged.
 | `ml_toolkit.tracking.load_psi_baseline` | `ml_toolkit.psi.load_psi_baseline` |
 | `ml_toolkit.plots.psi` | `ml_toolkit.psi.figures` |
 | `ml_toolkit.training.psi.prepare_psi_baseline`, `log_model_with_baseline` | `ml_toolkit.training.reporting` |
+
+## Training workflow (phase 6)
+
+`train_model` is split into named internal steps; training results, logged
+MLflow parameters, metrics and artifacts, and console output are unchanged.
+Each public name now has one import path.
+
+| Old import | New import |
+| --- | --- |
+| `ml_toolkit.training.TuningConfig`, `TrainingConfig`, `ReportingConfig` | `ml_toolkit.config` |
+| `ml_toolkit.training.FeatureLevelConfig`, `ml_toolkit.config.FeatureLevelConfig` | `ml_toolkit.feature_levels.FeatureLevelConfig` |
+| `ml_toolkit.config.TimePeriod` | `ml_toolkit.types.TimePeriod` |
+| `ml_toolkit.data.validate_auxiliary_pair(left, right)` | `ml_toolkit.data.validate_compatible_pools(left, right, context=...)` |
+
+Behaviour changes:
+
+- One check, `validate_compatible_pools`, compares feature schemas (names,
+  order and dtypes), categorical and numerical feature declarations and
+  auxiliary schemas. `Split`, `concat_pools`, validation fits, feature
+  selection and the `fit_on_test` final fit all use it, so the messages now read
+  `<subject> must have matching features and metadata` (for example `Split
+  pools`, `Reporting pools`, `Train and validation pools`, `Final-fit data`)
+  or `... must have matching auxiliary feature schemas`; the feature check runs
+  first, so a pair that differs in both reports the feature message. Feature selection and
+  validation fits previously compared column names only; they now also reject
+  differing dtypes or feature declarations between train and validation.

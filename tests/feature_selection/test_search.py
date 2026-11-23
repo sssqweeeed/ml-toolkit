@@ -422,7 +422,14 @@ def test_real_shap_ranker_handles_null_and_numeric_categories_without_shap_extra
 
 
 @pytest.mark.parametrize(
-    "invalid", ["different_columns", "reordered_columns", "empty_train", "empty_val"]
+    "invalid",
+    [
+        "different_columns",
+        "reordered_columns",
+        "different_dtype",
+        "empty_train",
+        "empty_val",
+    ],
 )
 def test_selection_requires_matching_columns_and_nonempty_supplied_windows(
     data, invalid
@@ -434,6 +441,11 @@ def test_selection_requires_matching_columns_and_nonempty_supplied_windows(
     validation = data.take(range(18, 24))
     if invalid == "different_columns":
         validation = validation.select_features(["f0"])
+    elif invalid == "different_dtype":
+        validation = replace(
+            validation,
+            X=validation.X.with_columns(pl.col("f0").cast(pl.Float32)),
+        )
     elif invalid == "reordered_columns":
         validation = validation.select_features(list(reversed(validation.X.columns)))
     else:
@@ -447,7 +459,9 @@ def test_selection_requires_matching_columns_and_nonempty_supplied_windows(
         else:
             validation = empty
     message = (
-        "nonzero lengths" if invalid.startswith("empty") else "features must match"
+        "nonzero lengths"
+        if invalid.startswith("empty")
+        else "must have matching features"
     )
     with pytest.raises(ValueError, match=message):
         replace(settings(), ranker=ordered_ranker).select(

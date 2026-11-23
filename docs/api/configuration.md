@@ -128,7 +128,7 @@ behavior; this setting does not enable automatic output outside `train_model`.
 ::: ml_toolkit.config.ReportingConfig
     options:
       members: []
-::: ml_toolkit.config.FeatureLevelConfig
+::: ml_toolkit.feature_levels.FeatureLevelConfig
     options:
       members: []
 ::: ml_toolkit.explainability.ShapConfig

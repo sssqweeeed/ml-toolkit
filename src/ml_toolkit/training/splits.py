@@ -9,7 +9,7 @@ from typing import Generic, TypeVar
 
 import polars as pl
 
-from ..data import Pool, validate_auxiliary_pair, validate_training_data
+from ..data import Pool, validate_compatible_pools, validate_training_data
 
 DataT = TypeVar("DataT", bound=Pool, covariant=True)
 
@@ -44,13 +44,7 @@ class Split(Generic[DataT]):
         validate_training_data(self.train)
         if self.heldout is not None:
             validate_training_data(self.heldout)
-            validate_auxiliary_pair(self.train, self.heldout)
-            if (
-                self.train.X.schema != self.heldout.X.schema
-                or self.train.cat_features != self.heldout.cat_features
-                or self.train.numerical_features != self.heldout.numerical_features
-            ):
-                raise ValueError("Split pools must have matching features and metadata")
+            validate_compatible_pools(self.train, self.heldout, context="Split pools")
 
 
 class Splitter(ABC, Generic[DataT]):

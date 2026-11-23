@@ -15,6 +15,7 @@ from .._console import Logger
 from ..data import (
     Pool,
     concat_pools,
+    validate_compatible_pools,
     validate_prediction,
     validate_training_categories,
     validate_training_data,
@@ -107,8 +108,7 @@ def _validate_data(
     validate_training_data(validation)
     validate_training_categories(train)
     validate_training_categories(validation)
-    if train.X.columns != validation.X.columns:
-        raise ValueError("Train and validation features must match")
+    validate_compatible_pools(train, validation, context="Train and validation pools")
     if limit > len(train.X.columns):
         raise ValueError("Feature limit must not exceed the input feature count")
     missing = set(protected) - set(train.X.columns)

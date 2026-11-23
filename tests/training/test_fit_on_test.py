@@ -1,5 +1,7 @@
 """Main and optional full-data models have distinct lifetimes and scores."""
 
+import gc
+import weakref
 from dataclasses import replace
 from itertools import product
 
@@ -334,7 +336,7 @@ def test_invalid_full_pool_fails_before_additional_fit(tmp_path, invalid):
             fits.append(len(train))
             return super().fit(train, validation)
 
-    with pytest.raises(ValueError, match="schema|ascending"):
+    with pytest.raises(ValueError, match="matching features|ascending"):
         train_model(
             splitter=Custom(make_identified_data(), test_size=4),
             params={},
@@ -388,3 +390,34 @@ def test_registration_without_logged_target_is_rejected_by_config():
                 log_final_model=False, registered_model_name="main"
             ),
         )
+
+
+def test_final_fit_does_not_keep_main_stage_data_alive(tmp_path):
+    setup_mlflow(tmp_path)
+    main_pools = []
+    alive_at_final = []
+
+    class Model(MeanModel):
+        def fit(self, train, validation=None):
+            if validation is None and not main_pools:
+                main_pools.append(weakref.ref(train))
+            return super().fit(train, validation)
+
+    class Splitter(Holdout):
+        def get_final(self):
+            gc.collect()
+            alive_at_final.append(main_pools[0]() is not None)
+            return super().get_final()
+
+    train_model(
+        splitter=Splitter(make_identified_data(), val_size=4, gap=2, test_size=4),
+        params={"iterations": 8, "early_stopping_rounds": 2, "use_best_model": True},
+        model_factory=Model,
+        metric=mae,
+        run_name="lifetime",
+        config=TrainingConfig(
+            fit_on_test=True,
+            tracking=TrackingConfig(log_test_model=False, log_final_model=False),
+        ),
+    )
+    assert alive_at_final == [False]
