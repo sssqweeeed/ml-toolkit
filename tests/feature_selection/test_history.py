@@ -3,6 +3,8 @@
 import json
 from dataclasses import replace
 
+import pytest
+
 from ml_toolkit.feature_selection import (
     CustomSelectionSettings,
     FeatureSelectionResult,
@@ -102,6 +104,35 @@ def test_history_top_level_keys_and_steps_match_legacy_layout():
         "best_iteration",
         "objective_metrics",
     ]
+
+
+def test_custom_settings_reject_reserved_names_and_selector_key():
+    for name in ("rfe", "top_k", "forward"):
+        with pytest.raises(ValueError, match="reserved"):
+            CustomSelectionSettings(name)
+    with pytest.raises(ValueError, match="selector"):
+        CustomSelectionSettings("fixed", {"selector": "x"})
+
+
+def test_numeric_settings_are_validated():
+    with pytest.raises(ValueError, match="score_tolerance"):
+        RFESettings(
+            min_features=1,
+            metric="m",
+            direction="minimize",
+            max_fits=2,
+            score_tolerance=-1.0,
+            protected_features=(),
+        )
+    with pytest.raises(ValueError, match="min_improvement"):
+        ForwardSettings(
+            metric="m",
+            direction="minimize",
+            max_features=2,
+            max_fits=2,
+            min_improvement=float("nan"),
+            protected_features=(),
+        )
 
 
 def test_forward_rounds_and_stop_reason():

@@ -4,22 +4,16 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field, replace
 from itertools import groupby
+from math import isfinite
 from typing import Literal, TypeAlias
 
-__all__ = [
-    "FeatureSelectionResult",
-    "FeatureSelectionStep",
-    "RFESettings",
-    "TopKSettings",
-    "ForwardSettings",
-    "CustomSelectionSettings",
-    "SelectionSettings",
-    "SettingValue",
-    "ForwardRound",
-    "ForwardStop",
-    "forward_rounds",
-    "forward_stop",
-]
+_BUILT_IN_SELECTORS = ("rfe", "top_k", "forward")
+
+
+def _require_nonnegative(name: str, value: float) -> None:
+    if not isfinite(value) or value < 0:
+        raise ValueError(f"{name} must be finite and nonnegative")
+
 
 SettingValue: TypeAlias = str | int | float | bool | None | tuple[str, ...]
 """JSON-compatible scalar or feature-name tuple of a custom selector setting."""
@@ -119,6 +113,9 @@ class RFESettings:
     protected_features: tuple[str, ...]
     evaluator: str | None = None
 
+    def __post_init__(self) -> None:
+        _require_nonnegative("score_tolerance", self.score_tolerance)
+
 
 @dataclass(frozen=True, kw_only=True)
 class TopKSettings:
@@ -170,6 +167,11 @@ class ForwardSettings:
     protected_features: tuple[str, ...]
     evaluator: str | None = None
 
+    def __post_init__(self) -> None:
+        _require_nonnegative("min_improvement", self.min_improvement)
+        _require_nonnegative("max_features", self.max_features)
+        _require_nonnegative("max_fits", self.max_fits)
+
 
 @dataclass(frozen=True)
 class CustomSelectionSettings:
@@ -187,6 +189,14 @@ class CustomSelectionSettings:
 
     selector: str
     details: dict[str, SettingValue] = field(default_factory=lambda: {})
+
+    def __post_init__(self) -> None:
+        if self.selector in _BUILT_IN_SELECTORS:
+            raise ValueError(
+                f"selector {self.selector!r} is reserved for a built-in selector"
+            )
+        if "selector" in self.details:
+            raise ValueError("details must not contain the key 'selector'")
 
 
 SelectionSettings: TypeAlias = (

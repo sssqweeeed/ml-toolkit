@@ -29,9 +29,7 @@ __all__ = [
 ]
 
 
-def _validate_result(result: FeatureSelectionResult, selector: str) -> None:
-    if result.settings is None or result.settings.selector != selector:
-        raise PlotError(f"Expected a {selector!r} selection history")
+def _validate_steps(result: FeatureSelectionResult) -> None:
     if (
         not result.steps
         or not 0 <= result.selected_step < len(result.steps)
@@ -59,23 +57,24 @@ def _objective(
     return label, settings.direction == "maximize", scores
 
 
-def _nonnegative(value: float, name: str) -> float:
-    if not np.isfinite(value) or value < 0:
-        raise PlotError(f"Selection setting {name!r} must be finite and nonnegative")
-    return float(value)
-
-
 def _rfe_settings(result: FeatureSelectionResult) -> RFESettings:
-    _validate_result(result, "rfe")
     if not isinstance(result.settings, RFESettings):
-        raise PlotError("Expected RFESettings for an 'rfe' selection history")
+        raise PlotError("Expected an 'rfe' selection history")
+    _validate_steps(result)
+    return result.settings
+
+
+def _top_k_settings(result: FeatureSelectionResult) -> TopKSettings:
+    if not isinstance(result.settings, TopKSettings):
+        raise PlotError("Expected a 'top_k' selection history")
+    _validate_steps(result)
     return result.settings
 
 
 def _forward_settings(result: FeatureSelectionResult) -> ForwardSettings:
-    _validate_result(result, "forward")
     if not isinstance(result.settings, ForwardSettings):
-        raise PlotError("Expected ForwardSettings for a 'forward' selection history")
+        raise PlotError("Expected a 'forward' selection history")
+    _validate_steps(result)
     return result.settings
 
 
@@ -126,7 +125,7 @@ def rfe_progress(
     """
     settings = _rfe_settings(result)
     metric, maximize, scores = _objective(result, settings)
-    tolerance = _nonnegative(settings.score_tolerance, "score_tolerance")
+    tolerance = float(settings.score_tolerance)
     counts = [len(step.features) for step in result.steps]
     best = int(np.argmax(scores) if maximize else np.argmin(scores))
     chosen = result.selected_step
@@ -222,15 +221,13 @@ def top_k_ranking(
     the unprotected ranking cutoff, so no global Top-K line is drawn for them.
     Uses raw ranking values, creates no models, and always closes the figure.
     """
-    _validate_result(result, "top_k")
-    if not isinstance(result.settings, TopKSettings):
-        raise PlotError("Expected TopKSettings for a 'top_k' selection history")
+    settings = _top_k_settings(result)
     full = result.steps[0]
     if not full.features or set(full.importances) != set(full.features):
         raise PlotError("Top-K history must contain all full-model importances")
     numeric_vector([full.importances[name] for name in full.features], "importance")
     names = sorted(full.features, key=full.importances.__getitem__, reverse=True)
-    protected = set(result.settings.protected_features)
+    protected = set(settings.protected_features)
     chosen = set(result.features)
     fig, ax = plt.subplots(figsize=(10, max(4, 0.32 * len(names) + 2)))
     with saved_figure(fig, save_fig, config=figure):
@@ -325,9 +322,9 @@ def forward_progress(
     """
     settings = _forward_settings(result)
     metric, maximize, scores = _objective(result, settings)
-    threshold = _nonnegative(settings.min_improvement, "min_improvement")
-    max_features = _nonnegative(settings.max_features, "max_features")
-    max_fits = _nonnegative(settings.max_fits, "max_fits")
+    threshold = settings.min_improvement
+    max_features = settings.max_features
+    max_fits = settings.max_fits
     protected = settings.protected_features
     counts = [len(step.features) for step in result.steps]
     rounds = _forward_rounds(result, settings)
@@ -471,7 +468,7 @@ def forward_improvement(
     """
     settings = _forward_settings(result)
     metric, maximize, scores = _objective(result, settings)
-    threshold = _nonnegative(settings.min_improvement, "min_improvement")
+    threshold = settings.min_improvement
     rounds = _forward_rounds(result, settings)
     previous: int | None = None
     counts: list[int] = []
@@ -590,7 +587,7 @@ def best_iteration_progress(
     if not isinstance(result.settings, (RFESettings, TopKSettings, ForwardSettings)):
         raise PlotError("Best-iteration plots require a built-in selector history")
     selector = result.settings.selector
-    _validate_result(result, selector)
+    _validate_steps(result)
     valid = [
         i for i, step in enumerate(result.steps) if step.best_iteration is not None
     ]

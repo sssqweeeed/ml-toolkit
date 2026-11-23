@@ -477,6 +477,12 @@ the ranker. Explicit inheritance from `FeatureRanker` is unnecessary.
     options:
       members: []
 
+`ml_toolkit.feature_selection.SelectionSettings` is the union
+`RFESettings | TopKSettings | ForwardSettings | CustomSelectionSettings`.
+`ml_toolkit.feature_selection.SettingValue` is
+`str | int | float | bool | None | tuple[str, ...]`, the value type of
+`CustomSelectionSettings.details`.
+
 ### Plots
 
 ::: ml_toolkit.feature_selection.figures

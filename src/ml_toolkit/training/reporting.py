@@ -3,6 +3,7 @@
 from collections.abc import Callable
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from typing import Protocol
 
 import mlflow
 import polars as pl
@@ -18,9 +19,15 @@ from ..explainability import (
 )
 from ..feature_levels import LevelTransformer
 from ..feature_levels.config import feature_definitions
-from ..feature_selection import FeatureSelectionResult
+from ..feature_selection import (
+    CustomSelectionSettings,
+    FeatureSelectionResult,
+    ForwardSettings,
+    RFESettings,
+    TopKSettings,
+)
 from ..feature_selection import figures as selection_figures
-from ..figures import feature_filename
+from ..figures import FigureConfig, feature_filename
 from ..metrics import Metric
 from ..models.base import Model
 from ..plots import psi as psi_plots
@@ -37,6 +44,16 @@ from ..reports import (
 from ..types import FloatArray
 
 logger = Logger(__name__)
+
+
+class _SelectionFigure(Protocol):
+    def __call__(
+        self,
+        result: FeatureSelectionResult,
+        save_fig: Path,
+        *,
+        figure: FigureConfig | None = None,
+    ) -> None: ...
 
 
 def prepare_evaluators(
@@ -149,19 +166,20 @@ def report_feature_selection(
     result: FeatureSelectionResult, config: ReportingConfig, *, stage: str
 ) -> None:
     """Plot a known selector's single search history in its active run."""
-    if result.settings is None:
-        return
-    selector = result.settings.selector
-    plots = {
-        "rfe": ("rfe_progress", selection_figures.rfe_progress),
-        "top_k": ("top_k_ranking", selection_figures.top_k_ranking),
-        "forward": ("forward_progress", selection_figures.forward_progress),
-    }
-    if selector not in plots:
-        return
-    reports = [plots[selector]]
-    if selector == "forward":
-        reports.append(("forward_improvement", selection_figures.forward_improvement))
+    settings = result.settings
+    reports: list[tuple[str, _SelectionFigure]]
+    match settings:
+        case RFESettings():
+            reports = [("rfe_progress", selection_figures.rfe_progress)]
+        case TopKSettings():
+            reports = [("top_k_ranking", selection_figures.top_k_ranking)]
+        case ForwardSettings():
+            reports = [
+                ("forward_progress", selection_figures.forward_progress),
+                ("forward_improvement", selection_figures.forward_improvement),
+            ]
+        case CustomSelectionSettings() | None:
+            return
     reports.append(("best_iteration", selection_figures.best_iteration_progress))
     try:
         with TemporaryDirectory(prefix="ml-toolkit-selection-") as directory:
@@ -175,7 +193,7 @@ def report_feature_selection(
                     paths.append(path)
             upload_artifacts(root, paths, "selection")
     except Exception as exc:
-        exc.add_note(f"Feature selection selector={selector}, stage={stage}")
+        exc.add_note(f"Feature selection selector={settings.selector}, stage={stage}")
         raise
 
 

@@ -127,9 +127,11 @@ defaults to `None` instead of `{}`.
 - `FeatureSelectionResult.settings` is a typed dataclass: use attribute access
   (`result.settings.k`, `result.settings.evaluator`) instead of dictionary
   access. `evaluator` is `None` when unset. `selection/history.json` is
-  unchanged; build the same payload with `FeatureSelectionResult.to_dict()`
-  (`dataclasses.asdict` would also include `evaluator: null`).
-
+  unchanged; `FeatureSelectionResult.to_dict()` is the only way to build the
+  logged payload (`dataclasses.asdict` nests `details` and keeps
+  `evaluator: null`). Settings reject negative or non-finite numeric fields,
+  and `CustomSelectionSettings` rejects the built-in selector names and a
+  `selector` key in `details`.
 - `GroupedMetrics` now reports a metric callback that returns no scores or
   empty names as `Metric must return nonempty named scores` (previously
   `Grouped metric must return at least one named score` or `Grouped metric
