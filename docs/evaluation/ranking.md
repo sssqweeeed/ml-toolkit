@@ -128,7 +128,8 @@ print(
 
 `ranking_metrics` returns cumulative arrays and selected points; plotting calls
 return `None`. Selected points interpolate at the requested exposure fraction.
-Zero-exposure rows are omitted and tied predictions retain input order.
+Zero-exposure rows are omitted and exactly equal predictions form one step, so results
+do not depend on row order.
 The evaluator classes use the default 10% point; direct plotting accepts any
 `RankingMetrics` result, including other selected capacities.
 

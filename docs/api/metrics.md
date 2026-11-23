@@ -227,8 +227,9 @@ slightly worse than uniform selection; the point interpolates within a row.
 Each selected point exposes `percent`, `gain`, and `lift`. Gain is the fraction
 of total exposure-weighted observed outcome captured; lift divides gain by the
 exposure fraction. Results interpolate at the requested capacity percentages.
-Rows are sorted by descending prediction; tied scores retain input order and
-zero-exposure rows are omitted. The cumulative arrays include an initial zero.
+Rows are sorted by descending prediction; exactly equal scores form one step,
+so results do not depend on row order, and zero-exposure rows are omitted. The
+cumulative arrays have one point per distinct score plus the initial zero.
 These are supervised outcomes; use PU metrics for positive/unlabeled labels.
 
 ## Evaluate positive-unlabeled predictions
@@ -467,8 +468,10 @@ contains capacity percentages in `(0, 100]`; an empty tuple requests only the
 full curves and Gini values.
 
 Returns `RankingMetrics`, with cumulative arrays and selected gain/lift points
-in request order. Zero-exposure rows are omitted, tied scores retain input
-order, and selected points use linear interpolation. Normalized Gini is NaN
+in request order. Zero-exposure rows are omitted, exactly equal scores form one
+step (so results do not depend on row order), cumulative arrays have one point
+per distinct score plus the initial zero, and selected points use linear
+interpolation. Normalized Gini is NaN
 when perfect-ranking Gini is close to zero. Invalid shapes, non-finite values,
 negative exposures, nonpositive totals, or out-of-range percentages raise
 `ValueError`. See [the ranking recipe](#inspect-gains-lift-and-gini) for an
