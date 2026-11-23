@@ -18,6 +18,7 @@ from mlflow.pyfunc.model import PythonModel
 from .._console import Logger
 from ..data import Pool
 from ..types import FloatArray, ModelParams
+from ._shrink import validate_size
 from .artifacts import TrackingConfig, log_model_from_code
 
 logger = Logger("ml_toolkit.models.lightgbm")
@@ -71,8 +72,6 @@ class LightGBMServingModel(PythonModel):
 
     def shrink(self, n_iterations: int) -> Self:
         """Return an independent Booster prefix without fitting new trees."""
-        from ._shrink import validate_size
-
         validate_size(n_iterations, self.n_iterations)
         native = self.native_model
         reduced = lightgbm.Booster(

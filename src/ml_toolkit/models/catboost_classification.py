@@ -16,6 +16,7 @@ from mlflow.pyfunc.utils import pyfunc
 
 from .._console import Logger
 from ..data import Pool, validate_training_categories
+from ..metrics.classification import binary_threshold_scores
 from ..types import FloatArray, IntArray, ModelParams
 from ._catboost import (
     ITERATION_ALIASES,
@@ -25,6 +26,7 @@ from ._catboost import (
     prepare_frame,
     refit_parameters,
 )
+from ._shrink import validate_size
 from .artifacts import TrackingConfig, log_catboost
 from .losses.pu.common import (
     NNPUMetric as NNPUMetric,
@@ -36,6 +38,7 @@ from .losses.pu.common import (
 from .losses.pu.common import (
     UPUMetric as UPUMetric,
 )
+from .losses.pu.cpu import UPUObjective
 from .state import ClassificationState, read_state
 
 logger = Logger("ml_toolkit.models.catboost_classification")
@@ -91,8 +94,6 @@ class CatBoostClassificationModel(PythonModel):
         Shrinking never reselects a decision threshold. Validation F1 is cleared
         when predictions change; the copy's refit budget is its retained size.
         """
-        from ._shrink import validate_size
-
         validate_size(n_iterations, self.n_iterations)
         native = self.native_model.copy()
         native.shrink(n_iterations, ntree_start=0)
@@ -488,7 +489,6 @@ class CatBoostClassificationModel(PythonModel):
     def _select_threshold(
         y_true: FloatArray, probabilities: FloatArray, weight: FloatArray | None = None
     ) -> tuple[float, float]:
-        from ..metrics.classification import binary_threshold_scores
 
         y = np.asarray(y_true, dtype=float)
         p = np.asarray(probabilities, dtype=float)
@@ -733,8 +733,6 @@ class CatBoostPUClassificationModel(CatBoostClassificationModel):
                 positive_scale, unlabeled_scale
             )
         else:
-            from .losses.pu.cpu import UPUObjective
-
             params["loss_function"] = UPUObjective(positive_scale, unlabeled_scale)
         if validation is not None:
             params.setdefault("use_best_model", True)

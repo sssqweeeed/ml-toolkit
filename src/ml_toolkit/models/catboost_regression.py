@@ -23,7 +23,9 @@ from ._catboost import (
     prepare_frame,
     refit_parameters,
 )
+from ._shrink import validate_size
 from .artifacts import TrackingConfig, log_catboost
+from .losses.gamma.config import configure_gamma
 from .state import RegressionState, read_state
 
 logger = Logger(__name__)
@@ -73,8 +75,6 @@ class CatBoostRegressionModel(PythonModel):
         n_iterations must be an integer from one through the fitted size.
         The copy's refit budget equals its retained size.
         """
-        from ._shrink import validate_size
-
         validate_size(n_iterations, self.n_iterations)
         native = self.native_model.copy()
         native.shrink(n_iterations, ntree_start=0)
@@ -201,8 +201,6 @@ class CatBoostRegressionModel(PythonModel):
         loss = params.get("loss_function")
         is_gamma = isinstance(loss, str) and loss == "Gamma"
         if is_gamma:
-            from .losses.gamma.config import configure_gamma
-
             configure_gamma(
                 params, train, validation, log_link=self.baseline_mode == "native_bias"
             )

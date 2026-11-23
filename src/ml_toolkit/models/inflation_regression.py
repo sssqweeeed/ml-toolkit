@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from copy import deepcopy
+from dataclasses import replace
 from datetime import date
 from typing import Any, Self, cast
 
@@ -343,8 +344,6 @@ class InflationAdjustedModel(PythonModel):
             raise ValueError(
                 "prediction_date_column must not overwrite a model feature"
             )
-        from dataclasses import replace
-
         native_info = self.model.log(
             sample,
             extra_artifacts=extra_artifacts,
