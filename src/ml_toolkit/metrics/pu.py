@@ -91,25 +91,30 @@ class PUMetric:
 
     Parameters
     ----------
-    prior : float
-        Finite population positive prevalence strictly between zero and one,
-        rather than the labeled-positive fraction.
+    class_prior : float
+        Positive prevalence P(y=1) of the population the evaluated rows
+        represent, finite and strictly between zero and one. Rows labeled 1
+        are known positives and the whole sample, labeled rows included, is
+        treated as the unlabeled sample. It must be at least the weighted share
+        of known positives for the risk to be meaningful; the metric does not
+        check this because evaluation windows vary.
     loss : {'uPU', 'nnPU'}, default 'nnPU'
         uPU retains estimated negative risk; nnPU clips it at zero when
         computing total risk.
 
     Notes
     -----
-    Callable metric for the training workflow. Match prior and loss to the
+    Callable metric for the training workflow. Match class_prior and loss to the
     model settings. Capture at capacity uses a score cutoff set by the
     unlabeled population. Ties at that cutoff are all included, so actual
     capacity can be larger. Known-positive capture is a recall proxy only under
-    representative labeling.
+    representative labeling. The risk treats the whole sample as unlabeled,
+    while the capture figures rank only the rows labeled 0.
 
     Examples
     --------
     >>> from ml_toolkit.metrics import PUMetric
-    >>> scores = PUMetric(prior=0.1)([1, 0, 1, 0], [0.9, 0.8, 0.4, 0.2])
+    >>> scores = PUMetric(class_prior=0.1)([1, 0, 1, 0], [0.9, 0.8, 0.4, 0.2])
     >>> values = scores.to_dict()
     >>> values["known_positive_capture_at_10pct"], values["unlabeled_flagged_at_10pct"]
     (0.5, 0.5)
@@ -119,12 +124,12 @@ class PUMetric:
     the same score cutoff captures one of the two known positives.
     """
 
-    prior: float
+    class_prior: float
     loss: str = "nnPU"
 
     def __post_init__(self) -> None:
-        if not np.isfinite(self.prior) or not 0 < self.prior < 1:
-            raise ValueError("PU prior must be strictly between 0 and 1")
+        if not np.isfinite(self.class_prior) or not 0 < self.class_prior < 1:
+            raise ValueError("class_prior must be strictly between 0 and 1")
         if self.loss not in ("uPU", "nnPU"):
             raise ValueError("PU loss must be 'uPU' or 'nnPU'")
 
@@ -166,7 +171,7 @@ class PUMetric:
         unlabeled = ~positive
         clipped = np.clip(p, np.finfo(float).eps, 1 - np.finfo(float).eps)
         positive_risk, negative_risk = risk_components(
-            -np.log(clipped), -np.log1p(-clipped), y, w, self.prior
+            -np.log(clipped), -np.log1p(-clipped), y, w, self.class_prior
         )
         result = {
             "positive_risk": float(positive_risk),
@@ -205,14 +210,14 @@ def risk_components(
     negative_loss: FloatArray,
     labels: FloatArray,
     weights: FloatArray,
-    prior: float,
+    class_prior: float,
 ) -> tuple[float, float]:
     positive = labels == 1
-    unlabeled = ~positive
-    positive_risk = prior * np.average(
+    # The whole sample is the unlabeled sample; labeled rows are part of it.
+    positive_risk = class_prior * np.average(
         positive_loss[positive], weights=weights[positive]
     )
     negative_risk = np.average(
-        negative_loss[unlabeled], weights=weights[unlabeled]
-    ) - prior * np.average(negative_loss[positive], weights=weights[positive])
+        negative_loss, weights=weights
+    ) - class_prior * np.average(negative_loss[positive], weights=weights[positive])
     return float(positive_risk), float(negative_risk)

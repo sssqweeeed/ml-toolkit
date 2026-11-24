@@ -91,11 +91,11 @@ def test_pu_workflow_passes_matching_population_prior_without_training(monkeypat
     exec(compile(code, "pu-workflow", "exec"), namespace)
     data = sample_pool()
     assert (
-        namespace["train_pu_reports"](data, prior=0.15, params={"iterations": 10})
+        namespace["train_pu_reports"](data, class_prior=0.15, params={"iterations": 10})
         is marker
     )
     assert captured["splitter"].data is data
-    assert captured["params"]["pu_prior"] == captured["metric"].prior == 0.15
+    assert captured["params"]["class_prior"] == captured["metric"].class_prior == 0.15
     assert captured["params"]["loss"] == captured["metric"].loss == "nnPU"
     assert captured["model_factory"] is CatBoostPUClassificationModel
     assert [report.name for report in captured["prediction_evaluators"]] == [

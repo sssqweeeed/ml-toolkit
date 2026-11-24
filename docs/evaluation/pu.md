@@ -100,12 +100,12 @@ from ml_toolkit.training import Holdout
 from ml_toolkit.types import ModelParams
 
 
-def train_pu_reports(data: Pool, *, prior: float, params: ModelParams):
+def train_pu_reports(data: Pool, *, class_prior: float, params: ModelParams):
     return train_model(
         splitter=Holdout(data, val_size=0.2, test_size=0.2),
-        params={**params, "pu_prior": prior, "loss": "nnPU"},
+        params={**params, "class_prior": class_prior, "loss": "nnPU"},
         model_factory=CatBoostPUClassificationModel,
-        metric=PUMetric(prior=prior, loss="nnPU"),
+        metric=PUMetric(class_prior=class_prior, loss="nnPU"),
         run_name="pu-reports",
         config=TrainingConfig(),
         prediction_evaluators=[PUScoreDistribution(), PUPositiveCapture()],
@@ -116,7 +116,8 @@ In a test run the files are `pu_score_distribution/test/pu_score_distribution.pn
 and `pu_positive_capture/test/pu_positive_capture.png`; validation uses `val/`.
 The displayed Cora figures illustrate the same direct plotting functions used
 by those evaluators, using the stated retrieval scores rather than a fitted PU
-model. A prior is a population prevalence assumption, not the labeled fraction.
+model. The class prior is a population prevalence assumption P(y=1), not the labeled
+fraction, and never below it.
 
 ## API reference
 

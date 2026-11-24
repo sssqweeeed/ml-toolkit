@@ -188,7 +188,7 @@ def contracts(data: Pool) -> None:
     protocol: DataPool = data
     model: Model = CatBoostRegressionModel({"iterations": 10})
     pu = CatBoostPUClassificationModel(
-        {"loss": "uPU", "pu_prior": 0.1, "task_type": "GPU", "devices": "0"}
+        {"loss": "uPU", "class_prior": 0.1, "task_type": "GPU", "devices": "0"}
     )
     assert_type(pu.fit(data), CatBoostPUClassificationModel)
     assert_type(pu.predict_pool(data), FloatArray)
@@ -198,6 +198,7 @@ def contracts(data: Pool) -> None:
         metrics_frequency,
         severity_metric,
         PUMetric(0.2),
+        PUMetric(class_prior=0.2, loss="nnPU"),
     )
     assert_type(list(Holdout(data).get_validation()), list[Split[Pool]])
     assert_type(

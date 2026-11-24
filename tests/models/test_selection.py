@@ -42,7 +42,7 @@ def test_rfe_selection_preserves_adapter_policies_and_original_order(
             model = CatBoostClassificationModel(params)
         elif kind in ("uPU", "nnPU"):
             model = CatBoostPUClassificationModel(
-                {**params, "loss": kind, "pu_prior": 0.2}
+                {**params, "loss": kind, "class_prior": 0.5}
             )
         else:
             model = InflationAdjustedModel(
@@ -55,7 +55,7 @@ def test_rfe_selection_preserves_adapter_policies_and_original_order(
 
     from ml_toolkit.metrics import PUMetric
 
-    metric = PUMetric(0.2, loss=kind) if kind in ("uPU", "nnPU") else mae
+    metric = PUMetric(0.5, loss=kind) if kind in ("uPU", "nnPU") else mae
     metric_name = "pu_risk" if kind in ("uPU", "nnPU") else "mae"
     partition = next(Holdout(data.take(range(32)), val_size=0.25).get_validation())
     result = RFESelector(

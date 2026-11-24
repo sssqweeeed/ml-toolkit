@@ -2,7 +2,8 @@
 
 Version 7.0 reorganizes the package so that every concept has one home. Mostly
 import paths change; the few behaviour changes are listed under "Behaviour
-changes" (and per phase below). Model state and saved artifacts are unchanged.
+changes" (and per phase below). Persisted classification model state is now version 2 (see
+"Positive-unlabeled learning"); everything else saved by 6.x is unchanged.
 Models and PSI baselines logged by 6.x keep loading. Old import paths are removed without compatibility aliases.
 
 ## Moved imports
@@ -186,3 +187,34 @@ Behaviour changes:
   first, so a pair that differs in both reports the feature message. Feature selection and
   validation fits previously compared column names only; they now also reject
   differing dtypes or feature declarations between train and validation.
+
+## Positive-unlabeled learning
+
+| Old | New |
+| --- | --- |
+| `params["pu_prior"]` | `params["class_prior"]` |
+| `PUMetric(prior=...)` | `PUMetric(class_prior=...)` |
+| `CatBoostPUClassificationModel.pu_prior` | `CatBoostPUClassificationModel.class_prior` |
+
+Behaviour changes:
+
+- The estimator now treats the whole training pool as the unlabeled sample of
+  the population; labeled rows are part of it. Results change. Values tuned for
+  the old estimator must be revisited: a value equal to the positive share among
+  unlabeled rows should now be replaced by the population prevalence P(y=1).
+  `PUMetric` uses the same definition.
+- `class_prior` must be at least the weighted share of known positives in the
+  training pool; smaller values raise `ValueError`.
+- nnPU trains in a single CatBoost fit instead of one fit per tree. The branch
+  decision still follows Kiryo et al. (2017), Algorithm 1, on the full training
+  pool before every tree; the trees differ from 7.0 development builds only
+  because the estimator changed (see above). `eval_metric` must be nnPU (or
+  unset) and `metric_period` must be 1. Early stopping and best-iteration
+  selection are native CatBoost.
+- New nnPU options `nnpu_beta` (default 0, at least 0) and `nnpu_gamma` (default
+  0.2, in (0, 1]); they are rejected for uPU. `class_prior`, `nnpu_beta` and
+  `nnpu_gamma` are rejected by `CatBoostClassificationModel`.
+- Classification model state is version 2 and stores `class_prior`. Artifacts
+  written by 6.x keep loading (`pu_prior` is read as `class_prior`), but their
+  stored training parameters still contain `pu_prior`, so refitting such a model
+  requires renaming the parameter first.

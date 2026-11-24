@@ -310,7 +310,7 @@ def test_positive_unlabeled_classifier_is_preserved():
     model = CatBoostPUClassificationModel(
         {
             "loss": "uPU",
-            "pu_prior": 0.5,
+            "class_prior": 0.7,
             "iterations": 5,
             "depth": 2,
             "learning_rate": 0.1,
@@ -336,7 +336,7 @@ def test_pu_training_logs_only_pu_diagnostics(tmp_path):
     )
     params = {
         "loss": "uPU",
-        "pu_prior": 0.5,
+        "class_prior": 0.7,
         "iterations": 3,
         "depth": 2,
         "learning_rate": 0.1,
@@ -348,7 +348,7 @@ def test_pu_training_logs_only_pu_diagnostics(tmp_path):
         splitter=TimeSeriesCV(binary, n_splits=2),
         model_factory=CatBoostPUClassificationModel,
         params=params,
-        metric=PUMetric(0.5, loss="uPU"),
+        metric=PUMetric(0.7, loss="uPU"),
         run_name="pu",
         prediction_evaluators=[PUScoreDistribution(), PUPositiveCapture()],
         config=TrainingConfig(reporting=ReportingConfig(n_bins=3, psi=False)),

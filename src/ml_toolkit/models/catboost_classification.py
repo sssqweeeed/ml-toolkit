@@ -13,9 +13,14 @@ from .._console import Logger
 from ..data import Pool, validate_training_categories
 from ..types import FloatArray, IntArray, ModelParams
 from ._catboost import CatBoostAdapter, native_fit, normalize_loss
-from .state import ClassificationState
+from .state import ClassificationState, read_state, upgrade_classification_state
 
 logger = Logger("ml_toolkit.models.catboost_classification")
+
+_DEFAULT_NNPU_BETA = 0.0
+# gamma < 1 damps the full-batch correction between trees; with early
+# stopping the choice barely matters, without it 0.2 overfits least.
+_DEFAULT_NNPU_GAMMA = 0.2
 
 
 class CatBoostClassificationModel(
@@ -40,7 +45,7 @@ class CatBoostClassificationModel(
         self._threshold: float | None = None
         self._validation_f1: float | None = None
         self._pu_loss: str | None = None
-        self._pu_prior: float | None = None
+        self._class_prior: float | None = None
 
     def shrink(self, n_iterations: int) -> Self:
         """Return an independent prefix, preserving baseline and threshold.
@@ -175,8 +180,9 @@ class CatBoostClassificationModel(
             "CrossEntropy",
         ):
             raise ValueError("Binary classification requires Logloss or CrossEntropy")
-        if "pu_prior" in params:
-            raise ValueError("pu_prior requires CatBoostPUClassificationModel")
+        for name in ("class_prior", "nnpu_beta", "nnpu_gamma"):
+            if name in params:
+                raise ValueError(f"{name} requires CatBoostPUClassificationModel")
         for name, data in (("targets", train), ("validation targets", validation)):
             if data is None:
                 continue
@@ -362,7 +368,7 @@ class CatBoostClassificationModel(
 
     def export_state(self) -> ClassificationState:
         return {
-            "version": 1,
+            "version": 2,
             "model_type": type(self).__name__,
             "prediction_type": "Probability",
             "baseline": self.baseline,
@@ -370,7 +376,7 @@ class CatBoostClassificationModel(
             "threshold": self._threshold,
             "validation_f1": self._validation_f1,
             "pu_loss": self._pu_loss,
-            "pu_prior": self._pu_prior,
+            "class_prior": self._class_prior,
             "best_iteration": self._best_iteration,
             "training_params": self.params.copy(),
             "retained_iterations": self._retained_iterations,
@@ -383,10 +389,17 @@ class CatBoostClassificationModel(
         if self.validation_f1 is not None:
             mlflow.log_metric("validation_f1_at_threshold", self.validation_f1)
 
+    def _read_state(self, context: Any) -> ClassificationState:
+        return upgrade_classification_state(
+            read_state(
+                context, type(self).__name__, self.baseline_mode, versions=(1, 2)
+            )
+        )
+
     def _restore_fitted_fields(self, state: ClassificationState) -> None:
         self._threshold = state["threshold"]
         self._validation_f1 = state["validation_f1"]
-        self._pu_loss, self._pu_prior = state["pu_loss"], state["pu_prior"]
+        self._pu_loss, self._class_prior = state["pu_loss"], state["class_prior"]
         self._best_iteration = state["best_iteration"]
         logger.debug("Loaded CatBoost classifier: PU loss=%s", self._pu_loss)
 
@@ -397,12 +410,19 @@ class CatBoostPUClassificationModel(CatBoostClassificationModel):
     Parameters
     ----------
     params : dict or None, default None
-        Copied parameters: ``loss`` is uPU (default) or nnPU; ``pu_prior`` must
-        be finite and strictly between zero and one. uPU supports CPU and a
-        single CUDA GPU; nnPU requires CPU. Both label groups need positive
-        total weight, and class-weight options are not supported.
-        Labels mean known positive (1) and unlabeled (0). Hard-label prediction
-        requires an explicit ``decision_threshold``; F1 is never tuned.
+        Copied parameters. ``loss`` is uPU (default) or nnPU.
+        ``class_prior`` is the positive prevalence P(y=1) of the population
+        the training pool represents: finite, strictly between zero and one,
+        and at least the weighted share of known positives in the training
+        pool. Labels mean known positive (1) and unlabeled (0); the whole
+        training pool is the unlabeled sample of the population
+        (single-training-set PU), so the risk uses all rows for the
+        negative-class term. ``nnpu_beta`` (default 0, at least 0) and
+        ``nnpu_gamma`` (default 0.2, in (0, 1]) are nnPU-only. uPU supports CPU
+        and a single CUDA GPU; nnPU requires CPU. Both label groups need
+        positive total weight, and class-weight options are not supported.
+        Hard-label prediction requires an explicit ``decision_threshold``; F1
+        is never tuned.
 
     Notes
     -----
@@ -410,16 +430,26 @@ class CatBoostPUClassificationModel(CatBoostClassificationModel):
     derivatives run in a CUDA kernel; risk evaluation remains on CPU and
     transfers predictions from the GPU. CUDA training requires a compatible
     CUDA toolkit and Numba CUDA support. The first fit compiles the kernels.
-    nnPU evaluates the complete training risk before each tree, reversing the
-    negative-risk gradient when needed (beta=0, gamma=1).
+
+    nnPU trains in one CatBoost fit. After every tree the learn-set negative
+    risk decides the next tree: if it is below ``-nnpu_beta`` the next tree
+    minimizes the negative of the negative risk with derivatives scaled by
+    ``nnpu_gamma`` (Kiryo et al. 2017, full-batch). nnPU requires CPU,
+    eval_metric 'nnPU' (or unset) and metric_period 1.
 
     Examples
     --------
     >>> model = CatBoostPUClassificationModel(
-    ...     {"loss": "uPU", "pu_prior": 0.1, "task_type": "CPU"})
+    ...     {"loss": "uPU", "class_prior": 0.1, "task_type": "CPU"})
     >>> gpu_model = CatBoostPUClassificationModel(
-    ...     {"loss": "uPU", "pu_prior": 0.1, "task_type": "GPU", "devices": "0"})
+    ...     {"loss": "uPU", "class_prior": 0.1, "task_type": "GPU", "devices": "0"})
     """
+
+    def __init__(self, params: ModelParams | None = None) -> None:
+        super().__init__(params)
+        # Training-only settings; refits read them again from the parameters.
+        self._nnpu_beta = _DEFAULT_NNPU_BETA
+        self._nnpu_gamma = _DEFAULT_NNPU_GAMMA
 
     @property
     def task(self) -> str:
@@ -434,11 +464,11 @@ class CatBoostPUClassificationModel(CatBoostClassificationModel):
         return self._pu_loss
 
     @property
-    def pu_prior(self) -> float:
-        """Return the fitted positive population prior."""
+    def class_prior(self) -> float:
+        """Return the fitted population class prior P(y=1)."""
         self._require_fitted()
-        assert self._pu_prior is not None
-        return self._pu_prior
+        assert self._class_prior is not None
+        return self._class_prior
 
     def _validate_params(
         self, params: ModelParams, train: Pool, validation: Pool | None
@@ -446,16 +476,39 @@ class CatBoostPUClassificationModel(CatBoostClassificationModel):
         loss = params.pop("loss_function", "uPU")
         if loss not in ("uPU", "nnPU"):
             raise ValueError("PU classification requires uPU or nnPU loss")
-        if "pu_prior" not in params:
-            raise ValueError("PU loss requires pu_prior in params")
-        prior = float(cast(float, params.pop("pu_prior")))
-        if not np.isfinite(prior) or not 0 < prior < 1:
-            raise ValueError("pu_prior must be finite and strictly between 0 and 1")
+        if "pu_prior" in params:
+            raise ValueError(
+                "pu_prior was replaced by class_prior: the population prevalence "
+                "P(y=1); the whole training pool is now the unlabeled sample. "
+                "See the 7.0 migration guide."
+            )
+        if "class_prior" not in params:
+            raise ValueError("PU loss requires class_prior in params")
+        class_prior = float(cast(float, params.pop("class_prior")))
+        if not np.isfinite(class_prior) or not 0 < class_prior < 1:
+            raise ValueError("class_prior must be finite and strictly between 0 and 1")
+        beta = params.pop("nnpu_beta", None)
+        gamma = params.pop("nnpu_gamma", None)
+        if loss == "uPU" and (beta is not None or gamma is not None):
+            raise ValueError("nnpu_beta and nnpu_gamma require loss='nnPU'")
+        nnpu_beta = self._validated_beta(beta)
+        nnpu_gamma = self._validated_gamma(gamma)
         task_type = str(params.get("task_type", "CPU")).upper()
         if task_type not in ("CPU", "GPU"):
             raise ValueError("PU task_type must be 'CPU' or 'GPU'")
-        if loss == "nnPU" and task_type != "CPU":
-            raise ValueError("nnPU requires task_type='CPU'")
+        if loss == "nnPU":
+            if task_type != "CPU":
+                raise ValueError("nnPU requires task_type='CPU'")
+            if "metric_period" in params and int(cast(int, params["metric_period"])) != 1:
+                raise ValueError(
+                    "nnPU updates its correction after every tree; "
+                    "metric_period must be 1"
+                )
+            if params.get("eval_metric", "nnPU") != "nnPU":
+                raise ValueError(
+                    "nnPU uses its own risk as eval_metric to update the "
+                    "correction after every tree"
+                )
         params["task_type"] = task_type
         if task_type == "GPU":
             # PU normalizations describe one complete pool, not GPU shards.
@@ -468,20 +521,48 @@ class CatBoostPUClassificationModel(CatBoostClassificationModel):
         for name in ("class_weights", "auto_class_weights", "scale_pos_weight"):
             if name in params:
                 raise ValueError(f"{name} is incompatible with PU loss")
-        self._pu_loss, self._pu_prior = loss, prior
         # Training-only compiled code stays out of serving environments.
         from .losses.pu import pu_risks
 
-        pu_risks(
-            np.zeros(len(train)),
-            train.y.to_numpy(),
-            train.weight.to_numpy(),
-            prior,
-        )
+        labels, weights = train.y.to_numpy(), train.weight.to_numpy()
+        pu_risks(np.zeros(len(train)), labels, weights, class_prior)
+        labeled_share = float(weights[labels == 1].sum() / weights.sum())
+        if class_prior < labeled_share:
+            raise ValueError(
+                f"class_prior ({class_prior:.6g}) is below the weighted share of "
+                f"known positives in the training pool ({labeled_share:.6g}); "
+                "known positives are positives, so the population prevalence "
+                "cannot be smaller"
+            )
+        # Assign only after every check, so a rejected fit leaves no partial state.
+        self._pu_loss, self._class_prior = loss, class_prior
+        self._nnpu_beta, self._nnpu_gamma = nnpu_beta, nnpu_gamma
+
+    @staticmethod
+    def _validated_beta(value: object) -> float:
+        if value is None:
+            return _DEFAULT_NNPU_BETA
+        if isinstance(value, bool):
+            raise ValueError("nnpu_beta must be finite and nonnegative")
+        beta = float(cast(float, value))
+        if not np.isfinite(beta) or beta < 0:
+            raise ValueError("nnpu_beta must be finite and nonnegative")
+        return beta
+
+    @staticmethod
+    def _validated_gamma(value: object) -> float:
+        if value is None:
+            return _DEFAULT_NNPU_GAMMA
+        if isinstance(value, bool):
+            raise ValueError("nnpu_gamma must be finite and in (0, 1]")
+        gamma = float(cast(float, value))
+        if not np.isfinite(gamma) or not 0 < gamma <= 1:
+            raise ValueError("nnpu_gamma must be finite and in (0, 1]")
+        return gamma
 
     def _calculate_baseline(self, train: Pool) -> float:
-        assert self._pu_prior is not None
-        return float(np.log(self._pu_prior / (1.0 - self._pu_prior)))
+        assert self._class_prior is not None
+        return float(np.log(self._class_prior / (1.0 - self._class_prior)))
 
     def _fit_backend(
         self,
@@ -490,63 +571,68 @@ class CatBoostPUClassificationModel(CatBoostClassificationModel):
         baseline: float,
         params: ModelParams,
     ) -> catboost.CatBoostClassifier:
-        assert self._pu_prior is not None
+        class_prior = self._class_prior
+        assert class_prior is not None
         # Training-only compiled code stays out of serving environments.
         from .losses.pu import (
+            NNPUCorrection,
             NNPUMetric,
-            PULogisticObjective,
+            NNPUObjective,
             UPUMetric,
             UPUObjective,
-            fit_nnpu,
             pu_risks,
         )
 
         labels, weights = train.y.to_numpy(), train.weight.to_numpy()
         positive_weight = weights[labels == 1].sum()
-        unlabeled_weight = weights[labels == 0].sum()
-        total = positive_weight + unlabeled_weight
-        positive_scale = float(self._pu_prior * total / positive_weight)
-        unlabeled_scale = float(total / unlabeled_weight)
+        positive_scale = float(class_prior * weights.sum() / positive_weight)
         params.update(
             leaf_estimation_method="Gradient",
             leaf_estimation_iterations=1,
             boosting_type="Plain",
         )
-        metric = params.get("eval_metric", self._pu_loss)
-        if isinstance(metric, str) and metric in ("uPU", "nnPU"):
-            metric_class = UPUMetric if metric == "uPU" else NNPUMetric
-            params["eval_metric"] = metric_class(self._pu_prior)
-        if self._pu_loss == "nnPU":
-            objective = PULogisticObjective(
-                self._pu_prior, positive_scale, unlabeled_scale
-            )
-            model, self._best_iteration = fit_nnpu(
-                train=train,
-                validation=validation,
-                baseline=baseline,
-                prior=self._pu_prior,
-                objective=objective,
-                params=params,
-            )
-            return model
         if validation is not None:
             pu_risks(
                 np.full(len(validation), baseline),
                 validation.y.to_numpy(),
                 validation.weight.to_numpy(),
-                self._pu_prior,
+                class_prior,
             )
-        if params["task_type"] == "GPU":
-            from .losses.pu_cuda import make_upu_gpu_objective
-
-            params["loss_function"] = make_upu_gpu_objective(
-                positive_scale, unlabeled_scale
-            )
+        correction: NNPUCorrection | None = None
+        if self._pu_loss == "nnPU":
+            correction = NNPUCorrection(self._nnpu_beta, self._nnpu_gamma, len(train))
+            params["loss_function"] = NNPUObjective(positive_scale, correction)
+            params["eval_metric"] = NNPUMetric(class_prior, correction)
+            params["metric_period"] = 1
         else:
-            params["loss_function"] = UPUObjective(positive_scale, unlabeled_scale)
+            metric = params.get("eval_metric", "uPU")
+            if isinstance(metric, str) and metric in ("uPU", "nnPU"):
+                params["eval_metric"] = (
+                    UPUMetric(class_prior)
+                    if metric == "uPU"
+                    else NNPUMetric(class_prior)
+                )
+            if params["task_type"] == "GPU":
+                from .losses.pu_cuda import make_upu_gpu_objective
+
+                params["loss_function"] = make_upu_gpu_objective(positive_scale)
+            else:
+                params["loss_function"] = UPUObjective(positive_scale)
         if validation is not None:
             params.setdefault("use_best_model", True)
-        return super()._fit_backend(train, validation, baseline, params)
+        model = super()._fit_backend(train, validation, baseline, params)
+        if correction is not None:
+            if correction.learn_evaluations < model.tree_count_:
+                raise RuntimeError(
+                    "CatBoost did not evaluate the learn-set nnPU risk after "
+                    "every tree; the non-negative correction could not be applied"
+                )
+            logger.debug(
+                "nnPU: %d of %d correction updates selected the reversed branch",
+                correction.reversed_trees,
+                correction.learn_evaluations,
+            )
+        return model
 
     def _configure_threshold(
         self, validation: Pool | None, threshold: float | None
