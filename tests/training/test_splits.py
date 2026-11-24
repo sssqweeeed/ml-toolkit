@@ -2,6 +2,7 @@
 
 from dataclasses import replace
 from datetime import date, datetime, timedelta
+from math import ceil
 
 import numpy as np
 import polars as pl
@@ -206,3 +207,204 @@ def test_pair_rejects_incompatible_features(field):
         heldout = replace(heldout, numerical_features=())
     with pytest.raises(ValueError, match="matching features"):
         Split(data.take(range(12)), heldout, index=1)
+
+
+def panel_data(dates=8, per_date=3):
+    data = identified_data().take(range(dates * per_date))
+    time = pl.Series(
+        "date",
+        [date(2024, 1, 1) + timedelta(days=n // per_date) for n in range(len(data))],
+    )
+    return replace(data, time=time)
+
+
+def assert_no_shared_timestamp(split):
+    assert split.train.time.max() < split.heldout.time.min()
+    assert not set(split.train.time) & set(split.heldout.time)
+
+
+def test_holdout_fractions_never_split_a_timestamp():
+    splitter = Holdout(panel_data(), val_size=0.2, test_size=0.2)
+    final = splitter.get_test()
+    assert_no_shared_timestamp(final)
+    assert len(final.heldout) == 6
+    split = next(splitter.get_validation())
+    assert_no_shared_timestamp(split)
+    assert split.heldout.object_id.to_list() == list(range(12, 18))
+    assert split.train.object_id.to_list() == list(range(12))
+
+
+def test_holdout_zero_timedelta_gap_with_integer_val_size():
+    split = next(Holdout(panel_data(), val_size=4, gap=timedelta(0)).get_validation())
+    assert_no_shared_timestamp(split)
+    assert split.heldout.object_id.to_list() == list(range(18, 24))
+    assert split.train.object_id.to_list() == list(range(18))
+
+
+def test_holdout_integer_gap_drops_rows_before_snapped_start():
+    split = next(Holdout(panel_data(), val_size=4, gap=2).get_validation())
+    assert split.heldout.object_id.to_list() == list(range(18, 24))
+    assert split.train.object_id.to_list() == list(range(16))
+
+
+@pytest.mark.parametrize("gap", [0, 3, timedelta(0), timedelta(days=1)])
+def test_cv_panel_windows_never_split_a_timestamp(gap):
+    data = panel_data()
+    windows = list(TimeSeriesCV(data, n_splits=3, val_size=4, gap=gap).get_validation())
+    assert [split.index for split in windows] == [1, 2, 3]
+    held = [row for split in windows for row in split.heldout.object_id.to_list()]
+    assert held == list(range(12, 24))
+    for split in windows:
+        assert_no_shared_timestamp(split)
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {},
+        {"val_size": 3},
+        {"val_size": 0.1},
+        {"test_size": 4, "val_size": 3},
+        {"gap": 2, "max_train_size": 5},
+        {"skip_splits": 1},
+    ],
+)
+def test_cv_unique_timestamps_match_sklearn(kwargs):
+    data = identified_data()
+    skip = kwargs.get("skip_splits", 0)
+    end = len(data) - kwargs.get("test_size", 0)
+    val_rows = kwargs.get("val_size")
+    mine = list(TimeSeriesCV(data, n_splits=3, **kwargs).get_validation())
+    expected = list(
+        TimeSeriesSplit(
+            n_splits=3,
+            test_size=(
+                ceil(round(end * val_rows, 9))
+                if isinstance(val_rows, float)
+                else val_rows
+            ),
+            gap=kwargs.get("gap", 0),
+            max_train_size=kwargs.get("max_train_size"),
+        ).split(range(end))
+    )[skip:]
+    assert [split.index for split in mine] == list(range(skip + 1, 4))
+    for split, (train, val) in zip(mine, expected, strict=True):
+        assert split.train.object_id.to_list() == train.tolist()
+        assert split.heldout.object_id.to_list() == val.tolist()
+
+
+def test_cv_panel_skip_splits_keeps_indices():
+    windows = list(
+        TimeSeriesCV(
+            panel_data(), n_splits=3, val_size=4, skip_splits=1
+        ).get_validation()
+    )
+    assert [split.index for split in windows] == [2, 3]
+    held = [row for split in windows for row in split.heldout.object_id.to_list()]
+    assert held == list(range(15, 24))
+
+
+def test_cv_collapsed_skipped_window_is_allowed():
+    data = identified_data()
+    dates = (
+        [date(2024, 1, 1) + timedelta(days=n) for n in range(11)]
+        + [date(2024, 2, 1)] * 7
+        + [date(2024, 3, 1) + timedelta(days=n) for n in range(6)]
+    )
+    data = replace(data, time=pl.Series("date", dates))
+    windows = list(
+        TimeSeriesCV(data, n_splits=3, val_size=4, skip_splits=2).get_validation()
+    )
+    assert [split.index for split in windows] == [3]
+    assert windows[0].heldout.object_id.to_list() == list(range(20, 24))
+    with pytest.raises(ValueError, match="single timestamp spans more rows"):
+        TimeSeriesCV(data, n_splits=3, val_size=4)
+
+
+def test_cv_without_training_rows_reports_gap_error():
+    with pytest.raises(ValueError, match="Not enough rows for the requested CV"):
+        TimeSeriesCV(panel_data(), n_splits=2, val_size=11, gap=timedelta(days=1))
+
+
+def test_tiny_float_size_keeps_one_row():
+    split = next(Holdout(identified_data(), val_size=1e-12).get_validation())
+    assert len(split.heldout) == 1
+    assert len(Holdout(identified_data(), test_size=1e-12).get_test().heldout) == 1
+
+
+@pytest.mark.parametrize(
+    "dtype",
+    [
+        pl.Datetime("ms"),
+        pl.Datetime("ns"),
+        pl.Datetime("us", "Europe/Moscow"),
+    ],
+)
+def test_zero_timedelta_gap_on_fine_timestamps(dtype):
+    base = identified_data()
+    times = pl.Series(
+        "time",
+        [datetime(2024, 1, 1) + timedelta(milliseconds=n) for n in range(24)],
+    )
+    if dtype.time_zone is not None:
+        times = times.dt.replace_time_zone(dtype.time_zone)
+    data = replace(base, time=times.cast(dtype))
+    split = next(Holdout(data, val_size=5, gap=timedelta(0)).get_validation())
+    assert split.train.object_id.to_list() == list(range(19))
+    assert split.heldout.object_id.to_list() == list(range(19, 24))
+
+
+def test_integer_test_size_snaps_to_first_row_of_timestamp():
+    final = Holdout(panel_data(), test_size=4).get_test()
+    assert final.heldout.object_id.to_list() == list(range(18, 24))
+    assert len(final.train) == 18
+
+
+@pytest.mark.parametrize("kwargs", [{"test_size": True}, {"val_size": True}])
+def test_boolean_sizes_are_rejected_for_holdout(kwargs):
+    with pytest.raises(ValueError, match="must be positive rows"):
+        Holdout(identified_data(), **kwargs)
+
+
+@pytest.mark.parametrize(
+    "kwargs", [{"n_splits": True}, {"skip_splits": True}, {"max_train_size": True}]
+)
+def test_boolean_cv_counts_are_rejected(kwargs):
+    with pytest.raises(ValueError):
+        TimeSeriesCV(identified_data(), **{"n_splits": 3, **kwargs})
+
+
+def test_unique_timestamps_holdout_unchanged():
+    split = next(
+        Holdout(identified_data(), val_size=5, gap=timedelta(0)).get_validation()
+    )
+    assert split.train.object_id.to_list() == list(range(19))
+    assert split.heldout.object_id.to_list() == list(range(19, 24))
+
+
+def test_float_size_rounding_noise_does_not_add_a_row():
+    n = 100
+    base = identified_data()
+    data = type(base)(
+        pl.DataFrame({"x": np.arange(n, dtype=float), "unused": np.zeros(n)}),
+        pl.Series("target", np.arange(n, dtype=float)),
+        pl.Series("date", [date(2020, 1, 1) + timedelta(days=i) for i in range(n)]),
+        pl.Series("weight", np.ones(n)),
+        object_id=pl.Series("id", np.arange(n)),
+        auxiliary_features=pl.Series("group", ["a", "b"] * (n // 2)).to_frame(),
+        numerical_features=("x", "unused"),
+    )
+    assert len(Holdout(data, test_size=0.07).get_test().heldout) == 7
+
+
+@pytest.mark.parametrize(
+    "factory", [Holdout, lambda d, **k: TimeSeriesCV(d, n_splits=2, **k)]
+)
+def test_boolean_val_size_is_rejected(factory):
+    with pytest.raises(ValueError, match="val_size must be positive rows"):
+        factory(identified_data(), val_size=True)
+
+
+def test_cv_single_timestamp_wider_than_window_is_rejected():
+    with pytest.raises(ValueError, match="single timestamp spans more rows"):
+        TimeSeriesCV(panel_data(), n_splits=4, val_size=1)

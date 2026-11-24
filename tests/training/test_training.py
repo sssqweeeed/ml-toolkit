@@ -1,10 +1,10 @@
-from ml_toolkit.training import TimeSeriesCV
-from ml_toolkit.evaluation import (
-    PrecisionRecall,
+from ml_toolkit.reports import (
     Calibration,
-    PUScoreDistribution,
+    PrecisionRecall,
     PUPositiveCapture,
+    PUScoreDistribution,
 )
+from ml_toolkit.training import TimeSeriesCV
 
 """Train with a project-owned data object and inspect MLflow artifacts."""
 import json
@@ -12,13 +12,22 @@ import logging
 from datetime import date
 from functools import partial
 from pathlib import Path
+
 import mlflow
 import numpy as np
 import polars as pl
 import pytest
-from ml_toolkit.feature_selection import RFESelector
-from ml_toolkit.config import ReportingConfig, ShapConfig, TrainingConfig
-from ml_toolkit.explainability import calculate_shap_values, top_shap_features
+
+from ml_toolkit.config import ReportingConfig, TrainingConfig
+from ml_toolkit.explainability import (
+    ShapConfig,
+    calculate_shap_values,
+    shap_beeswarm,
+    shap_dependence,
+    shap_importance,
+    top_shap_features,
+)
+from ml_toolkit.feature_selection import RFESelector, importance_ranker
 from ml_toolkit.inflation import ConstantRateInflation
 from ml_toolkit.metrics import PUMetric, metrics_classification, metrics_severity
 from ml_toolkit.models import (
@@ -28,19 +37,14 @@ from ml_toolkit.models import (
     CatBoostRegressionModel,
     InflationAdjustedModel,
 )
-from ml_toolkit.plots.explainability import (
-    shap_beeswarm,
-    shap_dependence,
-    shap_importance,
-)
-from ml_toolkit.training import importance_ranker, train_model
+from ml_toolkit.training import train_model
 from tests.support.training import (
-    ProjectData,
     MeanModel,
+    ProjectData,
+    list_all_artifacts,
     mae,
     make_data,
     setup_mlflow,
-    list_all_artifacts,
 )
 
 
@@ -237,11 +241,9 @@ def test_bundled_classifier_and_classification_diagnostics(tmp_path):
     assert result.model.predict_pool(binary).shape == (24,)
     runs = mlflow.search_runs(output_format="list")
     fold = next(
-        (
-            run
-            for run in runs
-            if run.data.tags.get("mlflow.runName") == "validation/split_1"
-        )
+        run
+        for run in runs
+        if run.data.tags.get("mlflow.runName") == "validation/split_1"
     )
     artifacts = list_all_artifacts(mlflow.MlflowClient(), fold.info.run_id)
     assert "precision_recall/val/precision_recall.png" in artifacts
@@ -253,7 +255,7 @@ def test_bundled_classifier_and_classification_diagnostics(tmp_path):
     )
     assert "psi/scores.json" in artifacts
     final = next(
-        (run for run in runs if run.data.tags.get("mlflow.runName") == "final_fit")
+        run for run in runs if run.data.tags.get("mlflow.runName") == "final_fit"
     )
     loaded = mlflow.pyfunc.load_model(f"runs:/{final.info.run_id}/model")
     loaded_prediction = np.asarray(
@@ -308,7 +310,7 @@ def test_positive_unlabeled_classifier_is_preserved():
     model = CatBoostPUClassificationModel(
         {
             "loss": "uPU",
-            "pu_prior": 0.5,
+            "class_prior": 0.7,
             "iterations": 5,
             "depth": 2,
             "learning_rate": 0.1,
@@ -334,7 +336,7 @@ def test_pu_training_logs_only_pu_diagnostics(tmp_path):
     )
     params = {
         "loss": "uPU",
-        "pu_prior": 0.5,
+        "class_prior": 0.7,
         "iterations": 3,
         "depth": 2,
         "learning_rate": 0.1,
@@ -346,7 +348,7 @@ def test_pu_training_logs_only_pu_diagnostics(tmp_path):
         splitter=TimeSeriesCV(binary, n_splits=2),
         model_factory=CatBoostPUClassificationModel,
         params=params,
-        metric=PUMetric(0.5, loss="uPU"),
+        metric=PUMetric(0.7, loss="uPU"),
         run_name="pu",
         prediction_evaluators=[PUScoreDistribution(), PUPositiveCapture()],
         config=TrainingConfig(reporting=ReportingConfig(n_bins=3, psi=False)),
@@ -354,19 +356,15 @@ def test_pu_training_logs_only_pu_diagnostics(tmp_path):
     assert "pu_risk" in result.validation.mean_metrics
     runs = mlflow.search_runs(output_format="list")
     fold = next(
-        (
-            run
-            for run in runs
-            if run.data.tags.get("mlflow.runName") == "validation/split_1"
-        )
+        run
+        for run in runs
+        if run.data.tags.get("mlflow.runName") == "validation/split_1"
     )
     artifacts = list_all_artifacts(mlflow.MlflowClient(), fold.info.run_id)
     assert "pu_score_distribution/val/pu_score_distribution.png" in artifacts
     assert "pu_positive_capture/val/pu_positive_capture.png" in artifacts
-    assert all((path.split("/")[1] == "val" for path in artifacts))
+    assert all(path.split("/")[1] == "val" for path in artifacts)
     assert not any(
-        (
-            path.endswith(("precision_recall.png", "calibration.png", "gains.png"))
-            for path in artifacts
-        )
+        path.endswith(("precision_recall.png", "calibration.png", "gains.png"))
+        for path in artifacts
     )

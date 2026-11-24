@@ -6,13 +6,18 @@ from typing import TYPE_CHECKING, Protocol, Self, runtime_checkable
 import catboost
 from mlflow.models.model import ModelInfo
 
+from ..data import Pool
 from ..types import FloatArray, ModelParams
+from .artifacts import TrackingConfig
 
 if TYPE_CHECKING:
     import lightgbm
 
-    from ..config import TrackingConfig
-    from ..training.contracts import Pool
+
+def validate_size(n_iterations: int, available: int) -> None:
+    """Validate a requested shrink size, including for serving adapters."""
+    if type(n_iterations) is not int or not 1 <= n_iterations <= available:
+        raise ValueError(f"n_iterations must be an integer between 1 and {available}")
 
 
 @runtime_checkable

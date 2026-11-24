@@ -503,7 +503,8 @@ instances for validation and final fitting.
 from examples.custom_metric import weighted_mae
 from examples.retail_data import load_retail_pool
 from ml_toolkit import train_model
-from ml_toolkit.config import TrackingConfig, TrainingConfig
+from ml_toolkit.config import TrainingConfig
+from ml_toolkit.models import TrackingConfig
 from ml_toolkit.training import Holdout
 from ml_toolkit.types import ModelParams
 

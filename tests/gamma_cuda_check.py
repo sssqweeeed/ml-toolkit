@@ -5,8 +5,8 @@ import inspect
 import numpy as np
 from numba import cuda
 
-from ml_toolkit.models.losses.gamma.cpu import gamma_derivatives
-from ml_toolkit.models.losses.gamma.cuda import make_gamma_gpu_objective
+from ml_toolkit.models.losses.gamma import gamma_derivatives
+from ml_toolkit.models.losses.gamma_cuda import make_gamma_gpu_objective
 
 method = type(make_gamma_gpu_objective()).calc_ders_range_gpu
 assert inspect.getsource(method).count("self") == 1

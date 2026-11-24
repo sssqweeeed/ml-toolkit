@@ -9,8 +9,8 @@ import pytest
 
 from examples.custom_evaluator import PredictionAudit
 from examples.render_plots import EXAMPLE, PAGES
-from ml_toolkit.config import FigureConfig
 from ml_toolkit.data import Pool
+from ml_toolkit.figures import FigureConfig
 
 pytestmark = pytest.mark.documentation
 ROOT = Path(__file__).resolve().parents[2]
@@ -91,11 +91,11 @@ def test_pu_workflow_passes_matching_population_prior_without_training(monkeypat
     exec(compile(code, "pu-workflow", "exec"), namespace)
     data = sample_pool()
     assert (
-        namespace["train_pu_reports"](data, prior=0.15, params={"iterations": 10})
+        namespace["train_pu_reports"](data, class_prior=0.15, params={"iterations": 10})
         is marker
     )
     assert captured["splitter"].data is data
-    assert captured["params"]["pu_prior"] == captured["metric"].prior == 0.15
+    assert captured["params"]["class_prior"] == captured["metric"].class_prior == 0.15
     assert captured["params"]["loss"] == captured["metric"].loss == "nnPU"
     assert captured["model_factory"] is CatBoostPUClassificationModel
     assert [report.name for report in captured["prediction_evaluators"]] == [
@@ -114,8 +114,7 @@ def test_evaluation_guides_register_independent_executable_recipes(page):
 
 def test_data_analysis_workflow_passes_reports_to_separate_arguments(monkeypatch):
     import ml_toolkit
-    from ml_toolkit.data_analysis import DataAnalyzer
-    from ml_toolkit.evaluation import PredictionEvaluator
+    from ml_toolkit.reports import DataAnalyzer, PredictionEvaluator
 
     captured = {}
     monkeypatch.setattr(
@@ -137,6 +136,7 @@ def test_data_analysis_workflow_passes_reports_to_separate_arguments(monkeypatch
 
 def test_custom_data_analyzer_example_reports_actual_null_counts(tmp_path):
     from dataclasses import replace
+
     from examples.custom_data_analyzer import DataAudit
 
     data = replace(sample_pool(), X=pl.DataFrame({"feature": [1.0, None, None, 4.0]}))

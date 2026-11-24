@@ -7,7 +7,7 @@ from collections.abc import Mapping, Sequence
 from copy import deepcopy
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import TYPE_CHECKING, Any, Self
+from typing import Any, Self
 
 import lightgbm
 import numpy as np
@@ -16,11 +16,10 @@ from mlflow.models.model import ModelInfo
 from mlflow.pyfunc.model import PythonModel
 
 from .._console import Logger
+from ..data import Pool
 from ..types import FloatArray, ModelParams
-
-if TYPE_CHECKING:
-    from ..config import TrackingConfig
-    from ..training.contracts import Pool
+from .artifacts import TrackingConfig, log_model_from_code
+from .base import validate_size
 
 logger = Logger("ml_toolkit.models.lightgbm")
 
@@ -73,8 +72,6 @@ class LightGBMServingModel(PythonModel):
 
     def shrink(self, n_iterations: int) -> Self:
         """Return an independent Booster prefix without fitting new trees."""
-        from ._shrink import validate_size
-
         validate_size(n_iterations, self.n_iterations)
         native = self.native_model
         reduced = lightgbm.Booster(
@@ -195,9 +192,6 @@ class LightGBMServingModel(PythonModel):
         Writes native Booster and feature artifacts with a separate registration
         entry point and package sources. Configure MLflow before calling.
         """
-        from ..config import TrackingConfig
-        from ..tracking.model_artifacts import log_model_from_code
-
         config = TrackingConfig() if config is None else config
         name = config.model_name
         registered_model_name = config.registered_model_name
@@ -211,12 +205,6 @@ class LightGBMServingModel(PythonModel):
                 "numerical_features and cat_features must partition the model features."
             )
 
-        wrapper_path = (
-            Path(__file__).resolve().parents[1]
-            / "tracking"
-            / "entrypoints"
-            / "LightGBMServingModel.py"
-        )
         sample_frame = sample.to_model_input(
             n_rows=config.input_example_rows, categorical_as_strings=True
         ).loc[:, self.feature_names]
@@ -237,7 +225,8 @@ class LightGBMServingModel(PythonModel):
             features_path.write_text(json.dumps(metadata), encoding="utf-8")
 
             model_info = log_model_from_code(
-                source=wrapper_path,
+                model_class=type(self),
+                model_module="ml_toolkit.models.lightgbm",
                 name=name,
                 registered_model_name=registered_model_name,
                 sample_frame=sample_frame,

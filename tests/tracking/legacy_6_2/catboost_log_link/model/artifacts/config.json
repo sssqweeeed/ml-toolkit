@@ -1,0 +1,1 @@
+{"version": 1, "model_type": "CatBoostLogLinkRegressionModel", "prediction_type": null, "effective_prediction_type": null, "baseline": 2.979971575204025, "baseline_mode": "native_bias", "training_params": {"iterations": 8, "depth": 3, "verbose": false, "thread_count": 1, "allow_writing_files": false, "random_seed": 0, "loss": "Poisson"}, "retained_iterations": null}

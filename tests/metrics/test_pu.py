@@ -9,7 +9,7 @@ def test_pu_risk_and_capture_do_not_count_unlabeled_as_negative():
     scores = np.array([0.9, 0.8, 0.7, 0.1])
     result = PUMetric(0.5)(labels, scores).to_dict()
     expected_positive = 0.5 * np.mean(-np.log(scores[:2]))
-    expected_negative = np.mean(-np.log1p(-scores[2:])) - 0.5 * np.mean(
+    expected_negative = np.mean(-np.log1p(-scores)) - 0.5 * np.mean(
         -np.log1p(-scores[:2])
     )
     assert result["positive_risk"] == pytest.approx(expected_positive)
@@ -34,16 +34,19 @@ def test_weighted_risk_is_invariant_to_weight_scale_and_clips_only_nnpu(loss):
     labels = np.array([1, 1, 0, 0])
     scores = np.array([0.95, 0.8, 0.1, 0.2])
     weights = np.array([1.0, 3.0, 2.0, 1.0])
-    positive = 0.5 * np.average(-np.log(scores[:2]), weights=weights[:2])
-    negative = np.average(-np.log1p(-scores[2:]), weights=weights[2:]) - 0.5 * np.average(
+    positive = 0.9 * np.average(-np.log(scores[:2]), weights=weights[:2])
+    # The whole sample is the unlabeled sample, labeled rows included.
+    negative = np.average(-np.log1p(-scores), weights=weights) - 0.9 * np.average(
         -np.log1p(-scores[:2]), weights=weights[:2]
     )
     assert negative < 0
-    metric = PUMetric(0.5, loss=loss)
+    metric = PUMetric(0.9, loss=loss)
     result = metric(labels, scores, weights).to_dict()
     assert result["positive_risk"] == pytest.approx(positive)
     assert result["estimated_negative_risk"] == pytest.approx(negative)
-    assert result["pu_risk"] == pytest.approx(positive + (negative if loss == "uPU" else 0))
+    assert result["pu_risk"] == pytest.approx(
+        positive + (negative if loss == "uPU" else 0)
+    )
     assert metric(labels, scores, weights * 17).to_dict() == pytest.approx(result)
 
 

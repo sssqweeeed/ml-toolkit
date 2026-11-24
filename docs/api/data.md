@@ -198,8 +198,11 @@ constant or entirely missing reference columns have one ordinary interval.
 Internal boundaries belong to the interval on their right. Finite values outside
 the observed train range enter the extreme intervals unless they violate explicit
 `lower_bound`/`upper_bound`. Nulls, NaNs and missing sentinels become `__NULL__`;
-error sentinels and out-of-bound values become `__ERROR__`. Other infinities are
-rejected in both reference and current data. Source columns are not modified.
+error sentinels and out-of-bound values become `__ERROR__`. Infinities are valid
+values: cut points use finite values only, `-inf` enters the first interval and
+`+inf` the last, and outside configured bounds they become `__ERROR__`. Interval
+labels use at least 6 significant digits, and more when needed to keep edges
+distinct. Source columns are not modified.
 
 `NumericalFeatureDistributions` uses original numerical values for unweighted
 time summaries, omitting null and nonfinite values; it does not use level bins.
@@ -213,7 +216,7 @@ Prepare an auxiliary categorical band for a continuous grouping variable:
 <!-- example: data-grouped-reports -->
 
 ```python
-from ml_toolkit.evaluation import GroupedMetrics, TimeObservedFitted
+from ml_toolkit.reports import GroupedMetrics, TimeObservedFitted
 from ml_toolkit.metrics import metrics_regression
 
 band = (

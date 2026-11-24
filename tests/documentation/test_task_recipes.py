@@ -105,7 +105,6 @@ def test_documented_task_recipes_train_and_evaluate(
 
 def test_complete_frequency_example_output_and_figure():
     from examples.gallery_data import bike_cache_available
-
     from examples.retail_data import retail_cache_available
 
     if not bike_cache_available() or not retail_cache_available():
@@ -116,7 +115,7 @@ def test_complete_frequency_example_output_and_figure():
     render(check=True, pages=("docs/configuration.md",))
 
 
-def test_pu_recipe_requires_project_data_and_an_explicit_prior():
+def test_pu_recipe_requires_project_data_and_an_explicit_class_prior():
     page = Path(__file__).resolve().parents[2] / "docs/configuration.md"
     snippets = {item.name: item for item in recipes(page)}
     namespace = {}
@@ -125,5 +124,5 @@ def test_pu_recipe_requires_project_data_and_an_explicit_prior():
     assert "data" not in namespace
     with pytest.raises(TypeError, match="data"):
         namespace["train_pu"]()
-    with pytest.raises(TypeError, match="prior"):
+    with pytest.raises(TypeError, match="class_prior"):
         namespace["train_pu"](object())

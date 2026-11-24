@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from copy import deepcopy
+from dataclasses import replace
 from datetime import date
-from typing import TYPE_CHECKING, Any, Self, cast
+from typing import Any, Self, cast
 
 import catboost
 import mlflow
@@ -14,16 +15,24 @@ from mlflow.models.model import ModelInfo
 from mlflow.pyfunc.model import PythonModel
 
 from .._console import Logger
+from ..data import Pool
 from ..inflation import InflationAdjuster, inflation_from_config
-from ..tracking.state import InflationState, read_state
 from ..types import FloatArray, ModelParams
+from .artifacts import TrackingConfig, log_catboost
 from .catboost_regression import CatBoostLogLinkRegressionModel, CatBoostRegressionModel
-
-if TYPE_CHECKING:
-    from ..config import TrackingConfig
-    from ..training.contracts import Pool
+from .state import InflationState, read_state
 
 logger = Logger(__name__)
+
+
+def _observation_dates(time: pl.Series, index: pd.Index, name: str) -> pd.Series:
+    # Timezone-aware times are UTC instants, like the inflation strategies' rule.
+    if isinstance(time.dtype, pl.Datetime) and time.dtype.time_zone is not None:
+        time = time.dt.convert_time_zone("UTC").dt.replace_time_zone(None)
+    dates = time.cast(pl.Datetime("ns")).to_pandas()
+    dates.index = index
+    dates.name = name
+    return dates
 
 
 class InflationAdjustedModel(PythonModel):
@@ -181,17 +190,18 @@ class InflationAdjustedModel(PythonModel):
         -------
         numpy.ndarray of shape (n_samples,)
             Reference-date regression predictions adjusted to data.time.
+
+        Notes
+        -----
+        Timezone-aware times are converted to UTC instants.
         """
         frame = data.to_model_input()
         if self.prediction_date_column in frame.columns:
             raise ValueError(
                 "prediction_date_column must not overwrite a model feature"
             )
-        prediction_dates = pd.Series(
-            data.time.to_list(),
-            index=frame.index,
-            dtype="datetime64[ns]",
-            name=self.prediction_date_column,
+        prediction_dates = _observation_dates(
+            data.time, frame.index, self.prediction_date_column
         )
         # Pool conversion keeps separate numeric blocks to share Arrow buffers.
         # Concatenation adds dates without inserting into that fragmented frame.
@@ -315,11 +325,9 @@ class InflationAdjustedModel(PythonModel):
         Notes
         -----
         Writes both models, reference-date and strategy parameters, and serialized
-        inflation metadata to configured MLflow tracking.
+        inflation metadata to configured MLflow tracking. Timezone-aware sample
+        times are converted to UTC instants.
         """
-        from ..config import TrackingConfig
-        from ..tracking.model_artifacts import log_catboost
-
         config = TrackingConfig() if config is None else config
         name = config.model_name
         registered_model_name = config.registered_model_name
@@ -336,8 +344,6 @@ class InflationAdjustedModel(PythonModel):
             raise ValueError(
                 "prediction_date_column must not overwrite a model feature"
             )
-        from dataclasses import replace
-
         native_info = self.model.log(
             sample,
             extra_artifacts=extra_artifacts,
@@ -351,11 +357,10 @@ class InflationAdjustedModel(PythonModel):
         sample_frame = sample.to_model_input(
             n_rows=config.input_example_rows, categorical_as_strings=True
         ).loc[:, self.model.feature_names]
-        prediction_dates = pd.Series(
-            sample.time.head(len(sample_frame)).to_list(),
-            dtype="datetime64[ns]",
-            index=sample_frame.index,
-            name=self.prediction_date_column,
+        prediction_dates = _observation_dates(
+            sample.time.head(len(sample_frame)),
+            sample_frame.index,
+            self.prediction_date_column,
         )
         sample_frame = pd.concat([sample_frame, prediction_dates], axis=1)
         sample_prediction = self.predict(None, sample_frame)
@@ -441,7 +446,10 @@ class InflationAdjustedModel(PythonModel):
         self.model = types[regressor["model_type"]]()
         if regressor.get("baseline_mode") != self.model.baseline_mode:
             raise ValueError("Invalid nested regression baseline mode")
-        self.model.restore_state(regressor, context.artifacts["model"])
+        # Package-internal restore of the nested adapter from the shared artifact.
+        self.model._restore_state(  # pyright: ignore[reportPrivateUsage]
+            regressor, context.artifacts["model"]
+        )
         self.inflation = inflation_from_config(state["inflation"])
         self.reference_date = date.fromisoformat(state["reference_date"])
         self.prediction_date_column = state["prediction_date_column"]

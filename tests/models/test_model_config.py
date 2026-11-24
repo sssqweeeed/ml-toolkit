@@ -1,19 +1,20 @@
 """Adapter feature selection and configured model packaging."""
 
-from ml_toolkit.training import Holdout
-
 from datetime import date
 
 import mlflow
 import polars as pl
 import pytest
-from tests.support.training import mae, make_data
 
-from ml_toolkit.feature_selection import RFESelector
-from ml_toolkit.config import TrackingConfig
+from ml_toolkit.feature_selection import RFESelector, importance_ranker
 from ml_toolkit.inflation import ConstantRateInflation
-from ml_toolkit.models import CatBoostRegressionModel, InflationAdjustedModel
-from ml_toolkit.training import importance_ranker
+from ml_toolkit.models import (
+    CatBoostRegressionModel,
+    InflationAdjustedModel,
+    TrackingConfig,
+)
+from ml_toolkit.training import Holdout
+from tests.support.training import mae, make_data
 
 
 @pytest.mark.parametrize("classifier", [False, True])
@@ -68,7 +69,7 @@ def test_standalone_model_logging_uses_example_size(monkeypatch):
     examples = []
     monkeypatch.setattr(
         model,
-        "log_artifacts",
+        "_log_artifacts",
         lambda frame, predictions, **kwargs: examples.append((frame, kwargs)),
     )
     monkeypatch.setattr(mlflow, "log_param", lambda *a, **k: None)

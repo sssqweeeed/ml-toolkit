@@ -1,26 +1,28 @@
 """Every bundled report uploads usable files in its own namespace."""
 
 import json
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
 import pytest
 
-from ml_toolkit.config import FigureConfig, ReportingConfig, ShapConfig
-from ml_toolkit.evaluation import (
+from ml_toolkit.config import ReportingConfig
+from ml_toolkit.explainability import ShapConfig
+from ml_toolkit.figures import FigureConfig
+from ml_toolkit.models import CatBoostRegressionModel
+from ml_toolkit.reports import (
     Calibration,
     F1Threshold,
     Gains,
     Lift,
-    NumericalFeatureDistributions,
     ObservedFitted,
     PrecisionRecall,
     PUPositiveCapture,
     PUScoreDistribution,
     TimeObservedFitted,
 )
-from ml_toolkit.models import CatBoostRegressionModel
 from ml_toolkit.training.reporting import report_predictions
 from tests.support.training import make_data
 
@@ -32,13 +34,14 @@ def test_all_reports_export_and_cleanup(tmp_path, monkeypatch, format, heldout):
     artifacts, directories = {}, set()
 
     def upload(path, *, artifact_path):
+        path = Path(path)
         assert path.is_file() and path.stat().st_size > 0
         artifacts[f"{artifact_path}/{path.name}"] = path.read_bytes()
         directories.add(
             next(p for p in path.parents if p.name.startswith("ml-toolkit-"))
         )
 
-    monkeypatch.setattr("ml_toolkit.training.reporting.tracking.log_artifact", upload)
+    monkeypatch.setattr("mlflow.log_artifact", upload)
     config = ReportingConfig(
         psi=True, figure=FigureConfig(format=format, dpi=72), n_bins=3
     )
@@ -52,7 +55,6 @@ def test_all_reports_export_and_cleanup(tmp_path, monkeypatch, format, heldout):
         PUPositiveCapture(),
         ObservedFitted(),
         TimeObservedFitted(),
-        NumericalFeatureDistributions(),
     )
     model = CatBoostRegressionModel(
         {
@@ -75,7 +77,7 @@ def test_all_reports_export_and_cleanup(tmp_path, monkeypatch, format, heldout):
     for evaluator in evaluators:
         comparative = isinstance(
             evaluator,
-            (ObservedFitted, TimeObservedFitted, NumericalFeatureDistributions),
+            (ObservedFitted, TimeObservedFitted),
         )
         prefix = evaluator.name + "/" + ("" if comparative else heldout + "/")
         assert any(
@@ -113,8 +115,10 @@ def test_shap_artifacts_and_no_train_only_explanation(tmp_path, monkeypatch):
     ).fit(data.take(range(12)))
     artifacts = []
     monkeypatch.setattr(
-        "ml_toolkit.training.reporting.tracking.log_artifact",
-        lambda path, artifact_path: artifacts.append(f"{artifact_path}/{path.name}"),
+        "mlflow.log_artifact",
+        lambda path, artifact_path: artifacts.append(
+            f"{artifact_path}/{Path(path).name}"
+        ),
     )
     config = ReportingConfig(shap=ShapConfig(max_samples=5, dependence_features=("x",)))
     report_predictions(

@@ -1,45 +1,31 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
-from copy import deepcopy
-from pathlib import Path
-from typing import TYPE_CHECKING, Any, Self, cast
+from typing import Any, Self, cast
 
 import catboost
 import mlflow
 import numpy as np
 import pandas as pd
 import polars as pl
-from mlflow.models.model import ModelInfo
-from mlflow.pyfunc.model import PythonModel
 from mlflow.pyfunc.utils import pyfunc
 
 from .._console import Logger
-from ..data import validate_training_categories
-from ..tracking.state import ClassificationState, read_state
+from ..data import Pool, validate_training_categories
 from ..types import FloatArray, IntArray, ModelParams
-from ._catboost import (
-    feature_importances,
-    native_fit,
-    normalize_loss,
-    prepare_frame,
-    refit_parameters,
-)
-from .losses.pu.common import (
-    UPUMetric as UPUMetric,
-    NNPUMetric as NNPUMetric,
-    PULogisticObjective,
-    pu_risks,
-)
-
-if TYPE_CHECKING:
-    from ..config import TrackingConfig
-    from ..training.contracts import Pool
+from ._catboost import CatBoostAdapter, native_fit, normalize_loss
+from .state import ClassificationState, read_state, upgrade_classification_state
 
 logger = Logger("ml_toolkit.models.catboost_classification")
 
+_DEFAULT_NNPU_BETA = 0.0
+# gamma < 1 damps the full-batch correction between trees; with early
+# stopping the choice barely matters, without it 0.2 overfits least.
+_DEFAULT_NNPU_GAMMA = 0.2
 
-class CatBoostClassificationModel(PythonModel):
+
+class CatBoostClassificationModel(
+    CatBoostAdapter[catboost.CatBoostClassifier, ClassificationState]
+):
     """Train and serve a binary CatBoost classifier with weighted log-odds.
 
     Parameters
@@ -51,21 +37,15 @@ class CatBoostClassificationModel(PythonModel):
         or with soft CrossEntropy validation labels in [0, 1], the cutoff is 0.5.
     """
 
+    _native_type = catboost.CatBoostClassifier
+    baseline_mode = "raw_prediction"
+
     def __init__(self, params: ModelParams | None = None) -> None:
-        self.params = {} if params is None else params.copy()
-        self._model: catboost.CatBoostClassifier | None = None
-        self._baseline: float | None = None
+        super().__init__(params)
         self._threshold: float | None = None
         self._validation_f1: float | None = None
         self._pu_loss: str | None = None
-        self._pu_prior: float | None = None
-        self._best_iteration: int | None = None
-        self._retained_iterations: int | None = None
-
-    @property
-    def n_iterations(self) -> int:
-        """Return the number of fitted trees used for probability prediction."""
-        return int(self.native_model.tree_count_)
+        self._class_prior: float | None = None
 
     def shrink(self, n_iterations: int) -> Self:
         """Return an independent prefix, preserving baseline and threshold.
@@ -74,23 +54,10 @@ class CatBoostClassificationModel(PythonModel):
         Shrinking never reselects a decision threshold. Validation F1 is cleared
         when predictions change; the copy's refit budget is its retained size.
         """
-        from ._shrink import validate_size
-
-        validate_size(n_iterations, self.n_iterations)
-        native = self.native_model.copy()
-        native.shrink(n_iterations, ntree_start=0)
-        result = deepcopy(self, {id(self.native_model): native})
-        result._retained_iterations = n_iterations
+        result = super().shrink(n_iterations)
         if n_iterations < self.n_iterations:
             result._validation_f1 = None
         return result
-
-    @property
-    def native_model(self) -> catboost.CatBoostClassifier:
-        """Return the fitted native CatBoost model; raise RuntimeError before fitting."""
-        if self._model is None:
-            raise RuntimeError("Model has not been fitted")
-        return self._model
 
     @property
     def baseline(self) -> float:
@@ -114,8 +81,7 @@ class CatBoostClassificationModel(PythonModel):
         RuntimeError
             The model is unfitted or a PU model has no explicit decision threshold.
         """
-        if self._model is None:
-            raise RuntimeError("Model has not been fitted")
+        self._require_fitted()
         if self._threshold is None:
             raise RuntimeError(
                 "PU label prediction requires an explicit decision_threshold"
@@ -133,79 +99,16 @@ class CatBoostClassificationModel(PythonModel):
         """
         return self._validation_f1
 
-    @property
-    def best_iteration(self) -> int | None:
-        """Return the zero-based best iteration index, or None when unavailable."""
-        value = self._best_iteration
-        if value is None:
-            value = self.native_model.get_best_iteration()
-        if value is None or value < 0 or value >= self.n_iterations:
-            return None
-        return int(value)
-
-    def feature_importances(self, data: Pool) -> dict[str, float]:
-        """Rank the current fitted feature columns.
-
-        Parameters
-        ----------
-        data : Pool
-            Rows with the fitted feature names in order.
-
-        Returns
-        -------
-        dict[str, float]
-            Native prediction-change importance per feature.
-        """
-        return feature_importances(self.native_model, data.X.columns)
-
     def get_refit_params(self) -> ModelParams:
         """Return copied constructor parameters for final fitting.
 
-        Returns
-        -------
-        ModelParams
-            The best iteration selected on validation plus one, when available;
-            otherwise the original iteration budget. Early stopping is removed
-            and use_best_model is disabled. Learned baselines are recalculated.
-            Includes the selected decision threshold when one exists.
-
-        Raises
-        ------
-        RuntimeError
-            The adapter has not been fitted.
+        Includes the selected decision threshold when one exists; the iteration
+        budget follows ``CatBoostRegressionModel.get_refit_params``.
         """
-        self.native_model
-        iteration = (
-            self.best_iteration
-            if self._retained_iterations is None
-            else self._retained_iterations - 1
-        )
-        params = refit_parameters(self.params, iteration)
+        params = super().get_refit_params()
         if self._threshold is not None:
             params["decision_threshold"] = self._threshold
         return params
-
-    @property
-    def feature_names(self) -> list[str]:
-        """Return fitted feature names in native model order."""
-        names = self.native_model.feature_names_
-        if not names:
-            raise RuntimeError("Fitted model does not contain feature names")
-        return list(names)
-
-    @property
-    def cat_features(self) -> list[str]:
-        """Return categorical feature names in native model order."""
-        return [
-            self.feature_names[index]
-            for index in self.native_model.get_cat_feature_indices()
-        ]
-
-    @property
-    def numerical_features(self) -> list[str]:
-        """Return fitted feature names not marked categorical."""
-        categorical = set(self.cat_features)
-        return [name for name in self.feature_names if name not in categorical]
 
     @property
     def task(self) -> str:
@@ -277,8 +180,9 @@ class CatBoostClassificationModel(PythonModel):
             "CrossEntropy",
         ):
             raise ValueError("Binary classification requires Logloss or CrossEntropy")
-        if "pu_prior" in params:
-            raise ValueError("pu_prior requires CatBoostPUClassificationModel")
+        for name in ("class_prior", "nnpu_beta", "nnpu_gamma"):
+            if name in params:
+                raise ValueError(f"{name} requires CatBoostPUClassificationModel")
         for name, data in (("targets", train), ("validation targets", validation)):
             if data is None:
                 continue
@@ -298,7 +202,7 @@ class CatBoostClassificationModel(PythonModel):
         params: ModelParams,
     ) -> catboost.CatBoostClassifier:
         return native_fit(
-            catboost.CatBoostClassifier,
+            self._native_type,
             params,
             train.to_catboost(baseline=baseline),
             None if validation is None else validation.to_catboost(baseline=baseline),
@@ -405,74 +309,12 @@ class CatBoostClassificationModel(PythonModel):
         """
         return self.predict_frame(model_input)
 
-    def log(
-        self,
-        sample: Pool,
-        *,
-        config: TrackingConfig | None = None,
-        extra_artifacts: Mapping[str, str] | None = None,
-    ) -> ModelInfo:
-        """Package and log the fitted model with a serving input example.
-
-        Parameters
-        ----------
-        sample : Pool
-            Serving example rows, capped by config.input_example_rows.
-        config : TrackingConfig or None, default None
-            Artifact name, positive example-row limit, registry name, and serving
-            environment. None uses TrackingConfig defaults.
-
-        extra_artifacts : Mapping[str, str] or None, default None
-            Additional files or directories bundled with the model. Names must
-            not conflict with the adapter's own artifacts.
-
-        Returns
-        -------
-        mlflow.models.ModelInfo
-            Logged model information, including its model URI.
-
-        Notes
-        -----
-        Writes native model and configuration artifacts, infers a serving
-        signature, and logs baseline and input-schema metadata to MLflow. Configure
-        tracking and an experiment before calling. Classification artifacts also
-        preserve threshold and PU settings.
-        """
-        from ..config import TrackingConfig
-
-        config = TrackingConfig() if config is None else config
-        name = config.model_name
-        registered_model_name = config.registered_model_name
-        conda_env = config.conda_env
-        sample_frame = sample.to_model_input(
-            n_rows=config.input_example_rows, categorical_as_strings=True
-        ).loc[:, self.feature_names]
-        model_info = self._log_artifacts(
-            sample_frame,
-            self.predict_frame(sample_frame),
-            name=name,
-            registered_model_name=registered_model_name,
-            conda_env=conda_env,
-            extra_artifacts=extra_artifacts,
-        )
-        mlflow.log_param("baseline", self.baseline)
-        if self._threshold is not None:
-            mlflow.log_param("threshold", self._threshold)
-        if self.validation_f1 is not None:
-            mlflow.log_metric("validation_f1_at_threshold", self.validation_f1)
-        mlflow.log_dict(
-            {
-                "numerical_features": self.numerical_features,
-                "cat_features": self.cat_features,
-            },
-            "model_metadata/catboost_input_schema.json",
-        )
-        return model_info
-
     @staticmethod
     def _select_threshold(
         y_true: FloatArray, probabilities: FloatArray, weight: FloatArray | None = None
     ) -> tuple[float, float]:
+
+        # Serving must not import ml_toolkit.metrics (checked by the inference test).
         from ..metrics.classification import binary_threshold_scores
 
         y = np.asarray(y_true, dtype=float)
@@ -502,6 +344,11 @@ class CatBoostClassificationModel(PythonModel):
         ----------
         data : polars.DataFrame or pandas.DataFrame
             Features selected and reordered to the fitted native schema.
+            Categorical columns are formatted exactly as in training. Pandas
+            integer categoricals with missing values must use the nullable
+            ``Int64`` dtype; a ``float64`` column formats as ``"1.0"``.
+            Object-dtype categorical columns are converted with pandas string
+            formatting.
 
         Returns
         -------
@@ -509,68 +356,51 @@ class CatBoostClassificationModel(PythonModel):
             Positive-class probabilities. PU scores need not be calibrated.
         """
         logger.debug("Predicting with CatBoost classifier: %s rows", len(data))
-        frame = prepare_frame(data, self.feature_names, self.cat_features)
+        frame = self._input_frame(data)
         logits = (
             np.asarray(
-                self.native_model.predict(frame, prediction_type="RawFormulaVal"),
+                self._require_fitted().predict(frame, prediction_type="RawFormulaVal"),
                 dtype=float,
             )
             + self.baseline
         )
         return np.exp(-np.logaddexp(0.0, -logits))
 
-    def _log_artifacts(
-        self,
-        sample_frame: pd.DataFrame,
-        sample_prediction: FloatArray,
-        *,
-        name: str,
-        registered_model_name: str | None,
-        conda_env: Path | None,
-        extra_artifacts: Mapping[str, str] | None = None,
-    ) -> ModelInfo:
-        from ..tracking.model_artifacts import log_catboost
-
-        return log_catboost(
-            self,
-            sample_frame,
-            sample_prediction,
-            name=name,
-            registered_model_name=registered_model_name,
-            conda_env=conda_env,
-            extra_artifacts=extra_artifacts,
-        )
-
     def export_state(self) -> ClassificationState:
         return {
-            "version": 1,
+            "version": 2,
             "model_type": type(self).__name__,
             "prediction_type": "Probability",
             "baseline": self.baseline,
-            "baseline_mode": "raw_prediction",
+            "baseline_mode": self.baseline_mode,
             "threshold": self._threshold,
             "validation_f1": self._validation_f1,
             "pu_loss": self._pu_loss,
-            "pu_prior": self._pu_prior,
+            "class_prior": self._class_prior,
             "best_iteration": self._best_iteration,
             "training_params": self.params.copy(),
             "retained_iterations": self._retained_iterations,
         }
 
-    def load_context(self, context: Any) -> None:
-        state = cast(
-            ClassificationState,
-            read_state(context, type(self).__name__, "raw_prediction"),
+    def _log_fitted_parameters(self) -> None:
+        mlflow.log_param("baseline", self.baseline)
+        if self._threshold is not None:
+            mlflow.log_param("threshold", self._threshold)
+        if self.validation_f1 is not None:
+            mlflow.log_metric("validation_f1_at_threshold", self.validation_f1)
+
+    def _read_state(self, context: Any) -> ClassificationState:
+        return upgrade_classification_state(
+            read_state(
+                context, type(self).__name__, self.baseline_mode, versions=(1, 2)
+            )
         )
-        self._model = catboost.CatBoostClassifier()
-        self._model.load_model(context.artifacts["model"])
-        self.params = state["training_params"]
-        self._baseline = state["baseline"]
+
+    def _restore_fitted_fields(self, state: ClassificationState) -> None:
         self._threshold = state["threshold"]
         self._validation_f1 = state["validation_f1"]
-        self._pu_loss, self._pu_prior = state["pu_loss"], state["pu_prior"]
+        self._pu_loss, self._class_prior = state["pu_loss"], state["class_prior"]
         self._best_iteration = state["best_iteration"]
-        self._retained_iterations = state.get("retained_iterations")
         logger.debug("Loaded CatBoost classifier: PU loss=%s", self._pu_loss)
 
 
@@ -580,12 +410,19 @@ class CatBoostPUClassificationModel(CatBoostClassificationModel):
     Parameters
     ----------
     params : dict or None, default None
-        Copied parameters: ``loss`` is uPU (default) or nnPU; ``pu_prior`` must
-        be finite and strictly between zero and one. uPU supports CPU and a
-        single CUDA GPU; nnPU requires CPU. Both label groups need positive
-        total weight, and class-weight options are not supported.
-        Labels mean known positive (1) and unlabeled (0). Hard-label prediction
-        requires an explicit ``decision_threshold``; F1 is never tuned.
+        Copied parameters. ``loss`` is uPU (default) or nnPU.
+        ``class_prior`` is the positive prevalence P(y=1) of the population
+        the training pool represents: finite, strictly between zero and one,
+        and at least the weighted share of known positives in the training
+        pool. Labels mean known positive (1) and unlabeled (0); the whole
+        training pool is the unlabeled sample of the population
+        (single-training-set PU), so the risk uses all rows for the
+        negative-class term. ``nnpu_beta`` (default 0, at least 0) and
+        ``nnpu_gamma`` (default 0.2, in (0, 1]) are nnPU-only. uPU supports CPU
+        and a single CUDA GPU; nnPU requires CPU. Both label groups need
+        positive total weight, and class-weight options are not supported.
+        Hard-label prediction requires an explicit ``decision_threshold``; F1
+        is never tuned.
 
     Notes
     -----
@@ -593,16 +430,26 @@ class CatBoostPUClassificationModel(CatBoostClassificationModel):
     derivatives run in a CUDA kernel; risk evaluation remains on CPU and
     transfers predictions from the GPU. CUDA training requires a compatible
     CUDA toolkit and Numba CUDA support. The first fit compiles the kernels.
-    nnPU evaluates the complete training risk before each tree, reversing the
-    negative-risk gradient when needed (beta=0, gamma=1).
+
+    nnPU trains in one CatBoost fit. After every tree the learn-set negative
+    risk decides the next tree: if it is below ``-nnpu_beta`` the next tree
+    minimizes the negative of the negative risk with derivatives scaled by
+    ``nnpu_gamma`` (Kiryo et al. 2017, full-batch). nnPU requires CPU,
+    eval_metric 'nnPU' (or unset) and metric_period 1.
 
     Examples
     --------
     >>> model = CatBoostPUClassificationModel(
-    ...     {"loss": "uPU", "pu_prior": 0.1, "task_type": "CPU"})
+    ...     {"loss": "uPU", "class_prior": 0.1, "task_type": "CPU"})
     >>> gpu_model = CatBoostPUClassificationModel(
-    ...     {"loss": "uPU", "pu_prior": 0.1, "task_type": "GPU", "devices": "0"})
+    ...     {"loss": "uPU", "class_prior": 0.1, "task_type": "GPU", "devices": "0"})
     """
+
+    def __init__(self, params: ModelParams | None = None) -> None:
+        super().__init__(params)
+        # Training-only settings; refits read them again from the parameters.
+        self._nnpu_beta = _DEFAULT_NNPU_BETA
+        self._nnpu_gamma = _DEFAULT_NNPU_GAMMA
 
     @property
     def task(self) -> str:
@@ -612,16 +459,16 @@ class CatBoostPUClassificationModel(CatBoostClassificationModel):
     @property
     def pu_loss(self) -> str:
         """Return the fitted PU risk policy, uPU or nnPU."""
-        self.native_model
+        self._require_fitted()
         assert self._pu_loss is not None
         return self._pu_loss
 
     @property
-    def pu_prior(self) -> float:
-        """Return the fitted positive population prior."""
-        self.native_model
-        assert self._pu_prior is not None
-        return self._pu_prior
+    def class_prior(self) -> float:
+        """Return the fitted population class prior P(y=1)."""
+        self._require_fitted()
+        assert self._class_prior is not None
+        return self._class_prior
 
     def _validate_params(
         self, params: ModelParams, train: Pool, validation: Pool | None
@@ -629,16 +476,39 @@ class CatBoostPUClassificationModel(CatBoostClassificationModel):
         loss = params.pop("loss_function", "uPU")
         if loss not in ("uPU", "nnPU"):
             raise ValueError("PU classification requires uPU or nnPU loss")
-        if "pu_prior" not in params:
-            raise ValueError("PU loss requires pu_prior in params")
-        prior = float(cast(float, params.pop("pu_prior")))
-        if not np.isfinite(prior) or not 0 < prior < 1:
-            raise ValueError("pu_prior must be finite and strictly between 0 and 1")
+        if "pu_prior" in params:
+            raise ValueError(
+                "pu_prior was replaced by class_prior: the population prevalence "
+                "P(y=1); the whole training pool is now the unlabeled sample. "
+                "See the 7.0 migration guide."
+            )
+        if "class_prior" not in params:
+            raise ValueError("PU loss requires class_prior in params")
+        class_prior = float(cast(float, params.pop("class_prior")))
+        if not np.isfinite(class_prior) or not 0 < class_prior < 1:
+            raise ValueError("class_prior must be finite and strictly between 0 and 1")
+        beta = params.pop("nnpu_beta", None)
+        gamma = params.pop("nnpu_gamma", None)
+        if loss == "uPU" and (beta is not None or gamma is not None):
+            raise ValueError("nnpu_beta and nnpu_gamma require loss='nnPU'")
+        nnpu_beta = self._validated_beta(beta)
+        nnpu_gamma = self._validated_gamma(gamma)
         task_type = str(params.get("task_type", "CPU")).upper()
         if task_type not in ("CPU", "GPU"):
             raise ValueError("PU task_type must be 'CPU' or 'GPU'")
-        if loss == "nnPU" and task_type != "CPU":
-            raise ValueError("nnPU requires task_type='CPU'")
+        if loss == "nnPU":
+            if task_type != "CPU":
+                raise ValueError("nnPU requires task_type='CPU'")
+            if "metric_period" in params and int(cast(int, params["metric_period"])) != 1:
+                raise ValueError(
+                    "nnPU updates its correction after every tree; "
+                    "metric_period must be 1"
+                )
+            if params.get("eval_metric", "nnPU") != "nnPU":
+                raise ValueError(
+                    "nnPU uses its own risk as eval_metric to update the "
+                    "correction after every tree"
+                )
         params["task_type"] = task_type
         if task_type == "GPU":
             # PU normalizations describe one complete pool, not GPU shards.
@@ -651,17 +521,48 @@ class CatBoostPUClassificationModel(CatBoostClassificationModel):
         for name in ("class_weights", "auto_class_weights", "scale_pos_weight"):
             if name in params:
                 raise ValueError(f"{name} is incompatible with PU loss")
-        self._pu_loss, self._pu_prior = loss, prior
-        pu_risks(
-            np.zeros(len(train)),
-            train.y.to_numpy(),
-            train.weight.to_numpy(),
-            prior,
-        )
+        # Training-only compiled code stays out of serving environments.
+        from .losses.pu import pu_risks
+
+        labels, weights = train.y.to_numpy(), train.weight.to_numpy()
+        pu_risks(np.zeros(len(train)), labels, weights, class_prior)
+        labeled_share = float(weights[labels == 1].sum() / weights.sum())
+        if class_prior < labeled_share:
+            raise ValueError(
+                f"class_prior ({class_prior:.6g}) is below the weighted share of "
+                f"known positives in the training pool ({labeled_share:.6g}); "
+                "known positives are positives, so the population prevalence "
+                "cannot be smaller"
+            )
+        # Assign only after every check, so a rejected fit leaves no partial state.
+        self._pu_loss, self._class_prior = loss, class_prior
+        self._nnpu_beta, self._nnpu_gamma = nnpu_beta, nnpu_gamma
+
+    @staticmethod
+    def _validated_beta(value: object) -> float:
+        if value is None:
+            return _DEFAULT_NNPU_BETA
+        if isinstance(value, bool):
+            raise ValueError("nnpu_beta must be finite and nonnegative")
+        beta = float(cast(float, value))
+        if not np.isfinite(beta) or beta < 0:
+            raise ValueError("nnpu_beta must be finite and nonnegative")
+        return beta
+
+    @staticmethod
+    def _validated_gamma(value: object) -> float:
+        if value is None:
+            return _DEFAULT_NNPU_GAMMA
+        if isinstance(value, bool):
+            raise ValueError("nnpu_gamma must be finite and in (0, 1]")
+        gamma = float(cast(float, value))
+        if not np.isfinite(gamma) or not 0 < gamma <= 1:
+            raise ValueError("nnpu_gamma must be finite and in (0, 1]")
+        return gamma
 
     def _calculate_baseline(self, train: Pool) -> float:
-        assert self._pu_prior is not None
-        return float(np.log(self._pu_prior / (1.0 - self._pu_prior)))
+        assert self._class_prior is not None
+        return float(np.log(self._class_prior / (1.0 - self._class_prior)))
 
     def _fit_backend(
         self,
@@ -670,161 +571,70 @@ class CatBoostPUClassificationModel(CatBoostClassificationModel):
         baseline: float,
         params: ModelParams,
     ) -> catboost.CatBoostClassifier:
-        assert self._pu_prior is not None
+        class_prior = self._class_prior
+        assert class_prior is not None
+        # Training-only compiled code stays out of serving environments.
+        from .losses.pu import (
+            NNPUCorrection,
+            NNPUMetric,
+            NNPUObjective,
+            UPUMetric,
+            UPUObjective,
+            pu_risks,
+        )
+
         labels, weights = train.y.to_numpy(), train.weight.to_numpy()
         positive_weight = weights[labels == 1].sum()
-        unlabeled_weight = weights[labels == 0].sum()
-        total = positive_weight + unlabeled_weight
-        positive_scale = float(self._pu_prior * total / positive_weight)
-        unlabeled_scale = float(total / unlabeled_weight)
+        positive_scale = float(class_prior * weights.sum() / positive_weight)
         params.update(
             leaf_estimation_method="Gradient",
             leaf_estimation_iterations=1,
             boosting_type="Plain",
         )
-        metric = params.get("eval_metric", self._pu_loss)
-        if isinstance(metric, str) and metric in ("uPU", "nnPU"):
-            metric_class = UPUMetric if metric == "uPU" else NNPUMetric
-            params["eval_metric"] = metric_class(self._pu_prior)
         if validation is not None:
             pu_risks(
                 np.full(len(validation), baseline),
                 validation.y.to_numpy(),
                 validation.weight.to_numpy(),
-                self._pu_prior,
+                class_prior,
             )
+        correction: NNPUCorrection | None = None
         if self._pu_loss == "nnPU":
-            objective = PULogisticObjective(
-                self._pu_prior, positive_scale, unlabeled_scale
-            )
-            model, self._best_iteration = self._fit_nnpu(
-                train=train,
-                validation=validation,
-                train_data=train.to_catboost(baseline=baseline),
-                baseline=baseline,
-                prior=self._pu_prior,
-                objective=objective,
-                params=params,
-            )
-            return model
-        if params["task_type"] == "GPU":
-            from .losses.pu.cuda import make_upu_gpu_objective
-
-            params["loss_function"] = make_upu_gpu_objective(
-                positive_scale, unlabeled_scale
-            )
+            correction = NNPUCorrection(self._nnpu_beta, self._nnpu_gamma, len(train))
+            params["loss_function"] = NNPUObjective(positive_scale, correction)
+            params["eval_metric"] = NNPUMetric(class_prior, correction)
+            params["metric_period"] = 1
         else:
-            from .losses.pu.cpu import UPUObjective
+            metric = params.get("eval_metric", "uPU")
+            if isinstance(metric, str) and metric in ("uPU", "nnPU"):
+                params["eval_metric"] = (
+                    UPUMetric(class_prior)
+                    if metric == "uPU"
+                    else NNPUMetric(class_prior)
+                )
+            if params["task_type"] == "GPU":
+                from .losses.pu_cuda import make_upu_gpu_objective
 
-            params["loss_function"] = UPUObjective(positive_scale, unlabeled_scale)
+                params["loss_function"] = make_upu_gpu_objective(positive_scale)
+            else:
+                params["loss_function"] = UPUObjective(positive_scale)
         if validation is not None:
             params.setdefault("use_best_model", True)
-        return super()._fit_backend(train, validation, baseline, params)
+        model = super()._fit_backend(train, validation, baseline, params)
+        if correction is not None:
+            if correction.learn_evaluations < model.tree_count_:
+                raise RuntimeError(
+                    "CatBoost did not evaluate the learn-set nnPU risk after "
+                    "every tree; the non-negative correction could not be applied"
+                )
+            logger.debug(
+                "nnPU: %d of %d correction updates selected the reversed branch",
+                correction.reversed_trees,
+                correction.learn_evaluations,
+            )
+        return model
 
     def _configure_threshold(
         self, validation: Pool | None, threshold: float | None
     ) -> None:
         self._threshold = threshold
-
-    @staticmethod
-    def _fit_nnpu(
-        *,
-        train: Pool,
-        validation: Pool | None,
-        train_data: catboost.Pool,
-        baseline: float,
-        prior: float,
-        objective: PULogisticObjective,
-        params: ModelParams,
-    ) -> tuple[catboost.CatBoostClassifier, int | None]:
-        """Update full-training-set nnPU before each tree (beta=0, gamma=1)."""
-        params = params.copy()
-        iteration_names = [
-            key for key in ("iterations", "n_estimators", "num_trees") if key in params
-        ]
-        if len(iteration_names) > 1:
-            raise ValueError("Specify only one CatBoost iteration parameter")
-        iterations = (
-            int(cast(int, params.pop(iteration_names[0]))) if iteration_names else 1000
-        )
-        if iterations < 1:
-            raise ValueError("iterations must be positive")
-        stopping_rounds = params.pop("early_stopping_rounds", None)
-        if stopping_rounds is not None and int(cast(int, stopping_rounds)) < 1:
-            raise ValueError("early_stopping_rounds must be positive")
-        use_best_model = bool(params.pop("use_best_model", validation is not None))
-        params["iterations"] = 1
-        # CatBoost's automatic learning rate would otherwise use a 1-tree run.
-        params.setdefault("learning_rate", 0.03)
-        params.pop("verbose", None)
-        params["logging_level"] = "Silent"
-        validation_data = (
-            None if validation is None else validation.to_catboost(baseline=baseline)
-        )
-        if validation is not None:
-            pu_risks(
-                np.full(len(validation.y), baseline),
-                validation.y.to_numpy(),
-                validation.weight.to_numpy(),
-                prior,
-            )
-        train_labels = train.y.to_numpy()
-        train_weights = train.weight.to_numpy()
-        model = None
-        best_model = None
-        best_iteration = None
-        best_risk = float("inf")
-
-        for iteration in range(iterations):
-            # CatBoost's derivative callback sees only a subset, so compute
-            # this decision from the complete training pool between trees.
-            logits = (
-                np.full(len(train_labels), baseline)
-                if model is None
-                else np.asarray(
-                    model.predict(train_data, prediction_type="RawFormulaVal"),
-                    dtype=float,
-                ).reshape(-1)
-            )
-            _, negative_risk = pu_risks(logits, train_labels, train_weights, prior)
-            objective.reverse_negative_risk = negative_risk < 0.0
-            tree_params = {**params, "loss_function": objective}
-            next_model = catboost.CatBoostClassifier(**tree_params)
-            next_model.fit(train_data, eval_set=validation_data, init_model=model)
-            model = next_model
-            if iteration == 0 or (iteration + 1) % 50 == 0:
-                logger.debug(
-                    "nnPU tree %d/%d; training negative risk %.6g; correction=%s",
-                    iteration + 1,
-                    iterations,
-                    negative_risk,
-                    objective.reverse_negative_risk,
-                )
-
-            if validation_data is not None:
-                assert validation is not None
-                validation_logits = np.asarray(
-                    model.predict(validation_data, prediction_type="RawFormulaVal"),
-                    dtype=float,
-                ).reshape(-1)
-                positive_risk, negative_risk = pu_risks(
-                    validation_logits,
-                    validation.y.to_numpy(),
-                    validation.weight.to_numpy(),
-                    prior,
-                )
-                risk = positive_risk + max(0.0, negative_risk)
-                if risk < best_risk:
-                    best_risk = risk
-                    best_iteration = iteration
-                    best_model = model
-                if stopping_rounds is not None and iteration - cast(
-                    int, best_iteration
-                ) >= int(cast(int, stopping_rounds)):
-                    break
-
-        assert model is not None
-        if validation is not None and use_best_model:
-            assert best_model is not None
-            model = best_model
-        return model, best_iteration

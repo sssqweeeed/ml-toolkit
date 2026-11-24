@@ -8,12 +8,12 @@ and figures without modifying the documented files.
 from __future__ import annotations
 
 import argparse
-from contextlib import chdir, redirect_stdout
-from io import StringIO
 import os
-from pathlib import Path
 import re
 import shutil
+from contextlib import chdir, redirect_stdout
+from io import StringIO
+from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import cast
 
@@ -109,8 +109,8 @@ def _validate_results(page: str, namespace: dict[str, object]) -> None:
     import polars as pl
     import shap
 
-    from examples.evaluation_data import BikeEvaluation
     from examples.citation_data import CitationGallery
+    from examples.evaluation_data import BikeEvaluation
     from ml_toolkit.metrics import RankingMetrics
     from ml_toolkit.psi import PSIResult
 
@@ -128,12 +128,14 @@ def _validate_results(page: str, namespace: dict[str, object]) -> None:
             "test"
         ] * len(example.test)
     if page.endswith("residuals.md"):
-        from ml_toolkit.evaluation import ResidualResult
+        from ml_toolkit.reports import ResidualResult
 
         diagnostics = cast(ResidualResult, namespace["diagnostics"])
         assert diagnostics.rows.height == len(example.data)
         assert diagnostics.worst.height == 30
-        np.testing.assert_allclose(diagnostics.bins["sum_weight"].sum(), len(example.data))
+        np.testing.assert_allclose(
+            diagnostics.bins["sum_weight"].sum(), len(example.data)
+        )
     elif page.endswith("metric-trend.md"):
         trend = cast(pl.DataFrame, namespace["table"])
         assert trend["period_start"].n_unique() == 24
@@ -205,7 +207,8 @@ def _validate_results(page: str, namespace: dict[str, object]) -> None:
         assert temporal["volume"].sum() == len(example.data)
     elif page.endswith("ranking.md"):
         ranked = cast(RankingMetrics, namespace["ranked"])
-        assert len(ranked.cumulative_exposure) == len(example.test) + 1
+        # One curve point per distinct score (tied scores form one step).
+        assert 1 < len(ranked.cumulative_exposure) <= len(example.test) + 1
         assert ranked.selected_points[0].percent == 10
         assert ranked.selected_points[0].lift > 1
         np.testing.assert_allclose(ranked.cumulative_observed[[0, -1]], [0, 1])

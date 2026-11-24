@@ -18,7 +18,7 @@ per hour. Prepare the source once with
 from examples.custom_metric import weighted_mae
 from examples.training_setup import prepare_training
 from ml_toolkit import train_model
-from ml_toolkit.model_evaluation import PermutationImportance
+from ml_toolkit.reports import PermutationImportance
 from ml_toolkit.models import CatBoostRegressionModel
 from ml_toolkit.training import Holdout
 
@@ -61,7 +61,7 @@ one group, using the same row permutation to preserve their relationship.
 from pathlib import Path
 
 from examples.evaluation_data import fit_bike_evaluation
-from ml_toolkit.plots.permutation_importance import permutation_importance
+from ml_toolkit.reports.permutation import permutation_importance
 
 example = fit_bike_evaluation()
 output = Path("plots")
@@ -127,8 +127,8 @@ namespace, figure configuration, and artifact upload rules.
 
 ## API reference
 
-::: ml_toolkit.model_evaluation.PermutationImportance
+::: ml_toolkit.reports.PermutationImportance
     options:
       members: [calculate, parameters]
 
-::: ml_toolkit.plots.permutation_importance.permutation_importance
+::: ml_toolkit.reports.permutation.permutation_importance

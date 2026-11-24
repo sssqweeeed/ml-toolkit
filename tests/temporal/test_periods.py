@@ -1,14 +1,16 @@
-from ml_toolkit.config import ReportingConfig
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
+
 import pandas as pd
 import polars as pl
 import pytest
-from ml_toolkit.plots.monitoring import time_feature_distribution
-from ml_toolkit.plots.regression import time_observed_fitted
-from ml_toolkit.psi import PSIAnalysis, PSIConfig
-from ml_toolkit.feature_levels import FeatureLevelConfig
+
 from ml_toolkit._time import paired_period_starts, period_starts
+from ml_toolkit.config import ReportingConfig
+from ml_toolkit.feature_levels import FeatureLevelConfig
+from ml_toolkit.psi import PSIAnalysis, PSIConfig
+from ml_toolkit.reports.distributions import time_feature_distribution
+from ml_toolkit.reports.regression import time_observed_fitted
 
 
 @pytest.mark.parametrize(
@@ -124,7 +126,7 @@ def test_time_observed_fitted_preserves_fixed_offsets(offset, tmp_path):
             times,
             [1.0],
             [1.0],
-            [times[0].astimezone(timezone.utc)],
+            [times[0].astimezone(UTC)],
             [1.0],
             [1.0],
             tmp_path / "invalid.png",
@@ -132,13 +134,15 @@ def test_time_observed_fitted_preserves_fixed_offsets(offset, tmp_path):
 
 
 def test_time_plot_points_and_dst_bar_end(monkeypatch, tmp_path):
-    import matplotlib.pyplot as plt
     import matplotlib.dates as mdates
-    from ml_toolkit.plots import regression, psi
+    import matplotlib.pyplot as plt
+
+    from ml_toolkit import figures as figures_module
+    from ml_toolkit.psi import figures as psi
 
     figures = []
     monkeypatch.setattr(
-        regression, "save_figure", lambda fig, *a, **k: figures.append(fig)
+        figures_module, "save_figure", lambda fig, *a, **k: figures.append(fig)
     )
     monkeypatch.setattr(psi, "save_figure", lambda fig, *a, **k: figures.append(fig))
     try:

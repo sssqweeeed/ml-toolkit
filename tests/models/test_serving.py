@@ -16,7 +16,10 @@ import polars as pl
 import pytest
 
 from ml_toolkit.inflation import (
-    ConstantRateInflation, LogLinearInflation, ManualInflation, SplineInflation,
+    ConstantRateInflation,
+    LogLinearInflation,
+    ManualInflation,
+    SplineInflation,
 )
 from ml_toolkit.models import (
     CatBoostClassificationModel,
@@ -96,6 +99,9 @@ def check_bundled_inference(
     assert result.returncode == 0, result.stdout + result.stderr
 
 
+CLASSIFICATION_KINDS = ("classification", "classification_auto", "uPU", "nnPU")
+
+
 @pytest.mark.parametrize(
     "kind",
     [
@@ -156,7 +162,7 @@ def test_models_from_code_roundtrip_outside_repository(
         model = CatBoostClassificationModel(PARAMS)
     elif kind in ("uPU", "nnPU"):
         model = CatBoostPUClassificationModel(
-            {**PARAMS, "loss": kind, "pu_prior": 0.2, "decision_threshold": 0.3},
+            {**PARAMS, "loss": kind, "class_prior": 0.5, "decision_threshold": 0.3},
         )
     else:
         regressor_factory = (
@@ -220,7 +226,9 @@ def test_models_from_code_roundtrip_outside_repository(
             )
         )
     state = model.export_state()
-    assert state["version"] == 1 and state["model_type"] == type(model).__name__
+    expected_version = 2 if kind in CLASSIFICATION_KINDS else 1
+    assert state["version"] == expected_version
+    assert state["model_type"] == type(model).__name__
     if kind.startswith("inflation_poisson"):
         assert state["inflation"]["family"] == "Poisson"
         loaded = mlflow.pyfunc.load_model(info.model_uri).unwrap_python_model()
@@ -302,3 +310,21 @@ def test_optional_lightgbm_models_from_code(data, tmp_path, inference_python):
         model.predict(None, frame),
         "LightGBMServingModel",
     )
+
+
+def test_pu_model_state_is_version_2_and_round_trips_class_prior(data, tmp_path):
+    setup_mlflow(tmp_path)
+    binary = data.with_target(pl.Series("target", [1, 0, 0] * 16))
+    model = CatBoostPUClassificationModel(
+        {**PARAMS, "class_prior": 0.5, "decision_threshold": 0.3}
+    ).fit(binary)
+    assert model.export_state()["version"] == 2
+    assert CatBoostClassificationModel(PARAMS).fit(binary).export_state()["version"] == 2
+    with mlflow.start_run():
+        info = model.log(binary)
+    directory = Path(mlflow.artifacts.download_artifacts(info.model_uri))
+    state = json.loads(next(directory.rglob("config.json")).read_text())
+    assert state["version"] == 2 and state["class_prior"] == 0.5
+    assert "pu_prior" not in state
+    loaded = mlflow.pyfunc.load_model(info.model_uri).unwrap_python_model()
+    assert loaded.class_prior == 0.5

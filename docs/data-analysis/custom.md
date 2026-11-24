@@ -31,7 +31,7 @@ import polars as pl
 
 from examples.custom_data_analyzer import DataAudit
 from examples.gallery_data import load_bike_pool
-from ml_toolkit.config import FigureConfig
+from ml_toolkit.figures import FigureConfig
 from ml_toolkit.training import Holdout
 
 data = load_bike_pool(download_if_missing=False)
@@ -73,7 +73,7 @@ stage switches, shared settings, metric validation and artifact cleanup.
 
 ## API reference
 
-::: ml_toolkit.data_analysis.DataAnalyzer
+::: ml_toolkit.reports.DataAnalyzer
     options:
       heading_level: 3
       members: [evaluate, write_artifacts, parameters]

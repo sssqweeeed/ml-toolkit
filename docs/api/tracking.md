@@ -130,9 +130,13 @@ own model-packaging methods in the [model reference](models.md).
 
 ## API reference
 
-::: ml_toolkit.tracking.load_psi_baseline
+::: ml_toolkit.psi.load_psi_baseline
 
 ::: ml_toolkit.tracking.log_polars_table
+
+::: ml_toolkit.tracking.log_json
+
+::: ml_toolkit.tracking.nested_run
 
 ## Load a model's PSI baseline
 
@@ -151,7 +155,7 @@ above outside the workflow, attach it explicitly when logging:
 
 ```python
 from tempfile import TemporaryDirectory
-from ml_toolkit.config import FeatureLevelConfig
+from ml_toolkit.feature_levels import FeatureLevelConfig
 from ml_toolkit.psi import PSIBaseline, PSIConfig
 
 reference = PSIBaseline.from_reference(
@@ -182,7 +186,7 @@ remains available after the temporary source directory has been removed:
 
 ```python
 from polars.testing import assert_frame_equal
-from ml_toolkit.tracking import load_psi_baseline
+from ml_toolkit.psi import load_psi_baseline
 
 model_uri = info.model_uri
 served = mlflow.pyfunc.load_model(model_uri)

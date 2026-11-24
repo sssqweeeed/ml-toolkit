@@ -3,11 +3,8 @@
 # --8<-- [start:adapter]
 from __future__ import annotations
 
-from collections.abc import Mapping
-
-from ml_toolkit.training import Holdout
-
 import json
+from collections.abc import Mapping
 from importlib.metadata import version
 from math import isfinite
 from pathlib import Path
@@ -22,9 +19,9 @@ from mlflow.models import infer_signature
 from mlflow.models.model import ModelInfo
 
 from ml_toolkit import Pool, train_model
-from ml_toolkit.config import TrackingConfig, TrainingConfig
-from ml_toolkit.models import CatBoostRegressionModel
-from ml_toolkit.tracking.model_artifacts import merge_artifacts
+from ml_toolkit.config import TrainingConfig
+from ml_toolkit.models import CatBoostRegressionModel, TrackingConfig, merge_artifacts
+from ml_toolkit.training import Holdout
 from ml_toolkit.types import FloatArray, ModelParams
 
 

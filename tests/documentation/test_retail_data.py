@@ -91,17 +91,26 @@ def test_invoice_crossing_a_documented_split_is_rejected(workbook, boundary):
         retail_data.load_retail_records(data_home=directory)
 
 
-@pytest.mark.parametrize("column,value,message", [
-    ("Country", None, "null"),
-    ("UnitPrice", float("inf"), "finite"),
-    ("Quantity", float("nan"), "finite"),
-])
+@pytest.mark.parametrize(
+    "column,value,message",
+    [
+        ("Country", None, "null"),
+        ("UnitPrice", float("inf"), "finite"),
+        ("Quantity", float("nan"), "finite"),
+    ],
+)
 def test_invalid_required_source_values_are_rejected(tmp_path, column, value, message):
-    records = pl.DataFrame({
-        "source_row": [0], "InvoiceNo": ["1010"], "StockCode": ["A"],
-        "Quantity": [1.0], "InvoiceDate": [datetime(2011, 8, 15)],
-        "UnitPrice": [3.5], "Country": ["France"],
-    }).with_columns(pl.lit(value).alias(column))
+    records = pl.DataFrame(
+        {
+            "source_row": [0],
+            "InvoiceNo": ["1010"],
+            "StockCode": ["A"],
+            "Quantity": [1.0],
+            "InvoiceDate": [datetime(2011, 8, 15)],
+            "UnitPrice": [3.5],
+            "Country": ["France"],
+        }
+    ).with_columns(pl.lit(value).alias(column))
     records.write_parquet(tmp_path / "records.parquet")
     with pytest.raises(ValueError, match=message):
         retail_data.load_retail_records(data_home=tmp_path)
@@ -111,11 +120,15 @@ def test_invalid_required_source_values_are_rejected(tmp_path, column, value, me
 def original_source():
     path = retail_data.DEFAULT_RETAIL_CACHE / retail_data.WORKBOOK
     if not path.is_file():
-        pytest.skip("Cache the original UCI Online Retail workbook before source checks")
+        pytest.skip(
+            "Cache the original UCI Online Retail workbook before source checks"
+        )
     pytest.importorskip("openpyxl")
     # Read the original workbook once, independently of any normalized cache.
     frame = pd.read_excel(
-        path, engine="openpyxl", usecols=list(retail_data.SOURCE_COLUMNS),
+        path,
+        engine="openpyxl",
+        usecols=list(retail_data.SOURCE_COLUMNS),
         dtype={"InvoiceNo": str, "StockCode": str, "Country": str},
     )
     return pl.from_pandas(frame).with_row_index("source_row")
@@ -127,7 +140,8 @@ def real_records(original_source):
 
 
 def test_real_sample_preserves_original_prices_dates_and_every_selected_line(
-    original_source, real_records,
+    original_source,
+    real_records,
 ):
     source = original_source
     original_rows = source[real_records["source_row"].to_list()]
@@ -139,7 +153,8 @@ def test_real_sample_preserves_original_prices_dates_and_every_selected_line(
         pl.col("InvoiceDate") < datetime(2011, 12, 1),
     )
     selected_invoices = {
-        invoice for invoice in eligible["InvoiceNo"].unique()
+        invoice
+        for invoice in eligible["InvoiceNo"].unique()
         if int(sha256(invoice.encode()).hexdigest()[:16], 16) % 10 == 0
     }
     assert set(real_records["InvoiceNo"]) == selected_invoices
@@ -148,14 +163,21 @@ def test_real_sample_preserves_original_prices_dates_and_every_selected_line(
     assert_frame_equal(real_records, real_records.sort("InvoiceDate", "source_row"))
 
 
-def test_real_pool_uses_original_target_without_target_leakage(real_records, monkeypatch):
-    monkeypatch.setattr(retail_data, "load_retail_records", lambda **kwargs: real_records)
+def test_real_pool_uses_original_target_without_target_leakage(
+    real_records, monkeypatch
+):
+    monkeypatch.setattr(
+        retail_data, "load_retail_records", lambda **kwargs: real_records
+    )
     pool = retail_data.load_retail_pool()
-    assert_frame_equal(pool.X, real_records.select(
-        pl.col("StockCode").alias("stock_code"),
-        pl.col("Country").alias("country"),
-        pl.col("Quantity").alias("quantity"),
-    ))
+    assert_frame_equal(
+        pool.X,
+        real_records.select(
+            pl.col("StockCode").alias("stock_code"),
+            pl.col("Country").alias("country"),
+            pl.col("Quantity").alias("quantity"),
+        ),
+    )
     assert_series_equal(pool.y, real_records["UnitPrice"].cast(pl.Float64))
     assert_series_equal(pool.time, real_records["InvoiceDate"])
     assert_series_equal(pool.object_id, real_records["source_row"])
@@ -165,9 +187,12 @@ def test_real_pool_uses_original_target_without_target_leakage(real_records, mon
 
 
 def test_real_calendar_splits_keep_invoices_disjoint_and_cover_the_sample(
-    real_records, monkeypatch,
+    real_records,
+    monkeypatch,
 ):
-    monkeypatch.setattr(retail_data, "load_retail_records", lambda **kwargs: real_records)
+    monkeypatch.setattr(
+        retail_data, "load_retail_records", lambda **kwargs: real_records
+    )
     splits = retail_data.load_retail_splits()
     pools = (splits.train, splits.validation, splits.test)
     assert all(len(pool) > 0 for pool in pools)
@@ -180,8 +205,10 @@ def test_real_calendar_splits_keep_invoices_disjoint_and_cover_the_sample(
     assert rows[0].isdisjoint(rows[1] | rows[2])
     assert rows[1].isdisjoint(rows[2])
     assert set.union(*rows) == set(real_records["source_row"])
-    invoices = [set(real_records.filter(pl.col("source_row").is_in(group))["InvoiceNo"])
-                for group in rows]
+    invoices = [
+        set(real_records.filter(pl.col("source_row").is_in(group))["InvoiceNo"])
+        for group in rows
+    ]
     assert invoices[0].isdisjoint(invoices[1] | invoices[2])
     assert invoices[1].isdisjoint(invoices[2])
 
@@ -197,7 +224,9 @@ def test_normalized_cache_reads_reproducibly_without_workbook_or_writes(workbook
     before = path.stat()
     assert retail_data.retail_cache_available(directory)
     for _ in range(2):
-        assert_frame_equal(retail_data.load_retail_records(data_home=directory), expected)
+        assert_frame_equal(
+            retail_data.load_retail_records(data_home=directory), expected
+        )
     assert list(directory.iterdir()) == [path]
     after = path.stat()
     assert (after.st_size, after.st_mtime_ns) == (before.st_size, before.st_mtime_ns)

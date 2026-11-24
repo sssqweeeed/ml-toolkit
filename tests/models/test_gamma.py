@@ -17,7 +17,7 @@ import pytest
 from sklearn.metrics import mean_gamma_deviance
 
 from ml_toolkit.models import CatBoostLogLinkRegressionModel, CatBoostRegressionModel
-from ml_toolkit.models.losses.gamma.cpu import (
+from ml_toolkit.models.losses.gamma import (
     GammaMetric,
     GammaObjective,
     gamma_derivatives,
@@ -184,7 +184,7 @@ def test_gamma_native_and_state_roundtrip(data, tmp_path, factory, output):
     assert state["effective_prediction_type"] == (output or "Exponent")
     assert state["training_params"]["loss"] == "Gamma"
     restored = factory()
-    restored.restore_state(state, str(path))
+    restored._restore_state(state, str(path))
     np.testing.assert_allclose(restored.predict_pool(data), expected)
     restored.fit(data)
     np.testing.assert_allclose(restored.predict_pool(data), expected)
@@ -197,7 +197,7 @@ def test_old_regression_state_still_loads(data, tmp_path):
     state = model.export_state()
     del state["effective_prediction_type"]
     restored = CatBoostLogLinkRegressionModel()
-    restored.restore_state(state, str(path))
+    restored._restore_state(state, str(path))
     np.testing.assert_allclose(restored.predict_pool(data), model.predict_pool(data))
 
 
@@ -287,14 +287,6 @@ def test_gamma_early_stopping_uses_validation_deviance(data):
     )
 
 
-def test_pu_metric_imports_remain_compatible():
-    from ml_toolkit.models.catboost_classification import UPUMetric, NNPUMetric
-    from ml_toolkit.models.losses.pu import common
-
-    assert UPUMetric is common.UPUMetric
-    assert NNPUMetric is common.NNPUMetric
-
-
 def test_gamma_gpu_routing(data, monkeypatch):
     import ml_toolkit.models.catboost_regression as module
 
@@ -329,7 +321,8 @@ def test_gamma_cuda_type_inference(monkeypatch):
     from numba.core.target_extension import target_override
     from numba.core.typed_passes import type_inference_stage
     from numba.cuda.descriptor import cuda_target
-    from ml_toolkit.models.losses.gamma.cuda import make_gamma_gpu_objective
+
+    from ml_toolkit.models.losses.gamma_cuda import make_gamma_gpu_objective
 
     monkeypatch.setattr(
         "numba.cuda.dispatcher.get_current_device",
@@ -393,5 +386,5 @@ def test_gamma_training_on_cuda_hardware(data, tmp_path):
     path = tmp_path / "gpu.cbm"
     model.native_model.save_model(str(path))
     restored = CatBoostLogLinkRegressionModel()
-    restored.restore_state(model.export_state(), str(path))
+    restored._restore_state(model.export_state(), str(path))
     np.testing.assert_allclose(restored.predict_pool(val), predictions)

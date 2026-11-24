@@ -20,7 +20,7 @@ import numpy as np
 import polars as pl
 
 from examples.evaluation_data import fit_bike_evaluation
-from ml_toolkit.config import FigureConfig
+from ml_toolkit.figures import FigureConfig
 
 example = fit_bike_evaluation(classification=True)
 data, prediction, split = example.data, example.prediction, example.split
@@ -47,7 +47,7 @@ without a tracking server, call their artifact methods on the prepared inputs:
 <!-- example: classification-reports -->
 
 ```python
-from ml_toolkit.evaluation import PrecisionRecall, F1Threshold, Calibration
+from ml_toolkit.reports import PrecisionRecall, F1Threshold, Calibration
 
 reports = [PrecisionRecall(), F1Threshold(), Calibration()]
 for report in reports:
@@ -87,7 +87,7 @@ full threshold table from the direct function. Draw the same figure directly:
 <!-- example: classification-precision-recall -->
 
 ```python
-from ml_toolkit.plots import classification
+from ml_toolkit.reports import classification
 
 observed, probabilities = test.y.to_numpy(), test_prediction
 precision_recall_table = classification.precision_recall(
@@ -235,22 +235,22 @@ Training images: 1078; held-out images: 719
 
 ## API reference
 
-::: ml_toolkit.evaluation.PrecisionRecall
+::: ml_toolkit.reports.PrecisionRecall
     options:
       heading_level: 3
       members: []
 
-::: ml_toolkit.evaluation.F1Threshold
+::: ml_toolkit.reports.F1Threshold
     options:
       heading_level: 3
       members: []
 
-::: ml_toolkit.evaluation.Calibration
+::: ml_toolkit.reports.Calibration
     options:
       heading_level: 3
       members: []
 
-::: ml_toolkit.plots.classification
+::: ml_toolkit.reports.classification
     options:
       heading_level: 3
       members: [binary_curves, precision_recall, f1_threshold, calibration]

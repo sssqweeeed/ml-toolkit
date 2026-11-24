@@ -6,15 +6,18 @@ from weakref import ref
 import mlflow
 import pytest
 
-from ml_toolkit.config import TrainingConfig, TrackingConfig
+from ml_toolkit.config import TrainingConfig
 from ml_toolkit.data import Pool
+from ml_toolkit.models import TrackingConfig
 from ml_toolkit.training import Split, Splitter, TimeSeriesCV, train_model
-from tests.support.training import MeanModel, mae, make_identified_data, setup_mlflow
 from tests.support.evaluators import CallbackEvaluator
+from tests.support.training import MeanModel, mae, make_identified_data, setup_mlflow
 
 
 @pytest.mark.parametrize("verbosity", ["silent", "normal", "verbose", "debug"])
-def test_custom_splitter_controls_final_rows_and_execution_order(tmp_path, capsys, verbosity):
+def test_custom_splitter_controls_final_rows_and_execution_order(
+    tmp_path, capsys, verbosity
+):
     setup_mlflow(tmp_path)
     data = make_identified_data()
     events, fits, reports = [], [], []
@@ -94,7 +97,9 @@ def test_custom_splitter_controls_final_rows_and_execution_order(tmp_path, capsy
     assert result.test_metrics is not None
     output = capsys.readouterr().err
     if verbosity != "silent":
-        assert output.index("Starting validation split 7") < output.index("Starting validation split 2")
+        assert output.index("Starting validation split 7") < output.index(
+            "Starting validation split 2"
+        )
     if verbosity in ("verbose", "debug"):
         assert "Split 7: 2 selected features; best iteration (zero-based): 7" in output
         assert "Split 2: 2 selected features; best iteration (zero-based): 11" in output
@@ -111,7 +116,13 @@ def test_custom_splitter_controls_final_rows_and_execution_order(tmp_path, capsy
     config = mlflow.artifacts.load_dict(
         f"runs:/{parent.info.run_id}/configuration/requested.json"
     )
-    assert set(config) == {"tuning", "reporting", "tracking", "fit_on_test", "verbosity"}
+    assert set(config) == {
+        "tuning",
+        "reporting",
+        "tracking",
+        "fit_on_test",
+        "verbosity",
+    }
     assert config["verbosity"] == verbosity
 
 

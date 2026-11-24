@@ -5,11 +5,11 @@ from math import isfinite
 from typing import TYPE_CHECKING, Literal
 
 from .._console import Verbosity
+from ..models import TrackingConfig
 from .reporting import ReportingConfig
-from .tracking import TrackingConfig
 
 if TYPE_CHECKING:
-    from ..evaluation import PredictionEvaluator
+    from ..reports import PredictionEvaluator
 
 
 @dataclass(frozen=True, kw_only=True, slots=True)
@@ -56,6 +56,39 @@ class TuningConfig:
             raise ValueError("timeout_seconds must be positive")
 
 
+def check_registration_target_logged(
+    tracking: TrackingConfig, *, fit_on_test: bool, has_test_sample: bool | None
+) -> None:
+    """Raise when registered_model_name targets a model that is not logged.
+
+    has_test_sample None checks only the cases that fail for any test sample.
+    """
+    if tracking.registered_model_name is None:
+        return
+    if fit_on_test:
+        if not tracking.log_final_model:
+            raise ValueError(
+                "registered_model_name targets the additional final model when "
+                "fit_on_test=True; enable log_final_model"
+            )
+    elif has_test_sample is None:
+        if not (tracking.log_test_model or tracking.log_final_model):
+            raise ValueError(
+                "registered_model_name targets the main model, which is never "
+                "logged; enable log_test_model or log_final_model"
+            )
+    elif has_test_sample and not tracking.log_test_model:
+        raise ValueError(
+            "registered_model_name targets the main model, which is not logged "
+            "when a test sample exists; enable log_test_model"
+        )
+    elif not has_test_sample and not tracking.log_final_model:
+        raise ValueError(
+            "registered_model_name targets the main model, which is not logged "
+            "without a test sample; enable log_final_model"
+        )
+
+
 @dataclass(frozen=True, kw_only=True, slots=True)
 class TrainingConfig:
     """Configure parameter tuning, additional reports and model packaging.
@@ -91,3 +124,6 @@ class TrainingConfig:
     def __post_init__(self) -> None:
         if self.verbosity not in ("silent", "normal", "verbose", "debug"):
             raise ValueError("verbosity must be one of: silent, normal, verbose, debug")
+        check_registration_target_logged(
+            self.tracking, fit_on_test=self.fit_on_test, has_test_sample=None
+        )

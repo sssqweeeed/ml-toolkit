@@ -9,17 +9,16 @@ import pytest
 from polars.testing import assert_frame_equal
 
 from examples.custom_model import TargetScaledRegressor
-from ml_toolkit.config import TrackingConfig
 from ml_toolkit.feature_levels import FeatureLevelConfig
 from ml_toolkit.inflation import ConstantRateInflation
 from ml_toolkit.models import (
     CatBoostClassificationModel,
     CatBoostRegressionModel,
     InflationAdjustedModel,
+    TrackingConfig,
 )
-from ml_toolkit.psi import PSIBaseline, PSIConfig
-from ml_toolkit.tracking import load_psi_baseline
-from ml_toolkit.tracking.model_artifacts import merge_artifacts
+from ml_toolkit.models.artifacts import merge_artifacts
+from ml_toolkit.psi import PSIBaseline, PSIConfig, load_psi_baseline
 from tests.support.training import make_data
 
 

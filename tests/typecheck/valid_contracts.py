@@ -6,7 +6,14 @@ from ml_toolkit.feature_selection import (
     ForwardSelector,
     FeatureSelector,
     FeatureSelectionResult,
+    ForwardSettings,
+    RFESettings,
+    TopKSettings,
+    CustomSelectionSettings,
+    SelectionSettings,
+    SettingValue,
 )
+from ml_toolkit.feature_selection.figures import rfe_progress
 from examples.custom_selector import FixedFeatureSelector
 from ml_toolkit.types import TimePeriod
 from datetime import date, timedelta
@@ -34,17 +41,19 @@ from ml_toolkit.metrics import (
     metrics_severity,
     ranking_metrics,
 )
-from ml_toolkit.models import CatBoostPUClassificationModel, CatBoostRegressionModel
+from ml_toolkit.models import CatBoostPUClassificationModel, CatBoostRegressionModel, TrackingConfig
+from ml_toolkit.metrics import calculate_metrics
 from ml_toolkit.models.base import Model
 from ml_toolkit.models import ShrinkableModel
 from ml_toolkit.models.lightgbm import LightGBMServingModel
-from ml_toolkit.model_evaluation import ModelEvaluator, ShrinkCurve, PermutationImportance, RobustnessCurve
+from ml_toolkit.reports import ModelEvaluator, ShrinkCurve, PermutationImportance, RobustnessCurve
 from ml_toolkit.inflation import ConstantRateInflation, LogLinearInflation, SplineInflation
-from ml_toolkit.evaluation import GroupedMetrics, PredictionEvaluator, TimeObservedFitted
-from ml_toolkit.evaluation import MetricTrend
-from ml_toolkit.evaluation import Residuals, ResidualResult
-from ml_toolkit.config import FigureConfig, FeatureLevelConfig
-from ml_toolkit.training import Pool as TrainingPool
+from ml_toolkit.reports import GroupedMetrics, PredictionEvaluator, TimeObservedFitted
+from ml_toolkit.reports import MetricTrend
+from ml_toolkit.reports import Residuals, ResidualResult
+from ml_toolkit.feature_levels import FeatureLevelConfig
+from ml_toolkit.figures import FigureConfig
+from ml_toolkit.data import Pool as DataPool
 
 from ml_toolkit.types import FloatArray, ModelParams
 
@@ -176,10 +185,10 @@ def contracts(data: Pool) -> None:
         ),
         TrainingResult,
     )
-    protocol: TrainingPool = data
+    protocol: DataPool = data
     model: Model = CatBoostRegressionModel({"iterations": 10})
     pu = CatBoostPUClassificationModel(
-        {"loss": "uPU", "pu_prior": 0.1, "task_type": "GPU", "devices": "0"}
+        {"loss": "uPU", "class_prior": 0.1, "task_type": "GPU", "devices": "0"}
     )
     assert_type(pu.fit(data), CatBoostPUClassificationModel)
     assert_type(pu.predict_pool(data), FloatArray)
@@ -189,6 +198,7 @@ def contracts(data: Pool) -> None:
         metrics_frequency,
         severity_metric,
         PUMetric(0.2),
+        PUMetric(class_prior=0.2, loss="nnPU"),
     )
     assert_type(list(Holdout(data).get_validation()), list[Split[Pool]])
     assert_type(
@@ -213,7 +223,7 @@ def contracts(data: Pool) -> None:
 
 def project_pool_contract(data: ProjectPool) -> None:
     protocol: Pool = data
-    training_protocol: TrainingPool = protocol
+    training_protocol: DataPool = protocol
     contracts(training_protocol)
     assert_type(data.take([0]), ProjectPool)
     assert_type(data.select_features([data.X.columns[0]]), ProjectPool)
@@ -235,7 +245,7 @@ def custom_adapter_contract(data: Pool, params: ModelParams) -> None:
     assert_type(adapter.get_refit_params(), ModelParams)
 
 
-from ml_toolkit.training import importance_ranker
+from ml_toolkit.feature_selection import importance_ranker
 
 
 def explicit_selection(data: Pool) -> None:
@@ -254,10 +264,9 @@ def explicit_selection(data: Pool) -> None:
     )
 
 
-from ml_toolkit.config import FeatureLevelConfig
+from ml_toolkit.feature_levels import FeatureLevelConfig
 from ml_toolkit.feature_levels import FeatureLevels, LevelTransformer
-from ml_toolkit.psi import PSIBaseline, PSIConfig, PSIResult
-from ml_toolkit.tracking import load_psi_baseline
+from ml_toolkit.psi import PSIBaseline, PSIConfig, PSIResult, load_psi_baseline
 
 
 def monitoring_contract(
@@ -275,7 +284,7 @@ def monitoring_contract(
     )
 
 
-from ml_toolkit.plots.regression import observed_fitted_by_level
+from ml_toolkit.reports.regression import observed_fitted_by_level
 from ml_toolkit.psi import compare_psi
 import pandas as pd
 
@@ -375,7 +384,7 @@ def new_training_contracts(data: Pool, result: TrainingResult, y: FloatArray) ->
     assert_type(metric(y, y, y).to_dict(), dict[str, float])
 
 
-from ml_toolkit.data_analysis import DataAnalyzer, NumericalFeatureDistributions
+from ml_toolkit.reports import DataAnalyzer, NumericalFeatureDistributions
 from examples.custom_data_analyzer import DataAudit
 
 
@@ -410,3 +419,66 @@ def data_analysis_contracts(data: Pool, split: pl.Series, output: Path) -> None:
             data_analyzers=analyzers,
             prediction_evaluators=BusinessEvaluator(name="prediction"),
         )
+
+
+def packaging_and_scoring(data: Pool, prediction: FloatArray) -> None:
+    tracking = TrackingConfig(log_test_model=False, registered_model_name=None, conda_env=None)
+    assert_type(tracking.model_name, str)
+    assert_type(calculate_metrics(dictionary_metric, data, prediction), dict[str, float])
+
+
+from ml_toolkit.explainability import ShapConfig
+from ml_toolkit.metrics.classification import average_precision
+from ml_toolkit.reports.classification import (
+    CalibrationBins,
+    PrecisionRecallSummary,
+    calibration_bins,
+    precision_recall_summary,
+)
+from ml_toolkit.reports.distributions import distribution_summary
+from ml_toolkit.reports.regression import (
+    TimeSummary,
+    level_observed_fitted,
+    time_summary,
+)
+
+
+def report_computations(
+    labels: FloatArray,
+    probabilities: FloatArray,
+    levels: pl.Series,
+    frame: pl.DataFrame,
+) -> None:
+    summary = precision_recall_summary(labels, probabilities, weight=None)
+    assert_type(summary, PrecisionRecallSummary)
+    assert_type(summary.average_precision, float)
+    assert_type(summary.curve, pd.DataFrame)
+    binned = calibration_bins(labels, probabilities, 10)
+    assert_type(binned, CalibrationBins)
+    assert_type(binned.probabilities, FloatArray)
+    assert_type(average_precision(labels, probabilities, None), float)
+    timed = time_summary([date(2024, 1, 1)], [1.0], [1.0], [date(2024, 2, 1)], [1.0], [1.0])
+    assert_type(timed, TimeSummary)
+    assert_type(timed.boundary, pd.Timestamp)
+    assert_type(
+        level_observed_fitted(levels, [1.0], [1.0], levels, [1.0], [1.0], level_order=("a",)),
+        pd.DataFrame,
+    )
+    assert_type(distribution_summary(frame, frame, "x", "time"), pl.DataFrame)
+    assert_type(ShapConfig(max_samples=5).max_samples, int)
+
+
+
+def selection_settings(result: FeatureSelectionResult) -> None:
+    settings: SelectionSettings | None = result.settings
+    if isinstance(settings, RFESettings):
+        assert_type(settings.score_tolerance, float)
+        assert_type(settings.evaluator, str | None)
+    elif isinstance(settings, TopKSettings):
+        assert_type(settings.k, int)
+    elif isinstance(settings, ForwardSettings):
+        assert_type(settings.min_improvement, float)
+    elif isinstance(settings, CustomSelectionSettings):
+        assert_type(settings.details, dict[str, SettingValue])
+    assert_type(result.to_dict(), dict[str, object])
+    rfe_progress(result, "figure.png")

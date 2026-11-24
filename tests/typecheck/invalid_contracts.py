@@ -5,7 +5,7 @@ from ml_toolkit.feature_selection import (
     FeatureSelector,
 )
 from ml_toolkit.types import TimePeriod
-from ml_toolkit.training import importance_ranker
+from ml_toolkit.feature_selection import importance_ranker
 from pathlib import Path
 from typing import Callable
 
@@ -14,6 +14,7 @@ import polars as pl
 from ml_toolkit import Pool, TrainingResult, train_model
 from ml_toolkit.models import CatBoostRegressionModel
 from ml_toolkit.inflation import LogLinearInflation, SplineInflation
+from ml_toolkit.metrics import PUMetric
 from ml_toolkit.config import (
     ReportingConfig,
     TrainingConfig,
@@ -21,13 +22,15 @@ from ml_toolkit.config import (
 )
 from ml_toolkit.metrics import Metric, MetricScores
 from ml_toolkit.training import DatasetSplit
-from ml_toolkit.evaluation import PredictionEvaluator
-from ml_toolkit.config import FigureConfig, FeatureLevelConfig
+from ml_toolkit.reports import PredictionEvaluator
+from ml_toolkit.feature_levels import FeatureLevelConfig
+from ml_toolkit.figures import FigureConfig
 from ml_toolkit.types import FloatArray, ModelParams
 
 TrainingConfig(validation={'n_splits': 3})  # expected-type-error
 LogLinearInflation(family="normal")  # expected-type-error
 SplineInflation(family="normal")  # expected-type-error
+PUMetric(prior=0.1)  # expected-type-error
 LogLinearInflation("Poisson")  # expected-type-error
 SplineInflation("Poisson")  # expected-type-error
 TrainingConfig(verbosity='invalid')  # expected-type-error
@@ -90,7 +93,7 @@ split: DatasetSplit = 'val'  # expected-type-error
 
 from ml_toolkit.training import Holdout, Split, Splitter, TimeSeriesCV
 from ml_toolkit.models.base import Model
-from ml_toolkit.training import FeatureRanker
+from ml_toolkit.feature_selection import FeatureRanker
 
 factory: Callable[[ModelParams], Model] = lambda params: {'model': 1.0}  # expected-type-error
 ranker: FeatureRanker = lambda model, data: [1.0]  # expected-type-error
@@ -107,7 +110,7 @@ RFESelector(ranker=importance_ranker, min_features=1, metric='mae', direction='m
 ForwardSelector(max_features=1, max_fits=2, metric='mae', direction='minimize', evaluator=['business'])  # expected-type-error
 TopKSelector(k=1, ranker=importance_ranker, evaluator=PredictionEvaluator(name='business'))  # expected-type-error
 
-from ml_toolkit.config import FeatureLevelConfig
+from ml_toolkit.feature_levels import FeatureLevelConfig
 
 ReportingConfig(features=('age',))  # expected-type-error
 ReportingConfig(psi='on')  # expected-type-error
@@ -173,10 +176,10 @@ def invalid_splitter(data: Pool) -> None:
 metrics: Metric = lambda y, prediction, weight: MetricScores({"mae": 1.0})
 
 
-from ml_toolkit.data_analysis import DataAnalyzer, NumericalFeatureDistributions
-from ml_toolkit.model_evaluation import ShrinkCurve, PermutationImportance, RobustnessCurve
-from ml_toolkit.evaluation import MetricTrend
-from ml_toolkit.evaluation import Residuals
+from ml_toolkit.reports import DataAnalyzer, NumericalFeatureDistributions
+from ml_toolkit.reports import ShrinkCurve, PermutationImportance, RobustnessCurve
+from ml_toolkit.reports import MetricTrend
+from ml_toolkit.reports import Residuals
 
 PermutationImportance(score="mae", direction="lowest")  # expected-type-error
 RobustnessCurve(features=("age",), mode="invalid")  # expected-type-error
@@ -204,3 +207,36 @@ def invalid_time_gap(data: Pool) -> None:
 class WrongFullPool(WrongSplitter):
     def get_final(self) -> Split[Pool]:  # expected-type-error
         return Split(self.data)
+
+
+from ml_toolkit.models import TrackingConfig
+from ml_toolkit.metrics import calculate_metrics
+
+TrackingConfig(log_test_model='yes')  # expected-type-error
+
+
+def invalid_scoring(data: Pool) -> None:
+    calculate_metrics(data, data, data.y.to_numpy())  # expected-type-error
+
+
+from ml_toolkit.explainability import ShapConfig
+from ml_toolkit.reports.classification import calibration_bins
+
+ShapConfig(max_samples="many")  # expected-type-error
+
+
+def invalid_computation(probabilities: FloatArray) -> None:
+    calibration_bins([1.0], probabilities, n_bins="ten")  # expected-type-error
+
+
+
+from ml_toolkit.feature_selection import (
+    CustomSelectionSettings,
+    FeatureSelectionResult,
+    TopKSettings,
+)
+
+TopKSettings(k="3", protected_features=())  # expected-type-error
+TopKSettings(selector="top_k", k=3, protected_features=())  # expected-type-error
+CustomSelectionSettings("fixed", {"model": object()})  # expected-type-error
+FeatureSelectionResult(("a",), 0, (), {"selector": "rfe"})  # expected-type-error

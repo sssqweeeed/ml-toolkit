@@ -1,7 +1,5 @@
 """The complete example adapter preserves its transformation during serving."""
 
-from ml_toolkit.training import Holdout
-
 from datetime import date, timedelta
 
 import mlflow
@@ -10,14 +8,16 @@ import pandas as pd
 import polars as pl
 import pytest
 
+from ml_toolkit.training import Holdout
+
 pytestmark = pytest.mark.documentation
 from polars.testing import assert_series_equal
 
 from examples.custom_model import TargetScaledRegressor, model_factory, weighted_mae
 from examples.project_pool import ProjectPool
 from ml_toolkit import train_model
-from ml_toolkit.config import TrackingConfig, TrainingConfig
-from ml_toolkit.models import CatBoostRegressionModel
+from ml_toolkit.config import TrainingConfig
+from ml_toolkit.models import CatBoostRegressionModel, TrackingConfig
 
 
 @pytest.fixture

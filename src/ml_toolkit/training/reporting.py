@@ -1,34 +1,72 @@
 """Execute additional reporting and upload its explicitly selected artifacts."""
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from typing import Protocol
 
+import mlflow
 import polars as pl
 
-from .._console import Logger
+from .._console import DatasetRow, Logger, datasets
 from ..config import ReportingConfig
-from ..data import Pool
-from ..data_analysis import DataAnalyzer, data_comparison_pair, validate_split
-from ..evaluation import (
+from ..data import Pool, validate_split_labels
+from ..explainability import (
+    calculate_shap_values,
+    shap_beeswarm,
+    shap_dependence,
+    shap_importance,
+)
+from ..feature_levels import LevelTransformer, feature_definitions
+from ..feature_selection import (
+    CustomSelectionSettings,
+    FeatureSelectionResult,
+    ForwardSettings,
+    RFESettings,
+    TopKSettings,
+)
+from ..feature_selection import figures as selection_figures
+from ..figures import FigureConfig, feature_filename
+from ..metrics import Metric
+from ..models import TrackingConfig
+from ..models.base import Model
+from ..psi import PSIBaseline, PSIConfig, compare_psi
+from ..psi import figures as psi_plots
+from ..reports import (
+    DataAnalyzer,
+    ModelEvaluator,
     PredictionEvaluator,
     comparison_pair,
+    data_comparison_pair,
     validate_inputs,
+    validate_report_metrics,
 )
-from ..evaluation._metrics import validate_report_metrics
-from ..feature_levels import LevelTransformer
-from ..feature_levels.config import feature_definitions
-from ..feature_selection import FeatureSelectionResult
-from ..models.base import Model
-from ..model_evaluation import ModelEvaluator
-from ..metrics import Metric
-from ..plots import psi as psi_plots
-from ..plots.utils import feature_filename
-from ..psi import PSIBaseline, compare_psi
-from ..tracking import runs as tracking
 from ..types import FloatArray
 
 logger = Logger(__name__)
+
+
+class _SelectionFigure(Protocol):
+    def __call__(
+        self,
+        result: FeatureSelectionResult,
+        save_fig: Path,
+        *,
+        figure: FigureConfig | None = None,
+    ) -> None: ...
+
+
+def print_datasets(title: str, samples: Mapping[str, Pool]) -> None:
+    """Print the row, feature and date-range summary of named samples."""
+    datasets(
+        title,
+        [
+            DatasetRow(
+                name, len(pool), len(pool.X.columns), pool.time[0], pool.time[-1]
+            )
+            for name, pool in samples.items()
+        ],
+    )
 
 
 def prepare_evaluators(
@@ -42,7 +80,9 @@ def prepare_evaluators(
     items = (
         ()
         if evaluators is None
-        else tuple(evaluators) if isinstance(evaluators, list) else (evaluators,)
+        else tuple(evaluators)
+        if isinstance(evaluators, list)
+        else (evaluators,)
     )
     names: set[str] = set()
     reserved: set[str] = set()
@@ -70,8 +110,11 @@ def prepare_model_evaluators(
 ) -> tuple[ModelEvaluator, ...]:
     """Normalize fitted-model reports independently of prediction reports."""
     return (
-        () if evaluators is None
-        else tuple(evaluators) if isinstance(evaluators, list) else (evaluators,)
+        ()
+        if evaluators is None
+        else tuple(evaluators)
+        if isinstance(evaluators, list)
+        else (evaluators,)
     )
 
 
@@ -82,7 +125,9 @@ def prepare_analyzers(
     return (
         ()
         if analyzers is None
-        else tuple(analyzers) if isinstance(analyzers, list) else (analyzers,)
+        else tuple(analyzers)
+        if isinstance(analyzers, list)
+        else (analyzers,)
     )
 
 
@@ -126,28 +171,29 @@ def upload_artifacts(root: Path, paths: list[Path], namespace: str) -> None:
         artifact_path = namespace
         if parent != ".":
             artifact_path += f"/{parent}"
-        tracking.log_artifact(image, artifact_path=artifact_path)
+        mlflow.log_artifact(str(image), artifact_path=artifact_path)
         logger.debug("Logged report artifact %s to %s", relative, artifact_path)
 
 
 def report_feature_selection(
     result: FeatureSelectionResult, config: ReportingConfig, *, stage: str
 ) -> None:
-    """Always plot a known selector's single search history in its active run."""
-    from ..plots import feature_selection as selection_plots
-
-    selector = result.settings.get("selector")
-    plots = {
-        "rfe": ("rfe_progress", selection_plots.rfe_progress),
-        "top_k": ("top_k_ranking", selection_plots.top_k_ranking),
-        "forward": ("forward_progress", selection_plots.forward_progress),
-    }
-    if not isinstance(selector, str) or selector not in plots:
-        return
-    reports = [plots[selector]]
-    if selector == "forward":
-        reports.append(("forward_improvement", selection_plots.forward_improvement))
-    reports.append(("best_iteration", selection_plots.best_iteration_progress))
+    """Plot a known selector's single search history in its active run."""
+    settings = result.settings
+    reports: list[tuple[str, _SelectionFigure]]
+    match settings:
+        case RFESettings():
+            reports = [("rfe_progress", selection_figures.rfe_progress)]
+        case TopKSettings():
+            reports = [("top_k_ranking", selection_figures.top_k_ranking)]
+        case ForwardSettings():
+            reports = [
+                ("forward_progress", selection_figures.forward_progress),
+                ("forward_improvement", selection_figures.forward_improvement),
+            ]
+        case CustomSelectionSettings() | None:
+            return
+    reports.append(("best_iteration", selection_figures.best_iteration_progress))
     try:
         with TemporaryDirectory(prefix="ml-toolkit-selection-") as directory:
             root = Path(directory).resolve()
@@ -160,7 +206,7 @@ def report_feature_selection(
                     paths.append(path)
             upload_artifacts(root, paths, "selection")
     except Exception as exc:
-        exc.add_note(f"Feature selection selector={selector}, stage={stage}")
+        exc.add_note(f"Feature selection selector={settings.selector}, stage={stage}")
         raise
 
 
@@ -184,37 +230,25 @@ def report_predictions(
     if model_evaluators and metric is None:
         raise ValueError("metric is required for model evaluators")
     for evaluator in evaluators:
-        _run_report(
-            name=evaluator.name,
-            evaluate=(
-                None if evaluator is scored_evaluator
-                else lambda: evaluator.evaluate(
-                    data=data, prediction=prediction, split=split
-                )
-            ),
-            write=lambda root: evaluator.write_artifacts(
-                data=data,
-                prediction=prediction,
-                split=split,
-                artifact_dir=root,
-                figure=config.figure,
-                features=config.features,
-                n_bins=config.n_bins,
-            ),
-            context=f"Prediction evaluation evaluator={evaluator.name}, stage={stage}",
+        _report_prediction(
+            evaluator,
+            data=data,
+            prediction=prediction,
+            split=split,
+            config=config,
+            stage=stage,
+            scored=evaluator is scored_evaluator,
         )
     if metric is not None:
         for model_evaluator in model_evaluators:
-            _run_report(
-                name=model_evaluator.name,
-                evaluate=lambda: model_evaluator.evaluate(
-                    model=model, metric=metric, data=data, split=split
-                ),
-                write=lambda root: model_evaluator.write_artifacts(
-                    model=model, metric=metric, data=data, split=split,
-                    artifact_dir=root, figure=config.figure,
-                ),
-                context=f"Model evaluation evaluator={model_evaluator.name}, stage={stage}",
+            _report_model(
+                model_evaluator,
+                model=model,
+                metric=metric,
+                data=data,
+                split=split,
+                config=config,
+                stage=stage,
             )
     report_data(
         data=data,
@@ -238,6 +272,89 @@ def report_predictions(
             raise
 
 
+def _report_prediction(
+    evaluator: PredictionEvaluator,
+    *,
+    data: Pool,
+    prediction: FloatArray,
+    split: pl.Series,
+    config: ReportingConfig,
+    stage: str,
+    scored: bool,
+) -> None:
+    """Run one prediction evaluator; a scored one only writes artifacts."""
+    _run_report(
+        name=evaluator.name,
+        evaluate=(
+            None
+            if scored
+            else lambda: evaluator.evaluate(
+                data=data, prediction=prediction, split=split
+            )
+        ),
+        write=lambda root: evaluator.write_artifacts(
+            data=data,
+            prediction=prediction,
+            split=split,
+            artifact_dir=root,
+            figure=config.figure,
+            features=config.features,
+            n_bins=config.n_bins,
+        ),
+        context=f"Prediction evaluation evaluator={evaluator.name}, stage={stage}",
+    )
+
+
+def _report_model(
+    evaluator: ModelEvaluator,
+    *,
+    model: Model,
+    metric: Metric,
+    data: Pool,
+    split: pl.Series,
+    config: ReportingConfig,
+    stage: str,
+) -> None:
+    _run_report(
+        name=evaluator.name,
+        evaluate=lambda: evaluator.evaluate(
+            model=model, metric=metric, data=data, split=split
+        ),
+        write=lambda root: evaluator.write_artifacts(
+            model=model,
+            metric=metric,
+            data=data,
+            split=split,
+            artifact_dir=root,
+            figure=config.figure,
+        ),
+        context=f"Model evaluation evaluator={evaluator.name}, stage={stage}",
+    )
+
+
+def _report_analyzer(
+    analyzer: DataAnalyzer,
+    *,
+    data: Pool,
+    split: pl.Series,
+    config: ReportingConfig,
+    stage: str,
+) -> None:
+    _run_report(
+        name=analyzer.name,
+        evaluate=lambda: analyzer.evaluate(data=data, split=split),
+        write=lambda root: analyzer.write_artifacts(
+            data=data,
+            split=split,
+            artifact_dir=root,
+            figure=config.figure,
+            features=config.features,
+            n_bins=config.n_bins,
+        ),
+        context=f"Data analysis analyzer={analyzer.name}, stage={stage}",
+    )
+
+
 def evaluate_report_metrics(
     *,
     name: str,
@@ -247,7 +364,9 @@ def evaluate_report_metrics(
     try:
         metrics = validate_report_metrics(evaluate())
         if metrics:
-            tracking.log_metrics({f"{name}/{key}": value for key, value in metrics.items()})
+            mlflow.log_metrics(
+                {f"{name}/{key}": value for key, value in metrics.items()}
+            )
         return metrics
     except Exception as exc:
         exc.add_note(context)
@@ -283,21 +402,9 @@ def report_data(
     psi_baseline: PSIBaseline | None = None,
 ) -> None:
     """Run data analysis and PSI without a model or predictions."""
-    validate_split(data, split)
+    validate_split_labels(data, split)
     for analyzer in analyzers:
-        _run_report(
-            name=analyzer.name,
-            evaluate=lambda: analyzer.evaluate(data=data, split=split),
-            write=lambda root: analyzer.write_artifacts(
-                data=data,
-                split=split,
-                artifact_dir=root,
-                figure=config.figure,
-                features=config.features,
-                n_bins=config.n_bins,
-            ),
-            context=f"Data analysis analyzer={analyzer.name}, stage={stage}",
-        )
+        _report_analyzer(analyzer, data=data, split=split, config=config, stage=stage)
     if config.psi:
         try:
             with TemporaryDirectory(prefix="ml-toolkit-psi-") as directory:
@@ -387,17 +494,14 @@ def _shap_artifacts(
     if pair is None:
         return []
     part, _, _, current, _ = pair
-    from ..explainability import calculate_shap_values
-    from ..plots import explainability as shap_plots
-
     shap = config.shap
     assert shap is not None
     if not set(shap.dependence_features) <= set(current.X.columns):
         raise ValueError("SHAP dependence features must exist in the input")
     explanation = calculate_shap_values(model.native_model, current.X, config=shap)
     for name, draw in (
-        ("importance", shap_plots.shap_importance),
-        ("beeswarm", shap_plots.shap_beeswarm),
+        ("importance", shap_importance),
+        ("beeswarm", shap_beeswarm),
     ):
         path = root / part / f"{name}.{config.figure.format}"
         draw(explanation, save_fig=path, config=shap, figure=config.figure)
@@ -409,8 +513,34 @@ def _shap_artifacts(
             / "dependence"
             / feature_filename(index, feature, config.figure.format)
         )
-        shap_plots.shap_dependence(
-            explanation, feature, save_fig=path, figure=config.figure
-        )
+        shap_dependence(explanation, feature, save_fig=path, figure=config.figure)
         paths.append(path)
     return paths
+
+
+def prepare_psi_baseline(
+    train: Pool, reporting: ReportingConfig, *, log_model: bool, stage: str
+) -> PSIBaseline | None:
+    if not log_model or not reporting.psi:
+        return None
+    features = feature_definitions(train, reporting.features)
+    if not features:
+        return None
+    return PSIBaseline.from_reference(
+        train.to_analysis_frame(),
+        config=PSIConfig(features, n_bins=reporting.n_bins, epsilon=reporting.epsilon),
+        time=train.time,
+        stage=stage,
+    )
+
+
+def log_model_with_baseline(
+    model: Model, sample: Pool, config: TrackingConfig, baseline: PSIBaseline | None
+) -> None:
+    if baseline is None:
+        model.log(sample, config=config)
+        return
+    with TemporaryDirectory(prefix="ml-toolkit-psi-package-") as directory:
+        root = Path(directory) / "psi_baseline"
+        baseline.save(root)
+        model.log(sample, config=config, extra_artifacts={"psi_baseline": str(root)})

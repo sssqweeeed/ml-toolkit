@@ -20,7 +20,7 @@ import polars as pl
 
 from examples.gallery_data import load_bike_pool
 from ml_toolkit.training import Holdout
-from ml_toolkit.config import FigureConfig
+from ml_toolkit.figures import FigureConfig
 
 data = load_bike_pool(download_if_missing=False)
 partition = Holdout(data, test_size="2012-01-01").get_test()
@@ -46,7 +46,7 @@ Use `reports` as `data_analyzers` in
 <!-- example: distributions-reports -->
 
 ```python
-from ml_toolkit.data_analysis import NumericalFeatureDistributions
+from ml_toolkit.reports import NumericalFeatureDistributions
 
 reports = [
     NumericalFeatureDistributions(features=("humidity",), period="month")
@@ -86,11 +86,11 @@ Shared feature-level definitions and `n_bins` are unused.
 <!-- example: distributions-direct -->
 
 ```python
-from ml_toolkit.plots import monitoring
+from ml_toolkit.reports import distributions
 
 reference = train.X.with_columns(train.time.alias("timestamp"))
 current = test.X.with_columns(test.time.alias("timestamp"))
-time_distribution = monitoring.time_feature_distribution(
+time_distribution = distributions.time_feature_distribution(
     reference,
     current,
     "humidity",
@@ -129,7 +129,7 @@ Use weekly groups and a single interquartile band when a finer view is useful:
 <!-- example: distributions-weekly -->
 
 ```python
-weekly = monitoring.time_feature_distribution(
+weekly = distributions.time_feature_distribution(
     reference,
     current,
     "humidity",
@@ -157,12 +157,12 @@ period_start,split,p50
 
 ## API reference
 
-::: ml_toolkit.data_analysis.NumericalFeatureDistributions
+::: ml_toolkit.reports.NumericalFeatureDistributions
     options:
       heading_level: 3
       members: []
 
-::: ml_toolkit.plots.monitoring
+::: ml_toolkit.reports.distributions
     options:
       heading_level: 3
       members: [time_feature_distribution]

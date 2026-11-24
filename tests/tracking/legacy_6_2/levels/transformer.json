@@ -1,0 +1,180 @@
+{
+  "version": 1,
+  "n_bins": 10,
+  "features": [
+    {
+      "name": "x",
+      "ftype": "numerical",
+      "null_level": {
+        "type": "none"
+      },
+      "error_level": {
+        "type": "none"
+      },
+      "lower_bound": {
+        "type": "none"
+      },
+      "upper_bound": {
+        "type": "none"
+      },
+      "levels": [
+        "[-inf, -0.948093)",
+        "[-0.948093, -0.660648)",
+        "[-0.660648, -0.443583)",
+        "[-0.443583, -0.169215)",
+        "[-0.169215, 0.0676691)",
+        "[0.0676691, 0.229047)",
+        "[0.229047, 0.406627)",
+        "[0.406627, 0.855672)",
+        "[0.855672, 1.35205)",
+        "[1.35205, inf)",
+        "__NULL__"
+      ],
+      "boundaries": [
+        {
+          "type": "float",
+          "value": "-0x1.e56c796d8a3b4p-1"
+        },
+        {
+          "type": "float",
+          "value": "-0x1.52407cb56e4a8p-1"
+        },
+        {
+          "type": "float",
+          "value": "-0x1.c63ab09552b1ep-2"
+        },
+        {
+          "type": "float",
+          "value": "-0x1.5a8d7556f4dfbp-3"
+        },
+        {
+          "type": "float",
+          "value": "0x1.152c3c109c5efp-4"
+        },
+        {
+          "type": "float",
+          "value": "0x1.d516b61f7bf25p-3"
+        },
+        {
+          "type": "float",
+          "value": "0x1.a062d3406f6c8p-2"
+        },
+        {
+          "type": "float",
+          "value": "0x1.b61aade78cf0bp-1"
+        },
+        {
+          "type": "float",
+          "value": "0x1.5a2011b9e6c67p+0"
+        }
+      ],
+      "categories": []
+    },
+    {
+      "name": "z",
+      "ftype": "numerical",
+      "null_level": {
+        "type": "none"
+      },
+      "error_level": {
+        "type": "none"
+      },
+      "lower_bound": {
+        "type": "none"
+      },
+      "upper_bound": {
+        "type": "none"
+      },
+      "levels": [
+        "[-inf, 1.40429)",
+        "[1.40429, 1.84786)",
+        "[1.84786, 2.47622)",
+        "[2.47622, 2.79339)",
+        "[2.79339, 3.21929)",
+        "[3.21929, 3.85887)",
+        "[3.85887, 4.14787)",
+        "[4.14787, 4.62755)",
+        "[4.62755, 4.80255)",
+        "[4.80255, inf)",
+        "__NULL__"
+      ],
+      "boundaries": [
+        {
+          "type": "float",
+          "value": "0x1.677f93ff516ccp+0"
+        },
+        {
+          "type": "float",
+          "value": "0x1.d90da78810c49p+0"
+        },
+        {
+          "type": "float",
+          "value": "0x1.3cf4b09a0061dp+1"
+        },
+        {
+          "type": "float",
+          "value": "0x1.658dba61f0a38p+1"
+        },
+        {
+          "type": "float",
+          "value": "0x1.9c11aa3c0b1d3p+1"
+        },
+        {
+          "type": "float",
+          "value": "0x1.edef6de873aa2p+1"
+        },
+        {
+          "type": "float",
+          "value": "0x1.0976ac2115731p+2"
+        },
+        {
+          "type": "float",
+          "value": "0x1.2829b56cf99e1p+2"
+        },
+        {
+          "type": "float",
+          "value": "0x1.335cfe602a367p+2"
+        }
+      ],
+      "categories": []
+    },
+    {
+      "name": "cat",
+      "ftype": "categorical",
+      "null_level": {
+        "type": "none"
+      },
+      "error_level": {
+        "type": "none"
+      },
+      "lower_bound": {
+        "type": "none"
+      },
+      "upper_bound": {
+        "type": "none"
+      },
+      "levels": [
+        "b",
+        "a",
+        "c",
+        "__NULL__",
+        "__UNSEEN__"
+      ],
+      "boundaries": [],
+      "categories": [
+        {
+          "type": "str",
+          "value": "b"
+        },
+        {
+          "type": "str",
+          "value": "a"
+        },
+        {
+          "type": "str",
+          "value": "c"
+        }
+      ]
+    }
+  ]
+}

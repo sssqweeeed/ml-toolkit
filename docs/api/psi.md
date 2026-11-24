@@ -16,7 +16,7 @@ observations, see the [recorded-hour comparison](#compare-recorded-weather-and-c
 ```python
 import polars as pl
 
-from ml_toolkit.config import FeatureLevelConfig
+from ml_toolkit.feature_levels import FeatureLevelConfig
 from ml_toolkit.psi import PSIAnalysis, PSIConfig
 
 reference = pl.DataFrame(
@@ -92,7 +92,8 @@ determines categories or numerical intervals from the reference sample;
 it does not train a prediction model. The resulting `feature_levels` tuple
 contains one `FeatureLevels` per configured column, in the same order.
 Each result holds its original rules in `config`, its labels in `levels`,
-and its numerical `boundaries` or categorical `categories`.
+and its numerical `boundaries` or categorical `categories`. Interval labels use
+at least 6 significant digits, and more when needed to keep edges distinct.
 
 <!-- example: psi-levels -->
 
@@ -165,7 +166,7 @@ import polars as pl
 
 from examples.gallery_data import load_bike_pool
 from ml_toolkit.training import Holdout
-from ml_toolkit.config import FigureConfig
+from ml_toolkit.figures import FigureConfig
 
 data = load_bike_pool(download_if_missing=False)
 partition = Holdout(data, test_size="2012-01-01").get_test()
@@ -185,7 +186,7 @@ print(f"2011 train hours: {len(train)}; 2012 test hours: {len(test)}")
 <!-- example: psi-gallery-scores -->
 
 ```python
-from ml_toolkit.plots import psi
+from ml_toolkit.psi import figures as psi
 
 categorical_features = {
     "hour",
@@ -370,7 +371,7 @@ and `UNSEEN_LEVEL` are the default missing, invalid, and unseen-category labels.
 
 ### PSI plots
 
-::: ml_toolkit.plots.psi
+::: ml_toolkit.psi.figures
     options:
       heading_level: 3
       members: [feature_psi_plot, time_psi_level_distribution]

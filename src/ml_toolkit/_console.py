@@ -1,19 +1,20 @@
 """Run-local console output, independent of application logging configuration."""
 
+import logging
+import sys
 from collections.abc import Generator, Mapping, Sequence
 from contextlib import contextmanager
 from contextvars import ContextVar
-import logging
-import sys
-from typing import TYPE_CHECKING, Literal, TextIO, cast
-
-if TYPE_CHECKING:
-    from .data import Pool
+from dataclasses import dataclass
+from datetime import date
+from typing import Literal, TextIO, cast
 
 Verbosity = Literal["silent", "normal", "verbose", "debug"]
 _LEVELS: tuple[Verbosity, ...] = ("silent", "normal", "verbose", "debug")
 _active: ContextVar[Verbosity | None] = ContextVar("ml_toolkit_verbosity", default=None)
-_captured: ContextVar[set[str] | None] = ContextVar("ml_toolkit_console_messages", default=None)
+_captured: ContextVar[set[str] | None] = ContextVar(
+    "ml_toolkit_console_messages", default=None
+)
 
 
 @contextmanager
@@ -123,7 +124,12 @@ class Logger:
                 and not isinstance(handler, logging.FileHandler)
                 and any(
                     cast("logging.StreamHandler[TextIO]", handler).stream is stream
-                    for stream in (sys.stdout, sys.stderr, sys.__stdout__, sys.__stderr__)
+                    for stream in (
+                        sys.stdout,
+                        sys.stderr,
+                        sys.__stdout__,
+                        sys.__stderr__,
+                    )
                 )
             ):
                 delivered = True
@@ -158,16 +164,24 @@ def _table(
     print("\n".join(lines), file=sys.stderr, flush=True)
 
 
-def datasets(title: str, samples: Mapping[str, "Pool"]) -> None:
+@dataclass(frozen=True)
+class DatasetRow:
+    """One console table row describing a data sample."""
+
+    name: str
+    rows: int
+    features: int
+    start: date
+    end: date
+
+
+def datasets(title: str, samples: Sequence[DatasetRow]) -> None:
     if not enabled("verbose"):
         return
     _table(
         title,
         ("sample", "rows", "features", "from", "to"),
-        [
-            (name, len(pool), len(pool.X.columns), pool.time[0], pool.time[-1])
-            for name, pool in samples.items()
-        ],
+        [(row.name, row.rows, row.features, row.start, row.end) for row in samples],
     )
 
 

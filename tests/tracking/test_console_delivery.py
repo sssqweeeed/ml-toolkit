@@ -2,8 +2,8 @@
 
 import io
 import logging
-from pathlib import Path
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -62,7 +62,9 @@ def test_stateful_filters_run_once_and_rejected_records_have_fallback(
     assert capsys.readouterr().err == "APP first\nsecond\n"
 
 
-@pytest.mark.skipif(sys.version_info < (3, 12), reason="Replacement filters require Python 3.12")
+@pytest.mark.skipif(
+    sys.version_info < (3, 12), reason="Replacement filters require Python 3.12"
+)
 @pytest.mark.parametrize("filter_at", ["logger", "handler"])
 def test_replacement_records_are_delivered_once(application, capsys, filter_at):
     calls = []
@@ -138,7 +140,9 @@ def test_last_resort_and_repeated_events(application, capsys, monkeypatch):
     assert capsys.readouterr().err == "repeated\nrepeated\n"
 
 
-def test_handler_can_stop_propagation_for_current_record(application, capsys, monkeypatch):
+def test_handler_can_stop_propagation_for_current_record(
+    application, capsys, monkeypatch
+):
     parent = logging.getLogger("ml_toolkit")
     parent_handler = logging.StreamHandler(sys.stderr)
     parent_handler.setFormatter(logging.Formatter("PARENT %(message)s"))

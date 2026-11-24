@@ -8,9 +8,8 @@ from math import ceil
 from typing import Generic, TypeVar
 
 import polars as pl
-from sklearn.model_selection import TimeSeriesSplit
 
-from ..data import Pool, validate_auxiliary_pair, validate_training_data
+from ..data import Pool, validate_compatible_pools, validate_training_data
 
 DataT = TypeVar("DataT", bound=Pool, covariant=True)
 
@@ -45,13 +44,7 @@ class Split(Generic[DataT]):
         validate_training_data(self.train)
         if self.heldout is not None:
             validate_training_data(self.heldout)
-            validate_auxiliary_pair(self.train, self.heldout)
-            if (
-                self.train.X.schema != self.heldout.X.schema
-                or self.train.cat_features != self.heldout.cat_features
-                or self.train.numerical_features != self.heldout.numerical_features
-            ):
-                raise ValueError("Split pools must have matching features and metadata")
+            validate_compatible_pools(self.train, self.heldout, context="Split pools")
 
 
 class Splitter(ABC, Generic[DataT]):
@@ -68,8 +61,10 @@ class Splitter(ABC, Generic[DataT]):
     Implement both methods. Each get_validation call must return a fresh
     iterator with at least one numbered train/validation pair. Iteration order
     determines execution order and which split supplies final-fit settings.
+    Built-in splitters never place one timestamp on both sides of a boundary.
     get_test owns all non-test rows and the optional test sample. get_final
     supplies the full eligible pool for optional training including test.
+    get_test may be called more than once and must be free of side effects.
     """
 
     def __init__(self, data: DataT):
@@ -96,7 +91,11 @@ class Splitter(ABC, Generic[DataT]):
 
 
 def _validate_size(size: int | float, name: str) -> None:
-    if size <= 0 or (isinstance(size, float) and not 0 < size < 1):
+    if (
+        isinstance(size, bool)
+        or size <= 0
+        or (isinstance(size, float) and not 0 < size < 1)
+    ):
         raise ValueError(f"{name} must be positive rows or a fraction between 0 and 1")
 
 
@@ -119,7 +118,8 @@ def _normalize_test_size(
 
 
 def _rows(size: int | float, total: int) -> int:
-    return ceil(total * size) if isinstance(size, float) else size
+    # Rounding removes float noise (100 * 0.07 -> 7); a fraction keeps one row.
+    return max(1, ceil(round(total * size, 9))) if isinstance(size, float) else size
 
 
 def _validate_gap(gap: int | timedelta) -> None:
@@ -136,6 +136,24 @@ def _gap_parameter(gap: int | timedelta) -> int | dict[str, object]:
     return {"type": "timedelta", "microseconds": gap // timedelta(microseconds=1)}
 
 
+def _period_start(data: Pool, position: int) -> int:
+    # First row sharing the timestamp at position, found by binary search on the
+    # sorted timestamps. Callers pass positions below len(data); nonpositive
+    # positions (sizes exceeding the data) return 0 for their emptiness checks.
+    if position <= 0:
+        return 0
+    timestamps = data.time.cast(pl.Int64)
+    target = int(timestamps[position])
+    left, right = 0, position
+    while left < right:
+        middle = (left + right) // 2
+        if int(timestamps[middle]) < target:
+            left = middle + 1
+        else:
+            right = middle
+    return left
+
+
 def _training_end(data: Pool, validation_start: int, gap: int | timedelta) -> int:
     if isinstance(gap, int):
         return validation_start - gap
@@ -149,7 +167,8 @@ def _training_end(data: Pool, validation_start: int, gap: int | timedelta) -> in
     duration_ns = (gap // timedelta(microseconds=1)) * 1000
     # Python integers avoid overflowing timestamp arithmetic for large gaps.
     start_ns = int(time.slice(validation_start, 1).cast(pl.Int64)[0]) * scale
-    cutoff = start_ns - duration_ns
+    # Training rows must also precede the validation start, even for a zero gap.
+    cutoff = start_ns - max(duration_ns, 1)
     timestamps = time.head(validation_start).cast(pl.Int64)
     left, right = 0, validation_start
     while left < right:
@@ -167,7 +186,7 @@ def _train_end(data: Pool, test_size: int | float | date | None) -> int:
     end = (
         int((data.time.dt.date() < test_size).sum())
         if isinstance(test_size, date)
-        else len(data) - _rows(test_size, len(data))
+        else _period_start(data, len(data) - _rows(test_size, len(data)))
     )
     if end <= 0 or end >= len(data):
         raise ValueError("test_size must leave nonempty training and test data")
@@ -195,12 +214,16 @@ class Holdout(Splitter[DataT]):
         YYYY-MM-DD; datetimes are rejected. None disables test evaluation.
     gap : int or datetime.timedelta, default 0
         Nonnegative row gap or minimum elapsed time before validation. A row
-        exactly validation_start - gap is retained for a timedelta gap.
+        exactly validation_start - gap is retained for a positive timedelta
+        gap; training rows always precede the validation start timestamp.
 
     Notes
     -----
     get_validation yields one split with index 1. get_test includes every
-    non-test row, including validation and gap rows.
+    non-test row, including validation and gap rows. Boundaries never split a
+    timestamp: when several rows share one, the validation and test samples
+    start at the first row of their timestamp, so they may be larger than
+    requested and training smaller. Unique timestamps are unaffected.
     """
 
     def __init__(
@@ -218,7 +241,7 @@ class Holdout(Splitter[DataT]):
         self.test_size = _normalize_test_size(test_size)
         self.gap = gap
         self._end = _train_end(data, self.test_size)
-        self._val_start = self._end - _rows(val_size, self._end)
+        self._val_start = _period_start(data, self._end - _rows(val_size, self._end))
         if self._val_start <= 0:
             raise ValueError("Not enough rows for train, gap and validation")
         self._train_end = _training_end(data, self._val_start, gap)
@@ -261,13 +284,14 @@ class TimeSeriesCV(Splitter[DataT]):
         Number of generated windows, at least two.
     val_size : int, float, or None, default None
         Validation row count or fraction of all non-test rows, rounded upward.
-        None uses sklearn TimeSeriesSplit's equal-block default.
+        None uses equal blocks of non-test rows // (n_splits + 1).
     test_size : int, float, str, datetime.date, or None, default None
         Test row count, fraction of the original pool, or inclusive calendar
         start date, as in Holdout. None disables test evaluation.
     gap : int or datetime.timedelta, default 0
         Nonnegative row gap or minimum elapsed time before each validation
-        window. Apply max_train_size after excluding the gap.
+        window; training rows always precede the window start timestamp. Apply
+        max_train_size after excluding the gap.
     max_train_size : int or None, default None
         Positive maximum training rows per validation window. None expands
         training to include all preceding rows. Final fitting is unrestricted.
@@ -279,6 +303,11 @@ class TimeSeriesCV(Splitter[DataT]):
     -----
     get_test includes every non-test row, including validation and gap rows.
     Each iterator creates pools only for the window currently requested.
+    Window starts follow sklearn TimeSeriesSplit but are moved back to the
+    first row of their timestamp, so no timestamp is split between training and
+    validation or between adjacent windows. Windows can then be smaller or
+    larger than val_size; ValueError is raised when one timestamp spans a whole
+    window. Boolean sizes and counts are rejected.
     """
 
     def __init__(
@@ -296,13 +325,15 @@ class TimeSeriesCV(Splitter[DataT]):
         if val_size is not None:
             _validate_size(val_size, "val_size")
         _validate_gap(gap)
-        if n_splits < 2:
+        if isinstance(n_splits, bool) or n_splits < 2:
             raise ValueError("n_splits must be at least 2")
-        if skip_splits < 0 or skip_splits >= n_splits:
+        if isinstance(skip_splits, bool) or skip_splits < 0 or skip_splits >= n_splits:
             raise ValueError(
                 "skip_splits must be nonnegative and smaller than n_splits"
             )
-        if max_train_size is not None and max_train_size < 1:
+        if max_train_size is not None and (
+            isinstance(max_train_size, bool) or max_train_size < 1
+        ):
             raise ValueError("max_train_size must be positive")
         self.n_splits = n_splits
         self.val_size = val_size
@@ -311,35 +342,39 @@ class TimeSeriesCV(Splitter[DataT]):
         self.max_train_size = max_train_size
         self.skip_splits = skip_splits
         self._end = _train_end(data, self.test_size)
-        self._val_rows = None if val_size is None else _rows(val_size, self._end)
-        rows = self._end // (n_splits + 1) if self._val_rows is None else self._val_rows
+        rows = (
+            self._end // (n_splits + 1)
+            if val_size is None
+            else _rows(val_size, self._end)
+        )
         row_gap = gap if isinstance(gap, int) else 0
         if n_splits + 1 > self._end or self._end - row_gap - rows * n_splits <= 0:
             raise ValueError("Not enough rows for the requested CV windows and gap")
-        if isinstance(gap, timedelta):
-            first_start = self._end - rows * (n_splits - skip_splits)
-            if _training_end(data, first_start, gap) <= 0:
-                raise ValueError("Not enough rows for the requested CV windows and gap")
+        first = self._end - rows * n_splits
+        starts = [_period_start(data, first + rows * k) for k in range(n_splits)]
+        self._starts = [*starts, self._end]
+        used = self._starts[skip_splits:]
+        if any(a >= b for a, b in zip(used, used[1:])):
+            raise ValueError(
+                "A single timestamp spans more rows than the requested "
+                "validation window"
+            )
+        if _training_end(data, used[0], gap) <= 0:
+            raise ValueError("Not enough rows for the requested CV windows and gap")
 
     def get_validation(self) -> Iterator[Split[DataT]]:
         """Yield validation windows in order, retaining original fold numbers."""
-        splitter = TimeSeriesSplit(
-            n_splits=self.n_splits,
-            test_size=self._val_rows,
-            gap=self.gap if isinstance(self.gap, int) else 0,
-            max_train_size=self.max_train_size if isinstance(self.gap, int) else None,
-        )
-        for index, (train, val) in enumerate(splitter.split(range(self._end)), start=1):
-            if index > self.skip_splits:
-                if isinstance(self.gap, timedelta):
-                    end = _training_end(self.data, int(val[0]), self.gap)
-                    start = (
-                        0
-                        if self.max_train_size is None
-                        else max(0, end - self.max_train_size)
-                    )
-                    train = range(start, end)
-                yield Split(self.data.take(train), self.data.take(val), index=index)
+        for index in range(self.skip_splits + 1, self.n_splits + 1):
+            start, stop = self._starts[index - 1], self._starts[index]
+            end = _training_end(self.data, start, self.gap)
+            first = (
+                0 if self.max_train_size is None else max(0, end - self.max_train_size)
+            )
+            yield Split(
+                self.data.take(range(first, end)),
+                self.data.take(range(start, stop)),
+                index=index,
+            )
 
     def get_test(self) -> Split[DataT]:
         """Return all non-test rows and the optional test tail."""

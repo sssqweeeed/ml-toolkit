@@ -29,17 +29,24 @@ class ProjectData:
         index = np.asarray(indices, dtype=np.int64)
         return replace(
             self,
-            X=self.X[index], y=self.y.gather(index),
-            time=self.time.gather(index), weight=self.weight.gather(index),
+            X=self.X[index],
+            y=self.y.gather(index),
+            time=self.time.gather(index),
+            weight=self.weight.gather(index),
             object_id=None if self.object_id is None else self.object_id.gather(index),
-            auxiliary_features=None if self.auxiliary_features is None else self.auxiliary_features[index],
+            auxiliary_features=None
+            if self.auxiliary_features is None
+            else self.auxiliary_features[index],
         )
 
     def select_features(self, names):
         return replace(
-            self, X=self.X.select(names),
+            self,
+            X=self.X.select(names),
             cat_features=tuple(name for name in self.cat_features if name in names),
-            numerical_features=tuple(name for name in self.numerical_features if name in names),
+            numerical_features=tuple(
+                name for name in self.numerical_features if name in names
+            ),
         )
 
     def with_target(self, target):
@@ -193,7 +200,9 @@ def make_identified_data():
         source.time,
         source.weight,
         object_id=pl.Series("id", np.arange(len(source))),
-        auxiliary_features=(pl.Series("group", ["a", "b"] * (len(source) // 2))).to_frame(),
+        auxiliary_features=(
+            pl.Series("group", ["a", "b"] * (len(source) // 2))
+        ).to_frame(),
         numerical_features=tuple(source.X.columns),
     )
 

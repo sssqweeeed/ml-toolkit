@@ -227,8 +227,9 @@ slightly worse than uniform selection; the point interpolates within a row.
 Each selected point exposes `percent`, `gain`, and `lift`. Gain is the fraction
 of total exposure-weighted observed outcome captured; lift divides gain by the
 exposure fraction. Results interpolate at the requested capacity percentages.
-Rows are sorted by descending prediction; tied scores retain input order and
-zero-exposure rows are omitted. The cumulative arrays include an initial zero.
+Rows are sorted by descending prediction; exactly equal scores form one step,
+so results do not depend on row order, and zero-exposure rows are omitted. The
+cumulative arrays have one point per distinct score plus the initial zero.
 These are supervised outcomes; use PU metrics for positive/unlabeled labels.
 
 ## Evaluate positive-unlabeled predictions
@@ -240,7 +241,7 @@ from ml_toolkit.metrics import PUMetric, positive_capture_curve
 
 pu_labels = np.array([1.0, 0.0, 1.0, 0.0])
 pu_probabilities = np.array([0.9, 0.8, 0.4, 0.2])
-pu_metric = PUMetric(prior=0.1, loss="nnPU")
+pu_metric = PUMetric(class_prior=0.1, loss="nnPU")
 pu_scores = pu_metric(pu_labels, pu_probabilities)
 pu_values = pu_scores.to_dict()
 print("Known-positive capture:", pu_values["known_positive_capture_at_10pct"])
@@ -266,8 +267,9 @@ With only two unlabeled rows, reaching the requested 10% requires flagging
 one whole row: actual capacity is 50%, and the same cutoff captures 50% of
 known positives. Always inspect actual flagged capacity alongside capture.
 
-Here `1` means known positive and `0` means unlabeled. The prior is population
-positive prevalence, not the labeled fraction; match it and the loss to the
+Here `1` means known positive and `0` means unlabeled. The `class_prior` is the population
+positive prevalence P(y=1) of the evaluated rows, not the labeled fraction (the
+whole sample is treated as the unlabeled sample); match it and the loss to the
 model's configuration. Both groups need positive total weight. `nnPU` clips
 estimated negative risk at zero when calculating total risk; `uPU` retains it.
 
@@ -339,7 +341,8 @@ from optuna import Trial
 
 from examples.gallery_data import load_bike_pool
 from ml_toolkit import train_model
-from ml_toolkit.config import TrackingConfig, TrainingConfig, TuningConfig
+from ml_toolkit.config import TrainingConfig, TuningConfig
+from ml_toolkit.models import TrackingConfig
 from ml_toolkit.models import CatBoostRegressionModel
 from ml_toolkit.training import Holdout
 from ml_toolkit.types import ModelParams
@@ -467,8 +470,10 @@ contains capacity percentages in `(0, 100]`; an empty tuple requests only the
 full curves and Gini values.
 
 Returns `RankingMetrics`, with cumulative arrays and selected gain/lift points
-in request order. Zero-exposure rows are omitted, tied scores retain input
-order, and selected points use linear interpolation. Normalized Gini is NaN
+in request order. Zero-exposure rows are omitted, exactly equal scores form one
+step (so results do not depend on row order), cumulative arrays have one point
+per distinct score plus the initial zero, and selected points use linear
+interpolation. Normalized Gini is NaN
 when perfect-ranking Gini is close to zero. Invalid shapes, non-finite values,
 negative exposures, nonpositive totals, or out-of-range percentages raise
 `ValueError`. See [the ranking recipe](#inspect-gains-lift-and-gini) for an
@@ -511,5 +516,9 @@ executable example and the following result attributes for their meanings.
       heading_level: 4
 
 ::: ml_toolkit.metrics.MetricScores
+    options:
+      heading_level: 4
+
+::: ml_toolkit.metrics.calculate_metrics
     options:
       heading_level: 4

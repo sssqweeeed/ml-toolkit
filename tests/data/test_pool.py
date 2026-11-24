@@ -8,11 +8,13 @@ import polars as pl
 import pytest
 from polars.testing import assert_frame_equal, assert_series_equal
 
-from ml_toolkit import Pool as PublicPool
-from ml_toolkit.data import validate_training_categories, validate_training_data
-from ml_toolkit.training import Pool as TrainingPool
-from ml_toolkit.training.contracts import Pool as ContractPool
 from examples.project_pool import ProjectPool as Pool
+from ml_toolkit import Pool as PublicPool
+from ml_toolkit.data import (
+    validate_compatible_pools,
+    validate_training_categories,
+    validate_training_data,
+)
 
 
 @pytest.fixture
@@ -34,7 +36,7 @@ def pool():
 
 
 def test_public_pool_is_one_shared_container(pool):
-    assert PublicPool is TrainingPool is ContractPool is Pool
+    assert PublicPool is Pool
     assert type(pool) is PublicPool
 
 
@@ -102,7 +104,9 @@ def test_take_preserves_order_alignment_and_feature_metadata(pool, grouped, indi
         ["a", "a", "a"] if grouped else None
     )
     assert (
-        None if result.auxiliary_features is None else result.auxiliary_features.to_series().to_list()
+        None
+        if result.auxiliary_features is None
+        else result.auxiliary_features.to_series().to_list()
     ) == (["c", "a", "c"] if grouped else None)
     assert result.cat_features == pool.cat_features
     assert result.numerical_features == pool.numerical_features
@@ -115,7 +119,9 @@ def test_contiguous_take_shares_buffers_and_preserves_all_fields(pool, indices):
     assert_frame_equal(result.X, pool.X.slice(1, 2))
     assert np.shares_memory(result.X["x"].to_numpy(), pool.X["x"].to_numpy())
     for field in ("y", "time", "weight", "object_id", "auxiliary_features"):
-        compare = assert_frame_equal if field == "auxiliary_features" else assert_series_equal
+        compare = (
+            assert_frame_equal if field == "auxiliary_features" else assert_series_equal
+        )
         compare(getattr(result, field), getattr(pool, field).slice(1, 2))
     for field in ("y", "time", "weight"):
         # Arrow exposes Date's actual int32 buffer; NumPy widens it to int64.
@@ -134,7 +140,9 @@ def test_take_fallback_matches_gather(pool, indices):
     result = pool.take(indices)
     assert_frame_equal(result.X, pool.X[index])
     for field in ("y", "time", "weight", "object_id", "auxiliary_features"):
-        compare = assert_frame_equal if field == "auxiliary_features" else assert_series_equal
+        compare = (
+            assert_frame_equal if field == "auxiliary_features" else assert_series_equal
+        )
         compare(getattr(result, field), getattr(pool, field)[index])
 
 
@@ -152,7 +160,9 @@ def test_select_features_preserves_rows_and_filters_both_feature_lists(pool):
     assert pool.select_features(["x"]).cat_features == ()
     assert pool.select_features(["category"]).numerical_features == ()
     for field in ("y", "time", "weight", "auxiliary_features", "object_id"):
-        compare = assert_frame_equal if field == "auxiliary_features" else assert_series_equal
+        compare = (
+            assert_frame_equal if field == "auxiliary_features" else assert_series_equal
+        )
         compare(getattr(selected, field), getattr(pool, field))
 
 
@@ -175,7 +185,9 @@ def test_with_target_preserves_metadata_and_names(pool, target):
     )
     assert_frame_equal(result.X, pool.X)
     for field in ("time", "weight", "auxiliary_features", "object_id"):
-        compare = assert_frame_equal if field == "auxiliary_features" else assert_series_equal
+        compare = (
+            assert_frame_equal if field == "auxiliary_features" else assert_series_equal
+        )
         compare(getattr(result, field), getattr(pool, field))
     assert result.cat_features == pool.cat_features
     assert result.numerical_features == pool.numerical_features
@@ -392,3 +404,33 @@ def test_optional_fields_are_keyword_only(pool):
     assert data.auxiliary_features is None
     with pytest.raises(TypeError):
         Pool(pool.X, pool.y, pool.time, pool.weight, pool.auxiliary_features)
+
+
+def test_compatible_pools_accept_identical_schemas(pool):
+    validate_compatible_pools(pool, pool.take([0, 1]), context="Pools")
+
+
+@pytest.mark.parametrize(
+    ("change", "message"),
+    [
+        ("columns", "Test pools must have matching features and metadata"),
+        ("order", "Test pools must have matching features and metadata"),
+        ("dtype", "Test pools must have matching features and metadata"),
+        ("cat_features", "Test pools must have matching features and metadata"),
+        ("auxiliary", "Test pools must have matching auxiliary feature schemas"),
+    ],
+)
+def test_compatible_pools_reject_differences(pool, change, message):
+    other = pool
+    if change == "columns":
+        other = pool.select_features(["x"])
+    elif change == "order":
+        other = pool.select_features(["extra", "category", "x"])
+    elif change == "dtype":
+        other = replace(pool, X=pool.X.with_columns(pl.col("x").cast(pl.Float32)))
+    elif change == "cat_features":
+        other = replace(pool, cat_features=())
+    else:
+        other = replace(pool, auxiliary_features=None)
+    with pytest.raises(ValueError, match=message):
+        validate_compatible_pools(pool, other, context="Test pools")

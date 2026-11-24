@@ -20,19 +20,27 @@ def test_weighted_errors_deviance_and_null_model_score(kind):
     if kind == "frequency":
         result = metrics_frequency(observed, predicted, exposure)
         deviance = 2 * (np.log(0.5) + 1 + 3 * (4 * np.log(4 / 3) - 1)) / 6
-        null_deviance = 2 * sum(
-            w * (y * np.log(y / mean) - y + mean)
-            for y, w in zip(observed, exposure)
-        ) / 6
+        null_deviance = (
+            2
+            * sum(
+                w * (y * np.log(y / mean) - y + mean)
+                for y, w in zip(observed, exposure)
+            )
+            / 6
+        )
         assert result.mean_poisson_deviance == pytest.approx(deviance)
         assert result.d2_poisson_score == pytest.approx(1 - deviance / null_deviance)
     else:
         result = metrics_severity(observed, predicted, exposure, power=2)
         deviance = 2 * (-np.log(0.5) - 0.5 + 3 * (-np.log(4 / 3) + 1 / 3)) / 6
-        null_deviance = 2 * sum(
-            w * (-np.log(y / mean) + y / mean - 1)
-            for y, w in zip(observed, exposure)
-        ) / 6
+        null_deviance = (
+            2
+            * sum(
+                w * (-np.log(y / mean) + y / mean - 1)
+                for y, w in zip(observed, exposure)
+            )
+            / 6
+        )
         assert result.mean_tweedie_deviance == pytest.approx(deviance)
         assert result.d2_tweedie_score == pytest.approx(1 - deviance / null_deviance)
     assert result.mean_absolute_error == pytest.approx(4 / 6)
@@ -40,4 +48,6 @@ def test_weighted_errors_deviance_and_null_model_score(kind):
     assert result.prediction_over_observed == pytest.approx(15 / 17)
     assert result.gain_at_10 == pytest.approx(2.4 / 17)
     assert result.lift_at_10 == pytest.approx(24 / 17)
-    assert result.to_dict()["prediction_over_observed"] == result.prediction_over_observed
+    assert (
+        result.to_dict()["prediction_over_observed"] == result.prediction_over_observed
+    )

@@ -11,7 +11,7 @@ integration.
 Requires Python 3.11 or later.
 
 ```bash
-python -m pip install 'ml-toolkit @ git+https://github.com/sssqweeeed/ml-toolkit.git@v6.2.0'
+python -m pip install 'ml-toolkit @ git+https://github.com/sssqweeeed/ml-toolkit.git@v7.0.0'
 ```
 
 The Python import is `ml_toolkit`. Installation from a release tag requires Git.
@@ -24,7 +24,7 @@ Check out the matching release for its example loaders, then cache the original
 and predict hourly rental counts using recorded weather and calendar features:
 
 ```bash
-git clone --branch v6.2.0 --depth 1 https://github.com/sssqweeeed/ml-toolkit.git
+git clone --branch v7.0.0 --depth 1 https://github.com/sssqweeeed/ml-toolkit.git
 cd ml-toolkit
 python -m examples.prepare_data --dataset bike
 ```
@@ -40,7 +40,8 @@ import mlflow
 
 from examples.gallery_data import load_bike_pool
 from ml_toolkit import train_model
-from ml_toolkit.config import TrackingConfig, TrainingConfig
+from ml_toolkit.config import TrainingConfig
+from ml_toolkit.models import TrackingConfig
 from ml_toolkit.metrics import metrics_frequency
 from ml_toolkit.models import CatBoostLogLinkRegressionModel
 

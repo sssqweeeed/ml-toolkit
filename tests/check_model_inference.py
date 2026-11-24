@@ -9,7 +9,6 @@ from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from types import ModuleType
 
-
 for package in ("optuna", "numba", "ml_toolkit"):
     assert importlib.util.find_spec(package) is None, package
     try:
@@ -61,7 +60,7 @@ np.testing.assert_allclose(prediction, expected)
 np.testing.assert_allclose(loaded.predict(frame.iloc[:1]), expected[:1])
 if sys.argv[4] != "LightGBMServingModel":
     np.testing.assert_allclose(model.predict_frame(frame), expected)
-    from ml_toolkit.tracking.model_artifacts import log_catboost
+    from ml_toolkit.models.artifacts import log_catboost
 
     with mlflow.start_run():
         info = log_catboost(model, frame.head(5), expected[:5], name="relogged")

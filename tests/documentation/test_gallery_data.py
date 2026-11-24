@@ -108,7 +108,9 @@ def test_bike_features_and_targets_match_source_rows_without_target_leakage(gall
         np.testing.assert_array_equal(cohort.weight, np.ones(len(cohort.features)))
 
 
-def test_bike_training_precedes_both_real_periods_and_months_are_well_populated(gallery):
+def test_bike_training_precedes_both_real_periods_and_months_are_well_populated(
+    gallery,
+):
     _, bikes = gallery
     source = pl.read_csv(DEFAULT_DATA_HOME / "hour.csv")
     training_dates = source[bikes.train_indices]["dteday"].str.to_date()

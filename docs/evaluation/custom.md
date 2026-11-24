@@ -36,7 +36,8 @@ import polars as pl
 from examples.custom_evaluator import PredictionAudit
 from examples.gallery_data import load_bike_pool
 from ml_toolkit import train_model
-from ml_toolkit.config import ReportingConfig, TrackingConfig, TrainingConfig
+from ml_toolkit.config import ReportingConfig, TrainingConfig
+from ml_toolkit.models import TrackingConfig
 from examples.custom_metric import weighted_mae
 from ml_toolkit.models import CatBoostRegressionModel
 from ml_toolkit.training import Holdout
@@ -126,7 +127,7 @@ formats, scheduling, temporary paths, and error behavior.
 
 ## API reference
 
-::: ml_toolkit.evaluation.PredictionEvaluator
+::: ml_toolkit.reports.PredictionEvaluator
     options:
       heading_level: 3
       members: [evaluate, write_artifacts, parameters]

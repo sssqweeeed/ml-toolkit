@@ -1,7 +1,5 @@
 """Application-controlled logging and independent experiment tracking."""
 
-from ml_toolkit.training import Holdout, TimeSeriesCV
-
 import io
 import json
 import logging
@@ -20,20 +18,20 @@ import optuna
 import pandas as pd
 import polars as pl
 import pytest
-from tests.support.training import MeanModel, mae, make_data, setup_mlflow
 
-from ml_toolkit.feature_selection import RFESelector
-from ml_toolkit.config import ShapConfig, TrainingConfig, TuningConfig
-from ml_toolkit.explainability import calculate_shap_values
+from ml_toolkit.config import TrainingConfig, TuningConfig
+from ml_toolkit.explainability import ShapConfig, calculate_shap_values
+from ml_toolkit.feature_levels import FeatureLevelConfig
+from ml_toolkit.feature_selection import RFESelector, importance_ranker
+from ml_toolkit.figures import save_figure
 from ml_toolkit.inflation import ConstantRateInflation
 from ml_toolkit.metrics import MetricScores
 from ml_toolkit.models import CatBoostClassificationModel, CatBoostRegressionModel
-from ml_toolkit.plots.utils import save_figure
-from ml_toolkit.feature_levels import FeatureLevelConfig
+from ml_toolkit.models.artifacts import log_model_from_code
 from ml_toolkit.psi import PSIAnalysis, PSIConfig
-from ml_toolkit.tracking.mlflow import log_polars_table
-from ml_toolkit.tracking.model_artifacts import log_model_from_code
-from ml_toolkit.training import importance_ranker, train_model
+from ml_toolkit.tracking import log_polars_table
+from ml_toolkit.training import Holdout, TimeSeriesCV, train_model
+from tests.support.training import MeanModel, mae, make_data, setup_mlflow
 
 
 def toolkit_records(caplog):
@@ -76,7 +74,7 @@ assert all(logging.getLogger(name).level == logging.NOTSET for name in (
 assert ml_toolkit.__all__ == ["Pool", "TrainingResult", "train_model"]
 assert not any(name.startswith("ml_toolkit.training") for name in sys.modules)
 from ml_toolkit import Pool, TrainingResult, train_model
-from ml_toolkit.training.contracts import Pool as DirectPool
+from ml_toolkit.data import Pool as DirectPool
 from ml_toolkit.training import TrainingResult as DirectResult, train_model as direct_train
 assert Pool is DirectPool
 assert TrainingResult is DirectResult
@@ -216,7 +214,7 @@ def test_helper_debug_logs_preserve_outputs(tmp_path, caplog, monkeypatch):
     sample = pd.DataFrame({"x": [1.0]})
     assert (
         log_model_from_code(
-            source="model.py",
+            model_class=CatBoostRegressionModel,
             sample_frame=sample,
             sample_prediction=np.array([2.0]),
             artifacts={"model": "model.bin"},
@@ -232,9 +230,9 @@ def test_helper_debug_logs_preserve_outputs(tmp_path, caplog, monkeypatch):
     for namespace in (
         "ml_toolkit.psi.analysis",
         "ml_toolkit.inflation",
-        "ml_toolkit.plots.utils",
-        "ml_toolkit.tracking.mlflow",
-        "ml_toolkit.tracking.model_artifacts",
+        "ml_toolkit.figures",
+        "ml_toolkit.tracking",
+        "ml_toolkit.models.artifacts",
     ):
         assert any(
             record.name == namespace and record.levelno == logging.DEBUG
@@ -291,12 +289,27 @@ def test_serving_logs_keep_namespace_under_dynamic_loading(
     config_path.write_text(json.dumps(model.export_state()))
     registered = []
     monkeypatch.setattr(mlflow.models, "set_model", registered.append)
-    source = (
-        Path(__file__).resolve().parents[2]
-        / "src/ml_toolkit/tracking/entrypoints"
-        / f"{factory.__name__}.py"
+
+    def load_generated_entrypoint(**kwargs):
+        entrypoint = Path(kwargs["python_model"])
+        assert entrypoint.name == f"{factory.__name__}.py"
+        assert entrypoint.read_text() == (
+            "from mlflow.models import set_model\n\n"
+            f"from ml_toolkit.models import {factory.__name__}\n\n"
+            f"set_model({factory.__name__}())\n"
+        )
+        runpy.run_path(str(entrypoint), run_name="generated_mlflow_module")
+
+    monkeypatch.setattr(mlflow.pyfunc, "log_model", load_generated_entrypoint)
+    log_model_from_code(
+        model_class=factory,
+        sample_frame=data.to_model_input(n_rows=1),
+        sample_prediction=np.array([0.0]),
+        artifacts={"model": str(path), "config": str(config_path)},
+        metadata={},
+        params={},
+        name="model",
     )
-    runpy.run_path(str(source), run_name="generated_mlflow_module")
     assert len(registered) == 1 and type(registered[0]) is factory
     wrapper = registered[0]
     wrapper.load_context(
@@ -411,3 +424,23 @@ def test_exceptions_propagate_without_error_records(tmp_path, caplog):
         record.getMessage().startswith("Completed training")
         for record in toolkit_records(caplog)
     )
+
+
+def test_user_subclass_cannot_be_logged_through_generated_entrypoint(monkeypatch):
+    class UserAdapter(CatBoostRegressionModel):
+        pass
+
+    def unreachable(**kwargs):
+        raise AssertionError("must fail before logging")
+
+    monkeypatch.setattr(mlflow.pyfunc, "log_model", unreachable)
+    with pytest.raises(ValueError, match="only toolkit adapters exported"):
+        log_model_from_code(
+            model_class=UserAdapter,
+            sample_frame=pd.DataFrame({"x": [1.0]}),
+            sample_prediction=np.array([2.0]),
+            artifacts={},
+            metadata={},
+            params={},
+            name="example",
+        )

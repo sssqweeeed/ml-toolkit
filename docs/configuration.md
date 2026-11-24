@@ -19,7 +19,7 @@ tuning, reporting and model packaging without requiring that setup.
 | [Regression](#regression) | `CatBoostRegressionModel` | `metrics_regression` |
 | [Frequency](#frequency) | `CatBoostLogLinkRegressionModel` | `metrics_frequency` |
 | [Severity](#severity) | `CatBoostLogLinkRegressionModel` | Tweedie deviance with fixed power |
-| [Positive–unlabeled](#positiveunlabeled-classification) | `CatBoostPUClassificationModel` | `PUMetric` with a population prior |
+| [Positive–unlabeled](#positiveunlabeled-classification) | `CatBoostPUClassificationModel` | `PUMetric` with a population class prior |
 
 ## Prepare source data
 
@@ -48,12 +48,9 @@ selection and tuning off; PSI, prediction evaluators and data analyzers still wr
 ```python
 from ml_toolkit.training import Holdout, TimeSeriesCV
 from dataclasses import replace
-from ml_toolkit.config import (
-    FeatureLevelConfig,
-    ReportingConfig,
-    TrackingConfig,
-    TrainingConfig,
-)
+from ml_toolkit.config import ReportingConfig, TrainingConfig
+from ml_toolkit.feature_levels import FeatureLevelConfig
+from ml_toolkit.models import TrackingConfig
 from ml_toolkit.metrics import (
     MetricsSeverity,
     PUMetric,
@@ -94,8 +91,8 @@ both classes in evaluated splits for finite ROC AUC; single-class splits return 
 <!-- example: configuration-classification -->
 
 ```python
-from ml_toolkit.data_analysis import NumericalFeatureDistributions
-from ml_toolkit.evaluation import (
+from ml_toolkit.reports import NumericalFeatureDistributions
+from ml_toolkit.reports import (
     PrecisionRecall,
     F1Threshold,
     Calibration,
@@ -137,8 +134,8 @@ weighted MAE, MSE, RMSE, R² and mean error (prediction minus target).
 <!-- example: configuration-regression -->
 
 ```python
-from ml_toolkit.data_analysis import NumericalFeatureDistributions
-from ml_toolkit.evaluation import (
+from ml_toolkit.reports import NumericalFeatureDistributions
+from ml_toolkit.reports import (
     ObservedFitted,
     TimeObservedFitted,
 )
@@ -183,8 +180,8 @@ predictions, validation requirements and saving models.
 <!-- example: configuration-severity -->
 
 ```python
-from ml_toolkit.data_analysis import NumericalFeatureDistributions
-from ml_toolkit.evaluation import (
+from ml_toolkit.reports import NumericalFeatureDistributions
+from ml_toolkit.reports import (
     Gains,
     Lift,
     ObservedFitted,
@@ -229,24 +226,30 @@ data_analyzers = [NumericalFeatureDistributions()]
 ## Positive–unlabeled classification
 
 Use `1` for known positives and `0` for unlabeled observations. Both groups
-need positive weight in training and evaluated samples. `prior` is the positive
-fraction in the population, not the fraction of labeled rows. Supply a prepared
-project `Pool` and call `train_pu(data, prior=your_prior)` after setting up MLflow.
-The function uses the same prior in the model and metric.
+need positive weight in training and evaluated samples. The training pool is
+one sample of the population: rows labeled `1` are known positives, the
+remaining rows are unlabeled, and the whole pool (labeled rows included) is the
+unlabeled sample. `class_prior` is the positive prevalence P(y=1) in that
+population, not the labeled fraction, and never below it. Supply a prepared
+project `Pool` and call `train_pu(data, class_prior=your_prior)` after setting up
+MLflow. The function uses the same class prior in the model and metric.
+With `"loss": "nnPU"`, the optional `nnpu_beta` and `nnpu_gamma` control the
+non-negative correction (Kiryo et al., 2017); nnPU uses its own risk as
+`eval_metric` and requires `metric_period` 1.
 
 <!-- example: configuration-pu -->
 
 ```python
 from ml_toolkit import Pool, TrainingResult, train_model
-from ml_toolkit.evaluation import PUScoreDistribution, PUPositiveCapture
+from ml_toolkit.reports import PUScoreDistribution, PUPositiveCapture
 
 
-def train_pu(data: Pool, *, prior: float) -> TrainingResult:
+def train_pu(data: Pool, *, class_prior: float) -> TrainingResult:
     return train_model(
         splitter=TimeSeriesCV(data, n_splits=3, test_size=0.2),
-        params={**base_params, "loss": "uPU", "pu_prior": prior},
+        params={**base_params, "loss": "uPU", "class_prior": class_prior},
         model_factory=CatBoostPUClassificationModel,
-        metric=PUMetric(prior, loss="uPU"),
+        metric=PUMetric(class_prior, loss="uPU"),
         run_name="project-pu",
         config=replace(base_config, reporting=common),
         prediction_evaluators=[PUScoreDistribution(), PUPositiveCapture()],
@@ -263,8 +266,8 @@ The log-link adapter fits a training-only baseline and returns positive rates.
 <!-- example: configuration-frequency -->
 
 ```python
-from ml_toolkit.data_analysis import NumericalFeatureDistributions
-from ml_toolkit.evaluation import (
+from ml_toolkit.reports import NumericalFeatureDistributions
+from ml_toolkit.reports import (
     Gains,
     Lift,
     ObservedFitted,
@@ -329,8 +332,8 @@ print({name: round(value, 4) for name, value in result.test_metrics.items()})
 
 <!-- output: configuration-run -->
 ```text
-{'mean_absolute_error': 111.9625, 'mean_squared_error': 26246.4224, 'root_mean_squared_error': 155.9688, 'r2_score': 0.1234, 'mean_error': -56.8402, 'mean_poisson_deviance': 120.7394, 'd2_poisson_score': 0.1843, 'prediction_over_observed': 0.7438, 'lift_at_10': 1.6123, 'gain_at_10': 0.1612, 'normalized_gini': 0.6381}
-{'mean_absolute_error': 144.2219, 'mean_squared_error': 42249.5587, 'root_mean_squared_error': 205.547, 'r2_score': 0.1309, 'mean_error': -75.6556, 'mean_poisson_deviance': 159.3838, 'd2_poisson_score': 0.1984, 'prediction_over_observed': 0.6959, 'lift_at_10': 1.7831, 'gain_at_10': 0.1783, 'normalized_gini': 0.7351}
+{'mean_absolute_error': 111.9625, 'mean_squared_error': 26246.4224, 'root_mean_squared_error': 155.9688, 'r2_score': 0.1234, 'mean_error': -56.8402, 'mean_poisson_deviance': 120.7394, 'd2_poisson_score': 0.1843, 'prediction_over_observed': 0.7438, 'lift_at_10': 1.5723, 'gain_at_10': 0.1572, 'normalized_gini': 0.6409}
+{'mean_absolute_error': 144.2219, 'mean_squared_error': 42249.5587, 'root_mean_squared_error': 205.547, 'r2_score': 0.1309, 'mean_error': -75.6556, 'mean_poisson_deviance': 159.3838, 'd2_poisson_score': 0.1984, 'prediction_over_observed': 0.6959, 'lift_at_10': 1.8886, 'gain_at_10': 0.1889, 'normalized_gini': 0.7326}
 ```
 <!-- /output -->
 
@@ -350,8 +353,8 @@ for your own task. RFE's `min_features` is a lower bound, not a promised result.
 
 ```python
 from ml_toolkit.training import TimeSeriesCV
-from ml_toolkit.data_analysis import NumericalFeatureDistributions
-from ml_toolkit.evaluation import (
+from ml_toolkit.reports import NumericalFeatureDistributions
+from ml_toolkit.reports import (
     Gains,
     Lift,
     ObservedFitted,
@@ -361,18 +364,14 @@ from examples.gallery_data import load_bike_pool
 
 data = load_bike_pool(download_if_missing=False)
 from optuna import Trial
-from ml_toolkit.config import (
-    FigureConfig,
-    ReportingConfig,
-    ShapConfig,
-    TrackingConfig,
-    TrainingConfig,
-    TuningConfig,
-)
+from ml_toolkit.explainability import ShapConfig
+from ml_toolkit.config import ReportingConfig, TrainingConfig, TuningConfig
+from ml_toolkit.figures import FigureConfig
+from ml_toolkit.models import TrackingConfig
 from ml_toolkit.feature_selection import RFESelector
 from ml_toolkit.metrics import metrics_frequency
 from ml_toolkit.models import CatBoostLogLinkRegressionModel
-from ml_toolkit.training import importance_ranker
+from ml_toolkit.feature_selection import importance_ranker
 from ml_toolkit.types import ModelParams
 
 frequency_config = TrainingConfig(
@@ -469,7 +468,7 @@ from pathlib import Path
 import mlflow
 from ml_toolkit import train_model
 from ml_toolkit.explainability import calculate_shap_values
-from ml_toolkit.plots.explainability import shap_importance
+from ml_toolkit.explainability import shap_importance
 
 mlflow.set_tracking_uri("sqlite:///mlflow.db")
 mlflow.set_experiment("ml-toolkit-task-recipes")

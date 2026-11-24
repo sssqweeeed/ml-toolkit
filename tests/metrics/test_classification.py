@@ -50,9 +50,13 @@ def test_single_class_scores_keep_defined_values_and_nan_auc(label):
         ([0, 1], [0.2, 0.8], None, np.nan, "Threshold"),
     ],
 )
-def test_invalid_classification_inputs_fail(target, probability, weight, threshold, message):
+def test_invalid_classification_inputs_fail(
+    target, probability, weight, threshold, message
+):
     with pytest.raises(ValueError, match=message):
         metrics_classification(
-            np.asarray(target), np.asarray(probability),
-            None if weight is None else np.asarray(weight), threshold=threshold,
+            np.asarray(target),
+            np.asarray(probability),
+            None if weight is None else np.asarray(weight),
+            threshold=threshold,
         )

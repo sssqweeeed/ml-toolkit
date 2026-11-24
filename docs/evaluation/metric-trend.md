@@ -23,8 +23,8 @@ from pathlib import Path
 
 from examples.custom_metric import weighted_mae
 from examples.evaluation_data import fit_bike_evaluation
-from ml_toolkit.evaluation import MetricTrend
-from ml_toolkit.plots.metric_trend import metric_trend
+from ml_toolkit.reports import MetricTrend
+from ml_toolkit.reports.metric_trend import metric_trend
 
 example = fit_bike_evaluation()
 output = Path("plots")
@@ -152,10 +152,10 @@ observed and predicted means over time, use
 
 ## API reference
 
-::: ml_toolkit.evaluation.MetricTrend
+::: ml_toolkit.reports.MetricTrend
     options:
       members:
         - calculate
         - parameters
 
-::: ml_toolkit.plots.metric_trend.metric_trend
+::: ml_toolkit.reports.metric_trend.metric_trend

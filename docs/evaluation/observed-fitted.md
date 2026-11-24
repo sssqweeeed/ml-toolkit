@@ -20,7 +20,7 @@ import numpy as np
 import polars as pl
 
 from examples.evaluation_data import fit_bike_evaluation
-from ml_toolkit.config import FigureConfig
+from ml_toolkit.figures import FigureConfig
 
 example = fit_bike_evaluation(classification=False)
 data, prediction, split = example.data, example.prediction, example.split
@@ -52,8 +52,8 @@ same reports directly from aligned predictions:
 <!-- example: observed-fitted-reports -->
 
 ```python
-from ml_toolkit.config import FeatureLevelConfig
-from ml_toolkit.evaluation import ObservedFitted, TimeObservedFitted
+from ml_toolkit.feature_levels import FeatureLevelConfig
+from ml_toolkit.reports import ObservedFitted, TimeObservedFitted
 
 features = (FeatureLevelConfig("temperature", "numerical"),)
 reports = [
@@ -95,7 +95,7 @@ Get the aggregate table with the direct function:
 
 ```python
 from ml_toolkit.feature_levels import LevelTransformer
-from ml_toolkit.plots import regression
+from ml_toolkit.reports import regression
 
 levels = LevelTransformer(features, n_bins=10).fit(train.X)
 train_levels, test_levels = levels.transform(train.X), levels.transform(test.X)
@@ -210,7 +210,7 @@ of shared numerical level settings. No metric function changes are required.
 <!-- example: observed-fitted-grouped-metrics -->
 
 ```python
-from ml_toolkit.evaluation import GroupedMetrics
+from ml_toolkit.reports import GroupedMetrics
 from ml_toolkit.metrics import metrics_regression
 
 grouped_report = GroupedMetrics(
@@ -247,7 +247,7 @@ give such a diagnostic column a distinct name before grouping.
 Grouped metrics are additional diagnostics, including on train-only fits. They
 do not change training metrics, CV averages, or optimization objectives.
 
-::: ml_toolkit.evaluation.GroupedMetrics
+::: ml_toolkit.reports.GroupedMetrics
     options:
       members: [calculate]
 
@@ -279,8 +279,8 @@ reference_prediction, current_prediction = (
 
 <!-- example: observed-fitted-heldout-levels -->
 ```python
-from ml_toolkit.plots import regression
-from ml_toolkit.config import FeatureLevelConfig
+from ml_toolkit.reports import regression
+from ml_toolkit.feature_levels import FeatureLevelConfig
 from ml_toolkit.feature_levels import LevelTransformer
 
 heldout_levels = LevelTransformer(
@@ -328,17 +328,17 @@ comparison, separate from the train/test evaluator above.
 
 ## API reference
 
-::: ml_toolkit.evaluation.ObservedFitted
+::: ml_toolkit.reports.ObservedFitted
     options:
       heading_level: 3
       members: []
 
-::: ml_toolkit.evaluation.TimeObservedFitted
+::: ml_toolkit.reports.TimeObservedFitted
     options:
       heading_level: 3
       members: []
 
-::: ml_toolkit.plots.regression
+::: ml_toolkit.reports.regression
     options:
       heading_level: 3
       members: [observed_fitted_by_level, time_observed_fitted]

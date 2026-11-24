@@ -2,7 +2,7 @@
 
 import json
 from dataclasses import replace
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 
 import numpy as np
 import polars as pl
@@ -159,7 +159,9 @@ def test_all_extrapolation_policies_and_boundary_continuity(factory, family):
 
 @pytest.mark.parametrize("factory", STRATEGIES)
 @pytest.mark.parametrize("family", FAMILIES)
-def test_numeric_imputation_dropping_empty_columns_and_zero_weight_rows(factory, family):
+def test_numeric_imputation_dropping_empty_columns_and_zero_weight_rows(
+    factory, family
+):
     data = observations()
     if family == "Poisson":
         data = data.with_target(data.y / 100)
@@ -187,7 +189,9 @@ def test_numeric_imputation_dropping_empty_columns_and_zero_weight_rows(factory,
     )
     actual = factory(family=family).fit(combined)
     assert actual.to_config() == expected.to_config()
-    without_extra = factory(family=family, control_features=["size", "category"]).fit(data)
+    without_extra = factory(family=family, control_features=["size", "category"]).fit(
+        data
+    )
     np.testing.assert_allclose(
         actual.factor(dates([0]), dates([5])),
         without_extra.factor(dates([0]), dates([5])),
@@ -209,7 +213,9 @@ def test_weights_match_row_replication_and_scaling(factory, family):
     a, b = dates([0, 1]), dates([3, 5])
     fitted = factory(family=family).fit(weighted)
     np.testing.assert_allclose(
-        fitted.factor(a, b), factory(family=family).fit(repeated).factor(a, b), rtol=2e-5
+        fitted.factor(a, b),
+        factory(family=family).fit(repeated).factor(a, b),
+        rtol=2e-5,
     )
     np.testing.assert_allclose(
         fitted.factor(a, b), factory(family=family).fit(scaled).factor(a, b), rtol=2e-5
@@ -224,9 +230,9 @@ def test_json_roundtrip_needs_no_feature_transformations_or_fitting(
     from sklearn.linear_model import GammaRegressor, PoissonRegressor
     from sklearn.preprocessing import SplineTransformer
 
-    strategy = factory(family=family, control_features=["category"], extrapolation="damped").fit(
-        observations()
-    )
+    strategy = factory(
+        family=family, control_features=["category"], extrapolation="damped"
+    ).fit(observations())
     config = json.loads(json.dumps(strategy.to_config(), allow_nan=False))
 
     def forbidden(*args, **kwargs):
@@ -371,7 +377,7 @@ def test_rejects_invalid_knot_count(value):
 
 def test_timestamp_precision_timezone_and_extreme_factor_validation():
     strategy = LogLinearInflation(alpha=1e-8).fit(observations())
-    a = pl.Series([datetime(2020, 1, 1, 12, tzinfo=timezone.utc)])
+    a = pl.Series([datetime(2020, 1, 1, 12, tzinfo=UTC)])
     b = pl.Series([datetime(2020, 1, 1, 18, tzinfo=timezone(timedelta(hours=6)))])
     np.testing.assert_array_equal(strategy.factor(a, b), [1.0])
     delta = pl.duration(hours=12)
@@ -442,7 +448,9 @@ def test_adapter_changes_only_targets_and_allows_different_model_loss(
         assert normalized.weight.equals(raw.weight)
         assert normalized.X.equals(raw.X)
         assert normalized.time.equals(raw.time)
-    for current, before in zip((data.X, data.y, data.time, data.weight), original, strict=True):
+    for current, before in zip(
+        (data.X, data.y, data.time, data.weight), original, strict=True
+    ):
         assert current.equals(before)
     reference_prediction = adjusted.model.predict_pool(validation)
     expected = strategy.adjust(

@@ -7,10 +7,13 @@ import matplotlib.pyplot as plt
 import polars as pl
 import pytest
 
+from ml_toolkit import figures as figures_module
 from ml_toolkit._time import paired_period_starts
 from ml_toolkit.feature_levels import FeatureLevelConfig
-from ml_toolkit.plots import monitoring, psi, regression
 from ml_toolkit.psi import PSIAnalysis, PSIConfig, compare_psi
+from ml_toolkit.psi import figures as psi
+from ml_toolkit.reports import distributions as monitoring
+from ml_toolkit.reports import regression
 
 
 @pytest.mark.parametrize(
@@ -35,9 +38,9 @@ def test_temporal_reports_reject_overlapping_or_reversed_ranges(
     output = tmp_path / "invalid.png"
     with pytest.raises(ValueError, match=r"max\(reference\) <= min\(current\)"):
         if report == "psi":
-            PSIAnalysis(PSIConfig(features=(FeatureLevelConfig("x", "numerical"),))).fit(
-                before, time="time"
-            ).compare(after, time="time")
+            PSIAnalysis(
+                PSIConfig(features=(FeatureLevelConfig("x", "numerical"),))
+            ).fit(before, time="time").compare(after, time="time")
         elif report == "observed_fitted":
             regression.time_observed_fitted(
                 before["time"].to_list(),
@@ -72,14 +75,16 @@ def test_shared_endpoint_keeps_samples_separate_in_every_report(
         {"x": [7.0, 5.0], "time": [timestamp(2 if single_day else 3), timestamp(2)]}
     )
     figures = []
-    for module in (psi, monitoring, regression):
+    for module in (psi, figures_module):
         monkeypatch.setattr(
             module, "save_figure", lambda fig, *a, **k: figures.append(fig)
         )
     try:
         result = (
             PSIAnalysis(
-                PSIConfig(features=(FeatureLevelConfig("x", "numerical"),), period="day")
+                PSIConfig(
+                    features=(FeatureLevelConfig("x", "numerical"),), period="day"
+                )
             )
             .fit(before, time="time")
             .compare(after, time="time")
@@ -130,7 +135,7 @@ def test_split_within_one_period_is_allowed_by_every_report(
     period, monkeypatch, tmp_path
 ):
     figures = []
-    for module in (psi, monitoring, regression):
+    for module in (psi, figures_module):
         monkeypatch.setattr(
             module, "save_figure", lambda fig, *a, **k: figures.append(fig)
         )
@@ -149,7 +154,9 @@ def test_split_within_one_period_is_allowed_by_every_report(
     try:
         comparison = (
             PSIAnalysis(
-                PSIConfig(features=(FeatureLevelConfig("x", "numerical"),), period=period)
+                PSIConfig(
+                    features=(FeatureLevelConfig("x", "numerical"),), period=period
+                )
             )
             .fit(before, time="time")
             .compare(after, time="time")

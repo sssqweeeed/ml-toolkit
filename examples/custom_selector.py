@@ -7,7 +7,11 @@ from time import perf_counter
 import numpy as np
 
 from ml_toolkit import Pool
-from ml_toolkit.feature_selection import FeatureSelectionResult, FeatureSelectionStep
+from ml_toolkit.feature_selection import (
+    CustomSelectionSettings,
+    FeatureSelectionResult,
+    FeatureSelectionStep,
+)
 from ml_toolkit.metrics import Metric
 from ml_toolkit.models.base import Model
 from ml_toolkit.types import ModelParams
@@ -61,5 +65,8 @@ class FixedFeatureSelector:
             model.best_iteration,
         )
         return FeatureSelectionResult(
-            names, 0, (step,), {"selector": "fixed", "features": names}
+            names,
+            0,
+            (step,),
+            CustomSelectionSettings("fixed", {"features": names}),
         )

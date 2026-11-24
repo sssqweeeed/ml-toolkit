@@ -17,7 +17,7 @@ for training and the shrink report. Cache the source first with
 from examples.custom_metric import weighted_mae
 from examples.training_setup import prepare_training
 from ml_toolkit import train_model
-from ml_toolkit.model_evaluation import ShrinkCurve
+from ml_toolkit.reports import ShrinkCurve
 from ml_toolkit.models import CatBoostRegressionModel
 from ml_toolkit.training import Holdout
 
@@ -74,7 +74,7 @@ labels with the existing evaluation examples.
 from pathlib import Path
 
 from examples.evaluation_data import fit_bike_evaluation
-from ml_toolkit.plots.model_evaluation import shrink_curve
+from ml_toolkit.reports.shrink import shrink_curve
 
 example = fit_bike_evaluation()
 output = Path("plots")
@@ -153,10 +153,10 @@ path checks match the [prediction evaluation contract](index.md#reporting-inputs
 
 ## API reference
 
-::: ml_toolkit.model_evaluation.ModelEvaluator
+::: ml_toolkit.reports.ModelEvaluator
 
-::: ml_toolkit.model_evaluation.ShrinkCurve
+::: ml_toolkit.reports.ShrinkCurve
 
 ::: ml_toolkit.models.ShrinkableModel
 
-::: ml_toolkit.plots.model_evaluation.shrink_curve
+::: ml_toolkit.reports.shrink.shrink_curve

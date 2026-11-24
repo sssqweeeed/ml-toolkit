@@ -31,9 +31,10 @@ responsibilities explicit:
 
 ```python
 from ml_toolkit import Pool, train_model
-from ml_toolkit.config import ReportingConfig, TrackingConfig, TrainingConfig
-from ml_toolkit.data_analysis import NumericalFeatureDistributions
-from ml_toolkit.evaluation import ObservedFitted
+from ml_toolkit.config import ReportingConfig, TrainingConfig
+from ml_toolkit.models import TrackingConfig
+from ml_toolkit.reports import NumericalFeatureDistributions
+from ml_toolkit.reports import ObservedFitted
 from ml_toolkit.models import CatBoostRegressionModel
 from ml_toolkit.training import Holdout
 from ml_toolkit.types import ModelParams
@@ -98,14 +99,11 @@ by `ReportingConfig.psi`.
 
 ## Update existing distribution reports
 
-Import `NumericalFeatureDistributions` from `ml_toolkit.data_analysis`, move the
+Import `NumericalFeatureDistributions` from `ml_toolkit.reports`, move the
 instance from `prediction_evaluators` to `data_analyzers`, and omit `prediction`
-in direct hook calls. Keep your existing settings and artifact paths.
-
-The old `ml_toolkit.evaluation.NumericalFeatureDistributions` import remains a
-compatibility adapter with its previous prediction-based signature. Existing
-`PredictionEvaluator` subclasses and other built-in evaluators remain usable
-without changes. New data reports should implement `DataAnalyzer`.
+in direct hook calls. Keep your existing settings and artifact paths. The
+prediction-based adapter that `ml_toolkit.evaluation` used to provide is
+removed. New data reports should implement `DataAnalyzer`.
 
 ## Example data
 
