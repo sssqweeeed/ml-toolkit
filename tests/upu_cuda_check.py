@@ -5,11 +5,11 @@ import inspect
 import numpy as np
 from numba import cuda
 
-from ml_toolkit.models.losses.pu import upu_derivatives
+from ml_toolkit.models.losses.pu import pu_derivatives
 from ml_toolkit.models.losses.pu_cuda import make_upu_gpu_objective
 
-positive_scale, unlabeled_scale = 0.71, 1.37
-objective = make_upu_gpu_objective(positive_scale, unlabeled_scale)
+positive_scale = 0.71
+objective = make_upu_gpu_objective(positive_scale)
 method = type(objective).calc_ders_range_gpu
 # CatBoost's automatic CUDA JIT requires the instance argument to be unused.
 assert inspect.getsource(method).count("self") == 1
@@ -25,16 +25,12 @@ for weighted in (False, True):
     value = np.zeros(1, dtype=np.float32)
     der1, der2 = np.zeros_like(z), np.zeros_like(z)
     kernel[3, 4](0, z, y, weights, value, der1, der2)
-    cpu = upu_derivatives(
-        z.astype(float),
-        y,
-        weights if weighted else None,
-        positive_scale,
-        unlabeled_scale,
+    cpu = pu_derivatives(
+        z.astype(float), y, weights if weighted else None, positive_scale, False, 1.0
     )
     np.testing.assert_allclose(der1, cpu[:, 0], rtol=1e-6, atol=1e-7)
     np.testing.assert_allclose(der2, -cpu[:, 1], rtol=1e-6, atol=1e-7)
-    terms = np.where(y == 1, positive_scale * z, -unlabeled_scale * np.logaddexp(0, z))
+    terms = np.where(y == 1, positive_scale * z, 0.0) - np.logaddexp(0, z)
     expected = np.sum(terms * (weights if weighted else 1))
     np.testing.assert_allclose(value[0], expected, rtol=1e-6, atol=1e-4)
     # CatBoost can request a value without derivatives, or derivatives only.

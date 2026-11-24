@@ -12,7 +12,7 @@ The optional LightGBM wrapper packages an already fitted native regressor.
 | `CatBoostRegressionModel` | General regression with CatBoost's native loss and initialization |
 | `CatBoostLogLinkRegressionModel` | Poisson, Tweedie or Gamma regression with a fitted log-mean baseline |
 | `CatBoostClassificationModel` | Binary classification with probability and label predictions |
-| `CatBoostPUClassificationModel` | Positive-unlabeled learning with an explicit population prior |
+| `CatBoostPUClassificationModel` | Positive-unlabeled learning with an explicit population class prior |
 | `InflationAdjustedModel` | A regressor composed with an inflation strategy |
 
 ## Prepare real observations
@@ -244,7 +244,7 @@ values, which are preserved when the model is saved and reloaded. The latter
 is `None` when threshold tuning is skipped: an explicit threshold, no
 validation, soft validation labels, or PU training.
 Positive-unlabeled training uses `CatBoostPUClassificationModel` with an
-explicit population prior; see its constructor constraints below. For monetary
+explicit population class prior; see its constructor constraints below. For monetary
 targets across dates, follow the [inflation composition example](inflation.md).
 
 ## Log and reload for serving
@@ -412,7 +412,7 @@ Import the CatBoost adapters, `InflationAdjustedModel`, and `Model` from
         - log
         - threshold
         - pu_loss
-        - pu_prior
+        - class_prior
 
 ### Inflation and serving
 

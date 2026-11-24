@@ -338,10 +338,13 @@ class CatBoostAdapter(PythonModel, Generic[NativeT, StateT], metaclass=ABCMeta):
         self._retained_iterations = state.get("retained_iterations")
         self._restore_fitted_fields(state)
 
-    def load_context(self, context: Any) -> None:
-        state = cast(
+    def _read_state(self, context: Any) -> StateT:
+        return cast(
             StateT, read_state(context, type(self).__name__, self.baseline_mode)
         )
+
+    def load_context(self, context: Any) -> None:
+        state = self._read_state(context)
         self._restore_state(state, context.artifacts["model"])
         logger.debug("Loaded CatBoost model: %s", type(self).__name__)
 

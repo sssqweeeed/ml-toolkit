@@ -43,6 +43,22 @@ def test_frozen_model_predicts_stored_values(name, tmp_path):
     )
 
 
+@pytest.mark.parametrize(
+    "name, loss", [("catboost_pu_upu", "uPU"), ("catboost_pu_nnpu", "nnPU")]
+)
+def test_frozen_pu_state_version_1_maps_pu_prior_to_class_prior(name, loss, tmp_path):
+    shutil.copytree(FROZEN / name, tmp_path / name)
+    state = json.loads((tmp_path / name / "model/artifacts/config.json").read_text())
+    assert state["version"] == 1 and "pu_prior" in state
+    loaded = mlflow.pyfunc.load_model(
+        str(tmp_path / name / "model")
+    ).unwrap_python_model()
+    assert loaded.class_prior == 0.3
+    assert loaded.pu_loss == loss
+    # Training parameters are kept verbatim, so refitting fails loudly.
+    assert "pu_prior" in loaded.params
+
+
 def test_frozen_psi_baseline_compare_matches(tmp_path):
     shutil.copytree(FROZEN / "psi", tmp_path / "psi")
     root = tmp_path / "psi"

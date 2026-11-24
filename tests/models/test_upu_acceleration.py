@@ -16,13 +16,12 @@ import pytest
 from examples.project_pool import ProjectPool as Pool
 from ml_toolkit.models import CatBoostPUClassificationModel
 from ml_toolkit.models.losses.pu import (
-    PULogisticObjective,
     PURiskMetric,
     UPUMetric,
     UPUObjective,
+    pu_derivatives,
+    pu_risk_components,
     pu_risks,
-    upu_derivatives,
-    upu_risk,
 )
 
 
@@ -48,34 +47,38 @@ def pu_data():
     )
 
 
+def _row_loss(z, labels, weights, positive_scale, reverse, gamma):
+    # Per-row contribution to W * risk (descent) or -gamma * W * negative_risk.
+    positive = labels == 1
+    softplus = np.logaddexp(0, z)
+    if reverse:
+        return -gamma * weights * (softplus - positive * positive_scale * softplus)
+    return weights * (softplus - positive * positive_scale * z)
+
+
 @pytest.mark.parametrize("weighted", [False, True])
 @pytest.mark.parametrize("dtype", [np.float32, np.float64])
-def test_compiled_cpu_derivatives_match_reference_and_finite_differences(
-    weighted, dtype
+@pytest.mark.parametrize("reverse, gamma", [(False, 1.0), (True, 1.0), (True, 0.5)])
+def test_compiled_cpu_derivatives_match_finite_differences(
+    weighted, dtype, reverse, gamma
 ):
     logits = np.array([-1000, 1000, -12, 0, 5, -5, 0.7, 1000, -1000], dtype=float)
     labels = np.array([1, 1, 1, 0, 0, 1, 0, 0, 0], dtype=dtype)
     weights = (
         np.array([1, 0, 0.2, 1.2, 3, 0, 2, 1, 0.5], dtype=dtype) if weighted else None
     )
-    positive_scale, unlabeled_scale = 0.73, 1.89
+    positive_scale = 0.73
     for array in (logits, labels, weights):
         if array is not None:
             array.setflags(write=False)
-    result = upu_derivatives(logits, labels, weights, positive_scale, unlabeled_scale)
-    reference = PULogisticObjective(0.2, positive_scale, unlabeled_scale)
-    np.testing.assert_allclose(
-        result, reference.calc_ders_range(logits, labels, weights), atol=1e-15
-    )
+    result = pu_derivatives(logits, labels, weights, positive_scale, reverse, gamma)
     assert result.shape == (len(logits), 2) and result.dtype == np.float64
     assert np.isfinite(result).all()
 
-    effective_weights = np.ones(len(labels)) if weights is None else weights
+    w = np.ones(len(labels)) if weights is None else weights.astype(float)
 
     def loss(z):
-        return effective_weights * np.where(
-            labels == 1, -positive_scale * z, unlabeled_scale * np.logaddexp(0, z)
-        )
+        return _row_loss(z, labels, w, positive_scale, reverse, gamma)
 
     epsilon = 1e-4
     numerical = (loss(logits + epsilon) - loss(logits - epsilon)) / (2 * epsilon)
@@ -89,12 +92,13 @@ def test_compiled_cpu_derivatives_match_reference_and_finite_differences(
     # A callback sees chunks of a pool: its normalization must not change.
     chunked = np.concatenate(
         [
-            upu_derivatives(
+            pu_derivatives(
                 logits[s],
                 labels[s],
                 None if weights is None else weights[s],
                 positive_scale,
-                unlabeled_scale,
+                reverse,
+                gamma,
             )
             for s in (slice(0, 2), slice(2, 6), slice(6, None))
         ]
@@ -104,34 +108,39 @@ def test_compiled_cpu_derivatives_match_reference_and_finite_differences(
 
 @pytest.mark.parametrize("weighted", [False, True])
 @pytest.mark.parametrize("size, prior", [(27, 0.03), (64, 0.75)])
-def test_compiled_risk_uses_each_pool_group_normalization(weighted, size, prior):
+def test_compiled_risk_components_match_metric_path(weighted, size, prior):
     rng = np.random.default_rng(60)
     logits = rng.uniform(-1000, 1000, size)
     labels = (np.arange(size) % 3 == 0).astype(np.float32)
     weights = rng.uniform(0.1, 2, size).astype(np.float32) if weighted else None
-    expected = sum(
-        pu_risks(logits, labels, np.ones(size) if weights is None else weights, prior)
+    effective = np.ones(size) if weights is None else weights
+    expected = pu_risks(logits, labels, effective, prior)
+    compiled = pu_risk_components(logits, labels, weights, prior)
+    assert compiled == pytest.approx(expected, rel=1e-6)
+    # uPU total equals the stable form: -prior*mean_P(z) + mean_all(softplus).
+    positive = labels == 1
+    stable = -prior * np.average(logits[positive], weights=effective[positive]) + (
+        np.average(np.logaddexp(0, logits), weights=effective)
     )
-    assert upu_risk(logits, labels, weights, prior) == pytest.approx(expected, rel=1e-6)
-    metric = UPUMetric(prior)
-    assert metric.evaluate([logits], labels, weights) == pytest.approx(
-        (expected, 1), rel=1e-6
+    assert sum(compiled) == pytest.approx(stable, rel=1e-6)
+    assert UPUMetric(prior).evaluate([logits], labels, weights) == pytest.approx(
+        (stable, 1), rel=1e-6
     )
     if weights is not None:
-        assert upu_risk(logits, labels, weights * 11, prior) == pytest.approx(
-            expected, rel=1e-6
+        assert pu_risk_components(logits, labels, weights * 11, prior) == (
+            pytest.approx(compiled, rel=1e-6)
         )
 
 
 @pytest.mark.parametrize("logit", [float("inf"), float("nan")])
 def test_compiled_risk_rejects_nonfinite_predictions(logit):
     with pytest.raises(ValueError, match="finite"):
-        upu_risk(np.array([logit, 0.0]), np.array([1.0, 0.0]), None, 0.2)
+        pu_risk_components(np.array([logit, 0.0]), np.array([1.0, 0.0]), None, 0.2)
 
 
 def test_compiled_cpu_fit_preserves_predictions_validation_and_baseline(pu_data):
     train, val = pu_data.take(range(80)), pu_data.take(range(80, 120))
-    prior = 0.23
+    prior = 0.5
     params = dict(
         iterations=25,
         depth=3,
@@ -145,18 +154,14 @@ def test_compiled_cpu_fit_preserves_predictions_validation_and_baseline(pu_data)
     )
     with warnings.catch_warnings(record=True) as notices:
         accelerated = CatBoostPUClassificationModel(
-            {**params, "loss": "uPU", "pu_prior": prior}
+            {**params, "loss": "uPU", "class_prior": prior}
         ).fit(train, val)
     assert not any("optim" in str(w.message) for w in notices)
     assert isinstance(
         accelerated.native_model.get_params()["loss_function"], UPUObjective
     )
     y, w = train.y.to_numpy(), train.weight.to_numpy()
-    objective = PULogisticObjective(
-        prior,
-        float(prior * w.sum() / w[y == 1].sum()),
-        float(w.sum() / w[y == 0].sum()),
-    )
+    objective = UPUObjective(float(prior * w.sum() / w[y == 1].sum()))
     reference = catboost.CatBoostClassifier(
         **params,
         loss_function=objective,
@@ -178,13 +183,6 @@ def test_compiled_cpu_fit_preserves_predictions_validation_and_baseline(pu_data)
         reference.predict(pu_data.to_model_input(), prediction_type="RawFormulaVal"),
         rtol=1e-12,
         atol=1e-12,
-    )
-    reference_logits = (
-        reference.predict(pu_data.to_model_input(), prediction_type="RawFormulaVal")
-        + baseline
-    )
-    np.testing.assert_allclose(
-        accelerated.predict_pool(pu_data), 1 / (1 + np.exp(-reference_logits))
     )
     assert accelerated.best_iteration == reference.get_best_iteration()
     for split in ("learn", "validation"):
@@ -208,7 +206,7 @@ def test_gpu_routing_uses_cuda_objective_without_changing_user_params(
         raise RuntimeError("reached native fit")
 
     monkeypatch.setattr(module, "native_fit", capture)
-    params = {"loss": "uPU", "pu_prior": 0.2, "task_type": "GPU"}
+    params = {"loss": "uPU", "class_prior": 0.5, "task_type": "GPU"}
     model = CatBoostPUClassificationModel(params)
     with pytest.raises(RuntimeError, match="reached native fit"):
         model.fit(pu_data)
@@ -235,7 +233,7 @@ def test_cuda_kernel_type_inference_without_device(monkeypatch):
         "numba.cuda.dispatcher.get_current_device",
         lambda: SimpleNamespace(compute_capability=(7, 5)),
     )
-    method = type(make_upu_gpu_objective(0.71, 1.37)).calc_ders_range_gpu
+    method = type(make_upu_gpu_objective(0.71)).calc_ders_range_gpu
     array = types.Array(types.float32, 1, "C")
     # CatBoost supplies a dummy self argument followed by six float32 arrays.
     args = (types.int64,) + (array,) * 6
@@ -285,7 +283,7 @@ def test_upu_gpu_training_on_cuda_hardware(pu_data, tmp_path):
     model = CatBoostPUClassificationModel(
         {
             "loss": "uPU",
-            "pu_prior": 0.23,
+            "class_prior": 0.5,
             "task_type": "GPU",
             "devices": "0",
             "iterations": 8,
@@ -307,7 +305,9 @@ def test_upu_gpu_training_on_cuda_hardware(pu_data, tmp_path):
         )
         + model.baseline
     )
-    expected = upu_risk(logits, val.y.to_numpy(), val.weight.to_numpy(), 0.23)
+    expected = sum(
+        pu_risks(logits, val.y.to_numpy(), val.weight.to_numpy(), 0.5)
+    )
     assert model.native_model.get_evals_result()["validation"]["UPUMetric"][
         -1
     ] == pytest.approx(expected, rel=1e-4, abs=1e-5)

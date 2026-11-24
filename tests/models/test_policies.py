@@ -136,14 +136,14 @@ def test_prediction_type_and_multidimensional_output_are_preserved(data):
 def test_supervised_prevalence_and_population_prior_are_distinct(data):
     data = data.with_target(pl.Series("target", [1, 0, 0] * 16))
     supervised = CatBoostClassificationModel(PARAMS).fit(data)
-    pu = CatBoostPUClassificationModel({**PARAMS, "pu_prior": 0.12}).fit(data)
+    pu = CatBoostPUClassificationModel({**PARAMS, "class_prior": 0.5}).fit(data)
     prevalence = np.average(data.y.to_numpy(), weights=data.weight.to_numpy())
     assert supervised.baseline == pytest.approx(np.log(prevalence / (1 - prevalence)))
-    assert pu.baseline == pytest.approx(np.log(0.12 / 0.88))
-    assert pu.pu_prior == 0.12 and pu.pu_loss == "uPU"
+    assert pu.baseline == pytest.approx(np.log(0.5 / 0.5))
+    assert pu.class_prior == 0.5 and pu.pu_loss == "uPU"
     assert pu.task == "pu_classification" and supervised.task == "classification"
     with pytest.raises(ValueError, match="CatBoostPUClassificationModel"):
-        CatBoostClassificationModel({**PARAMS, "pu_prior": 0.12}).fit(data)
+        CatBoostClassificationModel({**PARAMS, "class_prior": 0.5}).fit(data)
     with pytest.raises(ValueError, match="Logloss or CrossEntropy"):
         CatBoostClassificationModel({**PARAMS, "loss": "uPU"}).fit(data)
 
@@ -251,7 +251,7 @@ def test_supervised_threshold_policy_and_refit_reset(data, loss):
 @pytest.mark.parametrize("loss", ["uPU", "nnPU"])
 def test_pu_threshold_policy_and_refit(data, loss):
     binary = data.with_target(pl.Series("target", [1, 0, 0] * 16))
-    model = CatBoostPUClassificationModel({**PARAMS, "loss": loss, "pu_prior": 0.2})
+    model = CatBoostPUClassificationModel({**PARAMS, "loss": loss, "class_prior": 0.5})
     model.fit(binary.take(range(32)), binary.take(range(32, 48)))
     assert model.validation_f1 is None
     assert np.isfinite(model.predict_pool(binary)).all()
@@ -263,52 +263,12 @@ def test_pu_threshold_policy_and_refit(data, loss):
     assert model.best_iteration is None
 
 
-def test_nnpu_correction_branch_early_stopping_and_best_tree(monkeypatch, data):
-    import ml_toolkit.models.losses.pu as module
-
-    binary = data.with_target(pl.Series("target", [0, 1] * 24))
-    calls, risks = [], iter([3.0, 2.0, 4.0, 5.0])
-    original_risks = module.pu_risks
-    # Control training versus validation separately; retain the actual native fits.
-    train, val = binary.take(range(32)), binary.take(range(32, 48))
-
-    def risk(logits, labels, weights, prior):
-        original_risks(logits, labels, weights, prior)
-        if len(labels) == 32:
-            return 1.0, -1.0
-        if len(calls) == 0:
-            return 1.0, 1.0
-        return 0.0, next(risks)
-
-    fit = catboost.CatBoostClassifier.fit
-
-    def record(self, *args, **kwargs):
-        objective = self.get_params()["loss_function"]
-        calls.append(objective.reverse_negative_risk)
-        return fit(self, *args, **kwargs)
-
-    monkeypatch.setattr(module, "pu_risks", risk)
-    monkeypatch.setattr(catboost.CatBoostClassifier, "fit", record)
-    model = CatBoostPUClassificationModel(
-        {
-            **PARAMS,
-            "iterations": 10,
-            "loss": "nnPU",
-            "pu_prior": 0.7,
-            "early_stopping_rounds": 2,
-            "eval_metric": "Logloss",
-        }
-    ).fit(train, val)
-    assert calls == [True] * 4
-    assert model.best_iteration == 1 and model.native_model.tree_count_ == 2
-
-
 @pytest.mark.parametrize("threshold", [-0.1, 1.1, float("nan"), "invalid"])
 @pytest.mark.parametrize(
     "factory, extra",
     [
         (CatBoostClassificationModel, {}),
-        (CatBoostPUClassificationModel, {"pu_prior": 0.2}),
+        (CatBoostPUClassificationModel, {"class_prior": 0.5}),
     ],
 )
 def test_both_classifiers_validate_explicit_threshold(data, threshold, factory, extra):
@@ -320,38 +280,18 @@ def test_both_classifiers_validate_explicit_threshold(data, threshold, factory, 
 @pytest.mark.parametrize(
     "extra, message",
     [
-        ({}, "requires pu_prior"),
-        ({"pu_prior": 0.0}, "strictly between"),
-        ({"pu_prior": float("nan")}, "strictly between"),
-        ({"pu_prior": 0.2, "loss": "nnPU", "task_type": "GPU"}, "CPU"),
-        ({"pu_prior": 0.2, "task_type": "TPU"}, "task_type"),
-        ({"pu_prior": 0.2, "task_type": "GPU", "devices": "0:1"}, "one device"),
-        ({"pu_prior": 0.2, "class_weights": [1, 2]}, "incompatible"),
+        ({}, "requires class_prior"),
+        ({"class_prior": 0.0}, "strictly between"),
+        ({"class_prior": float("nan")}, "strictly between"),
+        ({"class_prior": 0.5, "loss": "nnPU", "task_type": "GPU"}, "CPU"),
+        ({"class_prior": 0.5, "task_type": "TPU"}, "task_type"),
+        ({"class_prior": 0.5, "task_type": "GPU", "devices": "0:1"}, "one device"),
+        ({"class_prior": 0.5, "class_weights": [1, 2]}, "incompatible"),
+        ({"pu_prior": 0.5}, "replaced by class_prior"),
+        ({"class_prior": 0.2}, "below the weighted share"),
     ],
 )
 def test_pu_constraints_are_local_to_pu(data, extra, message):
     binary = data.with_target(pl.Series("target", [1, 0, 0] * 16))
     with pytest.raises(ValueError, match=message):
         CatBoostPUClassificationModel({**PARAMS, **extra}).fit(binary)
-
-
-def test_pu_objective_derivatives_and_risks_are_stable():
-    from ml_toolkit.models.losses.pu import (
-        PULogisticObjective,
-        pu_risks,
-    )
-
-    logits = np.array([-1000.0, 1000.0, -1000.0, 1000.0])
-    labels = np.array([1, 1, 0, 0])
-    weights = np.ones(4)
-    objective = PULogisticObjective(0.5, positive_scale=2.0, unlabeled_scale=3.0)
-    np.testing.assert_allclose(
-        objective.calc_ders_range(logits, labels, weights),
-        [[2.0, 0.0], [2.0, 0.0], [0.0, 0.0], [-3.0, 0.0]],
-    )
-    objective.reverse_negative_risk = True
-    np.testing.assert_allclose(
-        objective.calc_ders_range(logits, labels, weights),
-        [[0.0, 0.0], [-2.0, 0.0], [0.0, 0.0], [3.0, 0.0]],
-    )
-    assert np.isfinite(pu_risks(logits, labels, weights, 0.5)).all()

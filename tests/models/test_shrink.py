@@ -109,7 +109,7 @@ def test_fitted_prefix_matches_native_predictions_and_roundtrips(data, tmp_path,
             if kind == "classification"
             else CatBoostPUClassificationModel
         )
-        extras = {} if kind == "classification" else {"loss": kind, "pu_prior": 0.2}
+        extras = {} if kind == "classification" else {"loss": kind, "class_prior": 0.5}
         model = factory({**PARAMS, **extras, "decision_threshold": 0.4})
     else:
         factory = (

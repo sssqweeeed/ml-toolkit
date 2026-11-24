@@ -241,7 +241,7 @@ from ml_toolkit.metrics import PUMetric, positive_capture_curve
 
 pu_labels = np.array([1.0, 0.0, 1.0, 0.0])
 pu_probabilities = np.array([0.9, 0.8, 0.4, 0.2])
-pu_metric = PUMetric(prior=0.1, loss="nnPU")
+pu_metric = PUMetric(class_prior=0.1, loss="nnPU")
 pu_scores = pu_metric(pu_labels, pu_probabilities)
 pu_values = pu_scores.to_dict()
 print("Known-positive capture:", pu_values["known_positive_capture_at_10pct"])
@@ -267,8 +267,9 @@ With only two unlabeled rows, reaching the requested 10% requires flagging
 one whole row: actual capacity is 50%, and the same cutoff captures 50% of
 known positives. Always inspect actual flagged capacity alongside capture.
 
-Here `1` means known positive and `0` means unlabeled. The prior is population
-positive prevalence, not the labeled fraction; match it and the loss to the
+Here `1` means known positive and `0` means unlabeled. The `class_prior` is the population
+positive prevalence P(y=1) of the evaluated rows, not the labeled fraction (the
+whole sample is treated as the unlabeled sample); match it and the loss to the
 model's configuration. Both groups need positive total weight. `nnPU` clips
 estimated negative risk at zero when calculating total risk; `uPU` retains it.
 

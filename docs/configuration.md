@@ -19,7 +19,7 @@ tuning, reporting and model packaging without requiring that setup.
 | [Regression](#regression) | `CatBoostRegressionModel` | `metrics_regression` |
 | [Frequency](#frequency) | `CatBoostLogLinkRegressionModel` | `metrics_frequency` |
 | [Severity](#severity) | `CatBoostLogLinkRegressionModel` | Tweedie deviance with fixed power |
-| [Positive–unlabeled](#positiveunlabeled-classification) | `CatBoostPUClassificationModel` | `PUMetric` with a population prior |
+| [Positive–unlabeled](#positiveunlabeled-classification) | `CatBoostPUClassificationModel` | `PUMetric` with a population class prior |
 
 ## Prepare source data
 
@@ -226,10 +226,16 @@ data_analyzers = [NumericalFeatureDistributions()]
 ## Positive–unlabeled classification
 
 Use `1` for known positives and `0` for unlabeled observations. Both groups
-need positive weight in training and evaluated samples. `prior` is the positive
-fraction in the population, not the fraction of labeled rows. Supply a prepared
-project `Pool` and call `train_pu(data, prior=your_prior)` after setting up MLflow.
-The function uses the same prior in the model and metric.
+need positive weight in training and evaluated samples. The training pool is
+one sample of the population: rows labeled `1` are known positives, the
+remaining rows are unlabeled, and the whole pool (labeled rows included) is the
+unlabeled sample. `class_prior` is the positive prevalence P(y=1) in that
+population, not the labeled fraction, and never below it. Supply a prepared
+project `Pool` and call `train_pu(data, class_prior=your_prior)` after setting up
+MLflow. The function uses the same class prior in the model and metric.
+With `"loss": "nnPU"`, the optional `nnpu_beta` and `nnpu_gamma` control the
+non-negative correction (Kiryo et al., 2017); nnPU uses its own risk as
+`eval_metric` and requires `metric_period` 1.
 
 <!-- example: configuration-pu -->
 
@@ -238,12 +244,12 @@ from ml_toolkit import Pool, TrainingResult, train_model
 from ml_toolkit.reports import PUScoreDistribution, PUPositiveCapture
 
 
-def train_pu(data: Pool, *, prior: float) -> TrainingResult:
+def train_pu(data: Pool, *, class_prior: float) -> TrainingResult:
     return train_model(
         splitter=TimeSeriesCV(data, n_splits=3, test_size=0.2),
-        params={**base_params, "loss": "uPU", "pu_prior": prior},
+        params={**base_params, "loss": "uPU", "class_prior": class_prior},
         model_factory=CatBoostPUClassificationModel,
-        metric=PUMetric(prior, loss="uPU"),
+        metric=PUMetric(class_prior, loss="uPU"),
         run_name="project-pu",
         config=replace(base_config, reporting=common),
         prediction_evaluators=[PUScoreDistribution(), PUPositiveCapture()],
