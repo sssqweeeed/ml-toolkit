@@ -1,0 +1,2160 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Training, validation, metrics, diagnostics, and MLflow for Python ML projects.">
+      
+      
+      
+        <link rel="canonical" href="https://sssqweeeed.github.io/ml-toolkit/7.0.0/migration-7/">
+      
+      
+        <link rel="prev" href="../api/configuration/">
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Migrating to 7.0 - ml-toolkit</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#migrating-to-70" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="ml-toolkit" class="md-header__button md-logo" aria-label="ml-toolkit" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            ml-toolkit
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Migrating to 7.0
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/sssqweeeed/ml-toolkit" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    sssqweeeed/ml-toolkit
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="ml-toolkit" class="md-nav__button md-logo" aria-label="ml-toolkit" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    ml-toolkit
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/sssqweeeed/ml-toolkit" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    sssqweeeed/ml-toolkit
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Task recipes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/data/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Training
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Training
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/training/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Workflow and results
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/splitting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data splitting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/feature-selection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Feature selection
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/tuning/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Parameter tuning
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Models
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Models
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/models/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Built-in adapters
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/custom-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Build a model adapter
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/inflation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Inflation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Evaluation
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Evaluation
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../evaluation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../evaluation/model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Model shrink curves
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../evaluation/permutation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Permutation importance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../evaluation/robustness/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Input robustness
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../evaluation/metric-trend/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Metrics over time
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../evaluation/residuals/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Residuals and large errors
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../evaluation/classification/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Classification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../evaluation/observed-fitted/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Observed versus fitted
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../evaluation/ranking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ranking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../evaluation/pu/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Positive-unlabeled
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../evaluation/explainability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Feature importance and SHAP
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../evaluation/custom/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Build an evaluator
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data analysis
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Data analysis
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../data-analysis/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../data-analysis/distributions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Numerical distributions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/psi/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PSI and feature levels
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../data-analysis/custom/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Build a data analyzer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/metrics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Metrics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/tracking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tracking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Migrating to 7.0
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Migrating to 7.0
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#moved-imports" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Moved imports
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#packaging-entrypoints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Packaging entrypoints
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#internal-checks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Internal checks
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#models-phase-2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Models (phase 2)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reports-phase-3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reports (phase 3)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#feature-selection-phase-5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Feature selection (phase 5)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#behaviour-changes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Behaviour changes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#psi-and-feature-levels-phase-4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PSI and feature levels (phase 4)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#training-workflow-phase-6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Training workflow (phase 6)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#positive-unlabeled-learning" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Positive-unlabeled learning
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#moved-imports" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Moved imports
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#packaging-entrypoints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Packaging entrypoints
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#internal-checks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Internal checks
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#models-phase-2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Models (phase 2)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reports-phase-3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reports (phase 3)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#feature-selection-phase-5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Feature selection (phase 5)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#behaviour-changes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Behaviour changes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#psi-and-feature-levels-phase-4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PSI and feature levels (phase 4)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#training-workflow-phase-6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Training workflow (phase 6)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#positive-unlabeled-learning" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Positive-unlabeled learning
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="migrating-to-70">Migrating to 7.0<a class="headerlink" href="#migrating-to-70" title="Permanent link">&para;</a></h1>
+<p>Version 7.0 reorganizes the package so that every concept has one home. Mostly
+import paths change; the few behaviour changes are listed under "Behaviour
+changes" (and per phase below). Persisted classification model state is now version 2 (see
+"Positive-unlabeled learning"); everything else saved by 6.x is unchanged.
+Models and PSI baselines logged by 6.x keep loading. Old import paths are removed without compatibility aliases.</p>
+<h2 id="moved-imports">Moved imports<a class="headerlink" href="#moved-imports" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Old import</th>
+<th>New import</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ml_toolkit.config.FigureConfig</code></td>
+<td><code>ml_toolkit.figures.FigureConfig</code></td>
+</tr>
+<tr>
+<td><code>ml_toolkit.plots.utils.PlotError</code>, <code>save_figure</code>, <code>numeric_vector</code>, <code>same_length</code>, <code>weights</code>, <code>feature_filename</code></td>
+<td><code>ml_toolkit.figures</code></td>
+</tr>
+<tr>
+<td><code>ml_toolkit.config.TrackingConfig</code></td>
+<td><code>ml_toolkit.models.TrackingConfig</code></td>
+</tr>
+<tr>
+<td><code>ml_toolkit.training.TrackingConfig</code></td>
+<td><code>ml_toolkit.models.TrackingConfig</code></td>
+</tr>
+<tr>
+<td><code>ml_toolkit.training.FigureConfig</code></td>
+<td><code>ml_toolkit.figures.FigureConfig</code></td>
+</tr>
+<tr>
+<td><code>ml_toolkit.training.FeatureRanker</code></td>
+<td><code>ml_toolkit.feature_selection.FeatureRanker</code></td>
+</tr>
+<tr>
+<td><code>ml_toolkit.training.Pool</code></td>
+<td><code>ml_toolkit.Pool</code> or <code>ml_toolkit.data.Pool</code></td>
+</tr>
+<tr>
+<td><code>ml_toolkit.training.contracts.DatasetSplit</code></td>
+<td><code>ml_toolkit.training.DatasetSplit</code></td>
+</tr>
+<tr>
+<td><code>ml_toolkit.training.contracts.Pool</code></td>
+<td><code>ml_toolkit.Pool</code> or <code>ml_toolkit.data.Pool</code></td>
+</tr>
+<tr>
+<td><code>ml_toolkit.training.evaluation.calculate_metrics</code></td>
+<td><code>ml_toolkit.metrics.calculate_metrics</code></td>
+</tr>
+<tr>
+<td><code>ml_toolkit.metrics._evaluation.validate_prediction</code></td>
+<td><code>ml_toolkit.data.validate_prediction</code></td>
+</tr>
+<tr>
+<td><code>ml_toolkit.data_analysis.validate_split</code></td>
+<td><code>ml_toolkit.data.validate_split_labels</code></td>
+</tr>
+<tr>
+<td><code>ml_toolkit.evaluation._inputs.combine_evaluation_pools</code></td>
+<td><code>ml_toolkit.data.concat_pools</code></td>
+</tr>
+<tr>
+<td><code>ml_toolkit._rows.row_indexer</code></td>
+<td><code>ml_toolkit.data.row_indexer</code></td>
+</tr>
+<tr>
+<td><code>ml_toolkit._model_input.categorical_frame</code></td>
+<td><code>ml_toolkit.data.categorical_frame</code></td>
+</tr>
+<tr>
+<td><code>ml_toolkit.tracking.state</code></td>
+<td><code>ml_toolkit.models.state</code></td>
+</tr>
+<tr>
+<td><code>ml_toolkit.tracking.model_artifacts</code></td>
+<td><code>ml_toolkit.models.artifacts</code></td>
+</tr>
+<tr>
+<td><code>ml_toolkit.tracking.mlflow.log_polars_table</code></td>
+<td><code>ml_toolkit.tracking.log_polars_table</code></td>
+</tr>
+<tr>
+<td><code>ml_toolkit.tracking.psi.load_psi_baseline</code></td>
+<td><code>ml_toolkit.psi.load_psi_baseline</code></td>
+</tr>
+<tr>
+<td><code>ml_toolkit.tracking.runs.run</code>, <code>log_json</code></td>
+<td><code>ml_toolkit.tracking.nested_run</code>, <code>log_json</code></td>
+</tr>
+<tr>
+<td><code>ml_toolkit.tracking.runs.log_params</code>, <code>log_metrics</code>, <code>log_artifact</code></td>
+<td>removed; call <code>mlflow</code> directly</td>
+</tr>
+<tr>
+<td><code>ml_toolkit.tracking.model_artifacts.merge_artifacts</code></td>
+<td><code>ml_toolkit.models.merge_artifacts</code></td>
+</tr>
+<tr>
+<td><code>ml_toolkit.training.contracts.TrainingStage</code></td>
+<td><code>ml_toolkit.training.results.TrainingStage</code></td>
+</tr>
+<tr>
+<td><code>ml_toolkit.tracking.entrypoints.*</code></td>
+<td>removed; see below</td>
+</tr>
+</tbody>
+</table>
+<h2 id="packaging-entrypoints">Packaging entrypoints<a class="headerlink" href="#packaging-entrypoints" title="Permanent link">&para;</a></h2>
+<p>MLflow models-from-code entrypoints are now generated when a model is logged,
+so <code>ml_toolkit.tracking.entrypoints</code> no longer exists. Artifacts written by
+earlier versions contain their own entrypoint file and load unchanged.</p>
+<p><code>log_model_from_code</code> (in <code>ml_toolkit.models.artifacts</code>) now takes <code>model_class</code>
+(and optionally <code>model_module</code>, default <code>ml_toolkit.models</code>) instead of
+<code>source</code>, the path of an entrypoint file. Only toolkit adapters exported from
+that module can be logged this way; other classes raise <code>ValueError</code>. Custom
+adapters package themselves, as in <code>examples/custom_model.py</code>.</p>
+<h2 id="internal-checks">Internal checks<a class="headerlink" href="#internal-checks" title="Permanent link">&para;</a></h2>
+<p><code>tests/test_architecture.py</code> enforces the layer order between modules.</p>
+<h2 id="models-phase-2">Models (phase 2)<a class="headerlink" href="#models-phase-2" title="Permanent link">&para;</a></h2>
+<p>Most of these are internal modules. The classes exported from
+<code>ml_toolkit.models</code> and the model-state schema are unchanged, except that two
+methods of the CatBoost adapters are no longer public.</p>
+<table>
+<thead>
+<tr>
+<th>Old import</th>
+<th>New import</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CatBoostRegressionModel.log_artifacts</code></td>
+<td>removed from the public API (now private); use <code>log</code></td>
+</tr>
+<tr>
+<td><code>CatBoostRegressionModel.restore_state</code></td>
+<td>removed from the public API (now private); load models through MLflow</td>
+</tr>
+<tr>
+<td><code>ml_toolkit.models._shrink.validate_size</code></td>
+<td><code>ml_toolkit.models.base.validate_size</code></td>
+</tr>
+<tr>
+<td><code>ml_toolkit.models.losses.gamma.config</code>, <code>.gamma.cpu</code></td>
+<td><code>ml_toolkit.models.losses.gamma</code></td>
+</tr>
+<tr>
+<td><code>ml_toolkit.models.losses.gamma.cuda</code></td>
+<td><code>ml_toolkit.models.losses.gamma_cuda</code></td>
+</tr>
+<tr>
+<td><code>ml_toolkit.models.losses.pu.common</code>, <code>.pu.cpu</code></td>
+<td><code>ml_toolkit.models.losses.pu</code></td>
+</tr>
+<tr>
+<td><code>ml_toolkit.models.losses.pu.cuda</code></td>
+<td><code>ml_toolkit.models.losses.pu_cuda</code></td>
+</tr>
+<tr>
+<td><code>ml_toolkit.models.losses.cuda</code></td>
+<td><code>ml_toolkit.models.losses._cuda</code> (private)</td>
+</tr>
+<tr>
+<td><code>UPUMetric</code>, <code>NNPUMetric</code> from <code>ml_toolkit.models.catboost_classification</code></td>
+<td><code>ml_toolkit.models.losses.pu</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="reports-phase-3">Reports (phase 3)<a class="headerlink" href="#reports-phase-3" title="Permanent link">&para;</a></h2>
+<p><code>ml_toolkit.evaluation</code>, <code>ml_toolkit.model_evaluation</code>, <code>ml_toolkit.data_analysis</code>
+and the report-related figure modules of <code>ml_toolkit.plots</code> are merged into
+<code>ml_toolkit.reports</code>. Each report module holds its computation, result types and
+figure functions. Importing a report class from its package keeps working:
+<code>from ml_toolkit.reports import PrecisionRecall</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Old import</th>
+<th>New import</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ml_toolkit.evaluation.*</code> (report classes, <code>PredictionEvaluator</code>, <code>ResidualResult</code>)</td>
+<td><code>ml_toolkit.reports</code></td>
+</tr>
+<tr>
+<td><code>ml_toolkit.evaluation.comparison_pair</code>, <code>validate_inputs</code></td>
+<td><code>ml_toolkit.reports.comparison_pair</code>, <code>validate_inputs</code></td>
+</tr>
+<tr>
+<td><code>ml_toolkit.evaluation._metrics.validate_report_metrics</code></td>
+<td><code>ml_toolkit.reports.validate_report_metrics</code></td>
+</tr>
+<tr>
+<td><code>ml_toolkit.evaluation.NumericalFeatureDistributions</code> (prediction-based adapter)</td>
+<td>removed; use <code>ml_toolkit.reports.NumericalFeatureDistributions</code> with <code>data_analyzers</code></td>
+</tr>
+<tr>
+<td><code>ml_toolkit.model_evaluation.*</code></td>
+<td><code>ml_toolkit.reports</code></td>
+</tr>
+<tr>
+<td><code>ml_toolkit.data_analysis.*</code>, <code>data_comparison_pair</code></td>
+<td><code>ml_toolkit.reports</code></td>
+</tr>
+<tr>
+<td><code>ml_toolkit._grouping</code> (<code>row_groups</code>, <code>RowGroup</code>, <code>validate_grouping</code>)</td>
+<td><code>ml_toolkit.reports.grouped</code></td>
+</tr>
+<tr>
+<td><code>ml_toolkit.plots.classification</code></td>
+<td><code>ml_toolkit.reports.classification</code></td>
+</tr>
+<tr>
+<td><code>ml_toolkit.plots.ranking</code></td>
+<td><code>ml_toolkit.reports.ranking</code></td>
+</tr>
+<tr>
+<td><code>ml_toolkit.plots.pu</code></td>
+<td><code>ml_toolkit.reports.pu</code></td>
+</tr>
+<tr>
+<td><code>ml_toolkit.plots.regression</code></td>
+<td><code>ml_toolkit.reports.regression</code></td>
+</tr>
+<tr>
+<td><code>ml_toolkit.plots.residuals</code></td>
+<td><code>ml_toolkit.reports.residuals</code></td>
+</tr>
+<tr>
+<td><code>ml_toolkit.plots.metric_trend</code></td>
+<td><code>ml_toolkit.reports.metric_trend</code></td>
+</tr>
+<tr>
+<td><code>ml_toolkit.plots.permutation_importance</code></td>
+<td><code>ml_toolkit.reports.permutation</code></td>
+</tr>
+<tr>
+<td><code>ml_toolkit.plots.robustness</code></td>
+<td><code>ml_toolkit.reports.robustness</code></td>
+</tr>
+<tr>
+<td><code>ml_toolkit.plots.model_evaluation.shrink_curve</code></td>
+<td><code>ml_toolkit.reports.shrink.shrink_curve</code></td>
+</tr>
+<tr>
+<td><code>ml_toolkit.plots.monitoring.time_feature_distribution</code>, <code>validate_distribution</code></td>
+<td><code>ml_toolkit.reports.distributions</code></td>
+</tr>
+<tr>
+<td><code>ml_toolkit.plots.explainability</code></td>
+<td><code>ml_toolkit.explainability</code></td>
+</tr>
+<tr>
+<td><code>ml_toolkit.config.ShapConfig</code>, <code>ml_toolkit.training.ShapConfig</code></td>
+<td><code>ml_toolkit.explainability.ShapConfig</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>ml_toolkit.plots</code> is removed; every figure function lives next to its concept.
+Computation that used to sit inside figure functions is available
+without matplotlib: <code>classification.precision_recall_summary</code>,
+<code>classification.calibration_bins</code>, <code>regression.level_observed_fitted</code>,
+<code>regression.time_summary</code> and <code>distributions.distribution_summary</code>.
+<code>metrics.classification.average_precision</code> is the single average-precision
+implementation; the precision-recall figure reuses it.</p>
+<h2 id="feature-selection-phase-5">Feature selection (phase 5)<a class="headerlink" href="#feature-selection-phase-5" title="Permanent link">&para;</a></h2>
+<p><code>ml_toolkit.feature_selection</code> is now a package. Its public names are
+exported from <code>ml_toolkit.feature_selection</code> itself.</p>
+<table>
+<thead>
+<tr>
+<th>Old import</th>
+<th>New import</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ml_toolkit.training.importance_ranker</code></td>
+<td><code>ml_toolkit.feature_selection.importance_ranker</code></td>
+</tr>
+<tr>
+<td><code>ml_toolkit.training.ShapRanker</code></td>
+<td><code>ml_toolkit.feature_selection.ShapRanker</code></td>
+</tr>
+<tr>
+<td><code>ml_toolkit.training.rankers</code></td>
+<td><code>ml_toolkit.feature_selection</code></td>
+</tr>
+<tr>
+<td><code>ml_toolkit.plots.feature_selection.*</code> (<code>rfe_progress</code>, <code>top_k_ranking</code>, <code>forward_progress</code>, <code>forward_improvement</code>, <code>best_iteration_progress</code>)</td>
+<td><code>ml_toolkit.feature_selection.figures</code></td>
+</tr>
+<tr>
+<td><code>ml_toolkit.feature_selection.SelectionSettings</code> (a <code>dict</code>)</td>
+<td><code>ml_toolkit.feature_selection.SelectionSettings</code>, a union of <code>RFESettings</code>, <code>TopKSettings</code>, <code>ForwardSettings</code> and <code>CustomSelectionSettings</code></td>
+</tr>
+</tbody>
+</table>
+<p>Custom selectors return <code>CustomSelectionSettings("name", {"key": value})</code>
+instead of <code>{"selector": "name", "key": value}</code>. <code>FeatureSelectionResult.settings</code>
+defaults to <code>None</code> instead of <code>{}</code>.</p>
+<h2 id="behaviour-changes">Behaviour changes<a class="headerlink" href="#behaviour-changes" title="Permanent link">&para;</a></h2>
+<ul>
+<li><code>FeatureSelectionResult.settings</code> is a typed dataclass: use attribute access
+  (<code>result.settings.k</code>, <code>result.settings.evaluator</code>) instead of dictionary
+  access. <code>evaluator</code> is <code>None</code> when unset. <code>selection/history.json</code> is
+  unchanged; <code>FeatureSelectionResult.to_dict()</code> is the only way to build the
+  logged payload (<code>dataclasses.asdict</code> nests <code>details</code> and keeps
+  <code>evaluator: null</code>). Settings reject negative or non-finite numeric fields,
+  and <code>CustomSelectionSettings</code> rejects the built-in selector names and a
+  <code>selector</code> key in <code>details</code>.</li>
+<li><code>GroupedMetrics</code> now reports a metric callback that returns no scores or
+  empty names as <code>Metric must return nonempty named scores</code> (previously
+  <code>Grouped metric must return at least one named score</code> or <code>Grouped metric
+  names must be nonempty strings</code>), the same message <code>MetricTrend</code> and
+  <code>ShrinkCurve</code> use.</li>
+<li><code>classification.calibration</code> reports a nonpositive <code>histogram_bins</code> as
+  <code>histogram_bins must be positive</code>; a nonpositive <code>n_bins</code> is rejected by
+  <code>classification.calibration_bins</code> as <code>n_bins must be positive</code> (previously
+  both gave <code>bin counts must be positive</code>).</li>
+</ul>
+<h2 id="psi-and-feature-levels-phase-4">PSI and feature levels (phase 4)<a class="headerlink" href="#psi-and-feature-levels-phase-4" title="Permanent link">&para;</a></h2>
+<p><code>ml_toolkit.feature_levels</code> is a single module and the <code>ml_toolkit.psi</code>
+submodules are merged. Names exported from <code>ml_toolkit.psi</code> and
+<code>ml_toolkit.feature_levels</code> keep their import paths. PSI numbers, saved
+baselines and <code>LevelTransformer</code> state are unchanged.</p>
+<table>
+<thead>
+<tr>
+<th>Old import</th>
+<th>New import</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ml_toolkit.feature_levels.config.*</code> (<code>FeatureLevelConfig</code>, <code>FeatureLevels</code>, <code>NULL_LEVEL</code>, ..., <code>feature_definitions</code>, <code>validate_features</code>)</td>
+<td><code>ml_toolkit.feature_levels</code></td>
+</tr>
+<tr>
+<td><code>ml_toolkit.feature_levels.levels.LevelTransformer</code></td>
+<td><code>ml_toolkit.feature_levels.LevelTransformer</code></td>
+</tr>
+<tr>
+<td><code>ml_toolkit.feature_levels._serialization.encode_scalar</code>, <code>decode_scalar</code>, <code>mapping</code></td>
+<td><code>ml_toolkit.feature_levels.encode_feature_scalar</code>, <code>decode_feature_scalar</code>, <code>json_object</code></td>
+</tr>
+<tr>
+<td><code>ml_toolkit.psi.config.PSIConfig</code>, <code>ml_toolkit.psi.results.PSIResult</code></td>
+<td><code>ml_toolkit.psi.PSIConfig</code>, <code>ml_toolkit.psi.PSIResult</code></td>
+</tr>
+<tr>
+<td><code>ml_toolkit.psi.distributions.*</code></td>
+<td><code>ml_toolkit.psi.analysis</code></td>
+</tr>
+<tr>
+<td><code>ml_toolkit.tracking.load_psi_baseline</code></td>
+<td><code>ml_toolkit.psi.load_psi_baseline</code></td>
+</tr>
+<tr>
+<td><code>ml_toolkit.plots.psi</code></td>
+<td><code>ml_toolkit.psi.figures</code></td>
+</tr>
+<tr>
+<td><code>ml_toolkit.training.psi.prepare_psi_baseline</code>, <code>log_model_with_baseline</code></td>
+<td><code>ml_toolkit.training.reporting</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="training-workflow-phase-6">Training workflow (phase 6)<a class="headerlink" href="#training-workflow-phase-6" title="Permanent link">&para;</a></h2>
+<p><code>train_model</code> is split into named internal steps; training results, logged
+MLflow parameters, metrics and artifacts, and console output are unchanged.
+Each public name now has one import path.</p>
+<table>
+<thead>
+<tr>
+<th>Old import</th>
+<th>New import</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ml_toolkit.training.TuningConfig</code>, <code>TrainingConfig</code>, <code>ReportingConfig</code></td>
+<td><code>ml_toolkit.config</code></td>
+</tr>
+<tr>
+<td><code>ml_toolkit.training.FeatureLevelConfig</code>, <code>ml_toolkit.config.FeatureLevelConfig</code></td>
+<td><code>ml_toolkit.feature_levels.FeatureLevelConfig</code></td>
+</tr>
+<tr>
+<td><code>ml_toolkit.config.TimePeriod</code></td>
+<td><code>ml_toolkit.types.TimePeriod</code></td>
+</tr>
+<tr>
+<td><code>ml_toolkit.data.validate_auxiliary_pair(left, right)</code></td>
+<td><code>ml_toolkit.data.validate_compatible_pools(left, right, context=...)</code></td>
+</tr>
+</tbody>
+</table>
+<p>Behaviour changes:</p>
+<ul>
+<li>One check, <code>validate_compatible_pools</code>, compares feature schemas (names,
+  order and dtypes), categorical and numerical feature declarations and
+  auxiliary schemas. <code>Split</code>, <code>concat_pools</code>, validation fits, feature
+  selection and the <code>fit_on_test</code> final fit all use it, so the messages now read
+  <code>&lt;subject&gt; must have matching features and metadata</code> (for example <code>Split
+  pools</code>, <code>Reporting pools</code>, <code>Train and validation pools</code>, <code>Final-fit data</code>)
+  or <code>... must have matching auxiliary feature schemas</code>; the feature check runs
+  first, so a pair that differs in both reports the feature message. Feature selection and
+  validation fits previously compared column names only; they now also reject
+  differing dtypes or feature declarations between train and validation.</li>
+</ul>
+<h2 id="positive-unlabeled-learning">Positive-unlabeled learning<a class="headerlink" href="#positive-unlabeled-learning" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Old</th>
+<th>New</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>params["pu_prior"]</code></td>
+<td><code>params["class_prior"]</code></td>
+</tr>
+<tr>
+<td><code>PUMetric(prior=...)</code></td>
+<td><code>PUMetric(class_prior=...)</code></td>
+</tr>
+<tr>
+<td><code>CatBoostPUClassificationModel.pu_prior</code></td>
+<td><code>CatBoostPUClassificationModel.class_prior</code></td>
+</tr>
+</tbody>
+</table>
+<p>Behaviour changes:</p>
+<ul>
+<li>The estimator now treats the whole training pool as the unlabeled sample of
+  the population; labeled rows are part of it. Results change. Values tuned for
+  the old estimator must be revisited: a value equal to the positive share among
+  unlabeled rows should now be replaced by the population prevalence P(y=1).
+  <code>PUMetric</code> uses the same definition.</li>
+<li><code>class_prior</code> must be at least the weighted share of known positives in the
+  training pool; smaller values raise <code>ValueError</code>.</li>
+<li>nnPU trains in a single CatBoost fit instead of one fit per tree. The branch
+  decision still follows Kiryo et al. (2017), Algorithm 1, on the full training
+  pool before every tree; the trees differ from 7.0 development builds only
+  because the estimator changed (see above). <code>eval_metric</code> must be nnPU (or
+  unset) and <code>metric_period</code> must be 1. Early stopping and best-iteration
+  selection are native CatBoost.</li>
+<li>New nnPU options <code>nnpu_beta</code> (default 0, at least 0) and <code>nnpu_gamma</code> (default
+  0.2, in (0, 1]); they are rejected for uPU. <code>class_prior</code>, <code>nnpu_beta</code> and
+  <code>nnpu_gamma</code> are rejected by <code>CatBoostClassificationModel</code>.</li>
+<li>Classification model state is version 2 and stores <code>class_prior</code>. Artifacts
+  written by 6.x keep loading (<code>pu_prior</code> is read as <code>class_prior</code>), but their
+  stored training parameters still contain <code>pu_prior</code>, so refitting such a model
+  requires renaming the parameter first.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["content.code.copy", "navigation.sections", "navigation.top", "search.highlight"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"alias": true, "default": "stable", "provider": "mike"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
